@@ -79,14 +79,46 @@ export async function approvePrescription(rxId: string): Promise<{ success: bool
   return handle(r) as Promise<{ success: boolean; status: string }>;
 }
 
-export async function flagPrescription(
+export type DiscrepancyType =
+  | "dose_error"
+  | "drug_drug_interaction"
+  | "missing_info"
+  | "suspected_forgery"
+  | "other";
+
+export interface FlagPayload {
+  status: "flagged";
+  discrepancy_type: DiscrepancyType;
+  notes: string;
+  notify_physician: boolean;
+}
+
+export interface PrescriptionPatchResponse {
+  success: boolean;
+  rxId: string;
+  status: string;
+  discrepancyType?: string | null;
+  notes?: string | null;
+  notifyPhysician?: boolean | null;
+}
+
+export async function patchPrescription(
   rxId: string,
-  reason: string,
-): Promise<{ success: boolean; status: string; reason: string }> {
-  const r = await fetch(`${API_BASE}/prescriptions/${encodeURIComponent(rxId)}/flag`, {
+  body: Partial<FlagPayload>,
+): Promise<PrescriptionPatchResponse> {
+  const r = await fetch(`${API_BASE}/prescriptions/${encodeURIComponent(rxId)}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify(body),
+  });
+  return handle(r) as Promise<PrescriptionPatchResponse>;
+}
+
+export async function notifyPhysician(rxId: string, message: string): Promise<{ success: boolean; delivered: boolean }> {
+  const r = await fetch(`${API_BASE}/notifications/physician`, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...authHeaders() },
-    body: JSON.stringify({ reason }),
+    body: JSON.stringify({ rxId, message }),
   });
-  return handle(r) as Promise<{ success: boolean; status: string; reason: string }>;
+  return handle(r) as Promise<{ success: boolean; delivered: boolean }>;
 }
