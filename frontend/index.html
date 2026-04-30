@@ -8,37 +8,37 @@
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      --bg0: #060F18;
-      --bg1: #0A1929;
-      --bg2: #0D2436;
-      --bg3: #112233;
-      --border: #1E3A50;
-      --border2: #162d42;
-      --blue: #1565C0;
-      --blue-h: #1976D2;
-      --sky: #4FC3F7;
-      --muted: #546E7A;
-      --muted2: #78909C;
-      --text: #e8edf2;
-      --green: #66BB6A;
-      --green-bg: #0D3323;
-      --green-border: #2E7D32;
-      --amber: #FFB74D;
-      --amber-bg: #2D1F00;
-      --red: #EF5350;
-      --red-bg: #3B0D0D;
-      --red-border: #B71C1C;
+      --bg0: #F1F5F9;
+      --bg1: #F8FAFC;
+      --bg2: #F3F4F6;
+      --bg3: #FFFFFF;
+      --border: #E5E7EB;
+      --border2: #F3F4F6;
+      --blue: #2563EB;
+      --blue-h: #1D4ED8;
+      --sky: #2563EB;
+      --muted: #6B7280;
+      --muted2: #4B5563;
+      --text: #111827;
+      --green: #16A34A;
+      --green-bg: #DCFCE7;
+      --green-border: #86EFAC;
+      --amber: #D97706;
+      --amber-bg: #FEF3C7;
+      --red: #DC2626;
+      --red-bg: #FEE2E2;
+      --red-border: #FCA5A5;
     }
 
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg2); color: var(--text); min-height: 100vh; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg1); color: var(--text); min-height: 100vh; }
 
     /* ── AUTH FLOW (centered cards) ── */
     #authFlow {
       display: flex; flex-direction: column; align-items: center;
-      padding: 40px 16px 80px; min-height: 100vh; background: var(--bg2);
+      padding: 40px 16px 80px; min-height: 100vh; background: var(--bg1);
     }
-    .auth-logo { font-size: 1.6rem; font-weight: 700; color: var(--sky); margin-bottom: 4px; }
-    .auth-logo span { color: #81D4FA; }
+    .auth-logo { font-size: 1.6rem; font-weight: 700; color: var(--blue); margin-bottom: 4px; }
+    .auth-logo span { color: var(--blue-h); }
     .auth-subtitle { font-size: 0.82rem; color: var(--muted); margin-bottom: 36px; }
 
     .steps { display: flex; width: 100%; max-width: 520px; margin-bottom: 24px; }
@@ -47,8 +47,8 @@
     .step.done   { border-bottom-color: var(--green-border); color: var(--green); }
     .step-num { font-size: 1rem; display: block; margin-bottom: 2px; }
 
-    .card { background: var(--bg3); border: 1px solid var(--border); border-radius: 12px; padding: 28px; width: 100%; max-width: 520px; margin-bottom: 16px; }
-    .card h2 { font-size: 0.95rem; font-weight: 600; color: #90CAF9; margin-bottom: 6px; display: flex; align-items: center; gap: 8px; }
+    .card { background: var(--bg3); border: 1px solid var(--border); border-radius: 12px; padding: 28px; width: 100%; max-width: 520px; margin-bottom: 16px; box-shadow: 0 1px 2px rgba(0,0,0,0.04); }
+    .card h2 { font-size: 0.95rem; font-weight: 600; color: var(--blue); margin-bottom: 6px; display: flex; align-items: center; gap: 8px; }
     .card .desc { font-size: 0.82rem; color: var(--muted); margin-bottom: 18px; line-height: 1.5; }
 
     label { display: block; font-size: 0.76rem; color: var(--muted); margin-bottom: 5px; margin-top: 14px; text-transform: uppercase; letter-spacing: 0.5px; }
@@ -59,40 +59,40 @@
     .auth-btn:disabled { background: var(--border); color: var(--muted); cursor: not-allowed; }
 
     .alert-msg { padding: 11px 14px; border-radius: 8px; font-size: 0.83rem; margin-top: 14px; line-height: 1.5; }
-    .alert-msg.success { background: var(--green-bg); border: 1px solid var(--green-border); color: #A5D6A7; }
-    .alert-msg.error   { background: var(--red-bg); border: 1px solid var(--red-border); color: #EF9A9A; }
-    .alert-msg.info    { background: #0D2F45; border: 1px solid #0277BD; color: #81D4FA; }
-    .alert-msg.warn    { background: var(--amber-bg); border: 1px solid #E65100; color: #FFCC80; }
+    .alert-msg.success { background: var(--green-bg); border: 1px solid var(--green-border); color: #166534; }
+    .alert-msg.error   { background: var(--red-bg); border: 1px solid var(--red-border); color: #991B1B; }
+    .alert-msg.info    { background: #DBEAFE; border: 1px solid #93C5FD; color: #1E40AF; }
+    .alert-msg.warn    { background: var(--amber-bg); border: 1px solid #FCD34D; color: #92400E; }
 
-    code { background: var(--bg0); padding: 2px 6px; border-radius: 4px; font-family: monospace; font-size: 0.85em; color: #80CBC4; }
+    code { background: var(--bg2); padding: 2px 6px; border-radius: 4px; font-family: monospace; font-size: 0.85em; color: #0F766E; }
 
     /* ── MAIN APP LAYOUT ── */
-    #appLayout { display: none; height: 100vh; overflow: hidden; background: var(--bg0); }
+    #appLayout { display: none; height: 100vh; overflow: hidden; background: var(--bg1); }
     #appLayout.show { display: flex; }
 
     /* Sidebar */
-    .sidebar { display: flex; flex-direction: column; width: 224px; flex-shrink: 0; background: var(--bg2); border-right: 1px solid var(--border); height: 100vh; }
+    .sidebar { display: flex; flex-direction: column; width: 224px; flex-shrink: 0; background: var(--bg3); border-right: 1px solid var(--border); height: 100vh; }
     .sidebar-logo { display: flex; align-items: center; gap: 8px; padding: 20px; border-bottom: 1px solid var(--border); }
     .sidebar-logo .icon { width: 32px; height: 32px; background: var(--blue); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 1rem; flex-shrink: 0; }
-    .sidebar-logo .name { font-weight: 700; font-size: 1rem; color: white; }
-    .sidebar-logo .name em { color: var(--sky); font-style: normal; }
+    .sidebar-logo .name { font-weight: 700; font-size: 1rem; color: var(--blue); }
+    .sidebar-logo .name em { color: var(--blue-h); font-style: normal; }
 
     nav { flex: 1; padding: 12px; }
     .nav-item { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 8px; font-size: 0.875rem; font-weight: 500; color: var(--muted2); cursor: pointer; transition: all 0.15s; margin-bottom: 2px; text-decoration: none; }
-    .nav-item:hover { color: white; background: var(--bg3); }
-    .nav-item.active { color: white; background: var(--blue); }
+    .nav-item:hover { color: var(--text); background: var(--bg2); }
+    .nav-item.active { color: var(--blue); background: #DBEAFE; }
     .nav-item svg { flex-shrink: 0; }
 
     .sidebar-user { padding: 12px; border-top: 1px solid var(--border); }
     .sidebar-user-info { padding: 8px 12px; margin-bottom: 4px; }
-    .sidebar-user-info .u-name { font-size: 0.8rem; font-weight: 600; color: white; }
+    .sidebar-user-info .u-name { font-size: 0.8rem; font-weight: 600; color: var(--text); }
     .sidebar-user-info .u-ph { font-size: 0.73rem; color: var(--muted); margin-top: 2px; }
     .sidebar-pill { display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px; border-radius: 20px; font-size: 0.7rem; font-weight: 600; margin-bottom: 8px; }
-    .sidebar-pill.connected { background: #1B5E20; color: #A5D6A7; }
-    .sidebar-pill.disconnected { background: var(--red-bg); color: #EF9A9A; }
+    .sidebar-pill.connected { background: var(--green-bg); color: #166534; }
+    .sidebar-pill.disconnected { background: var(--red-bg); color: #991B1B; }
     .sidebar-pill::before { content: '●'; font-size: 0.55rem; }
     .logout-btn { display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px 12px; border-radius: 8px; font-size: 0.875rem; color: var(--muted); background: none; border: none; cursor: pointer; transition: all 0.15s; }
-    .logout-btn:hover { color: white; background: var(--border2); }
+    .logout-btn:hover { color: var(--text); background: var(--bg2); }
 
     /* Main content */
     .main-content { flex: 1; overflow-y: auto; background: var(--bg1); }
@@ -104,147 +104,147 @@
 
     /* Dashboard */
     .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 32px; }
-    .stat-card { background: var(--bg3); border: 1px solid var(--border); border-radius: 16px; padding: 20px; }
+    .stat-card { background: var(--bg3); border: 1px solid var(--border); border-radius: 16px; padding: 20px; box-shadow: 0 1px 2px rgba(0,0,0,0.04); }
     .stat-icon { width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center; margin-bottom: 12px; }
-    .stat-val { font-size: 1.75rem; font-weight: 700; color: white; margin-bottom: 2px; }
-    .stat-label { font-size: 0.75rem; font-weight: 600; color: white; margin-bottom: 2px; }
+    .stat-val { font-size: 1.75rem; font-weight: 700; color: var(--text); margin-bottom: 2px; }
+    .stat-label { font-size: 0.75rem; font-weight: 600; color: var(--text); margin-bottom: 2px; }
     .stat-delta { font-size: 0.72rem; color: var(--muted); }
 
-    .section-title { font-size: 0.95rem; font-weight: 600; color: white; margin-bottom: 16px; }
+    .section-title { font-size: 0.95rem; font-weight: 600; color: var(--text); margin-bottom: 16px; }
 
-    .search-box { background: var(--bg3); border: 1px solid var(--border); border-radius: 16px; padding: 24px; margin-bottom: 32px; }
+    .search-box { background: var(--bg3); border: 1px solid var(--border); border-radius: 16px; padding: 24px; margin-bottom: 32px; box-shadow: 0 1px 2px rgba(0,0,0,0.04); }
     .search-box p { font-size: 0.82rem; color: var(--muted); margin-bottom: 20px; }
     .search-row { display: flex; gap: 10px; }
     .search-input-wrap { position: relative; flex: 1; }
     .search-input-wrap svg { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); pointer-events: none; }
-    .search-input { padding: 12px 14px 12px 42px; background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; color: white; font-size: 0.875rem; outline: none; width: 100%; transition: border-color 0.2s; }
-    .search-input:focus { border-color: var(--sky); }
+    .search-input { padding: 12px 14px 12px 42px; background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; color: var(--text); font-size: 0.875rem; outline: none; width: 100%; transition: border-color 0.2s; }
+    .search-input:focus { border-color: var(--blue); }
     .btn-primary { padding: 12px 20px; background: var(--blue); border: none; border-radius: 10px; color: white; font-size: 0.875rem; font-weight: 600; cursor: pointer; transition: background 0.2s; display: flex; align-items: center; gap: 6px; white-space: nowrap; }
     .btn-primary:hover { background: var(--blue-h); }
     .btn-primary:disabled { background: var(--border); color: var(--muted); cursor: not-allowed; }
     .btn-secondary { padding: 12px 16px; background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; color: var(--muted2); font-size: 0.875rem; font-weight: 500; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; gap: 6px; white-space: nowrap; }
-    .btn-secondary:hover { background: var(--border2); color: white; }
+    .btn-secondary:hover { background: var(--border2); color: var(--text); }
     .search-hint { font-size: 0.73rem; color: var(--muted); margin-top: 10px; }
-    .search-error { margin-top: 10px; padding: 10px 14px; border-radius: 8px; font-size: 0.82rem; background: var(--red-bg); border: 1px solid var(--red-border); color: #EF9A9A; display: none; }
+    .search-error { margin-top: 10px; padding: 10px 14px; border-radius: 8px; font-size: 0.82rem; background: var(--red-bg); border: 1px solid var(--red-border); color: #991B1B; display: none; }
 
-    .recent-list { background: var(--bg3); border: 1px solid var(--border); border-radius: 16px; overflow: hidden; }
+    .recent-list { background: var(--bg3); border: 1px solid var(--border); border-radius: 16px; overflow: hidden; box-shadow: 0 1px 2px rgba(0,0,0,0.04); }
     .recent-item { display: flex; align-items: center; gap: 14px; padding: 16px 20px; cursor: pointer; transition: background 0.15s; border-bottom: 1px solid var(--border); }
     .recent-item:last-child { border-bottom: none; }
-    .recent-item:hover { background: var(--border2); }
+    .recent-item:hover { background: var(--bg1); }
     .recent-icon { width: 40px; height: 40px; background: var(--bg2); border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-    .recent-name { font-size: 0.875rem; font-weight: 500; color: white; }
+    .recent-name { font-size: 0.875rem; font-weight: 500; color: var(--text); }
     .recent-meta { font-size: 0.75rem; color: var(--muted); margin-top: 2px; }
     .badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 6px; font-size: 0.72rem; font-weight: 600; }
-    .badge.pending  { background: #2D1F00; color: var(--amber); }
-    .badge.executed { background: var(--green-bg); color: var(--green); }
-    .badge.cancelled { background: var(--red-bg); color: var(--red); }
-    .badge.alert-badge { background: var(--red-bg); color: #EF9A9A; }
+    .badge.pending  { background: var(--amber-bg); color: #92400E; }
+    .badge.executed { background: var(--green-bg); color: #166534; }
+    .badge.cancelled { background: var(--red-bg); color: #991B1B; }
+    .badge.alert-badge { background: var(--red-bg); color: var(--red); }
 
     /* ── PRESCRIPTION VIEW ── */
     .rx-header { display: flex; align-items: center; gap: 12px; margin-bottom: 28px; }
     .back-btn { width: 36px; height: 36px; background: var(--bg3); border: 1px solid var(--border); border-radius: 10px; display: flex; align-items: center; justify-content: center; cursor: pointer; color: var(--muted); transition: all 0.15s; flex-shrink: 0; }
-    .back-btn:hover { background: var(--border2); color: white; }
+    .back-btn:hover { background: var(--bg2); color: var(--text); }
 
-    .patient-banner { border-radius: 16px; padding: 20px 24px; margin-bottom: 20px; background: linear-gradient(135deg, #0D2B4A 0%, #0A1929 100%); border: 1px solid var(--border); display: flex; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
-    .patient-avatar { width: 52px; height: 52px; border-radius: 14px; background: #1565C040; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; font-weight: 700; color: var(--sky); flex-shrink: 0; }
+    .patient-banner { border-radius: 16px; padding: 20px 24px; margin-bottom: 20px; background: linear-gradient(135deg, #DBEAFE 0%, #EFF6FF 100%); border: 1px solid var(--border); display: flex; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
+    .patient-avatar { width: 52px; height: 52px; border-radius: 14px; background: #DBEAFE; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; font-weight: 700; color: var(--blue); flex-shrink: 0; }
     .patient-info { flex: 1; min-width: 200px; }
-    .patient-name { font-size: 1.1rem; font-weight: 700; color: white; }
+    .patient-name { font-size: 1.1rem; font-weight: 700; color: var(--text); }
     .patient-meta { font-size: 0.78rem; color: var(--muted); margin-top: 4px; display: flex; flex-wrap: wrap; gap: 10px; }
     .patient-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
     .tag { font-size: 0.7rem; padding: 3px 8px; border-radius: 6px; font-weight: 500; }
-    .tag.condition { background: #1565C020; color: var(--sky); border: 1px solid #1565C040; }
-    .tag.intolerance { background: var(--red-bg); color: #EF9A9A; border: 1px solid #B71C1C40; }
+    .tag.condition { background: #DBEAFE; color: #1E40AF; border: 1px solid #93C5FD; }
+    .tag.intolerance { background: var(--red-bg); color: #991B1B; border: 1px solid var(--red-border); }
 
     .rx-body { display: flex; gap: 20px; }
     .drugs-col { flex: 3; }
     .alerts-col { flex: 2; }
 
-    .panel { background: var(--bg3); border: 1px solid var(--border); border-radius: 16px; overflow: hidden; margin-bottom: 16px; }
+    .panel { background: var(--bg3); border: 1px solid var(--border); border-radius: 16px; overflow: hidden; margin-bottom: 16px; box-shadow: 0 1px 2px rgba(0,0,0,0.04); }
     .panel-header { padding: 14px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 8px; }
-    .panel-header span { font-size: 0.875rem; font-weight: 600; color: white; }
+    .panel-header span { font-size: 0.875rem; font-weight: 600; color: var(--text); }
 
     .drug-item { display: flex; align-items: flex-start; gap: 12px; padding: 16px 20px; border-bottom: 1px solid var(--border); }
     .drug-item:last-child { border-bottom: none; }
     .drug-icon { width: 36px; height: 36px; background: var(--bg2); border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 2px; }
-    .drug-name { font-size: 0.875rem; font-weight: 600; color: white; }
+    .drug-name { font-size: 0.875rem; font-weight: 600; color: var(--text); }
     .drug-generic { font-size: 0.75rem; color: var(--muted); margin-top: 2px; }
     .drug-meta { font-size: 0.72rem; color: var(--muted); margin-top: 4px; }
     .drug-badges { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
     .emvo-badge { display: inline-flex; align-items: center; gap: 3px; font-size: 0.7rem; padding: 2px 7px; border-radius: 5px; font-weight: 600; }
-    .emvo-badge.ok  { background: var(--green-bg); color: var(--green); }
-    .emvo-badge.err { background: var(--red-bg); color: #EF9A9A; }
+    .emvo-badge.ok  { background: var(--green-bg); color: #166534; }
+    .emvo-badge.err { background: var(--red-bg); color: #991B1B; }
     .drug-price { text-align: right; flex-shrink: 0; }
-    .drug-price .patient { font-size: 0.9rem; font-weight: 700; color: white; }
+    .drug-price .patient { font-size: 0.9rem; font-weight: 700; color: var(--text); }
     .drug-price .insurance { font-size: 0.73rem; color: var(--muted); margin-top: 2px; }
 
     /* Safety alerts */
     .alert-card { border-radius: 10px; overflow: hidden; margin-bottom: 10px; transition: all 0.2s; }
     .alert-card-head { display: flex; align-items: flex-start; gap: 10px; padding: 14px; cursor: pointer; }
     .alert-card-body { padding: 0 14px 14px; }
-    .alert-card-body p { font-size: 0.8rem; line-height: 1.6; color: #B0BEC5; margin-bottom: 10px; }
-    .alert-action-box { display: flex; gap: 8px; padding: 10px 12px; border-radius: 8px; background: var(--bg2); }
-    .alert-action-box p { font-size: 0.75rem; color: #90A4AE; margin: 0; }
+    .alert-card-body p { font-size: 0.8rem; line-height: 1.6; color: #374151; margin-bottom: 10px; }
+    .alert-action-box { display: flex; gap: 8px; padding: 10px 12px; border-radius: 8px; background: rgba(255,255,255,0.6); }
+    .alert-action-box p { font-size: 0.75rem; color: #4B5563; margin: 0; }
     .severity-label { font-size: 0.68rem; font-weight: 700; padding: 2px 7px; border-radius: 5px; }
 
     .override-form { margin-top: 10px; }
-    .override-form textarea { width: 100%; padding: 8px 10px; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: 0.8rem; outline: none; resize: vertical; min-height: 64px; transition: border-color 0.2s; }
-    .override-form textarea:focus { border-color: var(--sky); }
+    .override-form textarea { width: 100%; padding: 8px 10px; background: var(--bg3); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: 0.8rem; outline: none; resize: vertical; min-height: 64px; transition: border-color 0.2s; }
+    .override-form textarea:focus { border-color: var(--blue); }
     .override-form-btns { display: flex; gap: 8px; margin-top: 8px; }
     .btn-sm { padding: 7px 14px; border-radius: 7px; font-size: 0.8rem; font-weight: 600; cursor: pointer; border: none; transition: all 0.15s; }
-    .btn-sm.primary { background: var(--amber-bg); color: var(--amber); border: 1px solid #E6510040; }
-    .btn-sm.primary:hover { background: #3d2a00; }
-    .btn-sm.ghost { background: var(--bg2); color: var(--muted); border: 1px solid var(--border); }
-    .btn-sm.ghost:hover { color: white; background: var(--border2); }
-    .overridden-chip { display: inline-flex; align-items: center; gap: 4px; font-size: 0.7rem; padding: 2px 8px; border-radius: 5px; background: var(--border); color: var(--muted); font-weight: 600; margin-top: 4px; }
+    .btn-sm.primary { background: var(--amber-bg); color: #92400E; border: 1px solid #FCD34D; }
+    .btn-sm.primary:hover { background: #FDE68A; }
+    .btn-sm.ghost { background: var(--bg3); color: var(--muted); border: 1px solid var(--border); }
+    .btn-sm.ghost:hover { color: var(--text); background: var(--bg2); }
+    .overridden-chip { display: inline-flex; align-items: center; gap: 4px; font-size: 0.7rem; padding: 2px 8px; border-radius: 5px; background: var(--bg2); color: var(--muted); font-weight: 600; margin-top: 4px; }
 
     /* Cost summary */
     .cost-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 20px; border-bottom: 1px solid var(--border); }
     .cost-row:last-child { border-bottom: none; }
     .cost-row .label { font-size: 0.82rem; color: var(--muted); }
-    .cost-row .val { font-size: 0.9rem; font-weight: 600; color: white; }
+    .cost-row .val { font-size: 0.9rem; font-weight: 600; color: var(--text); }
     .cost-row .val.green { color: var(--green); }
-    .cost-total { display: flex; justify-content: space-between; align-items: center; padding: 14px 20px; background: #0D2F45; }
-    .cost-total .label { font-size: 0.875rem; font-weight: 600; color: white; }
-    .cost-total .val { font-size: 1.1rem; font-weight: 700; color: white; }
+    .cost-total { display: flex; justify-content: space-between; align-items: center; padding: 14px 20px; background: #DBEAFE; }
+    .cost-total .label { font-size: 0.875rem; font-weight: 600; color: var(--text); }
+    .cost-total .val { font-size: 1.1rem; font-weight: 700; color: var(--text); }
 
     .action-bar { margin-top: 20px; display: flex; gap: 12px; justify-content: flex-end; }
-    .btn-dispense { padding: 13px 28px; background: #0D6B3E; border: none; border-radius: 10px; color: white; font-size: 0.9rem; font-weight: 600; cursor: pointer; transition: background 0.2s; display: flex; align-items: center; gap: 8px; }
-    .btn-dispense:hover { background: #1a8a50; }
+    .btn-dispense { padding: 13px 28px; background: var(--green); border: none; border-radius: 10px; color: white; font-size: 0.9rem; font-weight: 600; cursor: pointer; transition: background 0.2s; display: flex; align-items: center; gap: 8px; }
+    .btn-dispense:hover { background: #15803D; }
     .btn-dispense:disabled { background: var(--border); color: var(--muted); cursor: not-allowed; }
     .blocked-note { font-size: 0.78rem; color: var(--red); display: flex; align-items: center; gap: 6px; }
 
     /* ── DISPENSE PAGE ── */
     .dispense-wrap { max-width: 640px; }
 
-    .confirm-patient { background: var(--bg3); border: 1px solid var(--border); border-radius: 14px; padding: 20px; margin-bottom: 16px; display: flex; align-items: center; gap: 12px; }
-    .confirm-avatar { width: 40px; height: 40px; border-radius: 10px; background: #1565C020; display: flex; align-items: center; justify-content: center; font-size: 0.85rem; font-weight: 700; color: var(--sky); flex-shrink: 0; }
-    .rx-barcode-chip { font-size: 0.72rem; padding: 4px 10px; background: #1565C020; color: var(--sky); border-radius: 7px; font-family: monospace; font-weight: 600; }
+    .confirm-patient { background: var(--bg3); border: 1px solid var(--border); border-radius: 14px; padding: 20px; margin-bottom: 16px; display: flex; align-items: center; gap: 12px; box-shadow: 0 1px 2px rgba(0,0,0,0.04); }
+    .confirm-avatar { width: 40px; height: 40px; border-radius: 10px; background: #DBEAFE; display: flex; align-items: center; justify-content: center; font-size: 0.85rem; font-weight: 700; color: var(--blue); flex-shrink: 0; }
+    .rx-barcode-chip { font-size: 0.72rem; padding: 4px 10px; background: #DBEAFE; color: var(--blue); border-radius: 7px; font-family: monospace; font-weight: 600; }
 
-    .confirm-drug-list { background: var(--bg3); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; margin-bottom: 16px; }
+    .confirm-drug-list { background: var(--bg3); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; margin-bottom: 16px; box-shadow: 0 1px 2px rgba(0,0,0,0.04); }
     .confirm-drug { display: flex; align-items: center; gap: 12px; padding: 14px 20px; border-bottom: 1px solid var(--border); }
     .confirm-drug:last-child { border-bottom: none; }
     .confirm-drug-icon { width: 34px; height: 34px; background: var(--bg2); border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
     .confirm-drug-info { flex: 1; }
-    .confirm-drug-name { font-size: 0.85rem; font-weight: 600; color: white; }
+    .confirm-drug-name { font-size: 0.85rem; font-weight: 600; color: var(--text); }
     .confirm-drug-meta { font-size: 0.73rem; color: var(--muted); margin-top: 2px; }
 
-    .confirm-cost { background: var(--bg3); border: 1px solid var(--border); border-radius: 14px; padding: 20px; margin-bottom: 24px; }
+    .confirm-cost { background: var(--bg3); border: 1px solid var(--border); border-radius: 14px; padding: 20px; margin-bottom: 24px; box-shadow: 0 1px 2px rgba(0,0,0,0.04); }
     .confirm-cost-row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--border); }
     .confirm-cost-row:last-child { border-bottom: none; padding-top: 12px; margin-top: 4px; }
     .confirm-cost-row .cl { font-size: 0.82rem; color: var(--muted); }
-    .confirm-cost-row .cv { font-size: 0.85rem; font-weight: 600; color: white; }
+    .confirm-cost-row .cv { font-size: 0.85rem; font-weight: 600; color: var(--text); }
     .confirm-cost-row .cv.green { color: var(--green); }
-    .confirm-cost-row.total .cl { font-size: 0.9rem; font-weight: 600; color: white; }
-    .confirm-cost-row.total .cv { font-size: 1.1rem; font-weight: 700; color: white; }
+    .confirm-cost-row.total .cl { font-size: 0.9rem; font-weight: 600; color: var(--text); }
+    .confirm-cost-row.total .cv { font-size: 1.1rem; font-weight: 700; color: var(--text); }
 
-    .active-alerts-warning { background: var(--amber-bg); border: 1px solid #FFB74D30; border-radius: 10px; padding: 14px; margin-bottom: 16px; }
-    .active-alerts-warning .aw-title { font-size: 0.8rem; font-weight: 600; color: var(--amber); margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
-    .active-alerts-warning .aw-item { font-size: 0.75rem; color: var(--muted2); margin: 3px 0; }
-    .active-alerts-warning .aw-blocker { font-size: 0.78rem; font-weight: 600; color: #EF9A9A; margin-top: 8px; }
+    .active-alerts-warning { background: var(--amber-bg); border: 1px solid #FCD34D; border-radius: 10px; padding: 14px; margin-bottom: 16px; }
+    .active-alerts-warning .aw-title { font-size: 0.8rem; font-weight: 600; color: #92400E; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+    .active-alerts-warning .aw-item { font-size: 0.75rem; color: #78350F; margin: 3px 0; }
+    .active-alerts-warning .aw-blocker { font-size: 0.78rem; font-weight: 600; color: var(--red); margin-top: 8px; }
 
     .dispense-actions { display: flex; gap: 10px; }
-    .btn-back { padding: 13px 20px; background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; color: var(--muted2); font-size: 0.875rem; font-weight: 500; cursor: pointer; transition: all 0.15s; }
-    .btn-back:hover { background: var(--border2); color: white; }
+    .btn-back { padding: 13px 20px; background: var(--bg3); border: 1px solid var(--border); border-radius: 10px; color: var(--muted2); font-size: 0.875rem; font-weight: 500; cursor: pointer; transition: all 0.15s; }
+    .btn-back:hover { background: var(--bg2); color: var(--text); }
 
     /* ── SUCCESS SCREEN ── */
     #successScreen { display: none; min-height: 100%; align-items: center; justify-content: center; padding: 32px; }
@@ -255,8 +255,8 @@
     .success-actions { display: flex; gap: 10px; margin-top: 24px; }
     .btn-home { flex: 1; padding: 13px; background: var(--blue); border: none; border-radius: 10px; color: white; font-size: 0.875rem; font-weight: 600; cursor: pointer; transition: background 0.2s; }
     .btn-home:hover { background: var(--blue-h); }
-    .btn-print { flex: 1; padding: 13px; background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; color: var(--muted2); font-size: 0.875rem; cursor: pointer; transition: all 0.15s; }
-    .btn-print:hover { background: var(--border2); color: white; }
+    .btn-print { flex: 1; padding: 13px; background: var(--bg3); border: 1px solid var(--border); border-radius: 10px; color: var(--muted2); font-size: 0.875rem; cursor: pointer; transition: all 0.15s; }
+    .btn-print:hover { background: var(--bg2); color: var(--text); }
 
     .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid transparent; border-top-color: white; border-radius: 50%; animation: spin 0.6s linear infinite; vertical-align: middle; }
     @keyframes spin { to { transform: rotate(360deg); } }
@@ -265,7 +265,7 @@
 
     /* Placeholder pages */
     .placeholder { padding: 40px; }
-    .placeholder h1 { font-size: 1.5rem; font-weight: 700; color: white; margin-bottom: 8px; }
+    .placeholder h1 { font-size: 1.5rem; font-weight: 700; color: var(--text); margin-bottom: 8px; }
     .placeholder p { color: var(--muted); font-size: 0.9rem; }
   </style>
 </head>
@@ -366,7 +366,7 @@
     <!-- DASHBOARD -->
     <div class="page active" id="page-dashboard">
       <div style="margin-bottom:28px;">
-        <h1 id="dashGreeting" style="font-size:1.4rem;font-weight:700;color:white;margin-bottom:4px;"></h1>
+        <h1 id="dashGreeting" style="font-size:1.4rem;font-weight:700;color:var(--text);margin-bottom:4px;"></h1>
         <p id="dashDate" style="font-size:0.82rem;color:var(--muted);"></p>
       </div>
 
@@ -440,7 +440,7 @@
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
         </div>
         <div>
-          <h1 style="font-size:1.2rem;font-weight:700;color:white;">Προβολή Συνταγής</h1>
+          <h1 style="font-size:1.2rem;font-weight:700;color:var(--text);">Προβολή Συνταγής</h1>
           <p style="font-size:0.78rem;color:var(--muted);" id="rxSubtitle"></p>
         </div>
       </div>
@@ -453,7 +453,7 @@
       <div id="successScreen">
         <div class="success-card">
           <div class="success-circle">✅</div>
-          <h2 style="font-size:1.4rem;font-weight:700;color:white;margin-bottom:6px;">Συνταγή Εκτελέσθη</h2>
+          <h2 style="font-size:1.4rem;font-weight:700;color:var(--text);margin-bottom:6px;">Συνταγή Εκτελέσθη</h2>
           <p style="color:var(--muted);font-size:0.875rem;">Η χορήγηση καταχωρήθηκε επιτυχώς στο σύστημα ΕΟΠΥΥ</p>
           <div class="success-id" id="executionIdText"></div>
           <div id="successDrugList" style="text-align:left;margin-top:16px;background:var(--bg3);border:1px solid var(--border);border-radius:14px;overflow:hidden;"></div>
@@ -809,7 +809,7 @@ function renderPrescriptionView() {
       </div>
       <div style="text-align:right;flex-shrink:0;">
         <div style="font-size:0.75rem;color:var(--muted);">Ιατρός</div>
-        <div style="font-size:0.82rem;font-weight:600;color:white;">${rx.doctor.name}</div>
+        <div style="font-size:0.82rem;font-weight:600;color:var(--text);">${rx.doctor.name}</div>
         <div style="font-size:0.72rem;color:var(--muted);">${rx.doctor.specialty}</div>
       </div>
     </div>
@@ -854,9 +854,9 @@ function renderAlertCards() {
   const container = document.getElementById('alertCards');
   if (!container) return;
   const cfgMap = {
-    HIGH:   { color:'#EF5350', bg:'#3B0D0D', border:'#B71C1C', label:'ΥΨΗΛΗ',  icon:'🛑' },
-    MEDIUM: { color:'#FFB74D', bg:'#2D1F00', border:'#E65100', label:'ΜΕΣΗ',   icon:'⚠️' },
-    LOW:    { color:'#66BB6A', bg:'#0D3323', border:'#2E7D32', label:'ΧΑΜΗΛΗ', icon:'ℹ️' },
+    HIGH:   { color:'#DC2626', bg:'#FEE2E2', border:'#FCA5A5', label:'ΥΨΗΛΗ',  icon:'🛑' },
+    MEDIUM: { color:'#D97706', bg:'#FEF3C7', border:'#FCD34D', label:'ΜΕΣΗ',   icon:'⚠️' },
+    LOW:    { color:'#16A34A', bg:'#DCFCE7', border:'#86EFAC', label:'ΧΑΜΗΛΗ', icon:'ℹ️' },
   };
   container.innerHTML = currentAlerts.map(alert => {
     const cfg = cfgMap[alert.severity];
@@ -870,7 +870,7 @@ function renderAlertCards() {
               <span class="severity-label" style="background:${cfg.color}25;color:${cfg.color};">${cfg.label}</span>
               ${overridden ? `<span class="overridden-chip">ΠΑΡΑΚΑΜΦΘΗΚΕ</span>` : ''}
             </div>
-            <div style="font-size:0.85rem;font-weight:600;color:white;">${alert.title}</div>
+            <div style="font-size:0.85rem;font-weight:600;color:var(--text);">${alert.title}</div>
             <div style="font-size:0.72rem;color:var(--muted);margin-top:2px;">${alert.drugs.join(' + ')}</div>
           </div>
           <span id="ac-chevron-${alert.id}" style="color:var(--muted);font-size:0.75rem;flex-shrink:0;">▼</span>
@@ -970,7 +970,7 @@ function renderDispensePage() {
           ? `<span class="emvo-badge ok">✓ EMVO</span>`
           : `<span class="emvo-badge err">⚠</span>`}
         <div style="text-align:right;">
-          <div style="font-size:0.85rem;font-weight:700;color:white;">€${d.patientCost.toFixed(2)}</div>
+          <div style="font-size:0.85rem;font-weight:700;color:var(--text);">€${d.patientCost.toFixed(2)}</div>
           <div style="font-size:0.7rem;color:var(--muted);">+€${d.insurancePrice.toFixed(2)} ΕΟΠΥΥ</div>
         </div>
       </div>
@@ -989,7 +989,7 @@ function renderDispensePage() {
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
         </div>
         <div>
-          <h1 style="font-size:1.2rem;font-weight:700;color:white;">Επιβεβαίωση Χορήγησης</h1>
+          <h1 style="font-size:1.2rem;font-weight:700;color:var(--text);">Επιβεβαίωση Χορήγησης</h1>
           <p style="font-size:0.78rem;color:var(--muted);">Ελέγξτε τα στοιχεία πριν την εκτέλεση</p>
         </div>
       </div>
@@ -997,7 +997,7 @@ function renderDispensePage() {
       <div class="confirm-patient">
         <div class="confirm-avatar">${initials}</div>
         <div style="flex:1;">
-          <div style="font-weight:600;color:white;">${patientName}</div>
+          <div style="font-weight:600;color:var(--text);">${patientName}</div>
           <div style="font-size:0.75rem;color:var(--muted);margin-top:3px;">ΑΜΚΑ ${pt.amka} · ${pt.age} ετών · ${pt.insurance.name}</div>
         </div>
         <span class="rx-barcode-chip">${rx.barcode}</span>
@@ -1014,7 +1014,7 @@ function renderDispensePage() {
       ${alertsWarningHtml}
 
       <div class="confirm-cost">
-        <div style="font-size:0.875rem;font-weight:600;color:white;margin-bottom:12px;display:flex;align-items:center;gap:6px;">
+        <div style="font-size:0.875rem;font-weight:600;color:var(--text);margin-bottom:12px;display:flex;align-items:center;gap:6px;">
           <span>€</span> Κόστος Χορήγησης
         </div>
         <div class="confirm-cost-row"><span class="cl">Κάλυψη ΕΟΠΥΥ</span><span class="cv green">€${totalInsurance.toFixed(2)}</span></div>
@@ -1055,7 +1055,7 @@ async function executeDispense() {
       </div>
       <div style="display:flex;align-items:center;gap:6px;">
         ${d.emvoVerified ? `<span class="emvo-badge ok">✓ EMVO</span>` : ''}
-        <span style="font-size:0.82rem;font-weight:600;color:white;">€${d.patientCost.toFixed(2)}</span>
+        <span style="font-size:0.82rem;font-weight:600;color:var(--text);">€${d.patientCost.toFixed(2)}</span>
       </div>
     </div>`).join('');
 
@@ -1064,14 +1064,14 @@ async function executeDispense() {
     <div style="padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;">
       <div style="width:36px;height:36px;background:var(--bg2);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:0.85rem;font-weight:700;color:var(--sky);">${pt.lastname[0]+pt.firstname[0]}</div>
       <div>
-        <div style="font-size:0.85rem;font-weight:600;color:white;">${patientName}</div>
+        <div style="font-size:0.85rem;font-weight:600;color:var(--text);">${patientName}</div>
         <div style="font-size:0.72rem;color:var(--muted);">ΑΜΚΑ ${pt.amka}</div>
       </div>
     </div>
     ${successDrugsHtml}
     <div style="padding:14px 16px;display:flex;justify-content:space-between;border-top:1px solid var(--border);">
       <span style="font-size:0.82rem;color:var(--muted);">Ασθενής πλήρωσε</span>
-      <span style="font-size:1rem;font-weight:700;color:white;">€${totalPatient.toFixed(2)}</span>
+      <span style="font-size:1rem;font-weight:700;color:var(--text);">€${totalPatient.toFixed(2)}</span>
     </div>
     <div style="padding:0 16px 14px;display:flex;justify-content:space-between;">
       <span style="font-size:0.75rem;color:var(--muted);">Κάλυψη ΕΟΠΥΥ</span>
