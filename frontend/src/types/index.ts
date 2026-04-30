@@ -43,6 +43,8 @@ export interface SafetyCheck {
   name: string;
   status: CheckStatus;
   message: string;
+  details?: string;
+  recommendedAction?: string | null;
 }
 
 export interface Prescription {

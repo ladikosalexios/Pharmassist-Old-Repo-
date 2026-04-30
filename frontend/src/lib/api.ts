@@ -1,4 +1,4 @@
-import type { Prescription } from "../types";
+import type { Prescription, SafetyCheck } from "../types";
 
 const API_BASE = (import.meta.env.VITE_API_BASE as string | undefined) ?? "";
 
@@ -49,6 +49,14 @@ export async function getPrescription(rxId: string): Promise<Prescription> {
     headers: authHeaders(),
   });
   return handle(r) as Promise<Prescription>;
+}
+
+export async function getSafetyChecks(rxId: string): Promise<SafetyCheck[]> {
+  const r = await fetch(`${API_BASE}/safety-checks/${encodeURIComponent(rxId)}`, {
+    headers: authHeaders(),
+  });
+  const data = (await handle(r)) as { rxId: string; checks: SafetyCheck[] };
+  return data.checks;
 }
 
 export async function approvePrescription(rxId: string): Promise<{ success: boolean; status: string }> {
