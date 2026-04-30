@@ -4,7 +4,9 @@ import {
   ChevronLeftIcon, PhoneIcon, FlagIcon, CheckIcon, AlertCircleIcon,
 } from "../components/Icons";
 import { SafetyChecksPanel } from "../components/SafetyChecksPanel";
-import { ApiError, getPrescription, approvePrescription, flagPrescription } from "../lib/api";
+import { FlagDiscrepancyModal } from "../components/FlagDiscrepancyModal";
+import { useToast } from "../components/Toast";
+import { ApiError, getPrescription, approvePrescription } from "../lib/api";
 import type { Prescription } from "../types";
 
 const STATUS_CHIP: Record<string, string> = {
@@ -16,13 +18,13 @@ const STATUS_CHIP: Record<string, string> = {
 export function PrescriptionVerification() {
   const { rxId = "" } = useParams<{ rxId: string }>();
   const navigate = useNavigate();
+  const { toast } = useToast();
   const [rx, setRx] = useState<Prescription | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [actionMsg, setActionMsg] = useState<{ kind: "ok" | "warn" | "err"; text: string } | null>(null);
-  const [busy, setBusy] = useState<"approve" | "flag" | null>(null);
-  const [showFlag, setShowFlag] = useState(false);
-  const [flagReason, setFlagReason] = useState("");
+  const [busy, setBusy] = useState<"approve" | null>(null);
+  const [flagOpen, setFlagOpen] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -46,27 +48,9 @@ export function PrescriptionVerification() {
     try {
       await approvePrescription(rx.rxId);
       setRx({ ...rx, status: "APPROVED" });
-      setActionMsg({ kind: "ok", text: "Prescription approved." });
+      toast(`Prescription ${rx.rxId} approved`, "success");
     } catch (e) {
       setActionMsg({ kind: "err", text: e instanceof ApiError ? e.message : "Approval failed." });
-    } finally {
-      setBusy(null);
-    }
-  }
-
-  async function onConfirmFlag() {
-    if (!rx || busy) return;
-    if (!flagReason.trim()) return;
-    setBusy("flag");
-    setActionMsg(null);
-    try {
-      await flagPrescription(rx.rxId, flagReason.trim());
-      setRx({ ...rx, status: "FLAGGED", flagReason: flagReason.trim() });
-      setShowFlag(false);
-      setFlagReason("");
-      setActionMsg({ kind: "warn", text: "Prescription flagged for review." });
-    } catch (e) {
-      setActionMsg({ kind: "err", text: e instanceof ApiError ? e.message : "Flagging failed." });
     } finally {
       setBusy(null);
     }
@@ -119,13 +103,29 @@ export function PrescriptionVerification() {
           <a href={`tel:${rx.prescriber.contact}`} className="btn btn-outline">
             <PhoneIcon /> Contact Prescriber
           </a>
-          <button type="button" onClick={() => setShowFlag(true)} className="btn btn-amber">
-            <FlagIcon /> Flag Discrepancy
-          </button>
+          {rx.status === "FLAGGED" ? (
+            <button
+              type="button"
+              disabled
+              aria-disabled="true"
+              className="btn cursor-not-allowed border border-red-300 bg-red-50 text-red-700"
+            >
+              <FlagIcon /> Flagged
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setFlagOpen(true)}
+              disabled={rx.status === "APPROVED"}
+              className="btn btn-amber disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              <FlagIcon /> Flag Discrepancy
+            </button>
+          )}
           <button
             type="button"
             onClick={onApprove}
-            disabled={busy !== null || rx.status === "APPROVED"}
+            disabled={busy !== null || rx.status === "APPROVED" || rx.status === "FLAGGED"}
             className="btn btn-success disabled:opacity-60 disabled:cursor-not-allowed"
           >
             {busy === "approve" ? <span className="spinner" /> : <CheckIcon />}
@@ -133,6 +133,13 @@ export function PrescriptionVerification() {
           </button>
         </div>
       </div>
+
+      <FlagDiscrepancyModal
+        rxId={rx.rxId}
+        open={flagOpen}
+        onClose={() => setFlagOpen(false)}
+        onFlagged={(status) => setRx((cur) => (cur ? { ...cur, status } : cur))}
+      />
 
       {actionMsg && (
         <div
@@ -143,32 +150,6 @@ export function PrescriptionVerification() {
           }`}
         >
           {actionMsg.text}
-        </div>
-      )}
-
-      {showFlag && (
-        <div className="mb-5 card p-5">
-          <div className="mb-2 text-sm font-semibold text-slate-900">Flag this prescription</div>
-          <p className="mb-3 text-xs text-slate-500">Describe the discrepancy. The prescriber will be notified.</p>
-          <textarea
-            value={flagReason}
-            onChange={(e) => setFlagReason(e.target.value)}
-            placeholder="e.g. Dose exceeds SPC recommendation; please clarify."
-            className="w-full min-h-[80px] resize-vertical rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-brand-600 focus:ring-2 focus:ring-brand-100"
-          />
-          <div className="mt-3 flex gap-2">
-            <button
-              type="button"
-              onClick={onConfirmFlag}
-              disabled={busy !== null || !flagReason.trim()}
-              className="btn btn-amber disabled:opacity-60 disabled:cursor-not-allowed"
-            >
-              {busy === "flag" ? <span className="spinner" /> : <FlagIcon />} Submit Flag
-            </button>
-            <button type="button" onClick={() => { setShowFlag(false); setFlagReason(""); }} className="btn btn-outline">
-              Cancel
-            </button>
-          </div>
         </div>
       )}
 

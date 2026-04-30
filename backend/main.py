@@ -595,8 +595,16 @@ async def get_prescription_for_verification(rx_id: str, current: dict = Depends(
     return rx
 
 
-class FlagBody(BaseModel):
-    reason: Optional[str] = None
+class PrescriptionPatch(BaseModel):
+    status: Optional[str] = None
+    discrepancy_type: Optional[str] = None
+    notes: Optional[str] = None
+    notify_physician: Optional[bool] = None
+
+
+class PhysicianNotification(BaseModel):
+    rxId: str
+    message: str
 
 
 @app.post("/prescriptions/{rx_id}/approve")
@@ -608,11 +616,49 @@ async def approve_prescription(rx_id: str, current: dict = Depends(get_current_u
     return {"success": True, "rxId": rx_id, "status": rx["status"]}
 
 
-@app.post("/prescriptions/{rx_id}/flag")
-async def flag_prescription(rx_id: str, body: FlagBody, current: dict = Depends(get_current_user)):
+@app.patch("/prescriptions/{rx_id}")
+async def patch_prescription(
+    rx_id: str,
+    patch: PrescriptionPatch,
+    current: dict = Depends(get_current_user),
+):
+    """Partial update for a prescription — used by the Flag Discrepancy modal."""
     rx = _MOCK_PRESCRIPTIONS.get(rx_id)
     if not rx:
         raise HTTPException(status_code=404, detail=f"Prescription {rx_id} not found")
-    rx["status"] = "FLAGGED"
-    rx["flagReason"] = body.reason or ""
-    return {"success": True, "rxId": rx_id, "status": rx["status"], "reason": rx["flagReason"]}
+    if patch.status is not None:
+        rx["status"] = patch.status.upper()
+    if patch.discrepancy_type is not None:
+        rx["discrepancyType"] = patch.discrepancy_type
+    if patch.notes is not None:
+        rx["flagNotes"] = patch.notes
+    if patch.notify_physician is not None:
+        rx["notifyPhysician"] = bool(patch.notify_physician)
+    return {
+        "success": True,
+        "rxId": rx_id,
+        "status": rx["status"],
+        "discrepancyType": rx.get("discrepancyType"),
+        "notes": rx.get("flagNotes"),
+        "notifyPhysician": rx.get("notifyPhysician"),
+    }
+
+
+# In-memory log of physician notifications (would be email/SMS/queue in prod)
+_PHYSICIAN_NOTIFICATIONS: list = []
+
+
+@app.post("/notifications/physician")
+async def notify_physician(
+    payload: PhysicianNotification,
+    current: dict = Depends(get_current_user),
+):
+    entry = {
+        "rxId": payload.rxId,
+        "message": payload.message,
+        "sentAt": datetime.now(timezone.utc).isoformat(),
+        "by": current["email"],
+    }
+    _PHYSICIAN_NOTIFICATIONS.append(entry)
+    print(f"[Notification] Physician for {payload.rxId}: {payload.message}")
+    return {"success": True, "delivered": True, **entry}
