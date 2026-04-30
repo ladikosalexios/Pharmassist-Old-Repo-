@@ -1,17 +1,11 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
-  ChevronLeftIcon, PhoneIcon, FlagIcon, CheckIcon, CheckCircleIcon,
-  AlertTriangleIcon, AlertOctagonIcon, AlertCircleIcon,
+  ChevronLeftIcon, PhoneIcon, FlagIcon, CheckIcon, AlertCircleIcon,
 } from "../components/Icons";
+import { SafetyChecksPanel } from "../components/SafetyChecksPanel";
 import { ApiError, getPrescription, approvePrescription, flagPrescription } from "../lib/api";
-import type { Prescription, SafetyCheck, CheckStatus } from "../types";
-
-const CHECK_TONE: Record<CheckStatus, { Icon: typeof CheckCircleIcon; iconClass: string; label: string; rowClass: string }> = {
-  ok:     { Icon: CheckCircleIcon,    iconClass: "text-emerald-600", label: "No issues detected", rowClass: "border-emerald-200 bg-emerald-50" },
-  review: { Icon: AlertTriangleIcon,  iconClass: "text-amber-600",   label: "Review required",    rowClass: "border-amber-200 bg-amber-50" },
-  block:  { Icon: AlertOctagonIcon,   iconClass: "text-red-600",     label: "Immediate action",   rowClass: "border-red-200 bg-red-50" },
-};
+import type { Prescription } from "../types";
 
 const STATUS_CHIP: Record<string, string> = {
   PENDING:  "bg-amber-100 text-amber-800",
@@ -189,7 +183,7 @@ export function PrescriptionVerification() {
         {/* Right sticky column */}
         <div className="space-y-6 lg:col-span-3">
           <div className="lg:sticky lg:top-6 space-y-6">
-            <SafetyChecksPanel checks={rx.safetyChecks} />
+            <SafetyChecksPanel rxId={rx.rxId} />
             <PrescriptionDetailsCard rx={rx} />
           </div>
         </div>
@@ -307,41 +301,6 @@ function SpcQuickReferenceCard({ rx }: { rx: Prescription }) {
         ))}
       </div>
     </Section>
-  );
-}
-
-function SafetyChecksPanel({ checks }: { checks: SafetyCheck[] }) {
-  return (
-    <section className="card overflow-hidden">
-      <header className="border-b border-slate-200 px-5 py-4">
-        <h2 className="text-base font-semibold text-slate-900">Automated Safety Checks</h2>
-        <p className="mt-0.5 text-xs text-slate-500">Real-time clinical decision support</p>
-      </header>
-      <ul className="divide-y divide-slate-100">
-        {checks.map((c) => {
-          const tone = CHECK_TONE[c.status];
-          return (
-            <li key={c.id} className={`flex items-start gap-3 px-5 py-4 ${tone.rowClass.replace("bg-", "")}`}>
-              <tone.Icon width={18} height={18} className={`mt-0.5 shrink-0 ${tone.iconClass}`} />
-              <div className="min-w-0 flex-1">
-                <div className="text-sm font-semibold text-slate-900">{c.name}</div>
-                <div className={`mt-0.5 text-xs font-medium ${tone.iconClass}`}>{tone.label}</div>
-                <p className="mt-1 text-[13px] text-slate-600">{c.message}</p>
-              </div>
-            </li>
-          );
-        })}
-      </ul>
-
-      <footer className="border-t border-slate-200 bg-slate-50 px-5 py-4">
-        <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Status Legend</div>
-        <ul className="space-y-1.5 text-xs text-slate-700">
-          <li className="flex items-center gap-2"><CheckCircleIcon width={14} height={14} className="text-emerald-600" /> Green circle — No issues detected</li>
-          <li className="flex items-center gap-2"><AlertTriangleIcon width={14} height={14} className="text-amber-600" /> Amber triangle — Review required</li>
-          <li className="flex items-center gap-2"><AlertOctagonIcon width={14} height={14} className="text-red-600" /> Red octagon — Immediate action</li>
-        </ul>
-      </footer>
-    </section>
   );
 }
 
