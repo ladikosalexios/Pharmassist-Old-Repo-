@@ -60,3 +60,6 @@ export const LogOutIcon = (p: SVGProps<SVGSVGElement>) => (
 export const AlertCircleIcon = (p: SVGProps<SVGSVGElement>) => (
   <svg {...base(p)}><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
 );
+export const PillIcon = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base(p)}><path d="M10.5 20.5a7 7 0 0 1-9.9-9.9l9.9-9.9a7 7 0 0 1 9.9 9.9l-9.9 9.9z"/><line x1="6.5" y1="6.5" x2="17.5" y2="17.5"/></svg>
+);

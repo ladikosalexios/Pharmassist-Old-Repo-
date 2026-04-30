@@ -69,3 +69,13 @@ export interface QueueItem {
   date: string;
   status: "PENDING" | "FLAGGED" | "APPROVED";
 }
+
+export type AlertType = "INTERACTION" | "G6PD" | "PREGNANCY" | "CONTRAINDICATION";
+
+export interface ActiveAlert {
+  id: string;
+  type: AlertType;
+  description: string;
+  rxId?: string | null;
+  createdAt: string;
+}

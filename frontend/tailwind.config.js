@@ -18,6 +18,20 @@ export default {
         card: "0 1px 2px rgba(15, 23, 42, 0.04)",
         cardLg: "0 4px 16px rgba(15, 23, 42, 0.06)",
       },
+      keyframes: {
+        "alert-in": {
+          "0%":   { opacity: "0", transform: "translateY(-4px)" },
+          "100%": { opacity: "1", transform: "translateY(0)" },
+        },
+        "pulse-red-border": {
+          "0%, 100%": { boxShadow: "0 0 0 0 rgba(220, 38, 38, 0.55)" },
+          "50%":      { boxShadow: "0 0 0 6px rgba(220, 38, 38, 0)" },
+        },
+      },
+      animation: {
+        "alert-in": "alert-in 0.25s ease-out",
+        "pulse-red-border": "pulse-red-border 1.8s ease-in-out infinite",
+      },
     },
   },
   plugins: [],

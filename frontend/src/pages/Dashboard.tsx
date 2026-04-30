@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
-import { ClockIcon, FlagIcon, CheckIcon, AlertCircleIcon, ChevronRightIcon, AlertTriangleIcon, ShieldIcon } from "../components/Icons";
+import { ClockIcon, FlagIcon, CheckIcon, AlertCircleIcon, ChevronRightIcon } from "../components/Icons";
+import { SafetyAlertsPanel } from "../components/SafetyAlertsPanel";
 import type { QueueItem } from "../types";
 
 const STATS = [
@@ -16,22 +17,10 @@ const QUEUE: QueueItem[] = [
   { rxId: "RX2024-005", patientName: "Maria Stavrou",  medication: "Warfarin",   physician: "Dr. Michael Chen",  date: "2026-04-28", status: "PENDING" },
 ];
 
-const ALERTS: { kind: "INTERACTION" | "G6PD" | "PREGNANCY"; title: string; body: string; rxId?: string }[] = [
-  { kind: "INTERACTION", title: "INTERACTION", body: "Warfarin + Aspirin: High risk of bleeding. Immediate review required.", rxId: "RX2024-005" },
-  { kind: "G6PD",        title: "G6PD",        body: "Patient P003 has G6PD deficiency. Verify medication safety." },
-  { kind: "PREGNANCY",   title: "PREGNANCY",   body: "Patient P001 is 18 weeks pregnant. Check teratogenicity." },
-];
-
 const STATUS_CHIP: Record<QueueItem["status"], string> = {
   PENDING:  "bg-amber-100 text-amber-800",
   FLAGGED:  "bg-red-100 text-red-800",
   APPROVED: "bg-emerald-100 text-emerald-800",
-};
-
-const ALERT_TONE: Record<typeof ALERTS[number]["kind"], { box: string; label: string }> = {
-  INTERACTION: { box: "border-red-200 bg-red-50",       label: "text-red-700" },
-  G6PD:        { box: "border-amber-200 bg-amber-50",   label: "text-amber-700" },
-  PREGNANCY:   { box: "border-yellow-200 bg-yellow-50", label: "text-yellow-700" },
 };
 
 export function Dashboard() {
@@ -92,37 +81,9 @@ export function Dashboard() {
           </ul>
         </div>
 
-        <aside className="card self-start">
-          <div className="flex items-center gap-2 border-b border-slate-200 px-5 py-4">
-            <AlertCircleIcon width={16} height={16} className="text-red-600" />
-            <h2 className="text-base font-semibold text-slate-900">Safety Alerts</h2>
-          </div>
-          <div className="space-y-3 p-4">
-            {ALERTS.map((a, i) => {
-              const tone = ALERT_TONE[a.kind];
-              return (
-                <div key={i} className={`rounded-xl border p-3.5 ${tone.box}`}>
-                  <div className="flex items-center gap-1.5">
-                    {a.kind === "INTERACTION" ? (
-                      <ShieldIcon width={14} height={14} className={tone.label} />
-                    ) : a.kind === "G6PD" ? (
-                      <ShieldIcon width={14} height={14} className={tone.label} />
-                    ) : (
-                      <AlertTriangleIcon width={14} height={14} className={tone.label} />
-                    )}
-                    <span className={`text-xs font-bold tracking-wide ${tone.label}`}>{a.title}</span>
-                  </div>
-                  <p className="mt-1.5 text-[13px] text-slate-700">{a.body}</p>
-                  {a.rxId && (
-                    <Link to={`/prescription/${a.rxId}`} className="mt-2 inline-flex items-center gap-1 text-[12px] font-semibold text-brand-600 hover:underline">
-                      View Prescription <ChevronRightIcon width={12} height={12} />
-                    </Link>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </aside>
+        <div className="self-start">
+          <SafetyAlertsPanel />
+        </div>
       </div>
     </div>
   );

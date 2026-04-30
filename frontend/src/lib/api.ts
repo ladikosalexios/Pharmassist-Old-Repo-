@@ -1,4 +1,4 @@
-import type { Prescription, SafetyCheck } from "../types";
+import type { ActiveAlert, Prescription, SafetyCheck } from "../types";
 
 const API_BASE = (import.meta.env.VITE_API_BASE as string | undefined) ?? "";
 
@@ -57,6 +57,12 @@ export async function getSafetyChecks(rxId: string): Promise<SafetyCheck[]> {
   });
   const data = (await handle(r)) as { rxId: string; checks: SafetyCheck[] };
   return data.checks;
+}
+
+export async function getActiveAlerts(): Promise<ActiveAlert[]> {
+  const r = await fetch(`${API_BASE}/alerts/active`, { headers: authHeaders() });
+  const data = (await handle(r)) as { alerts: ActiveAlert[] };
+  return data.alerts;
 }
 
 export async function approvePrescription(rxId: string): Promise<{ success: boolean; status: string }> {
