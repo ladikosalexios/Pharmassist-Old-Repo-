@@ -1,0 +1,8 @@
+node_modules
+dist
+.vite
+.DS_Store
+*.tsbuildinfo
+# tsc -b composite output for vite.config.ts
+vite.config.js
+vite.config.d.ts

@@ -337,3 +337,147 @@ async def get_prescription(barcode: str, current: dict = Depends(get_current_use
     Requires active Pharmapi session.
     """
     return await pharmapi_get(f"/prescriptions/{barcode}")
+
+
+# ── Prescription Verification (mock data for the new React UI) ──────────────
+# These endpoints serve mock data so the verification page works end-to-end
+# without depending on the live Pharmapi sandbox.
+
+_MOCK_PRESCRIPTIONS: dict = {
+    "RX2024-005": {
+        "rxId": "RX2024-005",
+        "code": "RX2024-005",
+        "dateIssued": "2026-04-28",
+        "status": "PENDING",
+        "spcVersion": "SPC v2024.3",
+        "patient": {
+            "id": "P001",
+            "name": "Maria Stavrou",
+            "age": 64,
+            "dateOfBirth": "1962-03-15",
+            "amka": "15031962456",
+            "conditions": ["Type II Diabetes", "Hypertension", "Hyperlipidemia"],
+            "allergies": "Penicillin (anaphylaxis), sulfa drugs",
+        },
+        "medication": {
+            "drugName": "Warfarin",
+            "dose": "5 mg",
+            "form": "Tablet",
+            "route": "Oral",
+            "frequency": "Once daily",
+            "treatmentDuration": "90 days",
+            "spcRecommendedDosage": (
+                "Initial: 5–10 mg daily for 1–2 days, then adjusted based on INR. "
+                "Maintenance: 2–10 mg daily. Target INR 2.0–3.0 for most indications."
+            ),
+        },
+        "prescriber": {
+            "name": "Dr. Michael Chen",
+            "licenceId": "MD-48291",
+            "specialty": "Cardiology",
+            "contact": "+30 210 123 4567",
+            "email": "m.chen@hospital.gr",
+        },
+        "spcQuickReference": {
+            "contraindications": [
+                "Active bleeding or bleeding diathesis",
+                "Recent or planned surgery (CNS, eye, traumatic)",
+                "Severe hepatic impairment",
+                "Pregnancy (except for mechanical heart valves)",
+            ],
+            "majorInteractions": [
+                {"drug": "Aspirin", "effect": "High risk of bleeding when combined with anticoagulants."},
+                {"drug": "NSAIDs", "effect": "Increased bleeding risk; avoid concurrent use."},
+                {"drug": "Amiodarone", "effect": "Potentiates warfarin effect; reduce warfarin dose by 30–50%."},
+            ],
+        },
+        "safetyChecks": [
+            {"id": "duplicate-therapy", "name": "Duplicate Therapy Check", "status": "ok",     "message": "No duplicate therapy detected."},
+            {"id": "interactions",      "name": "Drug-Drug Interactions",  "status": "review", "message": "Patient is on Aspirin 100 mg — review bleeding risk."},
+            {"id": "contraindications", "name": "Contraindications",       "status": "ok",     "message": "No contraindications identified."},
+            {"id": "dose-validation",   "name": "Dose Validation",         "status": "ok",     "message": "Dose within SPC recommended range."},
+            {"id": "spc-alignment",     "name": "SPC Alignment",           "status": "review", "message": "Confirm INR monitoring schedule is in place."},
+        ],
+    },
+    "RX2024-001": {
+        "rxId": "RX2024-001",
+        "code": "RX2024-001",
+        "dateIssued": "2026-03-11",
+        "status": "PENDING",
+        "spcVersion": "SPC v2024.3",
+        "patient": {
+            "id": "P010",
+            "name": "Sarah Johnson",
+            "age": 32,
+            "dateOfBirth": "1993-07-22",
+            "amka": "22071993789",
+            "conditions": ["Bacterial sinusitis"],
+            "allergies": "None known",
+        },
+        "medication": {
+            "drugName": "Amoxicillin",
+            "dose": "500 mg",
+            "form": "Capsule",
+            "route": "Oral",
+            "frequency": "Three times daily",
+            "treatmentDuration": "7 days",
+            "spcRecommendedDosage": "Adults: 250–500 mg every 8 hours, depending on severity.",
+        },
+        "prescriber": {
+            "name": "Dr. Michael Chen",
+            "licenceId": "MD-48291",
+            "specialty": "General Practice",
+            "contact": "+30 210 123 4567",
+            "email": "m.chen@hospital.gr",
+        },
+        "spcQuickReference": {
+            "contraindications": [
+                "Hypersensitivity to penicillins or any beta-lactam antibiotic",
+                "History of severe immediate hypersensitivity reaction",
+            ],
+            "majorInteractions": [
+                {"drug": "Methotrexate", "effect": "Reduced excretion; increased toxicity risk."},
+                {"drug": "Allopurinol",  "effect": "Increased risk of skin rash."},
+            ],
+        },
+        "safetyChecks": [
+            {"id": "duplicate-therapy", "name": "Duplicate Therapy Check", "status": "ok", "message": "No duplicate therapy detected."},
+            {"id": "interactions",      "name": "Drug-Drug Interactions",  "status": "ok", "message": "No major interactions detected."},
+            {"id": "contraindications", "name": "Contraindications",       "status": "ok", "message": "No contraindications identified."},
+            {"id": "dose-validation",   "name": "Dose Validation",         "status": "ok", "message": "Dose within SPC recommended range."},
+            {"id": "spc-alignment",     "name": "SPC Alignment",           "status": "ok", "message": "Aligned with current SPC."},
+        ],
+    },
+}
+
+
+@app.get("/prescriptions/{rx_id}")
+async def get_prescription_for_verification(rx_id: str, current: dict = Depends(get_current_user)):
+    """Return prescription data (patient, medication, prescriber, safety checks) for the verification UI."""
+    rx = _MOCK_PRESCRIPTIONS.get(rx_id)
+    if not rx:
+        raise HTTPException(status_code=404, detail=f"Prescription {rx_id} not found")
+    return rx
+
+
+class FlagBody(BaseModel):
+    reason: Optional[str] = None
+
+
+@app.post("/prescriptions/{rx_id}/approve")
+async def approve_prescription(rx_id: str, current: dict = Depends(get_current_user)):
+    rx = _MOCK_PRESCRIPTIONS.get(rx_id)
+    if not rx:
+        raise HTTPException(status_code=404, detail=f"Prescription {rx_id} not found")
+    rx["status"] = "APPROVED"
+    return {"success": True, "rxId": rx_id, "status": rx["status"]}
+
+
+@app.post("/prescriptions/{rx_id}/flag")
+async def flag_prescription(rx_id: str, body: FlagBody, current: dict = Depends(get_current_user)):
+    rx = _MOCK_PRESCRIPTIONS.get(rx_id)
+    if not rx:
+        raise HTTPException(status_code=404, detail=f"Prescription {rx_id} not found")
+    rx["status"] = "FLAGGED"
+    rx["flagReason"] = body.reason or ""
+    return {"success": True, "rxId": rx_id, "status": rx["status"], "reason": rx["flagReason"]}
