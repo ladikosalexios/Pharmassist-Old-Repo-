@@ -32,31 +32,63 @@
 
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg1); color: var(--text); min-height: 100vh; }
 
-    /* ── AUTH FLOW (centered cards) ── */
+    /* ── LOGIN PAGE ── */
     #authFlow {
-      display: flex; flex-direction: column; align-items: center;
-      padding: 40px 16px 80px; min-height: 100vh; background: var(--bg1);
+      display: flex; align-items: center; justify-content: center;
+      min-height: 100vh; padding: 24px; background: var(--bg1);
     }
-    .auth-logo { font-size: 1.6rem; font-weight: 700; color: var(--blue); margin-bottom: 4px; }
-    .auth-logo span { color: var(--blue-h); }
-    .auth-subtitle { font-size: 0.82rem; color: var(--muted); margin-bottom: 36px; }
+    .login-card {
+      background: var(--bg3); border: 1px solid var(--border);
+      border-radius: 16px; padding: 40px 32px; width: 100%; max-width: 420px;
+      box-shadow: 0 4px 16px rgba(15, 23, 42, 0.06);
+    }
+    .login-logo {
+      width: 56px; height: 56px; background: var(--blue); border-radius: 14px;
+      display: flex; align-items: center; justify-content: center;
+      margin: 0 auto 18px; color: white;
+    }
+    .login-title { text-align: center; font-size: 1.7rem; font-weight: 700; color: var(--blue); margin-bottom: 6px; }
+    .login-subtitle { text-align: center; font-size: 0.78rem; color: var(--muted); margin-bottom: 28px; line-height: 1.55; }
 
-    .steps { display: flex; width: 100%; max-width: 520px; margin-bottom: 24px; }
-    .step { flex: 1; text-align: center; font-size: 0.75rem; padding: 8px 4px; border-bottom: 2px solid var(--border); color: var(--muted); transition: all 0.2s; }
-    .step.active { border-bottom-color: var(--sky); color: var(--sky); font-weight: 600; }
-    .step.done   { border-bottom-color: var(--green-border); color: var(--green); }
-    .step-num { font-size: 1rem; display: block; margin-bottom: 2px; }
+    .login-error {
+      background: var(--red-bg); border: 1px solid var(--red-border); color: #991B1B;
+      padding: 10px 14px; border-radius: 8px; font-size: 0.83rem; margin-bottom: 14px;
+      display: flex; gap: 8px; align-items: flex-start;
+    }
+    .login-error svg { flex-shrink: 0; margin-top: 1px; }
 
-    .card { background: var(--bg3); border: 1px solid var(--border); border-radius: 12px; padding: 28px; width: 100%; max-width: 520px; margin-bottom: 16px; box-shadow: 0 1px 2px rgba(0,0,0,0.04); }
-    .card h2 { font-size: 0.95rem; font-weight: 600; color: var(--blue); margin-bottom: 6px; display: flex; align-items: center; gap: 8px; }
-    .card .desc { font-size: 0.82rem; color: var(--muted); margin-bottom: 18px; line-height: 1.5; }
+    .login-card label { display: block; font-size: 0.78rem; color: var(--muted2); margin-bottom: 6px; margin-top: 14px; font-weight: 500; }
+    .login-card input { width: 100%; padding: 11px 14px; background: var(--bg3); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: 0.9rem; outline: none; transition: border-color 0.15s, box-shadow 0.15s; }
+    .login-card input:focus { border-color: var(--blue); box-shadow: 0 0 0 3px #DBEAFE; }
 
-    label { display: block; font-size: 0.76rem; color: var(--muted); margin-bottom: 5px; margin-top: 14px; text-transform: uppercase; letter-spacing: 0.5px; }
-    input { width: 100%; padding: 10px 14px; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: 0.9rem; outline: none; transition: border-color 0.2s; }
-    input:focus { border-color: var(--sky); }
-    .auth-btn { margin-top: 16px; width: 100%; padding: 11px; background: var(--blue); border: none; border-radius: 8px; color: white; font-size: 0.9rem; font-weight: 600; cursor: pointer; transition: background 0.2s; }
-    .auth-btn:hover { background: var(--blue-h); }
-    .auth-btn:disabled { background: var(--border); color: var(--muted); cursor: not-allowed; }
+    .login-pw-row { display: flex; justify-content: space-between; align-items: center; margin-top: 14px; margin-bottom: 6px; }
+    .login-pw-row label { margin: 0; }
+    .login-pw-wrap { position: relative; }
+    .login-pw-wrap input { padding-right: 42px; }
+    .login-pw-toggle {
+      position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+      background: none; border: none; padding: 6px; cursor: pointer; color: var(--muted);
+      display: flex; align-items: center; border-radius: 6px;
+    }
+    .login-pw-toggle:hover { color: var(--text); background: var(--bg2); }
+
+    .login-btn {
+      width: 100%; margin-top: 22px; padding: 12px 16px; background: var(--blue);
+      color: white; border: none; border-radius: 8px; font-size: 0.92rem; font-weight: 600;
+      cursor: pointer; transition: background 0.15s; display: flex; align-items: center;
+      justify-content: center; gap: 8px;
+    }
+    .login-btn:hover:not(:disabled) { background: var(--blue-h); }
+    .login-btn:disabled { background: var(--blue); opacity: 0.7; cursor: not-allowed; }
+
+    .login-link { color: var(--blue); text-decoration: none; font-size: 0.78rem; font-weight: 500; }
+    .login-link:hover { text-decoration: underline; }
+    .login-register { text-align: center; margin-top: 18px; font-size: 0.82rem; color: var(--muted); }
+
+    .login-footer {
+      text-align: center; margin-top: 28px; padding-top: 20px;
+      border-top: 1px solid var(--border); font-size: 0.72rem; color: var(--muted); line-height: 1.6;
+    }
 
     .alert-msg { padding: 11px 14px; border-radius: 8px; font-size: 0.83rem; margin-top: 14px; line-height: 1.5; }
     .alert-msg.success { background: var(--green-bg); border: 1px solid var(--green-border); color: #166534; }
@@ -272,39 +304,50 @@
 <body>
 
 <!-- ════════════════════════════════════
-     AUTH FLOW
+     LOGIN PAGE
 ════════════════════════════════════ -->
 <div id="authFlow">
-  <div class="auth-logo">Pharm<span>Assist</span></div>
-  <div class="auth-subtitle">Κλινική υποστήριξη αποφάσεων για φαρμακοποιούς</div>
-
-  <div class="steps" id="stepsBar" style="display:none;">
-    <div class="step active" id="step1"><span class="step-num">1</span>Login</div>
-    <div class="step" id="step2"><span class="step-num">2</span>Σύνδεση API</div>
-    <div class="step" id="step3"><span class="step-num">3</span>Εφαρμογή</div>
-  </div>
-
-  <!-- Step 1: Login -->
-  <div class="card" id="loginCard">
-    <h2>🔐 Σύνδεση Φαρμακοποιού</h2>
-    <div class="desc">Εισάγετε τα στοιχεία σας για πρόσβαση στο PharmAssist.</div>
-    <label>Email</label>
-    <input type="email" id="loginEmail" value="pharmacist@demo.gr" />
-    <label>Κωδικός</label>
-    <input type="password" id="loginPassword" value="demo123" />
-    <button class="auth-btn" onclick="doLogin()">Σύνδεση</button>
-    <div id="loginMsg"></div>
-    <div style="font-size:0.75rem;color:var(--muted);margin-top:12px;text-align:center;">Demo: pharmacist@demo.gr / demo123</div>
-  </div>
-
-  <!-- Step 2: Connect Pharmapi -->
-  <div class="card hidden" id="connectCard">
-    <h2>📡 Σύνδεση Pharmapi (ΗΔΥΚΑ)</h2>
-    <div class="desc">
-      Απαιτείται κλήση <code>GET /api/v1/user/me</code> για ενεργοποίηση 24ωρης session στο εθνικό σύστημα e-συνταγογράφησης.
+  <div class="login-card">
+    <div class="login-logo" aria-hidden="true">
+      <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 2L4 5v6c0 5 3.5 9.5 8 11 4.5-1.5 8-6 8-11V5l-8-3z"/>
+      </svg>
     </div>
-    <button class="auth-btn" onclick="doConnect()">Σύνδεση στο Pharmapi</button>
-    <div id="connectMsg"></div>
+    <h1 class="login-title">PharmAssist</h1>
+    <p class="login-subtitle">Decision Support System · E.O.Φ. Compliant · Pharmacist Portal</p>
+
+    <form id="loginForm" onsubmit="doLogin(event)" novalidate>
+      <div id="loginError" class="login-error" style="display:none;">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        <span id="loginErrorText"></span>
+      </div>
+
+      <label for="loginEmail">Email</label>
+      <input type="email" id="loginEmail" placeholder="pharmacist@demo.gr" autocomplete="email" />
+
+      <div class="login-pw-row">
+        <label for="loginPassword">Password</label>
+        <a href="#" class="login-link" onclick="event.preventDefault();forgotPassword();">Forgot password?</a>
+      </div>
+      <div class="login-pw-wrap">
+        <input type="password" id="loginPassword" autocomplete="current-password" />
+        <button type="button" class="login-pw-toggle" id="pwToggleBtn" onclick="togglePassword()" aria-label="Show password">
+          <svg id="pwToggleIcon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+          </svg>
+        </button>
+      </div>
+
+      <button type="submit" class="login-btn" id="loginBtn">Sign In</button>
+
+      <div class="login-register">
+        New to PharmAssist? <a href="#" class="login-link" onclick="event.preventDefault();registerPharmacy();">First time? Register your pharmacy licence</a>
+      </div>
+    </form>
+
+    <div class="login-footer">
+      Access restricted to licensed pharmacists. Regulated under Εθνικός Οργανισμός Φαρμάκων (Ε.Ο.Φ.)
+    </div>
   </div>
 </div>
 
@@ -565,16 +608,6 @@ let currentAlerts = [];  // mutable copy of alerts (with overridden state)
 // ────────────────────────────────────────────────
 // AUTH HELPERS
 // ────────────────────────────────────────────────
-function setMsg(id, html, type = 'info') {
-  document.getElementById(id).innerHTML = `<div class="alert-msg ${type}">${html}</div>`;
-}
-function setStep(n) {
-  ['step1','step2','step3'].forEach((id, i) => {
-    const el = document.getElementById(id);
-    if (!el) return;
-    el.className = 'step' + (i+1 < n ? ' done' : i+1 === n ? ' active' : '');
-  });
-}
 function setPharmapiPill(connected) {
   const pill = document.getElementById('sidebarPill');
   if (!pill) return;
@@ -593,45 +626,78 @@ async function authedFetch(path, options = {}) {
   return data;
 }
 
-// ────────────────────────────────────────────────
-// LOGIN / CONNECT
-// ────────────────────────────────────────────────
-async function doLogin() {
-  const email = document.getElementById('loginEmail').value.trim();
-  const pass  = document.getElementById('loginPassword').value;
-  setMsg('loginMsg', 'Σύνδεση…', 'info');
-  const form = new URLSearchParams();
-  form.append('username', email); form.append('password', pass);
-  try {
-    const r = await fetch(`${API}/auth/login`, { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body: form });
-    const data = await r.json();
-    if (!r.ok) { setMsg('loginMsg', `❌ ${data.detail}`, 'error'); return; }
-    token = data.access_token;
-    sessionStorage.setItem('pa_token', token);
-    setMsg('loginMsg', `✅ Καλώς ήρθατε, ${data.pharmacist_name}!`, 'success');
-    sessionStorage.setItem('pa_name', data.pharmacist_name);
-    sessionStorage.setItem('pa_pharmacy', data.pharmacy);
-    setTimeout(() => {
-      document.getElementById('stepsBar').style.display = 'flex';
-      document.getElementById('loginCard').classList.add('hidden');
-      document.getElementById('connectCard').classList.remove('hidden');
-      setStep(2);
-    }, 500);
-  } catch(e) {
-    setMsg('loginMsg', `❌ Αδύνατη σύνδεση — τρέχει το uvicorn στο ${API};`, 'error');
-  }
+function showLoginError(msg) {
+  document.getElementById('loginErrorText').textContent = msg;
+  document.getElementById('loginError').style.display = 'flex';
+}
+function clearLoginError() {
+  document.getElementById('loginError').style.display = 'none';
 }
 
-async function doConnect() {
-  setMsg('connectMsg', 'Σύνδεση στο Pharmapi (ΗΔΥΚΑ)…', 'info');
+function togglePassword() {
+  const input = document.getElementById('loginPassword');
+  const btn   = document.getElementById('pwToggleBtn');
+  const icon  = document.getElementById('pwToggleIcon');
+  const showing = input.type === 'text';
+  input.type = showing ? 'password' : 'text';
+  btn.setAttribute('aria-label', showing ? 'Show password' : 'Hide password');
+  icon.innerHTML = showing
+    ? '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>'
+    : '<path d="M17.94 17.94A10.06 10.06 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><path d="M14.12 14.12A3 3 0 1 1 9.88 9.88"/><line x1="1" y1="1" x2="23" y2="23"/>';
+}
+
+function forgotPassword() {
+  showLoginError('Password recovery is not yet available. Please contact your pharmacy admin.');
+}
+function registerPharmacy() {
+  showLoginError('Pharmacy registration is not yet available in this demo build.');
+}
+
+// ────────────────────────────────────────────────
+// LOGIN
+// ────────────────────────────────────────────────
+async function doLogin(event) {
+  if (event) event.preventDefault();
+  const email = document.getElementById('loginEmail').value.trim();
+  const pass  = document.getElementById('loginPassword').value;
+  const btn   = document.getElementById('loginBtn');
+
+  clearLoginError();
+
+  if (!email || !pass) {
+    showLoginError('Please enter your email and password.');
+    return;
+  }
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Signing in…';
+
+  const form = new URLSearchParams();
+  form.append('username', email);
+  form.append('password', pass);
+
   try {
-    const data = await authedFetch('/pharmapi/connect', { method:'POST' });
-    pharmapiConnected = true;
-    document.getElementById('connectMsg').innerHTML =
-      `<div class="alert-msg success">✅ Session ενεργή! Έγκυρη έως: ${new Date(data.session_valid_until).toLocaleString('el-GR')}</div>`;
-    setTimeout(() => enterApp(), 1200);
-  } catch(e) {
-    setMsg('connectMsg', `❌ ${e.message}`, 'error');
+    const r = await fetch(`${API}/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: form,
+    });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) {
+      showLoginError(data.detail || 'Sign in failed. Please check your credentials.');
+      btn.disabled = false;
+      btn.innerHTML = 'Sign In';
+      return;
+    }
+    token = data.access_token;
+    sessionStorage.setItem('pa_token', token);
+    sessionStorage.setItem('pa_name', data.pharmacist_name || email);
+    sessionStorage.setItem('pa_pharmacy', data.pharmacy || '');
+    enterApp();
+  } catch (e) {
+    showLoginError(`Cannot reach the server. Make sure the API is running at ${API}.`);
+    btn.disabled = false;
+    btn.innerHTML = 'Sign In';
   }
 }
 
@@ -645,6 +711,9 @@ function enterApp() {
   document.getElementById('appLayout').classList.add('show');
   initDashboard(name);
   renderRecent();
+  if (window.location.pathname !== '/dashboard' && window.history && window.history.replaceState) {
+    try { window.history.replaceState({}, '', '/dashboard'); } catch (_) {}
+  }
 }
 
 function logout() {
@@ -652,12 +721,11 @@ function logout() {
   sessionStorage.clear();
   document.getElementById('authFlow').style.display = 'flex';
   document.getElementById('appLayout').classList.remove('show');
-  document.getElementById('loginCard').classList.remove('hidden');
-  document.getElementById('connectCard').classList.add('hidden');
-  document.getElementById('stepsBar').style.display = 'none';
-  document.getElementById('loginMsg').innerHTML = '';
-  document.getElementById('connectMsg').innerHTML = '';
-  setStep(1);
+  clearLoginError();
+  const pw = document.getElementById('loginPassword');
+  if (pw) pw.value = '';
+  const btn = document.getElementById('loginBtn');
+  if (btn) { btn.disabled = false; btn.innerHTML = 'Sign In'; }
 }
 
 // ────────────────────────────────────────────────
