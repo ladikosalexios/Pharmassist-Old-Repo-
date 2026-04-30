@@ -1,0 +1,1108 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PharmAssist</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg0: #060F18;
+      --bg1: #0A1929;
+      --bg2: #0D2436;
+      --bg3: #112233;
+      --border: #1E3A50;
+      --border2: #162d42;
+      --blue: #1565C0;
+      --blue-h: #1976D2;
+      --sky: #4FC3F7;
+      --muted: #546E7A;
+      --muted2: #78909C;
+      --text: #e8edf2;
+      --green: #66BB6A;
+      --green-bg: #0D3323;
+      --green-border: #2E7D32;
+      --amber: #FFB74D;
+      --amber-bg: #2D1F00;
+      --red: #EF5350;
+      --red-bg: #3B0D0D;
+      --red-border: #B71C1C;
+    }
+
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg2); color: var(--text); min-height: 100vh; }
+
+    /* ── AUTH FLOW (centered cards) ── */
+    #authFlow {
+      display: flex; flex-direction: column; align-items: center;
+      padding: 40px 16px 80px; min-height: 100vh; background: var(--bg2);
+    }
+    .auth-logo { font-size: 1.6rem; font-weight: 700; color: var(--sky); margin-bottom: 4px; }
+    .auth-logo span { color: #81D4FA; }
+    .auth-subtitle { font-size: 0.82rem; color: var(--muted); margin-bottom: 36px; }
+
+    .steps { display: flex; width: 100%; max-width: 520px; margin-bottom: 24px; }
+    .step { flex: 1; text-align: center; font-size: 0.75rem; padding: 8px 4px; border-bottom: 2px solid var(--border); color: var(--muted); transition: all 0.2s; }
+    .step.active { border-bottom-color: var(--sky); color: var(--sky); font-weight: 600; }
+    .step.done   { border-bottom-color: var(--green-border); color: var(--green); }
+    .step-num { font-size: 1rem; display: block; margin-bottom: 2px; }
+
+    .card { background: var(--bg3); border: 1px solid var(--border); border-radius: 12px; padding: 28px; width: 100%; max-width: 520px; margin-bottom: 16px; }
+    .card h2 { font-size: 0.95rem; font-weight: 600; color: #90CAF9; margin-bottom: 6px; display: flex; align-items: center; gap: 8px; }
+    .card .desc { font-size: 0.82rem; color: var(--muted); margin-bottom: 18px; line-height: 1.5; }
+
+    label { display: block; font-size: 0.76rem; color: var(--muted); margin-bottom: 5px; margin-top: 14px; text-transform: uppercase; letter-spacing: 0.5px; }
+    input { width: 100%; padding: 10px 14px; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: 0.9rem; outline: none; transition: border-color 0.2s; }
+    input:focus { border-color: var(--sky); }
+    .auth-btn { margin-top: 16px; width: 100%; padding: 11px; background: var(--blue); border: none; border-radius: 8px; color: white; font-size: 0.9rem; font-weight: 600; cursor: pointer; transition: background 0.2s; }
+    .auth-btn:hover { background: var(--blue-h); }
+    .auth-btn:disabled { background: var(--border); color: var(--muted); cursor: not-allowed; }
+
+    .alert-msg { padding: 11px 14px; border-radius: 8px; font-size: 0.83rem; margin-top: 14px; line-height: 1.5; }
+    .alert-msg.success { background: var(--green-bg); border: 1px solid var(--green-border); color: #A5D6A7; }
+    .alert-msg.error   { background: var(--red-bg); border: 1px solid var(--red-border); color: #EF9A9A; }
+    .alert-msg.info    { background: #0D2F45; border: 1px solid #0277BD; color: #81D4FA; }
+    .alert-msg.warn    { background: var(--amber-bg); border: 1px solid #E65100; color: #FFCC80; }
+
+    code { background: var(--bg0); padding: 2px 6px; border-radius: 4px; font-family: monospace; font-size: 0.85em; color: #80CBC4; }
+
+    /* ── MAIN APP LAYOUT ── */
+    #appLayout { display: none; height: 100vh; overflow: hidden; background: var(--bg0); }
+    #appLayout.show { display: flex; }
+
+    /* Sidebar */
+    .sidebar { display: flex; flex-direction: column; width: 224px; flex-shrink: 0; background: var(--bg2); border-right: 1px solid var(--border); height: 100vh; }
+    .sidebar-logo { display: flex; align-items: center; gap: 8px; padding: 20px; border-bottom: 1px solid var(--border); }
+    .sidebar-logo .icon { width: 32px; height: 32px; background: var(--blue); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 1rem; flex-shrink: 0; }
+    .sidebar-logo .name { font-weight: 700; font-size: 1rem; color: white; }
+    .sidebar-logo .name em { color: var(--sky); font-style: normal; }
+
+    nav { flex: 1; padding: 12px; }
+    .nav-item { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 8px; font-size: 0.875rem; font-weight: 500; color: var(--muted2); cursor: pointer; transition: all 0.15s; margin-bottom: 2px; text-decoration: none; }
+    .nav-item:hover { color: white; background: var(--bg3); }
+    .nav-item.active { color: white; background: var(--blue); }
+    .nav-item svg { flex-shrink: 0; }
+
+    .sidebar-user { padding: 12px; border-top: 1px solid var(--border); }
+    .sidebar-user-info { padding: 8px 12px; margin-bottom: 4px; }
+    .sidebar-user-info .u-name { font-size: 0.8rem; font-weight: 600; color: white; }
+    .sidebar-user-info .u-ph { font-size: 0.73rem; color: var(--muted); margin-top: 2px; }
+    .sidebar-pill { display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px; border-radius: 20px; font-size: 0.7rem; font-weight: 600; margin-bottom: 8px; }
+    .sidebar-pill.connected { background: #1B5E20; color: #A5D6A7; }
+    .sidebar-pill.disconnected { background: var(--red-bg); color: #EF9A9A; }
+    .sidebar-pill::before { content: '●'; font-size: 0.55rem; }
+    .logout-btn { display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px 12px; border-radius: 8px; font-size: 0.875rem; color: var(--muted); background: none; border: none; cursor: pointer; transition: all 0.15s; }
+    .logout-btn:hover { color: white; background: var(--border2); }
+
+    /* Main content */
+    .main-content { flex: 1; overflow-y: auto; background: var(--bg1); }
+
+    /* ── PAGES ── */
+    .page { display: none; padding: 32px; animation: fadeIn 0.2s ease; }
+    .page.active { display: block; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+
+    /* Dashboard */
+    .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 32px; }
+    .stat-card { background: var(--bg3); border: 1px solid var(--border); border-radius: 16px; padding: 20px; }
+    .stat-icon { width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center; margin-bottom: 12px; }
+    .stat-val { font-size: 1.75rem; font-weight: 700; color: white; margin-bottom: 2px; }
+    .stat-label { font-size: 0.75rem; font-weight: 600; color: white; margin-bottom: 2px; }
+    .stat-delta { font-size: 0.72rem; color: var(--muted); }
+
+    .section-title { font-size: 0.95rem; font-weight: 600; color: white; margin-bottom: 16px; }
+
+    .search-box { background: var(--bg3); border: 1px solid var(--border); border-radius: 16px; padding: 24px; margin-bottom: 32px; }
+    .search-box p { font-size: 0.82rem; color: var(--muted); margin-bottom: 20px; }
+    .search-row { display: flex; gap: 10px; }
+    .search-input-wrap { position: relative; flex: 1; }
+    .search-input-wrap svg { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); pointer-events: none; }
+    .search-input { padding: 12px 14px 12px 42px; background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; color: white; font-size: 0.875rem; outline: none; width: 100%; transition: border-color 0.2s; }
+    .search-input:focus { border-color: var(--sky); }
+    .btn-primary { padding: 12px 20px; background: var(--blue); border: none; border-radius: 10px; color: white; font-size: 0.875rem; font-weight: 600; cursor: pointer; transition: background 0.2s; display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+    .btn-primary:hover { background: var(--blue-h); }
+    .btn-primary:disabled { background: var(--border); color: var(--muted); cursor: not-allowed; }
+    .btn-secondary { padding: 12px 16px; background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; color: var(--muted2); font-size: 0.875rem; font-weight: 500; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+    .btn-secondary:hover { background: var(--border2); color: white; }
+    .search-hint { font-size: 0.73rem; color: var(--muted); margin-top: 10px; }
+    .search-error { margin-top: 10px; padding: 10px 14px; border-radius: 8px; font-size: 0.82rem; background: var(--red-bg); border: 1px solid var(--red-border); color: #EF9A9A; display: none; }
+
+    .recent-list { background: var(--bg3); border: 1px solid var(--border); border-radius: 16px; overflow: hidden; }
+    .recent-item { display: flex; align-items: center; gap: 14px; padding: 16px 20px; cursor: pointer; transition: background 0.15s; border-bottom: 1px solid var(--border); }
+    .recent-item:last-child { border-bottom: none; }
+    .recent-item:hover { background: var(--border2); }
+    .recent-icon { width: 40px; height: 40px; background: var(--bg2); border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .recent-name { font-size: 0.875rem; font-weight: 500; color: white; }
+    .recent-meta { font-size: 0.75rem; color: var(--muted); margin-top: 2px; }
+    .badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 6px; font-size: 0.72rem; font-weight: 600; }
+    .badge.pending  { background: #2D1F00; color: var(--amber); }
+    .badge.executed { background: var(--green-bg); color: var(--green); }
+    .badge.cancelled { background: var(--red-bg); color: var(--red); }
+    .badge.alert-badge { background: var(--red-bg); color: #EF9A9A; }
+
+    /* ── PRESCRIPTION VIEW ── */
+    .rx-header { display: flex; align-items: center; gap: 12px; margin-bottom: 28px; }
+    .back-btn { width: 36px; height: 36px; background: var(--bg3); border: 1px solid var(--border); border-radius: 10px; display: flex; align-items: center; justify-content: center; cursor: pointer; color: var(--muted); transition: all 0.15s; flex-shrink: 0; }
+    .back-btn:hover { background: var(--border2); color: white; }
+
+    .patient-banner { border-radius: 16px; padding: 20px 24px; margin-bottom: 20px; background: linear-gradient(135deg, #0D2B4A 0%, #0A1929 100%); border: 1px solid var(--border); display: flex; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
+    .patient-avatar { width: 52px; height: 52px; border-radius: 14px; background: #1565C040; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; font-weight: 700; color: var(--sky); flex-shrink: 0; }
+    .patient-info { flex: 1; min-width: 200px; }
+    .patient-name { font-size: 1.1rem; font-weight: 700; color: white; }
+    .patient-meta { font-size: 0.78rem; color: var(--muted); margin-top: 4px; display: flex; flex-wrap: wrap; gap: 10px; }
+    .patient-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+    .tag { font-size: 0.7rem; padding: 3px 8px; border-radius: 6px; font-weight: 500; }
+    .tag.condition { background: #1565C020; color: var(--sky); border: 1px solid #1565C040; }
+    .tag.intolerance { background: var(--red-bg); color: #EF9A9A; border: 1px solid #B71C1C40; }
+
+    .rx-body { display: flex; gap: 20px; }
+    .drugs-col { flex: 3; }
+    .alerts-col { flex: 2; }
+
+    .panel { background: var(--bg3); border: 1px solid var(--border); border-radius: 16px; overflow: hidden; margin-bottom: 16px; }
+    .panel-header { padding: 14px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 8px; }
+    .panel-header span { font-size: 0.875rem; font-weight: 600; color: white; }
+
+    .drug-item { display: flex; align-items: flex-start; gap: 12px; padding: 16px 20px; border-bottom: 1px solid var(--border); }
+    .drug-item:last-child { border-bottom: none; }
+    .drug-icon { width: 36px; height: 36px; background: var(--bg2); border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 2px; }
+    .drug-name { font-size: 0.875rem; font-weight: 600; color: white; }
+    .drug-generic { font-size: 0.75rem; color: var(--muted); margin-top: 2px; }
+    .drug-meta { font-size: 0.72rem; color: var(--muted); margin-top: 4px; }
+    .drug-badges { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
+    .emvo-badge { display: inline-flex; align-items: center; gap: 3px; font-size: 0.7rem; padding: 2px 7px; border-radius: 5px; font-weight: 600; }
+    .emvo-badge.ok  { background: var(--green-bg); color: var(--green); }
+    .emvo-badge.err { background: var(--red-bg); color: #EF9A9A; }
+    .drug-price { text-align: right; flex-shrink: 0; }
+    .drug-price .patient { font-size: 0.9rem; font-weight: 700; color: white; }
+    .drug-price .insurance { font-size: 0.73rem; color: var(--muted); margin-top: 2px; }
+
+    /* Safety alerts */
+    .alert-card { border-radius: 10px; overflow: hidden; margin-bottom: 10px; transition: all 0.2s; }
+    .alert-card-head { display: flex; align-items: flex-start; gap: 10px; padding: 14px; cursor: pointer; }
+    .alert-card-body { padding: 0 14px 14px; }
+    .alert-card-body p { font-size: 0.8rem; line-height: 1.6; color: #B0BEC5; margin-bottom: 10px; }
+    .alert-action-box { display: flex; gap: 8px; padding: 10px 12px; border-radius: 8px; background: var(--bg2); }
+    .alert-action-box p { font-size: 0.75rem; color: #90A4AE; margin: 0; }
+    .severity-label { font-size: 0.68rem; font-weight: 700; padding: 2px 7px; border-radius: 5px; }
+
+    .override-form { margin-top: 10px; }
+    .override-form textarea { width: 100%; padding: 8px 10px; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: 0.8rem; outline: none; resize: vertical; min-height: 64px; transition: border-color 0.2s; }
+    .override-form textarea:focus { border-color: var(--sky); }
+    .override-form-btns { display: flex; gap: 8px; margin-top: 8px; }
+    .btn-sm { padding: 7px 14px; border-radius: 7px; font-size: 0.8rem; font-weight: 600; cursor: pointer; border: none; transition: all 0.15s; }
+    .btn-sm.primary { background: var(--amber-bg); color: var(--amber); border: 1px solid #E6510040; }
+    .btn-sm.primary:hover { background: #3d2a00; }
+    .btn-sm.ghost { background: var(--bg2); color: var(--muted); border: 1px solid var(--border); }
+    .btn-sm.ghost:hover { color: white; background: var(--border2); }
+    .overridden-chip { display: inline-flex; align-items: center; gap: 4px; font-size: 0.7rem; padding: 2px 8px; border-radius: 5px; background: var(--border); color: var(--muted); font-weight: 600; margin-top: 4px; }
+
+    /* Cost summary */
+    .cost-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 20px; border-bottom: 1px solid var(--border); }
+    .cost-row:last-child { border-bottom: none; }
+    .cost-row .label { font-size: 0.82rem; color: var(--muted); }
+    .cost-row .val { font-size: 0.9rem; font-weight: 600; color: white; }
+    .cost-row .val.green { color: var(--green); }
+    .cost-total { display: flex; justify-content: space-between; align-items: center; padding: 14px 20px; background: #0D2F45; }
+    .cost-total .label { font-size: 0.875rem; font-weight: 600; color: white; }
+    .cost-total .val { font-size: 1.1rem; font-weight: 700; color: white; }
+
+    .action-bar { margin-top: 20px; display: flex; gap: 12px; justify-content: flex-end; }
+    .btn-dispense { padding: 13px 28px; background: #0D6B3E; border: none; border-radius: 10px; color: white; font-size: 0.9rem; font-weight: 600; cursor: pointer; transition: background 0.2s; display: flex; align-items: center; gap: 8px; }
+    .btn-dispense:hover { background: #1a8a50; }
+    .btn-dispense:disabled { background: var(--border); color: var(--muted); cursor: not-allowed; }
+    .blocked-note { font-size: 0.78rem; color: var(--red); display: flex; align-items: center; gap: 6px; }
+
+    /* ── DISPENSE PAGE ── */
+    .dispense-wrap { max-width: 640px; }
+
+    .confirm-patient { background: var(--bg3); border: 1px solid var(--border); border-radius: 14px; padding: 20px; margin-bottom: 16px; display: flex; align-items: center; gap: 12px; }
+    .confirm-avatar { width: 40px; height: 40px; border-radius: 10px; background: #1565C020; display: flex; align-items: center; justify-content: center; font-size: 0.85rem; font-weight: 700; color: var(--sky); flex-shrink: 0; }
+    .rx-barcode-chip { font-size: 0.72rem; padding: 4px 10px; background: #1565C020; color: var(--sky); border-radius: 7px; font-family: monospace; font-weight: 600; }
+
+    .confirm-drug-list { background: var(--bg3); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; margin-bottom: 16px; }
+    .confirm-drug { display: flex; align-items: center; gap: 12px; padding: 14px 20px; border-bottom: 1px solid var(--border); }
+    .confirm-drug:last-child { border-bottom: none; }
+    .confirm-drug-icon { width: 34px; height: 34px; background: var(--bg2); border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .confirm-drug-info { flex: 1; }
+    .confirm-drug-name { font-size: 0.85rem; font-weight: 600; color: white; }
+    .confirm-drug-meta { font-size: 0.73rem; color: var(--muted); margin-top: 2px; }
+
+    .confirm-cost { background: var(--bg3); border: 1px solid var(--border); border-radius: 14px; padding: 20px; margin-bottom: 24px; }
+    .confirm-cost-row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--border); }
+    .confirm-cost-row:last-child { border-bottom: none; padding-top: 12px; margin-top: 4px; }
+    .confirm-cost-row .cl { font-size: 0.82rem; color: var(--muted); }
+    .confirm-cost-row .cv { font-size: 0.85rem; font-weight: 600; color: white; }
+    .confirm-cost-row .cv.green { color: var(--green); }
+    .confirm-cost-row.total .cl { font-size: 0.9rem; font-weight: 600; color: white; }
+    .confirm-cost-row.total .cv { font-size: 1.1rem; font-weight: 700; color: white; }
+
+    .active-alerts-warning { background: var(--amber-bg); border: 1px solid #FFB74D30; border-radius: 10px; padding: 14px; margin-bottom: 16px; }
+    .active-alerts-warning .aw-title { font-size: 0.8rem; font-weight: 600; color: var(--amber); margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+    .active-alerts-warning .aw-item { font-size: 0.75rem; color: var(--muted2); margin: 3px 0; }
+    .active-alerts-warning .aw-blocker { font-size: 0.78rem; font-weight: 600; color: #EF9A9A; margin-top: 8px; }
+
+    .dispense-actions { display: flex; gap: 10px; }
+    .btn-back { padding: 13px 20px; background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; color: var(--muted2); font-size: 0.875rem; font-weight: 500; cursor: pointer; transition: all 0.15s; }
+    .btn-back:hover { background: var(--border2); color: white; }
+
+    /* ── SUCCESS SCREEN ── */
+    #successScreen { display: none; min-height: 100%; align-items: center; justify-content: center; padding: 32px; }
+    #successScreen.show { display: flex; }
+    .success-card { max-width: 480px; width: 100%; text-align: center; }
+    .success-circle { width: 96px; height: 96px; border-radius: 50%; background: var(--green-bg); border: 2px solid var(--green); display: flex; align-items: center; justify-content: center; margin: 0 auto 24px; font-size: 2.5rem; }
+    .success-id { font-size: 0.72rem; color: var(--muted); font-family: monospace; margin-top: 4px; margin-bottom: 32px; }
+    .success-actions { display: flex; gap: 10px; margin-top: 24px; }
+    .btn-home { flex: 1; padding: 13px; background: var(--blue); border: none; border-radius: 10px; color: white; font-size: 0.875rem; font-weight: 600; cursor: pointer; transition: background 0.2s; }
+    .btn-home:hover { background: var(--blue-h); }
+    .btn-print { flex: 1; padding: 13px; background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; color: var(--muted2); font-size: 0.875rem; cursor: pointer; transition: all 0.15s; }
+    .btn-print:hover { background: var(--border2); color: white; }
+
+    .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid transparent; border-top-color: white; border-radius: 50%; animation: spin 0.6s linear infinite; vertical-align: middle; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .hidden { display: none !important; }
+
+    /* Placeholder pages */
+    .placeholder { padding: 40px; }
+    .placeholder h1 { font-size: 1.5rem; font-weight: 700; color: white; margin-bottom: 8px; }
+    .placeholder p { color: var(--muted); font-size: 0.9rem; }
+  </style>
+</head>
+<body>
+
+<!-- ════════════════════════════════════
+     AUTH FLOW
+════════════════════════════════════ -->
+<div id="authFlow">
+  <div class="auth-logo">Pharm<span>Assist</span></div>
+  <div class="auth-subtitle">Κλινική υποστήριξη αποφάσεων για φαρμακοποιούς</div>
+
+  <div class="steps" id="stepsBar" style="display:none;">
+    <div class="step active" id="step1"><span class="step-num">1</span>Login</div>
+    <div class="step" id="step2"><span class="step-num">2</span>Σύνδεση API</div>
+    <div class="step" id="step3"><span class="step-num">3</span>Εφαρμογή</div>
+  </div>
+
+  <!-- Step 1: Login -->
+  <div class="card" id="loginCard">
+    <h2>🔐 Σύνδεση Φαρμακοποιού</h2>
+    <div class="desc">Εισάγετε τα στοιχεία σας για πρόσβαση στο PharmAssist.</div>
+    <label>Email</label>
+    <input type="email" id="loginEmail" value="pharmacist@demo.gr" />
+    <label>Κωδικός</label>
+    <input type="password" id="loginPassword" value="demo123" />
+    <button class="auth-btn" onclick="doLogin()">Σύνδεση</button>
+    <div id="loginMsg"></div>
+    <div style="font-size:0.75rem;color:var(--muted);margin-top:12px;text-align:center;">Demo: pharmacist@demo.gr / demo123</div>
+  </div>
+
+  <!-- Step 2: Connect Pharmapi -->
+  <div class="card hidden" id="connectCard">
+    <h2>📡 Σύνδεση Pharmapi (ΗΔΥΚΑ)</h2>
+    <div class="desc">
+      Απαιτείται κλήση <code>GET /api/v1/user/me</code> για ενεργοποίηση 24ωρης session στο εθνικό σύστημα e-συνταγογράφησης.
+    </div>
+    <button class="auth-btn" onclick="doConnect()">Σύνδεση στο Pharmapi</button>
+    <div id="connectMsg"></div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════
+     MAIN APP LAYOUT
+════════════════════════════════════ -->
+<div id="appLayout">
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <div class="icon">💊</div>
+      <div class="name">Pharm<em>Assist</em></div>
+    </div>
+    <nav>
+      <a class="nav-item active" onclick="showPage('dashboard')" data-page="dashboard">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+        Αρχική
+      </a>
+      <a class="nav-item" onclick="showPage('prescriptions')" data-page="prescriptions">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        Συνταγές
+      </a>
+      <a class="nav-item" onclick="showPage('patients')" data-page="patients">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        Ασθενείς
+      </a>
+      <a class="nav-item" onclick="showPage('history')" data-page="history">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        Ιστορικό
+      </a>
+      <a class="nav-item" onclick="showPage('adr')" data-page="adr">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        Αναφορές ΑΕΔ
+      </a>
+      <a class="nav-item" onclick="showPage('settings')" data-page="settings">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        Ρυθμίσεις
+      </a>
+    </nav>
+    <div class="sidebar-user">
+      <div class="sidebar-user-info">
+        <div class="u-name" id="sidebarName">—</div>
+        <div class="u-ph" id="sidebarPharmacy">—</div>
+      </div>
+      <div style="padding: 0 12px 8px;">
+        <span class="sidebar-pill disconnected" id="sidebarPill">Not connected</span>
+      </div>
+      <button class="logout-btn" onclick="logout()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+        Αποσύνδεση
+      </button>
+    </div>
+  </aside>
+
+  <!-- Main content -->
+  <main class="main-content">
+
+    <!-- DASHBOARD -->
+    <div class="page active" id="page-dashboard">
+      <div style="margin-bottom:28px;">
+        <h1 id="dashGreeting" style="font-size:1.4rem;font-weight:700;color:white;margin-bottom:4px;"></h1>
+        <p id="dashDate" style="font-size:0.82rem;color:var(--muted);"></p>
+      </div>
+
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-icon" style="background:#4FC3F718;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4FC3F7" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          </div>
+          <div class="stat-val">23</div>
+          <div class="stat-label">Συνταγές σήμερα</div>
+          <div class="stat-delta">+3 από χθες</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon" style="background:#FFB74D18;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#FFB74D" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          </div>
+          <div class="stat-val">7</div>
+          <div class="stat-label">Alerts ασφαλείας</div>
+          <div class="stat-delta">2 υψηλής σοβαρότητας</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon" style="background:#66BB6A18;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#66BB6A" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+          </div>
+          <div class="stat-val">21</div>
+          <div class="stat-label">Εκτελέσθηκαν</div>
+          <div class="stat-delta">91% ποσοστό</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon" style="background:#EF535018;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#EF5350" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          </div>
+          <div class="stat-val">2</div>
+          <div class="stat-label">Σε αναμονή</div>
+          <div class="stat-delta">Απαιτούν προσοχή</div>
+        </div>
+      </div>
+
+      <!-- Search -->
+      <div class="search-box">
+        <div class="section-title" style="margin-bottom:4px;">Φόρτωση Συνταγής</div>
+        <p>Εισάγετε barcode ή σαρώστε QR κώδικα συνταγής</p>
+        <div class="search-row">
+          <div class="search-input-wrap">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#546E7A" stroke-width="2" style="top:50%;transform:translateY(-50%);position:absolute;left:14px;"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input class="search-input" id="searchBarcode" type="text" placeholder="Barcode συνταγής (π.χ. 1234567890123)"
+              onkeydown="if(event.key==='Enter') loadPrescription()" />
+          </div>
+          <button class="btn-primary" onclick="loadPrescription()" id="loadBtn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            Φόρτωση
+          </button>
+          <button class="btn-secondary" onclick="scanDemo()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+            Scan
+          </button>
+        </div>
+        <div class="search-error" id="searchError"></div>
+        <div class="search-hint">💡 Demo: κάντε κλικ στο Scan για να φορτώσετε mock συνταγή</div>
+      </div>
+
+      <!-- Recent -->
+      <div class="section-title">Πρόσφατες Συνταγές</div>
+      <div class="recent-list" id="recentList"></div>
+    </div>
+
+    <!-- PRESCRIPTION VIEW -->
+    <div class="page" id="page-rx">
+      <div class="rx-header">
+        <div class="back-btn" onclick="showPage('dashboard')">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+        </div>
+        <div>
+          <h1 style="font-size:1.2rem;font-weight:700;color:white;">Προβολή Συνταγής</h1>
+          <p style="font-size:0.78rem;color:var(--muted);" id="rxSubtitle"></p>
+        </div>
+      </div>
+      <div id="rxContent"></div>
+    </div>
+
+    <!-- DISPENSE -->
+    <div class="page" id="page-dispense">
+      <div id="dispenseConfirm"></div>
+      <div id="successScreen">
+        <div class="success-card">
+          <div class="success-circle">✅</div>
+          <h2 style="font-size:1.4rem;font-weight:700;color:white;margin-bottom:6px;">Συνταγή Εκτελέσθη</h2>
+          <p style="color:var(--muted);font-size:0.875rem;">Η χορήγηση καταχωρήθηκε επιτυχώς στο σύστημα ΕΟΠΥΥ</p>
+          <div class="success-id" id="executionIdText"></div>
+          <div id="successDrugList" style="text-align:left;margin-top:16px;background:var(--bg3);border:1px solid var(--border);border-radius:14px;overflow:hidden;"></div>
+          <div class="success-actions">
+            <button class="btn-print">🖨 Εκτύπωση</button>
+            <button class="btn-home" onclick="showPage('dashboard')">🏠 Αρχική</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PLACEHOLDER PAGES -->
+    <div class="page placeholder" id="page-prescriptions">
+      <h1>Συνταγές</h1><p>Σύντομα διαθέσιμο.</p>
+    </div>
+    <div class="page placeholder" id="page-patients">
+      <h1>Ασθενείς</h1><p>Σύντομα διαθέσιμο.</p>
+    </div>
+    <div class="page placeholder" id="page-history">
+      <h1>Ιστορικό</h1><p>Σύντομα διαθέσιμο.</p>
+    </div>
+    <div class="page placeholder" id="page-adr">
+      <h1>Αναφορές ΑΕΔ</h1><p>Σύντομα διαθέσιμο.</p>
+    </div>
+    <div class="page placeholder" id="page-settings">
+      <h1>Ρυθμίσεις</h1><p>Σύντομα διαθέσιμο.</p>
+    </div>
+
+  </main>
+</div>
+
+<script>
+// ────────────────────────────────────────────────
+// MOCK DATA
+// ────────────────────────────────────────────────
+const MOCK_PRESCRIPTION = {
+  barcode: '1234567890123',
+  status: 'PENDING',
+  issueDate: '2026-04-29',
+  validUntil: '2026-05-29',
+  visitType: 'ΤΑΚΤΙΚΟ',
+  doctor: { name: 'ΚΩΣΤΟΠΟΥΛΟΣ ΔΗΜΗΤΡΙΟΣ', specialty: 'Καρδιολόγος', amka: '15061970123' },
+  patient: { amka: '15031962456', firstname: 'ΜΑΡΙΑ', lastname: 'ΣΤΑΥΡΟΥ', insurance: { name: 'ΕΟΠΥΥ', id: 'ΕΟΠ123456', participation: 25 } },
+  drugs: [
+    { id:'d1', barcode:'5213001234567', name:'ASPIRIN PROTECT 100MG', genericName:'Ακετυλοσαλικυλικό Οξύ', atc:'B01AC06', quantity:1, packageSize:'30 δισκία', dosage:'1 δισκίο ημερησίως', price:3.50, insurancePrice:2.63, patientCost:0.87, manufacturer:'BAYER', emvoVerified:true },
+    { id:'d2', barcode:'5213007654321', name:'PLAVIX 75MG', genericName:'Κλοπιδογρέλη', atc:'B01AC04', quantity:1, packageSize:'28 δισκία', dosage:'1 δισκίο ημερησίως', price:28.40, insurancePrice:21.30, patientCost:7.10, manufacturer:'SANOFI', emvoVerified:true },
+    { id:'d3', barcode:'5213009876543', name:'SORTIS 20MG', genericName:'Ατορβαστατίνη', atc:'C10AA05', quantity:1, packageSize:'30 δισκία', dosage:'1 δισκίο ημερησίως (βράδυ)', price:12.80, insurancePrice:9.60, patientCost:3.20, manufacturer:'PFIZER', emvoVerified:true },
+    { id:'d4', barcode:'5213001122334', name:'RAMIPRIL/GENERICS 5MG', genericName:'Ραμιπρίλη', atc:'C09AA05', quantity:2, packageSize:'28 δισκία', dosage:'1 δισκίο ημερησίως (πρωί)', price:7.20, insurancePrice:5.40, patientCost:1.80, manufacturer:'GENERICS PHARMA', emvoVerified:false },
+  ],
+};
+
+const MOCK_PATIENT = {
+  amka: '15031962456', firstname: 'ΜΑΡΙΑ', lastname: 'ΣΤΑΥΡΟΥ',
+  dob: '1962-03-15', age: 64, sex: 'F', phone: '6974123456',
+  insurance: { name: 'ΕΟΠΥΥ', id: 'ΕΟΠ123456', participation: 25 },
+  currentMeds: [
+    { name: 'Μετφορμίνη 1000mg', atc: 'A10BA02', since: '2019-01-01' },
+    { name: 'Αμλοδιπίνη 5mg', atc: 'C08CA01', since: '2020-06-01' },
+  ],
+  intolerances: [{ substance: 'Πενικιλλίνη', atc: 'J01CA', reaction: 'Αναφυλαξία', severity: 'HIGH' }],
+  conditions: ['Σακχαρώδης Διαβήτης ΙΙ', 'Υπέρταση'],
+  lastVisit: '2026-04-10',
+  prescriptionCount: 14,
+};
+
+const MOCK_ALERTS = [
+  {
+    id: 'a1', severity: 'HIGH', type: 'INTERACTION',
+    title: 'Διπλή Αντιαιμοπεταλιακή Αγωγή',
+    drugs: ['ASPIRIN 100MG', 'PLAVIX 75MG'],
+    description: 'Ο συνδυασμός Ασπιρίνης και Κλοπιδογρέλης αυξάνει σημαντικά τον κίνδυνο αιμορραγίας. Απαιτείται ισχυρή κλινική ένδειξη (π.χ. ΟΕΜ, τοποθέτηση stent) και παρακολούθηση.',
+    action: 'Επιβεβαιώστε ότι υπάρχει τεκμηριωμένη κλινική ένδειξη. Σε αμφιβολία επικοινωνήστε με τον ιατρό.',
+    overridden: false, overrideReason: '',
+  },
+  {
+    id: 'a2', severity: 'MEDIUM', type: 'INTERACTION',
+    title: 'ACE Inhibitor + Ασπιρίνη',
+    drugs: ['RAMIPRIL 5MG', 'ASPIRIN 100MG'],
+    description: 'Η Ασπιρίνη σε υψηλές δόσεις μπορεί να μειώσει την αντιυπερτασική δράση των ACE αναστολέων. Σε δόση 100mg ο κίνδυνος είναι χαμηλός αλλά αξίζει παρακολούθηση ΑΠ.',
+    action: 'Παρακολούθηση αρτηριακής πίεσης κατά τις επόμενες επισκέψεις.',
+    overridden: false, overrideReason: '',
+  },
+  {
+    id: 'a3', severity: 'LOW', type: 'MONITORING',
+    title: 'Παρακολούθηση Στατίνης',
+    drugs: ['SORTIS 20MG'],
+    description: 'Μακροχρόνια χρήση στατίνης. Συνιστάται περιοδικός έλεγχος ηπατικών ενζύμων (ALT/AST) και CPK, ιδίως σε ασθενείς με μυαλγίες.',
+    action: 'Επόμενος εργαστηριακός έλεγχος (lipid profile + LFTs) σε 3 μήνες.',
+    overridden: false, overrideReason: '',
+  },
+];
+
+const MOCK_RECENT = [
+  { barcode:'9876543210987', patientName:'ΠΑΠΑΔΟΠΟΥΛΟΣ ΓΕΩΡΓΙΟΣ', date:'29/04/2026', drugCount:2, status:'EXECUTED', alertCount:0 },
+  { barcode:'1234567890123', patientName:'ΣΤΑΥΡΟΥ ΜΑΡΙΑ', date:'29/04/2026', drugCount:4, status:'PENDING', alertCount:3 },
+  { barcode:'5551234567890', patientName:'ΝΙΚΟΛΑΟΥ ΕΛΕΝΗ', date:'28/04/2026', drugCount:3, status:'EXECUTED', alertCount:1 },
+  { barcode:'7779876543210', patientName:'ΚΩΝΣΤΑΝΤΙΝΟΥ ΔΗΜΗΤΡΙΟΣ', date:'28/04/2026', drugCount:1, status:'CANCELLED', alertCount:0 },
+  { barcode:'3331234509876', patientName:'ΑΛΕΞΙΟΥ ΣΟΦΙΑ', date:'27/04/2026', drugCount:5, status:'EXECUTED', alertCount:2 },
+];
+
+// ────────────────────────────────────────────────
+// STATE
+// ────────────────────────────────────────────────
+const API = 'http://127.0.0.1:8000';
+let token = sessionStorage.getItem('pa_token');
+let pharmapiConnected = false;
+let currentAlerts = [];  // mutable copy of alerts (with overridden state)
+
+// ────────────────────────────────────────────────
+// AUTH HELPERS
+// ────────────────────────────────────────────────
+function setMsg(id, html, type = 'info') {
+  document.getElementById(id).innerHTML = `<div class="alert-msg ${type}">${html}</div>`;
+}
+function setStep(n) {
+  ['step1','step2','step3'].forEach((id, i) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.className = 'step' + (i+1 < n ? ' done' : i+1 === n ? ' active' : '');
+  });
+}
+function setPharmapiPill(connected) {
+  const pill = document.getElementById('sidebarPill');
+  if (!pill) return;
+  pill.className = `sidebar-pill ${connected ? 'connected' : 'disconnected'}`;
+  pill.textContent = connected ? 'Pharmapi connected' : 'Not connected';
+}
+
+async function authedFetch(path, options = {}) {
+  const r = await fetch(`${API}${path}`, {
+    ...options,
+    headers: { Authorization: `Bearer ${token}`, ...(options.headers || {}) },
+  });
+  const data = await r.json();
+  if (r.status === 401) { logout(); throw new Error('Session expired'); }
+  if (!r.ok) throw new Error(data.detail || `HTTP ${r.status}`);
+  return data;
+}
+
+// ────────────────────────────────────────────────
+// LOGIN / CONNECT
+// ────────────────────────────────────────────────
+async function doLogin() {
+  const email = document.getElementById('loginEmail').value.trim();
+  const pass  = document.getElementById('loginPassword').value;
+  setMsg('loginMsg', 'Σύνδεση…', 'info');
+  const form = new URLSearchParams();
+  form.append('username', email); form.append('password', pass);
+  try {
+    const r = await fetch(`${API}/auth/login`, { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body: form });
+    const data = await r.json();
+    if (!r.ok) { setMsg('loginMsg', `❌ ${data.detail}`, 'error'); return; }
+    token = data.access_token;
+    sessionStorage.setItem('pa_token', token);
+    setMsg('loginMsg', `✅ Καλώς ήρθατε, ${data.pharmacist_name}!`, 'success');
+    sessionStorage.setItem('pa_name', data.pharmacist_name);
+    sessionStorage.setItem('pa_pharmacy', data.pharmacy);
+    setTimeout(() => {
+      document.getElementById('stepsBar').style.display = 'flex';
+      document.getElementById('loginCard').classList.add('hidden');
+      document.getElementById('connectCard').classList.remove('hidden');
+      setStep(2);
+    }, 500);
+  } catch(e) {
+    setMsg('loginMsg', `❌ Αδύνατη σύνδεση — τρέχει το uvicorn στο ${API};`, 'error');
+  }
+}
+
+async function doConnect() {
+  setMsg('connectMsg', 'Σύνδεση στο Pharmapi (ΗΔΥΚΑ)…', 'info');
+  try {
+    const data = await authedFetch('/pharmapi/connect', { method:'POST' });
+    pharmapiConnected = true;
+    document.getElementById('connectMsg').innerHTML =
+      `<div class="alert-msg success">✅ Session ενεργή! Έγκυρη έως: ${new Date(data.session_valid_until).toLocaleString('el-GR')}</div>`;
+    setTimeout(() => enterApp(), 1200);
+  } catch(e) {
+    setMsg('connectMsg', `❌ ${e.message}`, 'error');
+  }
+}
+
+function enterApp() {
+  const name = sessionStorage.getItem('pa_name') || '—';
+  const pharmacy = sessionStorage.getItem('pa_pharmacy') || '—';
+  document.getElementById('sidebarName').textContent = name;
+  document.getElementById('sidebarPharmacy').textContent = pharmacy;
+  setPharmapiPill(pharmapiConnected);
+  document.getElementById('authFlow').style.display = 'none';
+  document.getElementById('appLayout').classList.add('show');
+  initDashboard(name);
+  renderRecent();
+}
+
+function logout() {
+  token = null; pharmapiConnected = false;
+  sessionStorage.clear();
+  document.getElementById('authFlow').style.display = 'flex';
+  document.getElementById('appLayout').classList.remove('show');
+  document.getElementById('loginCard').classList.remove('hidden');
+  document.getElementById('connectCard').classList.add('hidden');
+  document.getElementById('stepsBar').style.display = 'none';
+  document.getElementById('loginMsg').innerHTML = '';
+  document.getElementById('connectMsg').innerHTML = '';
+  setStep(1);
+}
+
+// ────────────────────────────────────────────────
+// NAVIGATION
+// ────────────────────────────────────────────────
+function showPage(name) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(a => {
+    a.classList.toggle('active', a.getAttribute('data-page') === name);
+  });
+  const p = document.getElementById('page-' + name);
+  if (p) p.classList.add('active');
+  // Hide success screen when navigating away from dispense
+  if (name !== 'dispense') {
+    const ss = document.getElementById('successScreen');
+    ss.classList.remove('show');
+  }
+}
+
+// ────────────────────────────────────────────────
+// DASHBOARD
+// ────────────────────────────────────────────────
+function initDashboard(name) {
+  const h = new Date().getHours();
+  const greeting = h < 12 ? 'Καλημέρα' : 'Καλησπέρα';
+  const firstName = name.split(' ').pop();
+  document.getElementById('dashGreeting').textContent = `${greeting}, ${firstName} 👋`;
+  document.getElementById('dashDate').textContent = new Date().toLocaleDateString('el-GR', { weekday:'long', year:'numeric', month:'long', day:'numeric' });
+}
+
+function renderRecent() {
+  const container = document.getElementById('recentList');
+  const statusMap = { PENDING: ['pending','Αναμονή'], EXECUTED: ['executed','Εκτελέσθη'], CANCELLED: ['cancelled','Ακυρώθη'] };
+  container.innerHTML = MOCK_RECENT.map(rx => {
+    const [cls, label] = statusMap[rx.status];
+    const alertBadge = rx.alertCount > 0
+      ? `<span class="badge alert-badge">⚠ ${rx.alertCount}</span>`
+      : '';
+    return `
+      <div class="recent-item" onclick="loadPrescriptionById('${rx.barcode}')">
+        <div class="recent-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#4FC3F7" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div>
+        <div style="flex:1;min-width:0;">
+          <div class="recent-name">${rx.patientName}</div>
+          <div class="recent-meta">${rx.barcode} · ${rx.drugCount} φάρμακα · ${rx.date}</div>
+        </div>
+        ${alertBadge}
+        <span class="badge ${cls}">${label}</span>
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#546E7A" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+      </div>`;
+  }).join('');
+}
+
+// ────────────────────────────────────────────────
+// PRESCRIPTION LOADING
+// ────────────────────────────────────────────────
+function scanDemo() {
+  document.getElementById('searchBarcode').value = '1234567890123';
+  setTimeout(() => loadPrescription(), 50);
+}
+
+function loadPrescriptionById(barcode) {
+  document.getElementById('searchBarcode').value = barcode;
+  loadPrescription();
+}
+
+async function loadPrescription() {
+  const barcode = document.getElementById('searchBarcode').value.trim();
+  if (!barcode) return;
+  const errEl = document.getElementById('searchError');
+  errEl.style.display = 'none';
+  const btn = document.getElementById('loadBtn');
+  btn.innerHTML = '<span class="spinner"></span> Φόρτωση…';
+  btn.disabled = true;
+
+  await sleep(900);  // mock delay
+
+  if (barcode !== '1234567890123') {
+    errEl.textContent = `Δεν βρέθηκε συνταγή με barcode "${barcode}". Χρησιμοποιήστε το demo barcode: 1234567890123`;
+    errEl.style.display = 'block';
+    btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg> Φόρτωση`;
+    btn.disabled = false;
+    return;
+  }
+
+  btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg> Φόρτωση`;
+  btn.disabled = false;
+
+  // Deep copy alerts (fresh state)
+  currentAlerts = MOCK_ALERTS.map(a => ({ ...a, overridden: false, overrideReason: '' }));
+  renderPrescriptionView();
+}
+
+// ────────────────────────────────────────────────
+// PRESCRIPTION VIEW
+// ────────────────────────────────────────────────
+function renderPrescriptionView() {
+  const rx = MOCK_PRESCRIPTION;
+  const pt = MOCK_PATIENT;
+  const patientName = `${pt.lastname} ${pt.firstname}`;
+  const initials = pt.lastname[0] + pt.firstname[0];
+
+  document.getElementById('rxSubtitle').textContent = `Barcode ${rx.barcode} · ${rx.doctor.name} · ${rx.issueDate}`;
+
+  const conditionTags = pt.conditions.map(c => `<span class="tag condition">${c}</span>`).join('');
+  const intoleranceTags = pt.intolerances.map(i => `<span class="tag intolerance">⚠ ${i.substance}</span>`).join('');
+
+  const drugsHtml = rx.drugs.map(d => `
+    <div class="drug-item">
+      <div class="drug-icon">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#78909C" stroke-width="2"><path d="M12 2a10 10 0 0 1 10 10 10 10 0 0 1-10 10A10 10 0 0 1 2 12 10 10 0 0 1 12 2"/><path d="M7 12h10"/><path d="M12 7v10"/></svg>
+      </div>
+      <div style="flex:1;min-width:0;">
+        <div class="drug-name">${d.name}</div>
+        <div class="drug-generic">${d.genericName}</div>
+        <div class="drug-meta">${d.dosage} · ${d.quantity} τεμ. · ${d.atc}</div>
+        <div class="drug-badges">
+          ${d.emvoVerified
+            ? `<span class="emvo-badge ok">✓ EMVO</span>`
+            : `<span class="emvo-badge err">⚠ Μη επαλ.</span>`}
+          <span style="font-size:0.7rem;color:var(--muted);padding:2px 6px;background:var(--bg2);border-radius:5px;">${d.manufacturer}</span>
+        </div>
+      </div>
+      <div class="drug-price">
+        <div class="patient">€${d.patientCost.toFixed(2)}</div>
+        <div class="insurance">+€${d.insurancePrice.toFixed(2)} ΕΟΠΥΥ</div>
+      </div>
+    </div>`).join('');
+
+  const totalInsurance = rx.drugs.reduce((s,d) => s + d.insurancePrice, 0);
+  const totalPatient = rx.drugs.reduce((s,d) => s + d.patientCost, 0);
+
+  const costHtml = `
+    <div class="cost-row"><span class="label">Κάλυψη ΕΟΠΥΥ</span><span class="val green">€${totalInsurance.toFixed(2)}</span></div>
+    <div class="cost-row"><span class="label">Συμμετοχή ασθενούς</span><span class="val">€${totalPatient.toFixed(2)}</span></div>
+    <div class="cost-total"><span class="label">Σύνολο</span><span class="val">€${(totalInsurance+totalPatient).toFixed(2)}</span></div>`;
+
+  document.getElementById('rxContent').innerHTML = `
+    <div class="patient-banner">
+      <div class="patient-avatar">${initials}</div>
+      <div class="patient-info">
+        <div class="patient-name">${patientName}</div>
+        <div class="patient-meta">
+          <span>ΑΜΚΑ ${pt.amka}</span>
+          <span>·</span><span>${pt.age} ετών · ${pt.sex === 'F' ? 'Γυναίκα' : 'Άνδρας'}</span>
+          <span>·</span><span>${pt.insurance.name}</span>
+          <span>·</span><span>${pt.prescriptionCount} συνταγές φέτος</span>
+        </div>
+        <div class="patient-tags">${conditionTags}${intoleranceTags}</div>
+      </div>
+      <div style="text-align:right;flex-shrink:0;">
+        <div style="font-size:0.75rem;color:var(--muted);">Ιατρός</div>
+        <div style="font-size:0.82rem;font-weight:600;color:white;">${rx.doctor.name}</div>
+        <div style="font-size:0.72rem;color:var(--muted);">${rx.doctor.specialty}</div>
+      </div>
+    </div>
+
+    <div class="rx-body">
+      <div class="drugs-col">
+        <div class="panel">
+          <div class="panel-header">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#4FC3F7" stroke-width="2"><path d="M12 2a10 10 0 0 1 10 10 10 10 0 0 1-10 10A10 10 0 0 1 2 12 10 10 0 0 1 12 2"/><path d="M7 12h10"/><path d="M12 7v10"/></svg>
+            <span>Φάρμακα (${rx.drugs.length})</span>
+          </div>
+          ${drugsHtml}
+        </div>
+
+        <div class="panel">
+          <div class="panel-header">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#4FC3F7" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+            <span>Κόστος</span>
+          </div>
+          ${costHtml}
+        </div>
+      </div>
+
+      <div class="alerts-col">
+        <div class="panel">
+          <div class="panel-header">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#FFB74D" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            <span>Alerts Ασφαλείας</span>
+          </div>
+          <div style="padding:14px;" id="alertCards"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="action-bar" id="actionBar"></div>`;
+
+  renderAlertCards();
+  showPage('rx');
+}
+
+function renderAlertCards() {
+  const container = document.getElementById('alertCards');
+  if (!container) return;
+  const cfgMap = {
+    HIGH:   { color:'#EF5350', bg:'#3B0D0D', border:'#B71C1C', label:'ΥΨΗΛΗ',  icon:'🛑' },
+    MEDIUM: { color:'#FFB74D', bg:'#2D1F00', border:'#E65100', label:'ΜΕΣΗ',   icon:'⚠️' },
+    LOW:    { color:'#66BB6A', bg:'#0D3323', border:'#2E7D32', label:'ΧΑΜΗΛΗ', icon:'ℹ️' },
+  };
+  container.innerHTML = currentAlerts.map(alert => {
+    const cfg = cfgMap[alert.severity];
+    const overridden = alert.overridden;
+    return `
+      <div class="alert-card" id="ac-${alert.id}" style="background:${overridden ? 'var(--bg2)' : cfg.bg};border:1px solid ${overridden ? 'var(--border)' : cfg.border};opacity:${overridden ? 0.65 : 1};">
+        <div class="alert-card-head" onclick="toggleAlert('${alert.id}')">
+          <span style="font-size:1rem;">${cfg.icon}</span>
+          <div style="flex:1;min-width:0;">
+            <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px;">
+              <span class="severity-label" style="background:${cfg.color}25;color:${cfg.color};">${cfg.label}</span>
+              ${overridden ? `<span class="overridden-chip">ΠΑΡΑΚΑΜΦΘΗΚΕ</span>` : ''}
+            </div>
+            <div style="font-size:0.85rem;font-weight:600;color:white;">${alert.title}</div>
+            <div style="font-size:0.72rem;color:var(--muted);margin-top:2px;">${alert.drugs.join(' + ')}</div>
+          </div>
+          <span id="ac-chevron-${alert.id}" style="color:var(--muted);font-size:0.75rem;flex-shrink:0;">▼</span>
+        </div>
+        <div class="alert-card-body" id="ac-body-${alert.id}" style="${alert.severity === 'HIGH' && !overridden ? '' : 'display:none;'}">
+          <p>${alert.description}</p>
+          <div class="alert-action-box">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="${cfg.color}" stroke-width="2" style="flex-shrink:0;margin-top:1px;"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            <p>${alert.action}</p>
+          </div>
+          ${!overridden ? `
+            <div class="override-form" id="of-${alert.id}" style="display:none;">
+              <textarea placeholder="Αιτιολόγηση παράκαμψης (π.χ. ιατρική ένδειξη, συνεννόηση με ιατρό)..." id="or-${alert.id}"></textarea>
+              <div class="override-form-btns">
+                <button class="btn-sm primary" onclick="confirmOverride('${alert.id}')">Παράκαμψη</button>
+                <button class="btn-sm ghost" onclick="cancelOverride('${alert.id}')">Άκυρο</button>
+              </div>
+            </div>
+            <button class="btn-sm ghost" id="ob-${alert.id}" onclick="showOverrideForm('${alert.id}')" style="margin-top:8px;">
+              Παράκαμψη με αιτιολόγηση →
+            </button>
+          ` : `
+            <div style="font-size:0.78rem;color:var(--muted);margin-top:8px;">Αιτιολόγηση: "${alert.overrideReason}"</div>
+          `}
+        </div>
+      </div>`;
+  }).join('');
+
+  renderActionBar();
+}
+
+function toggleAlert(id) {
+  const body = document.getElementById(`ac-body-${id}`);
+  const chev = document.getElementById(`ac-chevron-${id}`);
+  const visible = body.style.display !== 'none';
+  body.style.display = visible ? 'none' : 'block';
+  chev.textContent = visible ? '▼' : '▲';
+}
+
+function showOverrideForm(id) {
+  document.getElementById(`of-${id}`).style.display = 'block';
+  document.getElementById(`ob-${id}`).style.display = 'none';
+}
+function cancelOverride(id) {
+  document.getElementById(`of-${id}`).style.display = 'none';
+  document.getElementById(`ob-${id}`).style.display = 'block';
+}
+function confirmOverride(id) {
+  const reason = document.getElementById(`or-${id}`).value.trim();
+  if (!reason) { document.getElementById(`or-${id}`).focus(); return; }
+  const alert = currentAlerts.find(a => a.id === id);
+  if (alert) { alert.overridden = true; alert.overrideReason = reason; }
+  renderAlertCards();
+}
+
+function renderActionBar() {
+  const bar = document.getElementById('actionBar');
+  if (!bar) return;
+  const blockers = currentAlerts.filter(a => a.severity === 'HIGH' && !a.overridden);
+  const hasBlockers = blockers.length > 0;
+  bar.innerHTML = `
+    ${hasBlockers ? `<div class="blocked-note">⚠ ${blockers.length} κρίσιμο alert χρειάζεται παράκαμψη πριν τη χορήγηση</div>` : ''}
+    <button class="btn-secondary" onclick="showPage('dashboard')" style="padding:12px 18px;">← Πίσω</button>
+    <button class="btn-dispense" onclick="goToDispense()" ${hasBlockers ? 'disabled' : ''}>
+      ✅ Εκτέλεση Συνταγής →
+    </button>`;
+}
+
+// ────────────────────────────────────────────────
+// DISPENSE
+// ────────────────────────────────────────────────
+function goToDispense() {
+  renderDispensePage();
+  showPage('dispense');
+}
+
+function renderDispensePage() {
+  const rx = MOCK_PRESCRIPTION;
+  const pt = MOCK_PATIENT;
+  const patientName = `${pt.lastname} ${pt.firstname}`;
+  const initials = pt.lastname[0] + pt.firstname[0];
+  const activeAlerts = currentAlerts.filter(a => !a.overridden);
+  const totalInsurance = rx.drugs.reduce((s,d) => s + d.insurancePrice, 0);
+  const totalPatient = rx.drugs.reduce((s,d) => s + d.patientCost, 0);
+
+  const drugsHtml = rx.drugs.map(d => `
+    <div class="confirm-drug">
+      <div class="confirm-drug-icon">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#78909C" stroke-width="2"><path d="M12 2a10 10 0 0 1 10 10 10 10 0 0 1-10 10A10 10 0 0 1 2 12 10 10 0 0 1 12 2"/><path d="M7 12h10"/><path d="M12 7v10"/></svg>
+      </div>
+      <div class="confirm-drug-info">
+        <div class="confirm-drug-name">${d.name}</div>
+        <div class="confirm-drug-meta">${d.dosage} · ${d.quantity} τεμ. · ${d.atc}</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        ${d.emvoVerified
+          ? `<span class="emvo-badge ok">✓ EMVO</span>`
+          : `<span class="emvo-badge err">⚠</span>`}
+        <div style="text-align:right;">
+          <div style="font-size:0.85rem;font-weight:700;color:white;">€${d.patientCost.toFixed(2)}</div>
+          <div style="font-size:0.7rem;color:var(--muted);">+€${d.insurancePrice.toFixed(2)} ΕΟΠΥΥ</div>
+        </div>
+      </div>
+    </div>`).join('');
+
+  const alertsWarningHtml = activeAlerts.length > 0 ? `
+    <div class="active-alerts-warning">
+      <div class="aw-title">⚠ Ενεργά Alerts (${activeAlerts.length})</div>
+      ${activeAlerts.map(a => `<div class="aw-item">• ${a.title}</div>`).join('')}
+    </div>` : '';
+
+  document.getElementById('dispenseConfirm').innerHTML = `
+    <div class="dispense-wrap">
+      <div class="rx-header">
+        <div class="back-btn" onclick="showPage('rx');renderAlertCards();">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+        </div>
+        <div>
+          <h1 style="font-size:1.2rem;font-weight:700;color:white;">Επιβεβαίωση Χορήγησης</h1>
+          <p style="font-size:0.78rem;color:var(--muted);">Ελέγξτε τα στοιχεία πριν την εκτέλεση</p>
+        </div>
+      </div>
+
+      <div class="confirm-patient">
+        <div class="confirm-avatar">${initials}</div>
+        <div style="flex:1;">
+          <div style="font-weight:600;color:white;">${patientName}</div>
+          <div style="font-size:0.75rem;color:var(--muted);margin-top:3px;">ΑΜΚΑ ${pt.amka} · ${pt.age} ετών · ${pt.insurance.name}</div>
+        </div>
+        <span class="rx-barcode-chip">${rx.barcode}</span>
+      </div>
+
+      <div class="confirm-drug-list">
+        <div class="panel-header" style="background:var(--bg3);">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#4FC3F7" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+          <span>Φάρμακα (${rx.drugs.length})</span>
+        </div>
+        ${drugsHtml}
+      </div>
+
+      ${alertsWarningHtml}
+
+      <div class="confirm-cost">
+        <div style="font-size:0.875rem;font-weight:600;color:white;margin-bottom:12px;display:flex;align-items:center;gap:6px;">
+          <span>€</span> Κόστος Χορήγησης
+        </div>
+        <div class="confirm-cost-row"><span class="cl">Κάλυψη ΕΟΠΥΥ</span><span class="cv green">€${totalInsurance.toFixed(2)}</span></div>
+        <div class="confirm-cost-row"><span class="cl">Συμμετοχή ασθενούς</span><span class="cv">€${totalPatient.toFixed(2)}</span></div>
+        <div class="confirm-cost-row total"><span class="cl">Σύνολο</span><span class="cv">€${(totalInsurance+totalPatient).toFixed(2)}</span></div>
+      </div>
+
+      <div class="dispense-actions">
+        <button class="btn-back" onclick="showPage('rx');renderAlertCards();">← Πίσω</button>
+        <button class="btn-dispense" style="flex:1;" onclick="executeDispense()" id="executeBtn">
+          ✅ Εκτέλεση Συνταγής
+        </button>
+      </div>
+    </div>`;
+
+  document.getElementById('successScreen').classList.remove('show');
+}
+
+async function executeDispense() {
+  const btn = document.getElementById('executeBtn');
+  btn.innerHTML = '<span class="spinner"></span> Εκτέλεση…';
+  btn.disabled = true;
+  await sleep(1200);
+
+  const execId = 'EXC-' + Date.now();
+  const rx = MOCK_PRESCRIPTION;
+  const pt = MOCK_PATIENT;
+  const patientName = `${pt.lastname} ${pt.firstname}`;
+  const totalPatient = rx.drugs.reduce((s,d) => s + d.patientCost, 0);
+  const totalInsurance = rx.drugs.reduce((s,d) => s + d.insurancePrice, 0);
+
+  // Build success drug summary
+  const successDrugsHtml = rx.drugs.map(d => `
+    <div class="confirm-drug" style="border-bottom:1px solid var(--border);">
+      <div style="width:6px;height:6px;border-radius:50%;background:var(--sky);flex-shrink:0;margin-top:6px;"></div>
+      <div class="confirm-drug-info">
+        <div class="confirm-drug-name">${d.name} <span style="font-size:0.72rem;color:var(--muted);">${d.dosage}</span></div>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;">
+        ${d.emvoVerified ? `<span class="emvo-badge ok">✓ EMVO</span>` : ''}
+        <span style="font-size:0.82rem;font-weight:600;color:white;">€${d.patientCost.toFixed(2)}</span>
+      </div>
+    </div>`).join('');
+
+  document.getElementById('executionIdText').textContent = `Execution ID: ${execId}`;
+  document.getElementById('successDrugList').innerHTML = `
+    <div style="padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;">
+      <div style="width:36px;height:36px;background:var(--bg2);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:0.85rem;font-weight:700;color:var(--sky);">${pt.lastname[0]+pt.firstname[0]}</div>
+      <div>
+        <div style="font-size:0.85rem;font-weight:600;color:white;">${patientName}</div>
+        <div style="font-size:0.72rem;color:var(--muted);">ΑΜΚΑ ${pt.amka}</div>
+      </div>
+    </div>
+    ${successDrugsHtml}
+    <div style="padding:14px 16px;display:flex;justify-content:space-between;border-top:1px solid var(--border);">
+      <span style="font-size:0.82rem;color:var(--muted);">Ασθενής πλήρωσε</span>
+      <span style="font-size:1rem;font-weight:700;color:white;">€${totalPatient.toFixed(2)}</span>
+    </div>
+    <div style="padding:0 16px 14px;display:flex;justify-content:space-between;">
+      <span style="font-size:0.75rem;color:var(--muted);">Κάλυψη ΕΟΠΥΥ</span>
+      <span style="font-size:0.85rem;font-weight:600;color:var(--green);">€${totalInsurance.toFixed(2)}</span>
+    </div>`;
+
+  document.getElementById('dispenseConfirm').style.display = 'none';
+  document.getElementById('successScreen').classList.add('show');
+}
+
+// ────────────────────────────────────────────────
+// UTILS
+// ────────────────────────────────────────────────
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// ────────────────────────────────────────────────
+// RESTORE SESSION ON RELOAD
+// ────────────────────────────────────────────────
+if (token) {
+  authedFetch('/auth/me')
+    .then(data => {
+      sessionStorage.setItem('pa_name', data.name);
+      sessionStorage.setItem('pa_pharmacy', data.pharmacy);
+      return authedFetch('/pharmapi/status');
+    })
+    .then(status => {
+      pharmapiConnected = status.pharmapi_connected;
+      enterApp();
+    })
+    .catch(() => logout());
+}
+</script>
+</body>
+</html>
