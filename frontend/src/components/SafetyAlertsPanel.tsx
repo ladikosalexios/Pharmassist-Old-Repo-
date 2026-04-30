@@ -77,11 +77,11 @@ export function SafetyAlertsPanel({ maxHeightClass = "max-h-96" }: SafetyAlertsP
           <AlertCircleIcon width={14} height={14} className="mt-0.5 shrink-0" />
           <span>{error}</span>
         </div>
-      ) : alerts && alerts.length === 0 ? (
+      ) : !alerts || alerts.length === 0 ? (
         <div className="px-5 py-8 text-center text-sm text-slate-500">No active alerts.</div>
       ) : (
         <div className={`space-y-3 overflow-y-auto p-4 ${maxHeightClass}`}>
-          {alerts!.map((a) => {
+          {alerts.map((a) => {
             const isNew = !seenIds.current.has(a.id);
             seenIds.current.add(a.id);
             return <AlertCard key={a.id} alert={a} isNew={isNew} />;
