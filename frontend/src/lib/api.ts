@@ -55,13 +55,19 @@ export async function getSafetyChecks(rxId: string): Promise<SafetyCheck[]> {
   const r = await fetch(`${API_BASE}/safety-checks/${encodeURIComponent(rxId)}`, {
     headers: authHeaders(),
   });
-  const data = (await handle(r)) as { rxId: string; checks: SafetyCheck[] };
+  const data = (await handle(r)) as { rxId?: string; checks?: SafetyCheck[] };
+  if (!Array.isArray(data?.checks)) {
+    throw new ApiError(0, "Unexpected response from /safety-checks (missing 'checks' array). Is the API running and proxied?");
+  }
   return data.checks;
 }
 
 export async function getActiveAlerts(): Promise<ActiveAlert[]> {
   const r = await fetch(`${API_BASE}/alerts/active`, { headers: authHeaders() });
-  const data = (await handle(r)) as { alerts: ActiveAlert[] };
+  const data = (await handle(r)) as { alerts?: ActiveAlert[] };
+  if (!Array.isArray(data?.alerts)) {
+    throw new ApiError(0, "Unexpected response from /alerts/active (missing 'alerts' array). Is the API running and proxied?");
+  }
   return data.alerts;
 }
 
