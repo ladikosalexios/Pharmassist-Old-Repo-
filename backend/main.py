@@ -586,6 +586,58 @@ async def get_active_alerts(current: dict = Depends(get_current_user)):
     return {"alerts": _MOCK_ACTIVE_ALERTS}
 
 
+# ── Pharmacist ↔ Prescriber messaging (mock thread per prescription) ────────
+_MOCK_MESSAGES: dict = {
+    "RX2024-005": [
+        {
+            "id": "m-005-1",
+            "rxId": "RX2024-005",
+            "from": "pharmacist",
+            "fromName": "Demo Pharmacist",
+            "body": "Patient is currently on Aspirin 100 mg. Could you confirm the bleeding-risk plan and the INR monitoring schedule before I dispense?",
+            "sentAt": "2026-04-29T14:30:00Z",
+        },
+        {
+            "id": "m-005-2",
+            "rxId": "RX2024-005",
+            "from": "prescriber",
+            "fromName": "Dr. Michael Chen",
+            "body": "Yes — patient has a recent stent (12/2025). Please continue but stress INR every 3–5 days for the first two weeks. I've already booked the follow-up labs for next Monday.",
+            "sentAt": "2026-04-29T16:12:00Z",
+        },
+    ],
+}
+
+
+class MessagePayload(BaseModel):
+    to: str
+    rxId: str
+    body: str
+
+
+@app.get("/messages")
+async def list_messages(rxId: str, current: dict = Depends(get_current_user)):
+    """Return the message thread between this pharmacist and the prescriber for a given rxId."""
+    return {"items": _MOCK_MESSAGES.get(rxId, [])}
+
+
+@app.post("/messages")
+async def post_message(payload: MessagePayload, current: dict = Depends(get_current_user)):
+    if not payload.body.strip():
+        raise HTTPException(status_code=400, detail="Message body cannot be empty.")
+    msg = {
+        "id": f"m-{int(time.time() * 1000)}",
+        "rxId": payload.rxId,
+        "to": payload.to,
+        "from": "pharmacist",
+        "fromName": current["name"],
+        "body": payload.body.strip(),
+        "sentAt": datetime.now(timezone.utc).isoformat(),
+    }
+    _MOCK_MESSAGES.setdefault(payload.rxId, []).append(msg)
+    return msg
+
+
 @app.get("/prescriptions/{rx_id}")
 async def get_prescription_for_verification(rx_id: str, current: dict = Depends(get_current_user)):
     """Return prescription data (patient, medication, prescriber, safety checks) for the verification UI."""

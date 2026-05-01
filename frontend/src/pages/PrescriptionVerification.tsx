@@ -6,6 +6,7 @@ import {
 import { SafetyChecksPanel } from "../components/SafetyChecksPanel";
 import { FlagDiscrepancyModal } from "../components/FlagDiscrepancyModal";
 import { ApproveConfirmModal } from "../components/ApproveConfirmModal";
+import { ContactPrescriberDrawer } from "../components/ContactPrescriberDrawer";
 import { useToast } from "../components/Toast";
 import { ApiError, getPrescription, approvePrescription } from "../lib/api";
 import type { Prescription } from "../types";
@@ -26,6 +27,7 @@ export function PrescriptionVerification() {
   const [actionMsg, setActionMsg] = useState<{ kind: "ok" | "warn" | "err"; text: string } | null>(null);
   const [flagOpen, setFlagOpen] = useState(false);
   const [approveOpen, setApproveOpen] = useState(false);
+  const [contactOpen, setContactOpen] = useState(false);
   const [approveSubmitting, setApproveSubmitting] = useState(false);
   const [approveError, setApproveError] = useState<string | null>(null);
   const [blockedByChecks, setBlockedByChecks] = useState(false);
@@ -119,9 +121,9 @@ export function PrescriptionVerification() {
           </h1>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <a href={`tel:${rx.prescriber.contact}`} className="btn btn-outline">
+          <button type="button" onClick={() => setContactOpen(true)} className="btn btn-outline">
             <PhoneIcon /> Contact Prescriber
-          </a>
+          </button>
           {rx.status === "FLAGGED" ? (
             <button
               type="button"
@@ -170,6 +172,14 @@ export function PrescriptionVerification() {
         error={approveError}
         onClose={() => { if (!approveSubmitting) setApproveOpen(false); }}
         onConfirm={onConfirmApprove}
+      />
+
+      <ContactPrescriberDrawer
+        open={contactOpen}
+        rxId={rx.rxId}
+        patientName={rx.patient.name}
+        prescriber={rx.prescriber}
+        onClose={() => setContactOpen(false)}
       />
 
       {blockedByChecks && (
