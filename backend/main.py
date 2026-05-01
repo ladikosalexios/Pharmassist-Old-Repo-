@@ -1098,6 +1098,17 @@ async def get_patient(patient_id: str, current: dict = Depends(get_current_user)
     return profile
 
 
+@app.get("/prescriptions/next")
+async def next_pending_prescription(current: dict = Depends(get_current_user)):
+    """Return the next PENDING prescription in the queue (for the keyboard shortcut). Declared before the {rx_id} catch-all so FastAPI matches it first."""
+    for base in _MOCK_QUEUE_BASE:
+        rx = _MOCK_PRESCRIPTIONS.get(base["rxId"])
+        status = rx["status"] if rx else base["status"]
+        if status == "PENDING":
+            return {**base, "status": status}
+    raise HTTPException(status_code=404, detail="No pending prescriptions in the queue")
+
+
 @app.get("/prescriptions/{rx_id}")
 async def get_prescription_for_verification(rx_id: str, current: dict = Depends(get_current_user)):
     """Return prescription data (patient, medication, prescriber, safety checks) for the verification UI."""

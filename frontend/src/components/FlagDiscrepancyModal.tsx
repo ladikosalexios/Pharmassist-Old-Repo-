@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { FlagIcon } from "./Icons";
 import { ApiError, notifyPhysician, patchPrescription, type DiscrepancyType } from "../lib/api";
 import { useToast } from "./Toast";
+import { useModalRegistration } from "../lib/keyboard";
 
 interface FlagDiscrepancyModalProps {
   rxId: string;
@@ -24,6 +25,7 @@ const TYPE_LABEL: Record<DiscrepancyType, string> = Object.fromEntries(
 ) as Record<DiscrepancyType, string>;
 
 export function FlagDiscrepancyModal({ rxId, open, onClose, onFlagged }: FlagDiscrepancyModalProps) {
+  useModalRegistration(open);
   const titleId = useId();
   const [discrepancyType, setDiscrepancyType] = useState<DiscrepancyType | "">("");
   const [notes, setNotes] = useState("");

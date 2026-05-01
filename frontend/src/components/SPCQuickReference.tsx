@@ -2,6 +2,7 @@ import { useEffect, useId, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { AlertCircleIcon, FileTextIcon, XIcon } from "./Icons";
 import { ApiError, getSpc } from "../lib/api";
+import { useModalRegistration } from "../lib/keyboard";
 import type { Interaction, SpcDetails } from "../types";
 
 export interface SpcFallback {
@@ -182,6 +183,7 @@ function FullSpcModal({
   spc: SpcDetails;
   onClose: () => void;
 }) {
+  useModalRegistration(open);
   const titleId = useId();
 
   useEffect(() => {

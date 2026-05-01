@@ -10,6 +10,7 @@ import { FlagDiscrepancyModal } from "../components/FlagDiscrepancyModal";
 import { ApproveConfirmModal } from "../components/ApproveConfirmModal";
 import { ContactPrescriberDrawer } from "../components/ContactPrescriberDrawer";
 import { useToast } from "../components/Toast";
+import { useKeyboardShortcuts } from "../lib/keyboard";
 import { ApiError, getPrescription, approvePrescription } from "../lib/api";
 import type { Prescription } from "../types";
 
@@ -72,6 +73,24 @@ export function PrescriptionVerification() {
       setApproveSubmitting(false);
     }
   }
+
+  // Page-level keyboard shortcuts. The hook itself ignores keystrokes while
+  // any modal/drawer is registered as open, so the C/F handlers don't fire
+  // when the approve or flag dialogs are already up.
+  useKeyboardShortcuts({
+    c: () => {
+      if (!rx) return;
+      if (rx.status === "COMPLETED") { toast("Prescription is already completed.", "info"); return; }
+      if (rx.status === "FLAGGED")   { toast("Prescription is flagged — clear the flag first.", "info"); return; }
+      onClickApprove();
+    },
+    f: () => {
+      if (!rx) return;
+      if (rx.status === "FLAGGED")   { toast("Prescription is already flagged.", "info"); return; }
+      if (rx.status === "COMPLETED") { toast("Prescription is already completed.", "info"); return; }
+      setFlagOpen(true);
+    },
+  });
 
   if (loading) {
     return (

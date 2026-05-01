@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { ClockIcon, FlagIcon, CheckIcon, AlertCircleIcon, ChevronRightIcon } from "../components/Icons";
 import { SafetyAlertsPanel } from "../components/SafetyAlertsPanel";
+import { KeyboardShortcutsCard } from "../components/KeyboardShortcutsCard";
 import { ApiError, listPrescriptions } from "../lib/api";
 import type { QueueItem } from "../types";
 
@@ -113,8 +114,9 @@ export function Dashboard() {
           )}
         </div>
 
-        <div className="self-start">
+        <div className="self-start space-y-6">
           <SafetyAlertsPanel />
+          <KeyboardShortcutsCard />
         </div>
       </div>
     </div>
