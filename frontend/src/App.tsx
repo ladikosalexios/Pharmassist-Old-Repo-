@@ -3,6 +3,7 @@ import { AppShell } from "./components/AppShell";
 import { Login } from "./pages/Login";
 import { Dashboard } from "./pages/Dashboard";
 import { PrescriptionVerification } from "./pages/PrescriptionVerification";
+import { Documentation } from "./pages/Documentation";
 import { Placeholder } from "./pages/Placeholder";
 
 export function App() {
@@ -12,6 +13,7 @@ export function App() {
       <Route element={<AppShell />}>
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/prescription/:rxId" element={<PrescriptionVerification />} />
+        <Route path="/documentation" element={<Documentation />} />
         <Route path="/prescriptions" element={<Placeholder title="Prescriptions" />} />
         <Route path="/patients"      element={<Placeholder title="Patients" />} />
         <Route path="/history"       element={<Placeholder title="History" />} />

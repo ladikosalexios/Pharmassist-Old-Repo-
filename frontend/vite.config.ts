@@ -14,6 +14,7 @@ export default defineConfig({
       "/alerts":         "http://127.0.0.1:8000",
       "/messages":       "http://127.0.0.1:8000",
       "/notifications":  "http://127.0.0.1:8000",
+      "/documentation": "http://127.0.0.1:8000",
       "/health":         "http://127.0.0.1:8000",
     },
   },

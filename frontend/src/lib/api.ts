@@ -1,4 +1,7 @@
-import type { ActiveAlert, Prescription, PrescriptionMessage, QueueItem, SafetyCheck, SpcDetails } from "../types";
+import type {
+  ActiveAlert, DeliveryMethodFilter, DocumentationListResponse, DocumentationRecord,
+  Prescription, PrescriptionMessage, QueueItem, SafetyCheck, SpcDetails,
+} from "../types";
 
 const API_BASE = (import.meta.env.VITE_API_BASE as string | undefined) ?? "";
 
@@ -166,4 +169,59 @@ export async function sendMessage(to: string, rxId: string, body: string): Promi
     body: JSON.stringify({ to, rxId, body }),
   });
   return handle(r) as Promise<PrescriptionMessage>;
+}
+
+export async function listDocumentation(params: {
+  q?: string;
+  method?: DeliveryMethodFilter;
+} = {}): Promise<DocumentationListResponse> {
+  const qs = new URLSearchParams();
+  if (params.q) qs.set("q", params.q);
+  if (params.method && params.method !== "ALL") qs.set("method", params.method);
+  const r = await fetch(`${API_BASE}/documentation${qs.toString() ? `?${qs}` : ""}`, {
+    headers: authHeaders(),
+  });
+  const data = (await handle(r)) as Partial<DocumentationListResponse>;
+  if (!Array.isArray(data?.items) || !data.stats || typeof data.total !== "number") {
+    throw new ApiError(0, "Unexpected response from /documentation. Is the API running and proxied?");
+  }
+  return data as DocumentationListResponse;
+}
+
+export async function getDocumentationRecord(id: string): Promise<DocumentationRecord> {
+  const r = await fetch(`${API_BASE}/documentation/${encodeURIComponent(id)}`, {
+    headers: authHeaders(),
+  });
+  return handle(r) as Promise<DocumentationRecord>;
+}
+
+async function downloadFile(url: string, filename: string): Promise<void> {
+  const r = await fetch(url, { headers: authHeaders() });
+  if (!r.ok) {
+    const data = await r.json().catch(() => ({}));
+    throw new ApiError(r.status, (data as { detail?: string }).detail ?? `HTTP ${r.status}`);
+  }
+  const blob = await r.blob();
+  const objectUrl = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = objectUrl;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  // Defer revocation so Safari has time to start the download.
+  setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+}
+
+export async function exportDocumentation(params: { q?: string; method?: DeliveryMethodFilter } = {}): Promise<void> {
+  const qs = new URLSearchParams();
+  if (params.q) qs.set("q", params.q);
+  if (params.method && params.method !== "ALL") qs.set("method", params.method);
+  const url = `${API_BASE}/documentation/export${qs.toString() ? `?${qs}` : ""}`;
+  await downloadFile(url, "documentation_log.csv");
+}
+
+export async function exportDocumentationRecord(id: string): Promise<void> {
+  const url = `${API_BASE}/documentation/${encodeURIComponent(id)}/export`;
+  await downloadFile(url, `${id}.csv`);
 }

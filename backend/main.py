@@ -34,12 +34,15 @@ import hmac
 import time
 import json
 import base64
+import csv
+import io
 from datetime import datetime, timezone
 from typing import Optional
 
 import httpx
-from fastapi import FastAPI, HTTPException, Depends, status
+from fastapi import FastAPI, HTTPException, Depends, Query, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from pydantic import BaseModel
 
@@ -729,6 +732,205 @@ async def post_message(payload: MessagePayload, current: dict = Depends(get_curr
     }
     _MOCK_MESSAGES.setdefault(payload.rxId, []).append(msg)
     return msg
+
+
+# ── Documentation & Legal Log (mock) ────────────────────────────────────────
+_MOCK_DOCUMENTATION: list = [
+    {
+        "id": "DOC-2026-0007",
+        "rxId": "RX2024-005",
+        "patientName": "Maria Stavrou",
+        "drugName": "Warfarin 5 mg",
+        "setting": "Private",
+        "deliveryMethod": "BOTH",
+        "language": "Greek",
+        "informationProvided": (
+            "Reviewed bleeding precautions, INR monitoring schedule, dietary "
+            "considerations (vitamin K), and signs of over-anticoagulation. Patient "
+            "received printed leaflet and digital copy via the patient portal."
+        ),
+        "pharmacistName": "Demo Pharmacist",
+        "pharmacistLicense": "PH-12345",
+        "signatureConfirmed": True,
+        "dispensedAt": "2026-04-29T10:30:00+00:00",
+    },
+    {
+        "id": "DOC-2026-0006",
+        "rxId": "RX2024-001",
+        "patientName": "Sarah Johnson",
+        "drugName": "Amoxicillin 500 mg",
+        "setting": "Private",
+        "deliveryMethod": "PRINT",
+        "language": "English",
+        "informationProvided": (
+            "Counselled on full course completion, symptom-watch for hypersensitivity, "
+            "and gastrointestinal side effects. Provided printed leaflet."
+        ),
+        "pharmacistName": "Demo Pharmacist",
+        "pharmacistLicense": "PH-12345",
+        "signatureConfirmed": True,
+        "dispensedAt": "2026-04-15T16:02:00+00:00",
+    },
+    {
+        "id": "DOC-2026-0005",
+        "rxId": "RX2024-002",
+        "patientName": "James Martinez",
+        "drugName": "Warfarin 7.5 mg",
+        "setting": "Hospital",
+        "deliveryMethod": "DIGITAL",
+        "language": "English",
+        "informationProvided": (
+            "Reviewed inpatient protocol with the ward pharmacist and the patient. "
+            "Digital counselling pack pushed to the patient's hospital portal."
+        ),
+        "pharmacistName": "Demo Pharmacist",
+        "pharmacistLicense": "PH-12345",
+        "signatureConfirmed": True,
+        "dispensedAt": "2026-04-12T09:18:00+00:00",
+    },
+    {
+        "id": "DOC-2026-0004",
+        "rxId": "RX2024-003",
+        "patientName": "Maria Garcia",
+        "drugName": "Lisinopril 10 mg",
+        "setting": "Private",
+        "deliveryMethod": "PRINT",
+        "language": "Greek",
+        "informationProvided": (
+            "Discussed renal function monitoring, dry-cough as a possible side effect, "
+            "and the need to avoid concurrent NSAIDs. Printed leaflet handed over."
+        ),
+        "pharmacistName": "Demo Pharmacist",
+        "pharmacistLicense": "PH-12345",
+        "signatureConfirmed": True,
+        "dispensedAt": "2026-03-22T11:44:00+00:00",
+    },
+    {
+        "id": "DOC-2026-0003",
+        "rxId": "RX2023-118",
+        "patientName": "Eleni Nikolaou",
+        "drugName": "Atorvastatin 20 mg",
+        "setting": "Private",
+        "deliveryMethod": "BOTH",
+        "language": "Greek",
+        "informationProvided": (
+            "Reviewed muscle pain warnings and lipid panel follow-up timing. Both "
+            "printed leaflet and digital copy delivered."
+        ),
+        "pharmacistName": "Demo Pharmacist",
+        "pharmacistLicense": "PH-12345",
+        "signatureConfirmed": True,
+        "dispensedAt": "2026-03-10T15:05:00+00:00",
+    },
+    {
+        "id": "DOC-2026-0002",
+        "rxId": "RX2023-091",
+        "patientName": "Dimitrios Konstantinou",
+        "drugName": "Metformin 1000 mg",
+        "setting": "Hospital",
+        "deliveryMethod": "DIGITAL",
+        "language": "Greek",
+        "informationProvided": (
+            "Discussed lactic-acidosis red-flag symptoms and renal function checks. "
+            "Digital counselling sent to the inpatient app."
+        ),
+        "pharmacistName": "Demo Pharmacist",
+        "pharmacistLicense": "PH-12345",
+        "signatureConfirmed": True,
+        "dispensedAt": "2026-02-27T08:51:00+00:00",
+    },
+]
+
+
+def _doc_stats() -> dict:
+    s = {"total": len(_MOCK_DOCUMENTATION), "print": 0, "digital": 0, "both": 0}
+    for d in _MOCK_DOCUMENTATION:
+        m = d["deliveryMethod"]
+        if m == "PRINT":
+            s["print"] += 1
+        elif m == "DIGITAL":
+            s["digital"] += 1
+        elif m == "BOTH":
+            s["both"] += 1
+    return s
+
+
+def _filter_docs(query: str | None, method: str | None) -> list:
+    items = list(_MOCK_DOCUMENTATION)
+    if query:
+        q = query.lower().strip()
+        items = [
+            d for d in items
+            if q in d["patientName"].lower() or q in d["rxId"].lower() or q in d["drugName"].lower()
+        ]
+    if method and method.upper() != "ALL":
+        items = [d for d in items if d["deliveryMethod"] == method.upper()]
+    items.sort(key=lambda d: d["dispensedAt"], reverse=True)
+    return items
+
+
+def _csv_response(rows: list, filename: str) -> StreamingResponse:
+    out = io.StringIO()
+    writer = csv.writer(out)
+    writer.writerow([
+        "ID", "Dispensed At", "Rx Code", "Patient", "Drug", "Setting",
+        "Delivery Method", "Language", "Information Provided",
+        "Pharmacist", "Licence", "Signature Confirmed",
+    ])
+    for d in rows:
+        writer.writerow([
+            d["id"], d["dispensedAt"], d["rxId"], d["patientName"], d["drugName"],
+            d["setting"], d["deliveryMethod"], d["language"], d["informationProvided"],
+            d["pharmacistName"], d["pharmacistLicense"],
+            "yes" if d["signatureConfirmed"] else "no",
+        ])
+    out.seek(0)
+    return StreamingResponse(
+        iter([out.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+# Order matters: fixed paths must be declared *before* the catch-all {id} path.
+@app.get("/documentation/export")
+async def export_documentation(
+    q: Optional[str] = Query(None, description="Free-text search across patient, rxId, drug."),
+    method: Optional[str] = Query(None, description="PRINT | DIGITAL | BOTH | ALL"),
+    current: dict = Depends(get_current_user),
+):
+    rows = _filter_docs(q, method)
+    return _csv_response(rows, "documentation_log.csv")
+
+
+@app.get("/documentation/{doc_id}/export")
+async def export_documentation_record(doc_id: str, current: dict = Depends(get_current_user)):
+    rec = next((d for d in _MOCK_DOCUMENTATION if d["id"] == doc_id), None)
+    if rec is None:
+        raise HTTPException(status_code=404, detail=f"Documentation record {doc_id} not found")
+    return _csv_response([rec], f"{doc_id}.csv")
+
+
+@app.get("/documentation")
+async def list_documentation(
+    q: Optional[str] = Query(None, description="Free-text search across patient, rxId, drug."),
+    method: Optional[str] = Query(None, description="PRINT | DIGITAL | BOTH | ALL"),
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    current: dict = Depends(get_current_user),
+):
+    items = _filter_docs(q, method)
+    total = len(items)
+    page = items[offset : offset + limit]
+    return {"items": page, "total": total, "stats": _doc_stats()}
+
+
+@app.get("/documentation/{doc_id}")
+async def get_documentation_record(doc_id: str, current: dict = Depends(get_current_user)):
+    rec = next((d for d in _MOCK_DOCUMENTATION if d["id"] == doc_id), None)
+    if rec is None:
+        raise HTTPException(status_code=404, detail=f"Documentation record {doc_id} not found")
+    return rec
 
 
 @app.get("/prescriptions/{rx_id}")
