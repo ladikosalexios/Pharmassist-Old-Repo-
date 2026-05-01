@@ -202,13 +202,14 @@ export async function getDocumentationRecord(id: string): Promise<DocumentationR
   return handle(r) as Promise<DocumentationRecord>;
 }
 
-async function downloadFile(url: string, filename: string): Promise<void> {
+async function downloadFile(url: string, fallbackName: string): Promise<void> {
   const r = await fetch(url, { headers: authHeaders() });
   if (!r.ok) {
     const data = await r.json().catch(() => ({}));
     throw new ApiError(r.status, (data as { detail?: string }).detail ?? `HTTP ${r.status}`);
   }
   const blob = await r.blob();
+  const filename = parseContentDispositionFilename(r.headers.get("content-disposition")) ?? fallbackName;
   const objectUrl = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = objectUrl;
@@ -220,17 +221,34 @@ async function downloadFile(url: string, filename: string): Promise<void> {
   setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
 }
 
-export async function exportDocumentation(params: { q?: string; method?: DeliveryMethodFilter } = {}): Promise<void> {
+function parseContentDispositionFilename(header: string | null): string | null {
+  if (!header) return null;
+  const utf8 = /filename\*\s*=\s*UTF-8''([^;]+)/i.exec(header);
+  if (utf8) {
+    try { return decodeURIComponent(utf8[1].trim()); } catch { /* fall through */ }
+  }
+  const plain = /filename\s*=\s*"?([^";]+)"?/i.exec(header);
+  return plain ? plain[1].trim() : null;
+}
+
+export type ExportFormat = "pdf" | "csv";
+
+export async function exportDocumentation(
+  params: { q?: string; method?: DeliveryMethodFilter; format?: ExportFormat } = {},
+): Promise<void> {
   const qs = new URLSearchParams();
   if (params.q) qs.set("q", params.q);
   if (params.method && params.method !== "ALL") qs.set("method", params.method);
-  const url = `${API_BASE}/documentation/export${qs.toString() ? `?${qs}` : ""}`;
-  await downloadFile(url, "documentation_log.csv");
+  const fmt: ExportFormat = params.format ?? "pdf";
+  qs.set("format", fmt);
+  const url = `${API_BASE}/documentation/export?${qs.toString()}`;
+  const today = new Date().toISOString().slice(0, 10);
+  await downloadFile(url, `PharmAssist_DocumentationLog_${today}.${fmt}`);
 }
 
-export async function exportDocumentationRecord(id: string): Promise<void> {
-  const url = `${API_BASE}/documentation/${encodeURIComponent(id)}/export`;
-  await downloadFile(url, `${id}.csv`);
+export async function exportDocumentationRecord(id: string, format: ExportFormat = "pdf"): Promise<void> {
+  const url = `${API_BASE}/documentation/${encodeURIComponent(id)}/export?format=${format}`;
+  await downloadFile(url, `${id}.${format}`);
 }
 
 export async function listSideEffects(params: { q?: string; sort?: AdrSort } = {}): Promise<SideEffectListResponse> {
