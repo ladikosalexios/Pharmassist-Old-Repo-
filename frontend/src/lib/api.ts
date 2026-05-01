@@ -1,6 +1,6 @@
 import type {
   ActiveAlert, AdrSort, DeliveryMethodFilter, DocumentationListResponse, DocumentationRecord,
-  PatientProfile, Prescription, PrescriptionMessage, QueueItem, SafetyCheck,
+  PatientProfile, PatientRxHistoryRow, Prescription, PrescriptionMessage, QueueItem, SafetyCheck,
   SideEffectListResponse, SideEffectReport, SpcDetails,
 } from "../types";
 
@@ -259,4 +259,26 @@ export async function getPatient(patientId: string): Promise<PatientProfile> {
     headers: authHeaders(),
   });
   return handle(r) as Promise<PatientProfile>;
+}
+
+export async function getPatientPrescriptions(patientId: string): Promise<PatientRxHistoryRow[]> {
+  const r = await fetch(`${API_BASE}/patients/${encodeURIComponent(patientId)}/prescriptions`, {
+    headers: authHeaders(),
+  });
+  const data = (await handle(r)) as { items?: PatientRxHistoryRow[] };
+  if (!Array.isArray(data?.items)) {
+    throw new ApiError(0, `Unexpected response from /patients/${patientId}/prescriptions.`);
+  }
+  return data.items;
+}
+
+export async function getPatientSideEffects(patientId: string): Promise<SideEffectReport[]> {
+  const r = await fetch(`${API_BASE}/patients/${encodeURIComponent(patientId)}/side-effects`, {
+    headers: authHeaders(),
+  });
+  const data = (await handle(r)) as { items?: SideEffectReport[] };
+  if (!Array.isArray(data?.items)) {
+    throw new ApiError(0, `Unexpected response from /patients/${patientId}/side-effects.`);
+  }
+  return data.items;
 }
