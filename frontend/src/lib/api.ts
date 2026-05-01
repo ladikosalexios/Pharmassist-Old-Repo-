@@ -1,4 +1,4 @@
-import type { ActiveAlert, Prescription, QueueItem, SafetyCheck } from "../types";
+import type { ActiveAlert, Prescription, PrescriptionMessage, QueueItem, SafetyCheck } from "../types";
 
 const API_BASE = (import.meta.env.VITE_API_BASE as string | undefined) ?? "";
 
@@ -130,4 +130,24 @@ export async function notifyPhysician(rxId: string, message: string): Promise<{ 
     body: JSON.stringify({ rxId, message }),
   });
   return handle(r) as Promise<{ success: boolean; delivered: boolean }>;
+}
+
+export async function getMessages(rxId: string): Promise<PrescriptionMessage[]> {
+  const r = await fetch(`${API_BASE}/messages?rxId=${encodeURIComponent(rxId)}`, {
+    headers: authHeaders(),
+  });
+  const data = (await handle(r)) as { items?: PrescriptionMessage[] };
+  if (!Array.isArray(data?.items)) {
+    throw new ApiError(0, "Unexpected response from /messages (missing 'items' array). Is the API running and proxied?");
+  }
+  return data.items;
+}
+
+export async function sendMessage(to: string, rxId: string, body: string): Promise<PrescriptionMessage> {
+  const r = await fetch(`${API_BASE}/messages`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify({ to, rxId, body }),
+  });
+  return handle(r) as Promise<PrescriptionMessage>;
 }

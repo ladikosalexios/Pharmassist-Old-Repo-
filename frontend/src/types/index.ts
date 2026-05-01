@@ -81,3 +81,13 @@ export interface ActiveAlert {
   rxId?: string | null;
   createdAt: string;
 }
+
+export interface PrescriptionMessage {
+  id: string;
+  rxId: string;
+  from: "pharmacist" | "prescriber";
+  fromName: string;
+  body: string;
+  sentAt: string;
+  to?: string;
+}

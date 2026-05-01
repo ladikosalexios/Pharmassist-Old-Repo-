@@ -63,3 +63,15 @@ export const AlertCircleIcon = (p: SVGProps<SVGSVGElement>) => (
 export const PillIcon = (p: SVGProps<SVGSVGElement>) => (
   <svg {...base(p)}><path d="M10.5 20.5a7 7 0 0 1-9.9-9.9l9.9-9.9a7 7 0 0 1 9.9 9.9l-9.9 9.9z"/><line x1="6.5" y1="6.5" x2="17.5" y2="17.5"/></svg>
 );
+export const MailIcon = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base(p)}><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+);
+export const SendIcon = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base(p)}><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+);
+export const MessageIcon = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base(p)}><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+);
+export const XIcon = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base(p)}><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+);

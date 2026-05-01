@@ -11,6 +11,8 @@ export default defineConfig({
       "/prescriptions":  "http://127.0.0.1:8000",
       "/safety-checks":  "http://127.0.0.1:8000",
       "/alerts":         "http://127.0.0.1:8000",
+      "/messages":       "http://127.0.0.1:8000",
+      "/notifications":  "http://127.0.0.1:8000",
       "/health":         "http://127.0.0.1:8000",
     },
   },
