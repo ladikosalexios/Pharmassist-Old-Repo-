@@ -32,3 +32,28 @@
   vertical-align: middle;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Print styles for the patient instructions preview ── */
+@media print {
+  body { background: white !important; }
+  /* Hide everything by default… */
+  body * { visibility: hidden !important; }
+  /* …then make only the preview card visible. */
+  #instructions-preview, #instructions-preview * { visibility: visible !important; }
+  #instructions-preview {
+    position: absolute !important;
+    inset: 0 !important;
+    margin: 0 !important;
+    padding: 1rem !important;
+    border: none !important;
+    box-shadow: none !important;
+    background: white !important;
+  }
+  #instructions-preview pre {
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    font-size: 12pt !important;
+    color: black !important;
+  }
+}

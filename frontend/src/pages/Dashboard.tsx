@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { ClockIcon, FlagIcon, CheckIcon, AlertCircleIcon, ChevronRightIcon } from "../components/Icons";
+import { ClockIcon, FlagIcon, CheckIcon, AlertCircleIcon, ChevronRightIcon, FileTextIcon } from "../components/Icons";
 import { SafetyAlertsPanel } from "../components/SafetyAlertsPanel";
 import { KeyboardShortcutsCard } from "../components/KeyboardShortcutsCard";
 import { ApiError, listPrescriptions } from "../lib/api";
@@ -115,6 +115,15 @@ export function Dashboard() {
         </div>
 
         <div className="self-start space-y-6">
+          <section className="card p-5">
+            <h2 className="mb-3 text-base font-semibold text-slate-900">Quick Actions</h2>
+            <Link to="/instructions" className="btn btn-primary w-full justify-center">
+              <FileTextIcon /> Generate Instructions
+            </Link>
+            <p className="mt-2 text-[12px] text-slate-500">
+              Compose patient counselling notes for an approved prescription.
+            </p>
+          </section>
           <SafetyAlertsPanel />
           <KeyboardShortcutsCard />
         </div>

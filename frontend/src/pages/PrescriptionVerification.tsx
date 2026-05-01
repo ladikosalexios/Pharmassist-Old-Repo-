@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
-  ChevronLeftIcon, PhoneIcon, FlagIcon, CheckIcon, AlertCircleIcon, AlertOctagonIcon,
+  ChevronLeftIcon, PhoneIcon, FlagIcon, CheckIcon, AlertCircleIcon, AlertOctagonIcon, FileTextIcon,
 } from "../components/Icons";
 import { SafetyChecksPanel } from "../components/SafetyChecksPanel";
 import { SPCQuickReference } from "../components/SPCQuickReference";
@@ -167,6 +167,14 @@ export function PrescriptionVerification() {
             <CheckIcon />
             {rx.status === "COMPLETED" ? "Completed" : "Approve Prescription"}
           </button>
+          {rx.status === "COMPLETED" && (
+            <Link
+              to={`/instructions?rxId=${encodeURIComponent(rx.rxId)}`}
+              className="btn btn-primary"
+            >
+              <FileTextIcon /> Generate Instructions
+            </Link>
+          )}
         </div>
       </div>
 
