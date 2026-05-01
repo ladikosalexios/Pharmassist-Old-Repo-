@@ -157,10 +157,38 @@ export interface SideEffectListResponse {
   stats: SideEffectStats;
 }
 
+export type OrganFunction = "NORMAL" | "MILD_IMPAIRMENT" | "MODERATE_IMPAIRMENT" | "SEVERE_IMPAIRMENT";
+
+export interface PatientSafetyFlags {
+  g6pd: boolean;
+  pregnancyWeeks: number | null;
+  renalFunction: OrganFunction;
+  hepaticFunction: OrganFunction;
+  breastfeeding: boolean;
+}
+
 export interface PatientProfile {
   id: string;
+  amka?: string;
+  firstName?: string;
+  lastName?: string;
   name: string;
+  dateOfBirth?: string;
+  age?: number;
+  sex?: "F" | "M" | string;
   phone?: string | null;
+  conditions?: string[];
+  allergies?: string[];
+  intolerances?: string[];
+  safetyFlags?: PatientSafetyFlags;
+}
+
+export interface PatientRxHistoryRow {
+  rxId: string;
+  date: string;
+  drugName: string;
+  prescriberName: string;
+  status: PrescriptionStatus | string;
 }
 
 export interface PrescriptionMessage {

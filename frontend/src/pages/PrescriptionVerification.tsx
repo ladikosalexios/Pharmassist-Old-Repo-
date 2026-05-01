@@ -289,7 +289,12 @@ function PatientInfoCard({ rx }: { rx: Prescription }) {
     <Section
       title="Patient Information"
       action={
-        <button className="text-sm font-medium text-brand-600 hover:underline">View Full Patient Profile →</button>
+        <Link
+          to={`/patients/${p.id}?from=${encodeURIComponent(rx.rxId)}`}
+          className="text-sm font-medium text-brand-600 hover:underline"
+        >
+          View Full Patient Profile →
+        </Link>
       }
     >
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
