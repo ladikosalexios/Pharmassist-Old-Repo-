@@ -20,10 +20,6 @@ export function App() {
         <Route path="/side-effects"  element={<SideEffects />} />
         <Route path="/patients/:id"  element={<PatientProfile />} />
         <Route path="/instructions"  element={<Instructions />} />
-        <Route path="/prescriptions" element={<Placeholder title="Prescriptions" />} />
-        <Route path="/patients"      element={<Placeholder title="Patients" />} />
-        <Route path="/history"       element={<Placeholder title="History" />} />
-        <Route path="/settings"      element={<Placeholder title="Settings" />} />
       </Route>
       <Route path="/" element={<Navigate to="/dashboard" replace />} />
       <Route path="*" element={<Navigate to="/dashboard" replace />} />

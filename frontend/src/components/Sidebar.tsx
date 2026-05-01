@@ -4,12 +4,8 @@ import { GridIcon, FileTextIcon, UsersIcon, ClockIcon, AlertTriangleIcon, Settin
 
 const NAV = [
   { to: "/dashboard",     label: "Dashboard",            Icon: GridIcon },
-  { to: "/prescriptions", label: "Prescriptions",        Icon: FileTextIcon },
   { to: "/documentation", label: "Documentation Log",    Icon: ClipboardIcon },
-  { to: "/patients",      label: "Patients",             Icon: UsersIcon },
-  { to: "/history",       label: "History",              Icon: ClockIcon },
   { to: "/side-effects",  label: "Side Effect Reports",  Icon: AlertTriangleIcon },
-  { to: "/settings",      label: "Settings",             Icon: SettingsIcon },
 ];
 
 export function Sidebar() {
