@@ -612,8 +612,30 @@ async def approve_prescription(rx_id: str, current: dict = Depends(get_current_u
     rx = _MOCK_PRESCRIPTIONS.get(rx_id)
     if not rx:
         raise HTTPException(status_code=404, detail=f"Prescription {rx_id} not found")
-    rx["status"] = "APPROVED"
-    return {"success": True, "rxId": rx_id, "status": rx["status"]}
+    rx["status"] = "COMPLETED"
+    rx["completedAt"] = datetime.now(timezone.utc).isoformat()
+    return {"success": True, "rxId": rx_id, "status": rx["status"], "completedAt": rx["completedAt"]}
+
+
+# Static queue rows that may not have full prescription details. The actual
+# status comes from _MOCK_PRESCRIPTIONS when the rxId is also seeded there.
+_MOCK_QUEUE_BASE = [
+    {"rxId": "RX2024-001", "patientName": "Sarah Johnson",  "medication": "Amoxicillin", "physician": "Dr. Michael Chen",  "date": "2026-03-11", "status": "PENDING"},
+    {"rxId": "RX2024-002", "patientName": "James Martinez", "medication": "Warfarin",    "physician": "Dr. Emily Roberts", "date": "2026-03-11", "status": "FLAGGED"},
+    {"rxId": "RX2024-003", "patientName": "Maria Garcia",   "medication": "Lisinopril",  "physician": "Dr. David Lee",     "date": "2026-03-11", "status": "PENDING"},
+    {"rxId": "RX2024-005", "patientName": "Maria Stavrou",  "medication": "Warfarin",    "physician": "Dr. Michael Chen",  "date": "2026-04-28", "status": "PENDING"},
+]
+
+
+@app.get("/prescriptions")
+async def list_prescriptions(current: dict = Depends(get_current_user)):
+    """Return the prescription queue for the dashboard, with up-to-date statuses."""
+    items = []
+    for base in _MOCK_QUEUE_BASE:
+        rx = _MOCK_PRESCRIPTIONS.get(base["rxId"])
+        status = rx["status"] if rx else base["status"]
+        items.append({**base, "status": status})
+    return {"items": items}
 
 
 @app.patch("/prescriptions/{rx_id}")
