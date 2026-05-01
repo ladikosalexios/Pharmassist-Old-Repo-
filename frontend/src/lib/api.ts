@@ -1,6 +1,7 @@
 import type {
-  ActiveAlert, AdrSort, DeliveryMethodFilter, DocumentationListResponse, DocumentationRecord,
-  PatientProfile, PatientRxHistoryRow, Prescription, PrescriptionMessage, QueueItem, SafetyCheck,
+  ActiveAlert, AdrSort, DeliveryMethod, DeliveryMethodFilter, DocumentationListResponse,
+  DocumentationRecord, GeneratedInstructions, InstructionsOptions, PatientProfile,
+  PatientRxHistoryRow, Prescription, PrescriptionMessage, QueueItem, SafetyCheck,
   SideEffectListResponse, SideEffectReport, SpcDetails,
 } from "../types";
 
@@ -281,4 +282,46 @@ export async function getPatientSideEffects(patientId: string): Promise<SideEffe
     throw new ApiError(0, `Unexpected response from /patients/${patientId}/side-effects.`);
   }
   return data.items;
+}
+
+export async function generateInstructions(
+  rxId: string,
+  language: string,
+  options: InstructionsOptions,
+): Promise<GeneratedInstructions> {
+  const r = await fetch(`${API_BASE}/instructions/generate`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify({ rxId, language, options }),
+  });
+  return handle(r) as Promise<GeneratedInstructions>;
+}
+
+export async function sendInstructions(payload: {
+  rxId: string;
+  patientId?: string | null;
+  content: string;
+  method: DeliveryMethod;
+}): Promise<{ success: boolean }> {
+  const r = await fetch(`${API_BASE}/instructions/send`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify(payload),
+  });
+  return handle(r) as Promise<{ success: boolean }>;
+}
+
+export async function createDocumentationEntry(payload: {
+  rxId: string;
+  instructions: string;
+  language: string;
+  method: DeliveryMethod;
+  setting?: "Private" | "Hospital";
+}): Promise<DocumentationRecord> {
+  const r = await fetch(`${API_BASE}/documentation`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify(payload),
+  });
+  return handle(r) as Promise<DocumentationRecord>;
 }

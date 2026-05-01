@@ -17,6 +17,7 @@ export default defineConfig({
       "/documentation":  "http://127.0.0.1:8000",
       "/side-effects":   "http://127.0.0.1:8000",
       "/patients":       "http://127.0.0.1:8000",
+      "/instructions":   "http://127.0.0.1:8000",
       "/health":         "http://127.0.0.1:8000",
     },
   },

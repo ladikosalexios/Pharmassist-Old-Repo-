@@ -6,6 +6,7 @@ import { PrescriptionVerification } from "./pages/PrescriptionVerification";
 import { Documentation } from "./pages/Documentation";
 import { SideEffects } from "./pages/SideEffects";
 import { PatientProfile } from "./pages/PatientProfile";
+import { Instructions } from "./pages/Instructions";
 import { Placeholder } from "./pages/Placeholder";
 
 export function App() {
@@ -18,6 +19,7 @@ export function App() {
         <Route path="/documentation" element={<Documentation />} />
         <Route path="/side-effects"  element={<SideEffects />} />
         <Route path="/patients/:id"  element={<PatientProfile />} />
+        <Route path="/instructions"  element={<Instructions />} />
         <Route path="/prescriptions" element={<Placeholder title="Prescriptions" />} />
         <Route path="/patients"      element={<Placeholder title="Patients" />} />
         <Route path="/history"       element={<Placeholder title="History" />} />

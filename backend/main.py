@@ -933,6 +933,152 @@ async def get_documentation_record(doc_id: str, current: dict = Depends(get_curr
     return rec
 
 
+class DocumentationCreate(BaseModel):
+    rxId: str
+    instructions: str
+    language: str
+    method: str
+    setting: Optional[str] = "Private"
+
+
+@app.post("/documentation", status_code=201)
+async def create_documentation_record(
+    payload: DocumentationCreate,
+    current: dict = Depends(get_current_user),
+):
+    """Create a new documentation log entry, e.g. when patient instructions are saved."""
+    rx = _MOCK_PRESCRIPTIONS.get(payload.rxId)
+    if rx is None:
+        raise HTTPException(status_code=404, detail=f"Prescription {payload.rxId} not found")
+    new_id = f"DOC-{int(time.time() * 1000)}"
+    record = {
+        "id": new_id,
+        "rxId": payload.rxId,
+        "patientName": rx["patient"]["name"],
+        "drugName": f'{rx["medication"]["drugName"]} {rx["medication"]["dose"]}',
+        "setting": payload.setting or "Private",
+        "deliveryMethod": payload.method.upper(),
+        "language": payload.language,
+        "informationProvided": payload.instructions,
+        "pharmacistName": current.get("name", "Pharmacist"),
+        "pharmacistLicense": "PH-12345",
+        "signatureConfirmed": True,
+        "dispensedAt": datetime.now(timezone.utc).isoformat(),
+    }
+    _MOCK_DOCUMENTATION.insert(0, record)
+    return record
+
+
+# ── Patient Instructions (mock generation + delivery) ───────────────────────
+class InstructionsGenerate(BaseModel):
+    rxId: str
+    language: str = "en"
+    options: Optional[dict] = None
+
+
+class InstructionsSend(BaseModel):
+    patientId: Optional[str] = None
+    rxId: str
+    content: str
+    method: str  # PRINT | DIGITAL | BOTH
+
+
+_INSTRUCTION_DELIVERIES: list = []
+
+
+def _instructions_template(rx: dict, language: str, opts: dict) -> str:
+    drug = rx["medication"]
+    pt = rx["patient"]
+    notes = (opts or {}).get("additionalNotes", "").strip()
+    include_side = bool((opts or {}).get("includeSideEffects", True))
+    include_lifestyle = bool((opts or {}).get("includeLifestyle", True))
+
+    lang = (language or "en").lower()
+    if lang.startswith("el"):
+        lines = [
+            f"ΟΔΗΓΙΕΣ ΑΣΘΕΝΟΥΣ — {drug['drugName']}",
+            f"Ασθενής: {pt['name']}",
+            "",
+            "ΛΗΨΗ:",
+            f"  Δόση: {drug['dose']} ({drug['form']}, {drug['route']})",
+            f"  Συχνότητα: {drug['frequency']}",
+            f"  Διάρκεια θεραπείας: {drug['treatmentDuration']}",
+        ]
+        if notes:
+            lines += ["", "ΣΗΜΑΝΤΙΚΑ ΣΗΜΕΙΑ:", notes]
+        if include_side:
+            lines += ["", "ΠΙΘΑΝΕΣ ΑΝΕΠΙΘΥΜΗΤΕΣ ΕΝΕΡΓΕΙΕΣ:",
+                      "Ενημερώστε αμέσως τον φαρμακοποιό ή ιατρό σας αν παρατηρήσετε ασυνήθιστα συμπτώματα."]
+        if include_lifestyle:
+            lines += ["", "ΔΙΑΤΡΟΦΙΚΕΣ / ΤΡΟΠΟΥ ΖΩΗΣ ΟΔΗΓΙΕΣ:",
+                      "Διατηρήστε σταθερή πρόσληψη βιταμίνης Κ. Αποφύγετε αλκοόλ. Ενυδάτωση."]
+        lines += [
+            "", "ΑΝ ΞΕΧΑΣΕΤΕ ΜΙΑ ΔΟΣΗ:",
+            "Πάρτε την μόλις τη θυμηθείτε, εκτός αν πλησιάζει η ώρα της επόμενης. Μη διπλασιάσετε.",
+            "", "ΕΠΙΚΟΙΝΩΝΙΑ ΜΕ ΙΑΤΡΟ ΑΝ:",
+            "• Εμφανιστούν σοβαρά συμπτώματα ή αιμορραγία",
+            "• Δεν βελτιώνεστε εντός λίγων ημερών",
+            "• Ξεκινήσετε νέα φαρμακευτική αγωγή",
+        ]
+    else:
+        lines = [
+            f"PATIENT INSTRUCTIONS — {drug['drugName']}",
+            f"Patient: {pt['name']}",
+            "",
+            "HOW TO TAKE:",
+            f"  Dose: {drug['dose']} ({drug['form']}, {drug['route']})",
+            f"  Frequency: {drug['frequency']}",
+            f"  Treatment duration: {drug['treatmentDuration']}",
+        ]
+        if notes:
+            lines += ["", "KEY POINTS:", notes]
+        if include_side:
+            lines += ["", "POSSIBLE SIDE EFFECTS:",
+                      "Tell your pharmacist or doctor immediately if you notice unusual symptoms."]
+        if include_lifestyle:
+            lines += ["", "DIET / LIFESTYLE:",
+                      "Maintain consistent vitamin K intake. Avoid alcohol. Stay hydrated."]
+        lines += [
+            "", "IF YOU MISS A DOSE:",
+            "Take it as soon as you remember, unless it is close to the next dose. Do not double up.",
+            "", "CONTACT YOUR DOCTOR IF:",
+            "• You develop severe symptoms or bleeding",
+            "• You do not improve within a few days",
+            "• You start any new medication",
+        ]
+    return "\n".join(lines)
+
+
+@app.post("/instructions/generate")
+async def generate_instructions(
+    payload: InstructionsGenerate,
+    current: dict = Depends(get_current_user),
+):
+    rx = _MOCK_PRESCRIPTIONS.get(payload.rxId)
+    if rx is None:
+        raise HTTPException(status_code=404, detail=f"Prescription {payload.rxId} not found")
+    text = _instructions_template(rx, payload.language, payload.options or {})
+    return {"rxId": payload.rxId, "language": payload.language, "content": text}
+
+
+@app.post("/instructions/send", status_code=201)
+async def send_instructions(payload: InstructionsSend, current: dict = Depends(get_current_user)):
+    rx = _MOCK_PRESCRIPTIONS.get(payload.rxId)
+    if rx is None:
+        raise HTTPException(status_code=404, detail=f"Prescription {payload.rxId} not found")
+    entry = {
+        "rxId": payload.rxId,
+        "patientId": payload.patientId or rx["patient"]["id"],
+        "method": payload.method.upper(),
+        "sentAt": datetime.now(timezone.utc).isoformat(),
+        "by": current["email"],
+        "size": len(payload.content or ""),
+    }
+    _INSTRUCTION_DELIVERIES.append(entry)
+    print(f"[Instructions] Sent {payload.method} to {entry['patientId']} for {payload.rxId} ({entry['size']} chars)")
+    return {"success": True, **entry}
+
+
 # ── Side Effect Reports / Pharmacovigilance (mock) ──────────────────────────
 # Severity: MILD | MODERATE | SEVERE
 # Status:   PENDING_REVIEW | ESCALATED | EOF_REPORTED

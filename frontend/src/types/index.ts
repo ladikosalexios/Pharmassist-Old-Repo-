@@ -95,6 +95,20 @@ export interface ActiveAlert {
   createdAt: string;
 }
 
+export type InstructionsLanguage = "el" | "en" | "other";
+
+export interface InstructionsOptions {
+  additionalNotes?: string;
+  includeSideEffects: boolean;
+  includeLifestyle: boolean;
+}
+
+export interface GeneratedInstructions {
+  rxId: string;
+  language: string;
+  content: string;
+}
+
 export type DeliveryMethod = "PRINT" | "DIGITAL" | "BOTH";
 export type DeliveryMethodFilter = DeliveryMethod | "ALL";
 
