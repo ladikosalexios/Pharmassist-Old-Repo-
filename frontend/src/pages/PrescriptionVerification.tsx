@@ -4,18 +4,14 @@ import {
   ChevronLeftIcon, PhoneIcon, FlagIcon, CheckIcon, AlertCircleIcon, AlertOctagonIcon,
 } from "../components/Icons";
 import { SafetyChecksPanel } from "../components/SafetyChecksPanel";
+import { SPCQuickReference } from "../components/SPCQuickReference";
+import { PrescriptionDetailsCard } from "../components/PrescriptionDetailsCard";
 import { FlagDiscrepancyModal } from "../components/FlagDiscrepancyModal";
 import { ApproveConfirmModal } from "../components/ApproveConfirmModal";
 import { ContactPrescriberDrawer } from "../components/ContactPrescriberDrawer";
 import { useToast } from "../components/Toast";
 import { ApiError, getPrescription, approvePrescription } from "../lib/api";
 import type { Prescription } from "../types";
-
-const STATUS_CHIP: Record<string, string> = {
-  PENDING:   "bg-amber-100 text-amber-800",
-  COMPLETED: "bg-emerald-100 text-emerald-800",
-  FLAGGED:   "bg-red-100 text-red-800",
-};
 
 export function PrescriptionVerification() {
   const { rxId = "" } = useParams<{ rxId: string }>();
@@ -224,7 +220,7 @@ export function PrescriptionVerification() {
         <div className="space-y-6 lg:col-span-7">
           <PatientInfoCard rx={rx} />
           <MedicationDetailsCard rx={rx} />
-          <SpcQuickReferenceCard rx={rx} />
+          <SPCQuickReference drugName={rx.medication.drugName} atcCode={rx.medication.atcCode ?? ""} />
         </div>
 
         {/* Right sticky column */}
@@ -295,10 +291,7 @@ function MedicationDetailsCard({ rx }: { rx: Prescription }) {
   const m = rx.medication;
   const d = rx.prescriber;
   return (
-    <Section
-      title="Medication Details"
-      action={<button className="text-sm font-medium text-brand-600 hover:underline">View Full SPC →</button>}
-    >
+    <Section title="Medication Details">
       <div className="text-2xl font-bold text-slate-900">{m.drugName}</div>
       <div className="mt-1 text-sm text-slate-500">{m.dose} · {m.form} · {m.route}</div>
 
@@ -308,6 +301,7 @@ function MedicationDetailsCard({ rx }: { rx: Prescription }) {
         <Field label="Route" value={m.route} />
         <Field label="Frequency" value={m.frequency} />
         <Field label="Treatment Duration" value={m.treatmentDuration} />
+        {m.atcCode && <Field label="ATC Code" value={m.atcCode} mono />}
       </div>
 
       <div className="mt-7 rounded-xl border border-slate-200 bg-slate-50 p-5">
@@ -320,60 +314,6 @@ function MedicationDetailsCard({ rx }: { rx: Prescription }) {
           <Field label="Email" value={<a className="text-brand-600 hover:underline" href={`mailto:${d.email}`}>{d.email}</a>} />
         </div>
       </div>
-
-      <div className="mt-6">
-        <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">SPC Recommended Dosage</div>
-        <p className="mt-2 rounded-lg bg-brand-50 p-4 text-sm text-slate-700">{m.spcRecommendedDosage}</p>
-      </div>
     </Section>
-  );
-}
-
-function SpcQuickReferenceCard({ rx }: { rx: Prescription }) {
-  const s = rx.spcQuickReference;
-  return (
-    <Section title="SPC Quick Reference">
-      <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Key Contraindications</div>
-      <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-700">
-        {s.contraindications.map((c, i) => <li key={i}>{c}</li>)}
-      </ul>
-
-      <div className="mt-6 text-xs font-semibold uppercase tracking-wide text-slate-500">Major Interactions</div>
-      <div className="mt-2 space-y-2">
-        {s.majorInteractions.map((it, i) => (
-          <div key={i} className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm">
-            <span className="font-bold text-slate-900">{it.drug}</span>
-            <span className="ml-2 text-amber-800">— {it.effect}</span>
-          </div>
-        ))}
-      </div>
-    </Section>
-  );
-}
-
-function PrescriptionDetailsCard({ rx }: { rx: Prescription }) {
-  return (
-    <section className="card p-5">
-      <h2 className="mb-3 text-base font-semibold text-slate-900">Prescription Details</h2>
-      <dl className="space-y-3">
-        <Row label="Prescription Code" value={<span className="font-mono">{rx.code}</span>} />
-        <Row label="Date Issued" value={rx.dateIssued} />
-        <Row label="Status" value={
-          <span className={`chip ${STATUS_CHIP[rx.status] ?? "bg-slate-100 text-slate-800"}`}>
-            {rx.status.charAt(0) + rx.status.slice(1).toLowerCase()}
-          </span>
-        } />
-        <Row label="SPC Version" value={rx.spcVersion} />
-      </dl>
-    </section>
-  );
-}
-
-function Row({ label, value }: { label: string; value: React.ReactNode }) {
-  return (
-    <div className="flex items-center justify-between border-b border-slate-100 pb-2 last:border-b-0 last:pb-0">
-      <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">{label}</dt>
-      <dd className="text-sm text-slate-900">{value}</dd>
-    </div>
   );
 }

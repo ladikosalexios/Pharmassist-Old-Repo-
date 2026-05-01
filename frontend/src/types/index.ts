@@ -12,12 +12,25 @@ export interface Patient {
 
 export interface Medication {
   drugName: string;
+  atcCode?: string;
   dose: string;
   form: string;
   route: string;
   frequency: string;
   treatmentDuration: string;
   spcRecommendedDosage: string;
+}
+
+export interface SpcDetails {
+  atcCode: string;
+  drugName: string;
+  version: string;
+  updatedAt: string;
+  fullSpcUrl?: string | null;
+  fullSpcText?: string | null;
+  recommendedDosage: string;
+  contraindications: string[];
+  majorInteractions: Interaction[];
 }
 
 export interface Prescriber {
