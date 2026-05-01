@@ -1,4 +1,4 @@
-import type { ActiveAlert, Prescription, SafetyCheck } from "../types";
+import type { ActiveAlert, Prescription, QueueItem, SafetyCheck } from "../types";
 
 const API_BASE = (import.meta.env.VITE_API_BASE as string | undefined) ?? "";
 
@@ -49,6 +49,15 @@ export async function getPrescription(rxId: string): Promise<Prescription> {
     headers: authHeaders(),
   });
   return handle(r) as Promise<Prescription>;
+}
+
+export async function listPrescriptions(): Promise<QueueItem[]> {
+  const r = await fetch(`${API_BASE}/prescriptions`, { headers: authHeaders() });
+  const data = (await handle(r)) as { items?: QueueItem[] };
+  if (!Array.isArray(data?.items)) {
+    throw new ApiError(0, "Unexpected response from /prescriptions (missing 'items' array). Is the API running and proxied?");
+  }
+  return data.items;
 }
 
 export async function getSafetyChecks(rxId: string): Promise<SafetyCheck[]> {

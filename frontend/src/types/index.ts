@@ -61,13 +61,15 @@ export interface Prescription {
   flagReason?: string;
 }
 
+export type PrescriptionStatus = "PENDING" | "FLAGGED" | "COMPLETED";
+
 export interface QueueItem {
   rxId: string;
   patientName: string;
   medication: string;
   physician: string;
   date: string;
-  status: "PENDING" | "FLAGGED" | "APPROVED";
+  status: PrescriptionStatus;
 }
 
 export type AlertType = "INTERACTION" | "G6PD" | "PREGNANCY" | "CONTRAINDICATION";

@@ -1,18 +1,19 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
-  ChevronLeftIcon, PhoneIcon, FlagIcon, CheckIcon, AlertCircleIcon,
+  ChevronLeftIcon, PhoneIcon, FlagIcon, CheckIcon, AlertCircleIcon, AlertOctagonIcon,
 } from "../components/Icons";
 import { SafetyChecksPanel } from "../components/SafetyChecksPanel";
 import { FlagDiscrepancyModal } from "../components/FlagDiscrepancyModal";
+import { ApproveConfirmModal } from "../components/ApproveConfirmModal";
 import { useToast } from "../components/Toast";
 import { ApiError, getPrescription, approvePrescription } from "../lib/api";
 import type { Prescription } from "../types";
 
 const STATUS_CHIP: Record<string, string> = {
-  PENDING:  "bg-amber-100 text-amber-800",
-  APPROVED: "bg-emerald-100 text-emerald-800",
-  FLAGGED:  "bg-red-100 text-red-800",
+  PENDING:   "bg-amber-100 text-amber-800",
+  COMPLETED: "bg-emerald-100 text-emerald-800",
+  FLAGGED:   "bg-red-100 text-red-800",
 };
 
 export function PrescriptionVerification() {
@@ -23,8 +24,11 @@ export function PrescriptionVerification() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [actionMsg, setActionMsg] = useState<{ kind: "ok" | "warn" | "err"; text: string } | null>(null);
-  const [busy, setBusy] = useState<"approve" | null>(null);
   const [flagOpen, setFlagOpen] = useState(false);
+  const [approveOpen, setApproveOpen] = useState(false);
+  const [approveSubmitting, setApproveSubmitting] = useState(false);
+  const [approveError, setApproveError] = useState<string | null>(null);
+  const [blockedByChecks, setBlockedByChecks] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -41,18 +45,33 @@ export function PrescriptionVerification() {
     return () => { active = false; };
   }, [rxId]);
 
-  async function onApprove() {
-    if (!rx || busy) return;
-    setBusy("approve");
+  function onClickApprove() {
+    if (!rx) return;
     setActionMsg(null);
+    const blockers = (rx.safetyChecks ?? []).filter((c) => c.status === "block");
+    if (blockers.length > 0) {
+      setBlockedByChecks(true);
+      return;
+    }
+    setBlockedByChecks(false);
+    setApproveError(null);
+    setApproveOpen(true);
+  }
+
+  async function onConfirmApprove() {
+    if (!rx) return;
+    setApproveSubmitting(true);
+    setApproveError(null);
     try {
-      await approvePrescription(rx.rxId);
-      setRx({ ...rx, status: "APPROVED" });
-      toast(`Prescription ${rx.rxId} approved`, "success");
+      const result = await approvePrescription(rx.rxId);
+      setRx({ ...rx, status: result.status });
+      setApproveOpen(false);
+      toast("Prescription approved and recorded", "success");
+      navigate("/dashboard");
     } catch (e) {
-      setActionMsg({ kind: "err", text: e instanceof ApiError ? e.message : "Approval failed." });
+      setApproveError(e instanceof ApiError ? e.message : "Approval failed. Please try again.");
     } finally {
-      setBusy(null);
+      setApproveSubmitting(false);
     }
   }
 
@@ -116,7 +135,7 @@ export function PrescriptionVerification() {
             <button
               type="button"
               onClick={() => setFlagOpen(true)}
-              disabled={rx.status === "APPROVED"}
+              disabled={rx.status === "COMPLETED"}
               className="btn btn-amber disabled:opacity-60 disabled:cursor-not-allowed"
             >
               <FlagIcon /> Flag Discrepancy
@@ -124,12 +143,12 @@ export function PrescriptionVerification() {
           )}
           <button
             type="button"
-            onClick={onApprove}
-            disabled={busy !== null || rx.status === "APPROVED" || rx.status === "FLAGGED"}
+            onClick={onClickApprove}
+            disabled={rx.status === "COMPLETED" || rx.status === "FLAGGED"}
             className="btn btn-success disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            {busy === "approve" ? <span className="spinner" /> : <CheckIcon />}
-            {rx.status === "APPROVED" ? "Approved" : "Approve Prescription"}
+            <CheckIcon />
+            {rx.status === "COMPLETED" ? "Completed" : "Approve Prescription"}
           </button>
         </div>
       </div>
@@ -140,6 +159,43 @@ export function PrescriptionVerification() {
         onClose={() => setFlagOpen(false)}
         onFlagged={(status) => setRx((cur) => (cur ? { ...cur, status } : cur))}
       />
+
+      <ApproveConfirmModal
+        open={approveOpen}
+        rxId={rx.rxId}
+        patientName={rx.patient.name}
+        drugName={rx.medication.drugName}
+        dose={rx.medication.dose}
+        submitting={approveSubmitting}
+        error={approveError}
+        onClose={() => { if (!approveSubmitting) setApproveOpen(false); }}
+        onConfirm={onConfirmApprove}
+      />
+
+      {blockedByChecks && (
+        <div
+          role="alert"
+          className="mb-5 flex items-start gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800"
+        >
+          <AlertOctagonIcon width={18} height={18} className="mt-0.5 shrink-0 text-red-600" />
+          <div className="flex-1">
+            <div className="font-semibold">Resolve all critical safety alerts before approving</div>
+            <p className="mt-0.5 text-[13px] text-red-700">
+              One or more automated safety checks require immediate action. Address them in the Safety Checks panel and try again.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setBlockedByChecks(false)}
+            className="rounded p-1 text-red-700 hover:bg-red-100"
+            aria-label="Dismiss"
+          >
+            <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+        </div>
+      )}
 
       {actionMsg && (
         <div
