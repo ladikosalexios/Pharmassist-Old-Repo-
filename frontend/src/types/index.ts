@@ -126,6 +126,43 @@ export interface DocumentationListResponse {
   stats: DocumentationStats;
 }
 
+export type AdrSeverity = "MILD" | "MODERATE" | "SEVERE";
+export type AdrStatus = "PENDING_REVIEW" | "ESCALATED" | "EOF_REPORTED";
+export type AdrSort = "date" | "severity" | "status";
+
+export interface SideEffectReport {
+  id: string;
+  patientId: string;
+  patientName: string;
+  patientPhone?: string | null;
+  rxId?: string | null;
+  drugName: string;
+  severity: AdrSeverity;
+  status: AdrStatus;
+  reportedAt: string;
+  symptom: string;
+  onset: string;
+  lastFlaggedAt?: string | null;
+}
+
+export interface SideEffectStats {
+  total: number;
+  pendingReview: number;
+  severe: number;
+  escalated: number;
+}
+
+export interface SideEffectListResponse {
+  items: SideEffectReport[];
+  stats: SideEffectStats;
+}
+
+export interface PatientProfile {
+  id: string;
+  name: string;
+  phone?: string | null;
+}
+
 export interface PrescriptionMessage {
   id: string;
   rxId: string;
