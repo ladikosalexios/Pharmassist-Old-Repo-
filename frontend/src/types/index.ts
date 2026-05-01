@@ -95,6 +95,37 @@ export interface ActiveAlert {
   createdAt: string;
 }
 
+export type DeliveryMethod = "PRINT" | "DIGITAL" | "BOTH";
+export type DeliveryMethodFilter = DeliveryMethod | "ALL";
+
+export interface DocumentationRecord {
+  id: string;
+  rxId: string;
+  patientName: string;
+  drugName: string;
+  setting: "Private" | "Hospital";
+  deliveryMethod: DeliveryMethod;
+  language: string;
+  informationProvided: string;
+  pharmacistName: string;
+  pharmacistLicense: string;
+  signatureConfirmed: boolean;
+  dispensedAt: string;
+}
+
+export interface DocumentationStats {
+  total: number;
+  print: number;
+  digital: number;
+  both: number;
+}
+
+export interface DocumentationListResponse {
+  items: DocumentationRecord[];
+  total: number;
+  stats: DocumentationStats;
+}
+
 export interface PrescriptionMessage {
   id: string;
   rxId: string;

@@ -1,14 +1,15 @@
 import { NavLink } from "react-router-dom";
 import { useAuth } from "../lib/auth";
-import { GridIcon, FileTextIcon, UsersIcon, ClockIcon, AlertTriangleIcon, SettingsIcon, LogOutIcon, ShieldIcon } from "./Icons";
+import { GridIcon, FileTextIcon, UsersIcon, ClockIcon, AlertTriangleIcon, SettingsIcon, LogOutIcon, ShieldIcon, ClipboardIcon } from "./Icons";
 
 const NAV = [
-  { to: "/dashboard",     label: "Dashboard",        Icon: GridIcon },
-  { to: "/prescriptions", label: "Prescriptions",    Icon: FileTextIcon },
-  { to: "/patients",      label: "Patients",         Icon: UsersIcon },
-  { to: "/history",       label: "History",          Icon: ClockIcon },
-  { to: "/adr",           label: "Side Effect Reports", Icon: AlertTriangleIcon },
-  { to: "/settings",      label: "Settings",         Icon: SettingsIcon },
+  { to: "/dashboard",     label: "Dashboard",            Icon: GridIcon },
+  { to: "/prescriptions", label: "Prescriptions",        Icon: FileTextIcon },
+  { to: "/documentation", label: "Documentation Log",    Icon: ClipboardIcon },
+  { to: "/patients",      label: "Patients",             Icon: UsersIcon },
+  { to: "/history",       label: "History",              Icon: ClockIcon },
+  { to: "/adr",           label: "Side Effect Reports",  Icon: AlertTriangleIcon },
+  { to: "/settings",      label: "Settings",             Icon: SettingsIcon },
 ];
 
 export function Sidebar() {
