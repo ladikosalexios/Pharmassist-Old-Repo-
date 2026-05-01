@@ -1,9 +1,36 @@
-import { Outlet, Navigate } from "react-router-dom";
+import { Outlet, Navigate, useNavigate } from "react-router-dom";
 import { Sidebar } from "./Sidebar";
 import { useAuth } from "../lib/auth";
+import { useToast } from "./Toast";
+import { useKeyboardShortcuts } from "../lib/keyboard";
+import { ApiError, getNextPrescription } from "../lib/api";
 
 export function AppShell() {
   const { user, loading } = useAuth();
+  const navigate = useNavigate();
+  const { toast } = useToast();
+
+  // Global shortcuts that should work on any authenticated page.
+  useKeyboardShortcuts({
+    d: () => {
+      toast("Opening dashboard…", "info");
+      navigate("/dashboard");
+    },
+    p: async () => {
+      toast("Opening next prescription…", "info");
+      try {
+        const next = await getNextPrescription();
+        navigate(`/prescription/${next.rxId}`);
+      } catch (e) {
+        if (e instanceof ApiError && e.status === 404) {
+          toast("No pending prescriptions in the queue.", "info");
+        } else {
+          toast(e instanceof ApiError ? e.message : "Could not load the next prescription.", "error");
+        }
+      }
+    },
+  }, { enabled: !!user });
+
   if (loading) {
     return (
       <div className="flex h-full items-center justify-center text-slate-500">

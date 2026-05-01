@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { PhoneIcon, MailIcon, SendIcon, MessageIcon, XIcon, AlertCircleIcon } from "./Icons";
 import { ApiError, getMessages, sendMessage } from "../lib/api";
 import { useToast } from "./Toast";
+import { useModalRegistration } from "../lib/keyboard";
 import type { Prescriber, PrescriptionMessage } from "../types";
 
 interface ContactPrescriberDrawerProps {
@@ -16,6 +17,7 @@ interface ContactPrescriberDrawerProps {
 export function ContactPrescriberDrawer({
   open, rxId, patientName, prescriber, onClose,
 }: ContactPrescriberDrawerProps) {
+  useModalRegistration(open);
   const [messages, setMessages] = useState<PrescriptionMessage[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [body, setBody] = useState("");

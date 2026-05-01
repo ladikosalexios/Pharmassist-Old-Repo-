@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import { createPortal } from "react-dom";
 import { CheckIcon } from "./Icons";
+import { useModalRegistration } from "../lib/keyboard";
 
 interface ApproveConfirmModalProps {
   open: boolean;
@@ -18,6 +19,7 @@ export function ApproveConfirmModal({
   open, rxId, patientName, drugName, dose,
   submitting, error, onClose, onConfirm,
 }: ApproveConfirmModalProps) {
+  useModalRegistration(open);
   const titleId = useId();
   const [confirmed, setConfirmed] = useState(false);
   const checkboxRef = useRef<HTMLInputElement | null>(null);

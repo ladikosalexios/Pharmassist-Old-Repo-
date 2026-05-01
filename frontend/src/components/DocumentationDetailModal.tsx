@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import { CheckCircleIcon, DownloadIcon, XIcon, AlertCircleIcon, FileTextIcon } from "./Icons";
 import { ApiError, exportDocumentationRecord, getDocumentationRecord } from "../lib/api";
 import { useToast } from "./Toast";
+import { useModalRegistration } from "../lib/keyboard";
 import type { DeliveryMethod, DocumentationRecord } from "../types";
 
 interface DocumentationDetailModalProps {
@@ -25,6 +26,7 @@ const METHOD_LABEL: Record<DeliveryMethod, string> = {
 };
 
 export function DocumentationDetailModal({ open, recordId, onClose }: DocumentationDetailModalProps) {
+  useModalRegistration(open);
   const titleId = useId();
   const { toast } = useToast();
   const [record, setRecord] = useState<DocumentationRecord | null>(null);

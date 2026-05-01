@@ -64,6 +64,11 @@ export async function listPrescriptions(): Promise<QueueItem[]> {
   return data.items;
 }
 
+export async function getNextPrescription(): Promise<QueueItem> {
+  const r = await fetch(`${API_BASE}/prescriptions/next`, { headers: authHeaders() });
+  return handle(r) as Promise<QueueItem>;
+}
+
 export async function getSpc(atcCode: string): Promise<SpcDetails> {
   const r = await fetch(`${API_BASE}/spc/${encodeURIComponent(atcCode)}`, {
     headers: authHeaders(),
