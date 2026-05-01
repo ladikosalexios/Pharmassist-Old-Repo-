@@ -855,7 +855,7 @@ def _doc_stats() -> dict:
     return s
 
 
-def _filter_docs(query: str | None, method: str | None) -> list:
+def _filter_docs(query: Optional[str], method: Optional[str]) -> list:
     items = list(_MOCK_DOCUMENTATION)
     if query:
         q = query.lower().strip()
