@@ -7,6 +7,7 @@ import {
 import {
   ApiError, getPatient, getPatientPrescriptions, getPatientSideEffects,
 } from "../lib/api";
+import { fallbackForPatient, isProfileShapeIncomplete } from "../lib/patientFallback";
 import type {
   AdrSeverity, AdrStatus, OrganFunction, PatientProfile as Profile,
   PatientRxHistoryRow, PatientSafetyFlags, SideEffectReport,
@@ -67,6 +68,8 @@ export function PatientProfile() {
   const [adrHistory, setAdrHistory] = useState<SideEffectReport[] | null>(null);
   const [adrError, setAdrError] = useState<string | null>(null);
 
+  const [usingFallback, setUsingFallback] = useState(false);
+
   useEffect(() => {
     let active = true;
     setProfileLoading(true);
@@ -74,12 +77,32 @@ export function PatientProfile() {
     setProfile(null);
     setRxHistory(null);
     setAdrHistory(null);
+    setRxError(null);
+    setAdrError(null);
+    setUsingFallback(false);
+
+    const fb = fallbackForPatient(id);
 
     getPatient(id)
-      .then((data) => { if (active) setProfile(data); })
+      .then((data) => {
+        if (!active) return;
+        if (isProfileShapeIncomplete(data) && fb) {
+          // Live API hasn't been restarted to pick up the expanded profiles —
+          // use the local mirror so the page stays useful.
+          setProfile(fb.profile);
+          setUsingFallback(true);
+        } else {
+          setProfile(data);
+        }
+      })
       .catch((e: unknown) => {
         if (!active) return;
-        setProfileError(e instanceof ApiError ? e.message : "Could not load patient profile.");
+        if (fb) {
+          setProfile(fb.profile);
+          setUsingFallback(true);
+        } else {
+          setProfileError(e instanceof ApiError ? e.message : "Could not load patient profile.");
+        }
       })
       .finally(() => { if (active) setProfileLoading(false); });
 
@@ -87,14 +110,24 @@ export function PatientProfile() {
       .then((items) => { if (active) setRxHistory(items); })
       .catch((e: unknown) => {
         if (!active) return;
-        setRxError(e instanceof ApiError ? e.message : "Could not load prescription history.");
+        if (fb) {
+          setRxHistory(fb.rxHistory);
+          setUsingFallback(true);
+        } else {
+          setRxError(e instanceof ApiError ? e.message : "Could not load prescription history.");
+        }
       });
 
     getPatientSideEffects(id)
       .then((items) => { if (active) setAdrHistory(items); })
       .catch((e: unknown) => {
         if (!active) return;
-        setAdrError(e instanceof ApiError ? e.message : "Could not load side-effect history.");
+        if (fb) {
+          setAdrHistory(fb.adrHistory);
+          setUsingFallback(true);
+        } else {
+          setAdrError(e instanceof ApiError ? e.message : "Could not load side-effect history.");
+        }
       });
 
     return () => { active = false; };
@@ -130,6 +163,12 @@ export function PatientProfile() {
         </div>
       ) : (
         <>
+          {usingFallback && (
+            <div className="mb-3 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[13px] text-amber-800">
+              <AlertCircleIcon width={14} height={14} className="mt-0.5 shrink-0" />
+              <span>Showing demo data — the patients API is unreachable or returned an outdated shape.</span>
+            </div>
+          )}
           <header className="card p-6">
             <div className="flex flex-wrap items-start gap-6">
               <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-brand-100 text-brand-700">
