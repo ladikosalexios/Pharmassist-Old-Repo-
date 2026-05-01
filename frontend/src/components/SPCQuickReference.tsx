@@ -1,27 +1,48 @@
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { AlertCircleIcon, FileTextIcon, XIcon } from "./Icons";
 import { ApiError, getSpc } from "../lib/api";
-import type { SpcDetails } from "../types";
+import type { Interaction, SpcDetails } from "../types";
+
+export interface SpcFallback {
+  recommendedDosage?: string | null;
+  contraindications?: string[] | null;
+  majorInteractions?: Interaction[] | null;
+}
 
 interface SPCQuickReferenceProps {
   drugName: string;
   atcCode: string;
+  /**
+   * Cached/static SPC info from the prescription payload. Used as a fallback
+   * when the live /spc/:atcCode call fails so the card always shows something
+   * useful instead of just an error banner.
+   */
+  fallback?: SpcFallback;
 }
 
-export function SPCQuickReference({ drugName, atcCode }: SPCQuickReferenceProps) {
+interface View {
+  source: "live" | "fallback";
+  recommendedDosage: string;
+  contraindications: string[];
+  majorInteractions: Interaction[];
+  /** Only present when source === "live" */
+  spc?: SpcDetails;
+}
+
+export function SPCQuickReference({ drugName, atcCode, fallback }: SPCQuickReferenceProps) {
   const [spc, setSpc] = useState<SpcDetails | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [liveError, setLiveError] = useState<string | null>(null);
   const [fullSpcOpen, setFullSpcOpen] = useState(false);
 
   useEffect(() => {
     let active = true;
     setLoading(true);
-    setError(null);
+    setLiveError(null);
     setSpc(null);
     if (!atcCode) {
-      setError("This medication has no ATC code on file, so the SPC cannot be loaded.");
+      setLiveError("This medication has no ATC code on file, so the live SPC cannot be loaded.");
       setLoading(false);
       return () => { active = false; };
     }
@@ -29,11 +50,37 @@ export function SPCQuickReference({ drugName, atcCode }: SPCQuickReferenceProps)
       .then((data) => { if (active) setSpc(data); })
       .catch((e: unknown) => {
         if (!active) return;
-        setError(e instanceof ApiError ? e.message : "Could not load the SPC.");
+        setLiveError(e instanceof ApiError ? e.message : "Could not load the live SPC.");
       })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, [atcCode]);
+
+  const view: View | null = useMemo(() => {
+    if (spc) {
+      return {
+        source: "live",
+        recommendedDosage: spc.recommendedDosage,
+        contraindications: spc.contraindications,
+        majorInteractions: spc.majorInteractions,
+        spc,
+      };
+    }
+    if (fallback) {
+      const dosage = fallback.recommendedDosage ?? "";
+      const contraindications = fallback.contraindications ?? [];
+      const majorInteractions = fallback.majorInteractions ?? [];
+      if (dosage || contraindications.length || majorInteractions.length) {
+        return {
+          source: "fallback",
+          recommendedDosage: dosage || "Not provided in the prescription record.",
+          contraindications,
+          majorInteractions,
+        };
+      }
+    }
+    return null;
+  }, [spc, fallback]);
 
   return (
     <section className="card overflow-hidden">
@@ -44,12 +91,14 @@ export function SPCQuickReference({ drugName, atcCode }: SPCQuickReferenceProps)
             {drugName}
             {spc?.atcCode && <> · <span className="font-mono">{spc.atcCode}</span></>}
             {spc?.version && <> · {spc.version}</>}
+            {view?.source === "fallback" && <> · from prescription record</>}
           </p>
         </div>
         <button
           type="button"
           onClick={() => setFullSpcOpen(true)}
-          disabled={loading || !!error || !spc}
+          disabled={!spc}
+          title={spc ? undefined : "Live SPC document is not available."}
           className="btn btn-outline disabled:opacity-60 disabled:cursor-not-allowed"
         >
           <FileTextIcon /> View Full SPC
@@ -61,40 +110,58 @@ export function SPCQuickReference({ drugName, atcCode }: SPCQuickReferenceProps)
           <div className="flex items-center gap-2 text-sm text-slate-500">
             <span className="spinner text-brand-600" /> Loading SPC…
           </div>
-        ) : error ? (
+        ) : !view ? (
           <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-700">
             <AlertCircleIcon width={14} height={14} className="mt-0.5 shrink-0" />
-            <span>{error}</span>
+            <span>{liveError ?? "No SPC data available for this medication."}</span>
           </div>
-        ) : spc ? (
+        ) : (
           <>
+            {view.source === "fallback" && (
+              <div className="mb-5 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[13px] text-amber-800">
+                <AlertCircleIcon width={14} height={14} className="mt-0.5 shrink-0" />
+                <span>
+                  Live SPC service unavailable — showing data captured with the prescription.
+                  {liveError && <span className="ml-1 text-amber-700/80">({liveError})</span>}
+                </span>
+              </div>
+            )}
+
             <div>
               <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">SPC Recommended Dosage</div>
               <p className="mt-2 rounded-lg bg-brand-50 p-4 text-sm leading-relaxed text-slate-700">
-                {spc.recommendedDosage}
+                {view.recommendedDosage}
               </p>
             </div>
 
             <div className="mt-6">
               <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Key Contraindications</div>
-              <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-700">
-                {spc.contraindications.map((c, i) => <li key={i}>{c}</li>)}
-              </ul>
+              {view.contraindications.length ? (
+                <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-700">
+                  {view.contraindications.map((c, i) => <li key={i}>{c}</li>)}
+                </ul>
+              ) : (
+                <p className="mt-2 text-sm text-slate-500">None recorded.</p>
+              )}
             </div>
 
             <div className="mt-6">
               <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Major Interactions</div>
-              <div className="mt-2 space-y-2">
-                {spc.majorInteractions.map((it, i) => (
-                  <div key={i} className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm">
-                    <span className="font-bold text-slate-900">{it.drug}</span>
-                    <span className="ml-2 text-amber-800">— {it.effect}</span>
-                  </div>
-                ))}
-              </div>
+              {view.majorInteractions.length ? (
+                <div className="mt-2 space-y-2">
+                  {view.majorInteractions.map((it, i) => (
+                    <div key={i} className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm">
+                      <span className="font-bold text-slate-900">{it.drug}</span>
+                      <span className="ml-2 text-amber-800">— {it.effect}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="mt-2 text-sm text-slate-500">None recorded.</p>
+              )}
             </div>
           </>
-        ) : null}
+        )}
       </div>
 
       {spc && (

@@ -220,7 +220,15 @@ export function PrescriptionVerification() {
         <div className="space-y-6 lg:col-span-7">
           <PatientInfoCard rx={rx} />
           <MedicationDetailsCard rx={rx} />
-          <SPCQuickReference drugName={rx.medication.drugName} atcCode={rx.medication.atcCode ?? ""} />
+          <SPCQuickReference
+            drugName={rx.medication.drugName}
+            atcCode={rx.medication.atcCode ?? ""}
+            fallback={{
+              recommendedDosage: rx.medication.spcRecommendedDosage,
+              contraindications: rx.spcQuickReference?.contraindications,
+              majorInteractions: rx.spcQuickReference?.majorInteractions,
+            }}
+          />
         </div>
 
         {/* Right sticky column */}
