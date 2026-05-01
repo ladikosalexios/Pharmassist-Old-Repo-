@@ -64,7 +64,16 @@ export async function getSpc(atcCode: string): Promise<SpcDetails> {
   const r = await fetch(`${API_BASE}/spc/${encodeURIComponent(atcCode)}`, {
     headers: authHeaders(),
   });
-  return handle(r) as Promise<SpcDetails>;
+  const data = (await handle(r)) as Partial<SpcDetails>;
+  if (
+    !data ||
+    typeof data.atcCode !== "string" ||
+    !Array.isArray(data.contraindications) ||
+    !Array.isArray(data.majorInteractions)
+  ) {
+    throw new ApiError(0, `Unexpected response from /spc/${atcCode} (missing required fields). Is the API running and proxied?`);
+  }
+  return data as SpcDetails;
 }
 
 export async function getSafetyChecks(rxId: string): Promise<SafetyCheck[]> {
