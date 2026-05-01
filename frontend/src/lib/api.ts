@@ -1,6 +1,7 @@
 import type {
-  ActiveAlert, DeliveryMethodFilter, DocumentationListResponse, DocumentationRecord,
-  Prescription, PrescriptionMessage, QueueItem, SafetyCheck, SpcDetails,
+  ActiveAlert, AdrSort, DeliveryMethodFilter, DocumentationListResponse, DocumentationRecord,
+  PatientProfile, Prescription, PrescriptionMessage, QueueItem, SafetyCheck,
+  SideEffectListResponse, SideEffectReport, SpcDetails,
 } from "../types";
 
 const API_BASE = (import.meta.env.VITE_API_BASE as string | undefined) ?? "";
@@ -224,4 +225,33 @@ export async function exportDocumentation(params: { q?: string; method?: Deliver
 export async function exportDocumentationRecord(id: string): Promise<void> {
   const url = `${API_BASE}/documentation/${encodeURIComponent(id)}/export`;
   await downloadFile(url, `${id}.csv`);
+}
+
+export async function listSideEffects(params: { q?: string; sort?: AdrSort } = {}): Promise<SideEffectListResponse> {
+  const qs = new URLSearchParams();
+  if (params.q) qs.set("q", params.q);
+  if (params.sort) qs.set("sort", params.sort);
+  const r = await fetch(`${API_BASE}/side-effects${qs.toString() ? `?${qs}` : ""}`, {
+    headers: authHeaders(),
+  });
+  const data = (await handle(r)) as Partial<SideEffectListResponse>;
+  if (!Array.isArray(data?.items) || !data.stats) {
+    throw new ApiError(0, "Unexpected response from /side-effects. Is the API running and proxied?");
+  }
+  return data as SideEffectListResponse;
+}
+
+export async function flagSideEffect(reportId: string): Promise<{ success: boolean; status: SideEffectReport["status"]; previousStatus: SideEffectReport["status"] }> {
+  const r = await fetch(`${API_BASE}/side-effects/${encodeURIComponent(reportId)}/flag`, {
+    method: "POST",
+    headers: authHeaders(),
+  });
+  return handle(r) as Promise<{ success: boolean; status: SideEffectReport["status"]; previousStatus: SideEffectReport["status"] }>;
+}
+
+export async function getPatient(patientId: string): Promise<PatientProfile> {
+  const r = await fetch(`${API_BASE}/patients/${encodeURIComponent(patientId)}`, {
+    headers: authHeaders(),
+  });
+  return handle(r) as Promise<PatientProfile>;
 }

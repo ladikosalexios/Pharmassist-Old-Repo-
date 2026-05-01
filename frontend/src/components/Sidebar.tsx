@@ -8,7 +8,7 @@ const NAV = [
   { to: "/documentation", label: "Documentation Log",    Icon: ClipboardIcon },
   { to: "/patients",      label: "Patients",             Icon: UsersIcon },
   { to: "/history",       label: "History",              Icon: ClockIcon },
-  { to: "/adr",           label: "Side Effect Reports",  Icon: AlertTriangleIcon },
+  { to: "/side-effects",  label: "Side Effect Reports",  Icon: AlertTriangleIcon },
   { to: "/settings",      label: "Settings",             Icon: SettingsIcon },
 ];
 
