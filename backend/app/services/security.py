@@ -1,21 +1,24 @@
 """Auth primitives: stdlib HS256 JWT, the demo user store, and password hashing.
 
-Self-contained — reads SECRET_KEY / TOKEN_EXPIRE_MINUTES from the environment
-at import time, same as the previous inline code in main.py.
+Reads SECRET_KEY / TOKEN_EXPIRE_MINUTES from the centralised settings.
 """
 
 import base64
 import hashlib
 import hmac
 import json
-import os
 import time
 
 from fastapi import HTTPException
 
+from ..config import get_settings
 
-SECRET_KEY = os.getenv("SECRET_KEY", "pharmassist-dev-secret-CHANGE-IN-PROD")
-TOKEN_EXPIRE_MIN = int(os.getenv("TOKEN_EXPIRE_MINUTES", "480"))  # 8h pharmacist session
+
+# Module-level constants kept for backward compat with anything that imports
+# them by name. Sourced from settings at first import.
+_settings = get_settings()
+SECRET_KEY = _settings.secret_key
+TOKEN_EXPIRE_MIN = _settings.token_expire_minutes
 
 
 # ── Demo user store (replace with DB in production) ─────────────────────────
