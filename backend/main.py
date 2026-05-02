@@ -44,7 +44,20 @@ from fastapi import FastAPI, HTTPException, Depends, Query, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-from pydantic import BaseModel
+
+# API contracts live in app/schemas/. They're re-exported as bare names here
+# so existing route handlers below keep working without a churn-y rename.
+from .app.schemas import (
+    DocumentationCreate,
+    InstructionsGenerate,
+    InstructionsSend,
+    MessagePayload,
+    PharmacistMe,
+    PhysicianNotification,
+    PrescriptionPatch,
+    SessionStatus,
+    TokenResponse,
+)
 
 # ── Config ──────────────────────────────────────────────────────────────────
 SECRET_KEY       = os.getenv("SECRET_KEY", "pharmassist-dev-secret-CHANGE-IN-PROD")
@@ -209,26 +222,8 @@ def get_current_user(token: str = Depends(oauth2_scheme)) -> dict:
         raise HTTPException(status_code=401, detail="User not found")
     return {"email": payload["sub"], **user}
 
-# ── Schemas ──────────────────────────────────────────────────────────────────
-class TokenResponse(BaseModel):
-    access_token: str
-    token_type: str = "bearer"
-    pharmacist_name: str
-    pharmacy: str
-
-class PharmacistMe(BaseModel):
-    email: str
-    name: str
-    pharmacy: str
-
-class SessionStatus(BaseModel):
-    pharmapi_connected: bool
-    connected_at: Optional[str]
-    session_age_minutes: Optional[float]
-    session_valid_for_minutes: Optional[float]
-    pharmapi_user: Optional[dict]
-
 # ── Routes ───────────────────────────────────────────────────────────────────
+# Pydantic schemas now live in app/schemas/ (imported at the top of this file).
 
 @app.get("/health")
 async def health():
@@ -705,12 +700,6 @@ _MOCK_MESSAGES: dict = {
 }
 
 
-class MessagePayload(BaseModel):
-    to: str
-    rxId: str
-    body: str
-
-
 @app.get("/messages")
 async def list_messages(rxId: str, current: dict = Depends(get_current_user)):
     """Return the message thread between this pharmacist and the prescriber for a given rxId."""
@@ -1148,14 +1137,6 @@ async def get_documentation_record(doc_id: str, current: dict = Depends(get_curr
     return rec
 
 
-class DocumentationCreate(BaseModel):
-    rxId: str
-    instructions: str
-    language: str
-    method: str
-    setting: Optional[str] = "Private"
-
-
 @app.post("/documentation", status_code=201)
 async def create_documentation_record(
     payload: DocumentationCreate,
@@ -1185,19 +1166,6 @@ async def create_documentation_record(
 
 
 # ── Patient Instructions (mock generation + delivery) ───────────────────────
-class InstructionsGenerate(BaseModel):
-    rxId: str
-    language: str = "en"
-    options: Optional[dict] = None
-
-
-class InstructionsSend(BaseModel):
-    patientId: Optional[str] = None
-    rxId: str
-    content: str
-    method: str  # PRINT | DIGITAL | BOTH
-
-
 _INSTRUCTION_DELIVERIES: list = []
 
 
@@ -1640,18 +1608,6 @@ async def get_prescription_for_verification(rx_id: str, current: dict = Depends(
     if not rx:
         raise HTTPException(status_code=404, detail=f"Prescription {rx_id} not found")
     return rx
-
-
-class PrescriptionPatch(BaseModel):
-    status: Optional[str] = None
-    discrepancy_type: Optional[str] = None
-    notes: Optional[str] = None
-    notify_physician: Optional[bool] = None
-
-
-class PhysicianNotification(BaseModel):
-    rxId: str
-    message: str
 
 
 @app.post("/prescriptions/{rx_id}/approve")
