@@ -26,27 +26,25 @@ Endpoints:
   GET  /pharmapi/status            → show session state (connected? when?)
   GET  /pharmapi/pharmacy          → GET /pharmacies/myPharmacy
   GET  /pharmapi/prescriptions/{b} → GET prescription by barcode
+
+Internal layout (work in progress):
+  app/schemas/   — Pydantic API contracts (one file per domain)
+  app/services/  — in-memory stores + business helpers (mock data, JWT,
+                   Pharmapi client, PDF rendering, etc.)
+  main.py        — FastAPI app + middleware + route handlers (this file)
+
+The next refactor step splits the route handlers into per-domain APIRouters.
 """
 
-import os
-import hashlib
-import hmac
 import time
-import json
-import base64
-import csv
-import io
 from datetime import datetime, timezone
 from typing import Optional
 
-import httpx
 from fastapi import FastAPI, HTTPException, Depends, Query, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 
-# API contracts live in app/schemas/. They're re-exported as bare names here
-# so existing route handlers below keep working without a churn-y rename.
+# ── API contracts (Pydantic) ────────────────────────────────────────────────
 from .app.schemas import (
     DocumentationCreate,
     InstructionsGenerate,
@@ -59,144 +57,63 @@ from .app.schemas import (
     TokenResponse,
 )
 
-# ── Config ──────────────────────────────────────────────────────────────────
-SECRET_KEY       = os.getenv("SECRET_KEY", "pharmassist-dev-secret-CHANGE-IN-PROD")
-TOKEN_EXPIRE_MIN = int(os.getenv("TOKEN_EXPIRE_MINUTES", "480"))  # 8h pharmacist session
+# ── Services (mock stores + business logic) ─────────────────────────────────
+# Aliased here so the existing route handlers below keep their original
+# variable names without churn. The next step (routers) drops the aliases
+# entirely and references the service modules directly.
+from .app.services.security import (
+    USERS,
+    create_jwt,
+    decode_jwt,
+    verify_password,
+)
+from .app.services.pharmapi import (
+    PHARMAPI_API_KEY,
+    SESSION_WINDOW_SECONDS,
+    pharmapi_get,
+    pharmapi_session as _pharmapi_session,
+    session_is_valid,
+)
+from .app.services.safety_checks import MOCK_SAFETY_CHECKS as _MOCK_SAFETY_CHECKS
+from .app.services.spc import MOCK_SPC as _MOCK_SPC
+from .app.services.alerts import MOCK_ACTIVE_ALERTS as _MOCK_ACTIVE_ALERTS
+from .app.services.messages import MOCK_MESSAGES as _MOCK_MESSAGES
+from .app.services.prescriptions import (
+    MOCK_PRESCRIPTIONS as _MOCK_PRESCRIPTIONS,
+    MOCK_QUEUE_BASE as _MOCK_QUEUE_BASE,
+)
+from .app.services.side_effects import (
+    MOCK_SIDE_EFFECTS as _MOCK_SIDE_EFFECTS,
+    SEVERITY_RANK as _SEVERITY_RANK,
+    STATUS_RANK as _STATUS_RANK,
+    next_status as _next_status,
+    stats as _se_stats,
+)
+from .app.services.patients import (
+    adr_history as _patient_adr_history,
+    resolve as _resolve_patient,
+    rx_history as _patient_rx_history,
+)
+from .app.services.documentation import (
+    MOCK_DOCUMENTATION as _MOCK_DOCUMENTATION,
+    csv_response as _csv_response,
+    filter_records as _filter_docs,
+    mark_exported as _mark_exported,
+    stats as _doc_stats,
+)
+from .app.services.pdf import (
+    REPORTLAB_AVAILABLE,
+    full_report as _pdf_full_report,
+    pdf_response as _pdf_response,
+    safe_filename_part as _safe_filename_part,
+    single_record as _pdf_single_record,
+)
+from .app.services.instructions import (
+    INSTRUCTION_DELIVERIES as _INSTRUCTION_DELIVERIES,
+    render_instructions as _instructions_template,
+)
+from .app.services.notifications import PHYSICIAN_NOTIFICATIONS as _PHYSICIAN_NOTIFICATIONS
 
-PHARMAPI_BASE    = os.getenv("PHARMAPI_BASE", "https://testeps.e-prescription.gr/pharmapiv2")
-PHARMAPI_USER    = os.getenv("PHARMAPI_USERNAME", "medcare1pharmapi")
-PHARMAPI_PASS    = os.getenv("PHARMAPI_PASSWORD", "Aa900919081908!!")
-PHARMAPI_API_KEY = os.getenv("PHARMAPI_API_KEY", "pi2jwygkd07yho3a4dw6jc55tg5ra3uc")
-
-# ── In-memory 24h session tracker ───────────────────────────────────────────
-# In production this goes in Redis/DB — here it's per-process
-_pharmapi_session: dict = {
-    "connected": False,
-    "connected_at": None,    # ISO timestamp
-    "connected_at_ts": 0.0,  # unix timestamp
-    "user_data": None,       # response from /api/v1user/me
-}
-
-SESSION_WINDOW_SECONDS = 23 * 3600  # 23h (refresh before 24h hard limit)
-
-def session_is_valid() -> bool:
-    if not _pharmapi_session["connected"]:
-        return False
-    elapsed = time.time() - _pharmapi_session["connected_at_ts"]
-    return elapsed < SESSION_WINDOW_SECONDS
-
-# ── Minimal JWT (stdlib only — no python-jose needed) ───────────────────────
-def _b64url(data: bytes) -> str:
-    return base64.urlsafe_b64encode(data).rstrip(b"=").decode()
-
-def _b64url_decode(s: str) -> bytes:
-    padding = 4 - len(s) % 4
-    return base64.urlsafe_b64decode(s + "=" * padding)
-
-def create_jwt(payload: dict) -> str:
-    header = _b64url(json.dumps({"alg": "HS256", "typ": "JWT"}).encode())
-    payload = {**payload, "exp": int(time.time()) + TOKEN_EXPIRE_MIN * 60}
-    body = _b64url(json.dumps(payload).encode())
-    sig_input = f"{header}.{body}".encode()
-    sig = hmac.new(SECRET_KEY.encode(), sig_input, hashlib.sha256).digest()
-    return f"{header}.{body}.{_b64url(sig)}"
-
-def decode_jwt(token: str) -> dict:
-    try:
-        header, body, sig = token.split(".")
-        sig_input = f"{header}.{body}".encode()
-        expected = _b64url(hmac.new(SECRET_KEY.encode(), sig_input, hashlib.sha256).digest())
-        if not hmac.compare_digest(sig, expected):
-            raise ValueError("bad signature")
-        payload = json.loads(_b64url_decode(body))
-        if payload.get("exp", 0) < time.time():
-            raise ValueError("token expired")
-        return payload
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=401, detail=f"Invalid token: {e}")
-
-# ── Demo user store (replace with DB in production) ─────────────────────────
-# SHA-256 of password — run: python3 -c "import hashlib; print(hashlib.sha256(b'demo123').hexdigest())"
-USERS = {
-    "pharmacist@demo.gr": {
-        "name": "Demo Pharmacist",
-        "pharmacy": "MedCare Pharmacy",
-        # SHA-256("demo123")
-        "pw_hash": "d3ad9315b7be5dd53b31a273b3b3aba5defe700808305aa16a3062b76658a791",
-    }
-}
-
-def verify_password(plain: str, hashed: str) -> bool:
-    return hashlib.sha256(plain.encode()).hexdigest() == hashed
-
-# ── Pharmapi HTTP helpers ────────────────────────────────────────────────────
-def pharmapi_headers() -> dict:
-    """Headers required on every Pharmapi call."""
-    if not PHARMAPI_API_KEY:
-        raise HTTPException(
-            status_code=500,
-            detail="PHARMAPI_API_KEY not set. Add it to your environment — it was in your ΗΔΥΚΑ registration email."
-        )
-    return {
-        "Accept": "application/json",
-        "Api-Key": PHARMAPI_API_KEY,
-    }
-
-def _parse_pharmapi_error(r: httpx.Response) -> str:
-    """Extract ΗΔΥΚΑ error code from response body."""
-    try:
-        data = r.json()
-        return data.get("errorCode") or data.get("message") or r.text[:200]
-    except Exception:
-        return r.text[:200]
-
-async def pharmapi_get(path: str, accept_xml: bool = False) -> dict:
-    """Authenticated GET to Pharmapi. Raises HTTPException on failure."""
-    url = f"{PHARMAPI_BASE}{path}"
-    headers = pharmapi_headers()
-    if accept_xml:
-        headers["Accept"] = "application/xml"
-    print(f"[Pharmapi] GET {url}")
-    async with httpx.AsyncClient(timeout=15.0) as client:
-        r = await client.get(
-            url,
-            auth=(PHARMAPI_USER, PHARMAPI_PASS),
-            headers=headers,
-        )
-    print(f"[Pharmapi] {r.status_code} — {r.text[:500]}")
-
-    if r.status_code == 200:
-        # API returns XML for some endpoints, JSON for others
-        content_type = r.headers.get("content-type", "")
-        if "xml" in content_type:
-            # Return raw XML as a dict with one key for now
-            return {"raw_xml": r.text}
-        try:
-            return r.json()
-        except Exception:
-            return {"raw": r.text}
-
-    # Full raw error for debugging
-    try:
-        err_body = r.json()
-        err = str(err_body)
-    except Exception:
-        err_body = {}
-        err = r.text
-
-    if "G12" in err:
-        raise HTTPException(502, "Pharmapi: no active connection — call POST /pharmapi/connect first")
-    if "G14" in err or "914" in err or "Connection time limit" in err:
-        raise HTTPException(502, "Pharmapi: 24h session expired — log into https://test.e-prescription.gr/epregen2/ first, then retry")
-    if "G15" in err:
-        raise HTTPException(500, "Pharmapi: Api-Key missing — set PHARMAPI_API_KEY env var")
-    if "G11" in err:
-        raise HTTPException(500, "Pharmapi: Api-Key invalid — check PHARMAPI_API_KEY value")
-    if r.status_code == 401:
-        raise HTTPException(502, f"Pharmapi: bad credentials — {err}")
-    raise HTTPException(502, f"Pharmapi error {r.status_code}: {err}")
 
 # ── FastAPI app ──────────────────────────────────────────────────────────────
 app = FastAPI(
@@ -215,6 +132,7 @@ app.add_middleware(
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
+
 def get_current_user(token: str = Depends(oauth2_scheme)) -> dict:
     payload = decode_jwt(token)
     user = USERS.get(payload.get("sub", ""))
@@ -222,8 +140,10 @@ def get_current_user(token: str = Depends(oauth2_scheme)) -> dict:
         raise HTTPException(status_code=401, detail="User not found")
     return {"email": payload["sub"], **user}
 
+
 # ── Routes ───────────────────────────────────────────────────────────────────
-# Pydantic schemas now live in app/schemas/ (imported at the top of this file).
+# Pydantic schemas live in app/schemas/. Mock data + helpers live in
+# app/services/. This file only wires HTTP → service.
 
 @app.get("/health")
 async def health():
@@ -337,208 +257,6 @@ async def get_prescription(barcode: str, current: dict = Depends(get_current_use
     return await pharmapi_get(f"/prescriptions/{barcode}")
 
 
-# ── Prescription Verification (mock data for the new React UI) ──────────────
-# These endpoints serve mock data so the verification page works end-to-end
-# without depending on the live Pharmapi sandbox.
-
-_MOCK_SAFETY_CHECKS: dict = {
-    "RX2024-005": [
-        {
-            "id": "duplicate-therapy",
-            "name": "Duplicate Therapy Check",
-            "status": "ok",
-            "message": "No duplicate therapy detected.",
-            "details": "Patient is not currently on any other anticoagulant. Reviewed active prescriptions in the last 90 days.",
-            "recommendedAction": None,
-        },
-        {
-            "id": "interactions",
-            "name": "Drug-Drug Interactions",
-            "status": "review",
-            "message": "Patient is on Aspirin 100 mg — review bleeding risk.",
-            "details": (
-                "Concurrent Warfarin + Aspirin significantly increases bleeding risk "
-                "(major GI and intracranial bleeding rates roughly 2–3× background). "
-                "Combination is acceptable when indicated (e.g. mechanical valve, recent ACS) "
-                "but requires close INR monitoring and a documented clinical justification."
-            ),
-            "recommendedAction": (
-                "Confirm clinical indication with the prescriber. If continued, schedule INR "
-                "every 3–5 days for the first 2 weeks and counsel patient on bleeding signs."
-            ),
-        },
-        {
-            "id": "contraindications",
-            "name": "Contraindications",
-            "status": "ok",
-            "message": "No contraindications identified.",
-            "details": "Patient has no active bleeding, no recent surgery, no severe hepatic impairment, and is not pregnant.",
-            "recommendedAction": None,
-        },
-        {
-            "id": "dose-validation",
-            "name": "Dose Validation",
-            "status": "ok",
-            "message": "Dose within SPC recommended range.",
-            "details": "5 mg once daily falls within the SPC maintenance range of 2–10 mg daily.",
-            "recommendedAction": None,
-        },
-        {
-            "id": "spc-alignment",
-            "name": "SPC Alignment",
-            "status": "review",
-            "message": "Confirm INR monitoring schedule is in place.",
-            "details": (
-                "SPC v2024.3 mandates INR monitoring at initiation, every 3–5 days during "
-                "induction, and at least every 4 weeks during maintenance. No INR appointments "
-                "are recorded for this patient in the last 30 days."
-            ),
-            "recommendedAction": "Book the next INR test before dispensing and add a recurring monthly INR reminder.",
-        },
-    ],
-    "RX2024-001": [
-        {
-            "id": "duplicate-therapy",
-            "name": "Duplicate Therapy Check",
-            "status": "ok",
-            "message": "No duplicate therapy detected.",
-            "details": "No other beta-lactam antibiotic active in the patient's record.",
-            "recommendedAction": None,
-        },
-        {
-            "id": "interactions",
-            "name": "Drug-Drug Interactions",
-            "status": "ok",
-            "message": "No major interactions detected.",
-            "details": "No methotrexate, allopurinol, or other significant interactions on file.",
-            "recommendedAction": None,
-        },
-        {
-            "id": "contraindications",
-            "name": "Contraindications",
-            "status": "ok",
-            "message": "No contraindications identified.",
-            "details": "Patient has no documented penicillin or beta-lactam hypersensitivity.",
-            "recommendedAction": None,
-        },
-        {
-            "id": "dose-validation",
-            "name": "Dose Validation",
-            "status": "ok",
-            "message": "Dose within SPC recommended range.",
-            "details": "500 mg every 8 hours is within the adult SPC range (250–500 mg q8h).",
-            "recommendedAction": None,
-        },
-        {
-            "id": "spc-alignment",
-            "name": "SPC Alignment",
-            "status": "ok",
-            "message": "Aligned with current SPC.",
-            "details": "Indication, dose, route, and duration match SPC v2024.3.",
-            "recommendedAction": None,
-        },
-    ],
-}
-
-
-_MOCK_PRESCRIPTIONS: dict = {
-    "RX2024-005": {
-        "rxId": "RX2024-005",
-        "code": "RX2024-005",
-        "dateIssued": "2026-04-28",
-        "status": "PENDING",
-        "spcVersion": "SPC v2024.3",
-        "patient": {
-            "id": "P001",
-            "name": "Maria Stavrou",
-            "age": 64,
-            "dateOfBirth": "1962-03-15",
-            "amka": "15031962456",
-            "conditions": ["Type II Diabetes", "Hypertension", "Hyperlipidemia"],
-            "allergies": "Penicillin (anaphylaxis), sulfa drugs",
-        },
-        "medication": {
-            "drugName": "Warfarin",
-            "atcCode": "B01AA03",
-            "dose": "5 mg",
-            "form": "Tablet",
-            "route": "Oral",
-            "frequency": "Once daily",
-            "treatmentDuration": "90 days",
-            "spcRecommendedDosage": (
-                "Initial: 5–10 mg daily for 1–2 days, then adjusted based on INR. "
-                "Maintenance: 2–10 mg daily. Target INR 2.0–3.0 for most indications."
-            ),
-        },
-        "prescriber": {
-            "name": "Dr. Michael Chen",
-            "licenceId": "MD-48291",
-            "specialty": "Cardiology",
-            "contact": "+30 210 123 4567",
-            "email": "m.chen@hospital.gr",
-        },
-        "spcQuickReference": {
-            "contraindications": [
-                "Active bleeding or bleeding diathesis",
-                "Recent or planned surgery (CNS, eye, traumatic)",
-                "Severe hepatic impairment",
-                "Pregnancy (except for mechanical heart valves)",
-            ],
-            "majorInteractions": [
-                {"drug": "Aspirin", "effect": "High risk of bleeding when combined with anticoagulants."},
-                {"drug": "NSAIDs", "effect": "Increased bleeding risk; avoid concurrent use."},
-                {"drug": "Amiodarone", "effect": "Potentiates warfarin effect; reduce warfarin dose by 30–50%."},
-            ],
-        },
-        "safetyChecks": _MOCK_SAFETY_CHECKS["RX2024-005"],
-    },
-    "RX2024-001": {
-        "rxId": "RX2024-001",
-        "code": "RX2024-001",
-        "dateIssued": "2026-03-11",
-        "status": "PENDING",
-        "spcVersion": "SPC v2024.3",
-        "patient": {
-            "id": "P010",
-            "name": "Sarah Johnson",
-            "age": 32,
-            "dateOfBirth": "1993-07-22",
-            "amka": "22071993789",
-            "conditions": ["Bacterial sinusitis"],
-            "allergies": "None known",
-        },
-        "medication": {
-            "drugName": "Amoxicillin",
-            "atcCode": "J01CA04",
-            "dose": "500 mg",
-            "form": "Capsule",
-            "route": "Oral",
-            "frequency": "Three times daily",
-            "treatmentDuration": "7 days",
-            "spcRecommendedDosage": "Adults: 250–500 mg every 8 hours, depending on severity.",
-        },
-        "prescriber": {
-            "name": "Dr. Michael Chen",
-            "licenceId": "MD-48291",
-            "specialty": "General Practice",
-            "contact": "+30 210 123 4567",
-            "email": "m.chen@hospital.gr",
-        },
-        "spcQuickReference": {
-            "contraindications": [
-                "Hypersensitivity to penicillins or any beta-lactam antibiotic",
-                "History of severe immediate hypersensitivity reaction",
-            ],
-            "majorInteractions": [
-                {"drug": "Methotrexate", "effect": "Reduced excretion; increased toxicity risk."},
-                {"drug": "Allopurinol",  "effect": "Increased risk of skin rash."},
-            ],
-        },
-        "safetyChecks": _MOCK_SAFETY_CHECKS["RX2024-001"],
-    },
-}
-
-
 @app.get("/safety-checks/{rx_id}")
 async def get_safety_checks(rx_id: str, current: dict = Depends(get_current_user)):
     """Return the automated safety checks for a prescription."""
@@ -546,88 +264,6 @@ async def get_safety_checks(rx_id: str, current: dict = Depends(get_current_user
     if checks is None:
         raise HTTPException(status_code=404, detail=f"Prescription {rx_id} not found")
     return {"rxId": rx_id, "checks": checks}
-
-
-# ── Summary of Product Characteristics (mock) ───────────────────────────────
-_MOCK_SPC: dict = {
-    "B01AA03": {
-        "atcCode": "B01AA03",
-        "drugName": "Warfarin",
-        "version": "v2.9",
-        # NB: this date is *after* RX2024-005's issue date (2026-04-28) so the
-        # version badge in the UI flips to red and the "review recommended"
-        # tooltip fires for that prescription. Adjust if you need a clean run.
-        "updatedAt": "2026-04-29T00:00:00Z",
-        "fullSpcUrl": "https://www.eof.gr/spc/warfarin",
-        "recommendedDosage": (
-            "Initial: 5–10 mg daily for 1–2 days, then adjusted based on INR. "
-            "Maintenance: 2–10 mg daily. Target INR 2.0–3.0 for most indications. "
-            "Elderly and patients with hepatic impairment may require lower starting doses."
-        ),
-        "fullSpcText": (
-            "1. THERAPEUTIC INDICATIONS\n"
-            "Warfarin is indicated for the prophylaxis and treatment of venous thromboembolism, "
-            "prevention of stroke in non-valvular atrial fibrillation, and as adjunctive therapy "
-            "after mechanical heart valve replacement.\n\n"
-            "2. POSOLOGY AND METHOD OF ADMINISTRATION\n"
-            "Initial dose 5–10 mg once daily for 1–2 days. Maintenance is individualised based "
-            "on INR (typical 2–10 mg daily). Take at the same time each day.\n\n"
-            "3. CONTRAINDICATIONS\n"
-            "See Key Contraindications section.\n\n"
-            "4. SPECIAL WARNINGS AND PRECAUTIONS\n"
-            "Bleeding risk increases with age, concurrent antiplatelet therapy, recent surgery, "
-            "and uncontrolled hypertension. Counsel patients on signs of bleeding.\n\n"
-            "5. INTERACTION WITH OTHER MEDICINAL PRODUCTS\n"
-            "See Major Interactions section. Many CYP2C9 inhibitors and inducers can shift INR."
-        ),
-        "contraindications": [
-            "Active bleeding or bleeding diathesis",
-            "Recent or planned surgery (CNS, eye, traumatic)",
-            "Severe hepatic impairment",
-            "Pregnancy (except for mechanical heart valves)",
-            "Hypersensitivity to warfarin or any excipient",
-        ],
-        "majorInteractions": [
-            {"drug": "Aspirin",     "effect": "Concurrent use significantly increases bleeding risk; use only with documented indication and close INR monitoring."},
-            {"drug": "NSAIDs",      "effect": "Increased bleeding risk via platelet inhibition and gastric mucosal damage; avoid concurrent use."},
-            {"drug": "Amiodarone",  "effect": "Potentiates warfarin effect via CYP2C9 inhibition; reduce warfarin dose by 30–50% and recheck INR within 5 days."},
-            {"drug": "Fluconazole", "effect": "Marked CYP2C9 inhibition; INR can rise sharply within 3–5 days."},
-        ],
-    },
-    "J01CA04": {
-        "atcCode": "J01CA04",
-        "drugName": "Amoxicillin",
-        "version": "v1.4",
-        "updatedAt": "2026-01-10T00:00:00Z",
-        "fullSpcUrl": "https://www.eof.gr/spc/amoxicillin",
-        "recommendedDosage": (
-            "Adults: 250–500 mg every 8 hours, depending on severity. "
-            "Children >40 kg: as adults. Children ≤40 kg: 20–40 mg/kg/day in three divided doses."
-        ),
-        "fullSpcText": (
-            "1. THERAPEUTIC INDICATIONS\n"
-            "Amoxicillin is indicated for bacterial infections including ENT, lower respiratory "
-            "tract, urinary tract, skin and soft tissue, and dental infections, where the "
-            "causative organism is known or suspected to be susceptible.\n\n"
-            "2. POSOLOGY AND METHOD OF ADMINISTRATION\n"
-            "Adults: 250–500 mg every 8 hours; severe infections may require higher doses. "
-            "Renal impairment: dose interval should be extended.\n\n"
-            "3. CONTRAINDICATIONS\n"
-            "See Key Contraindications section.\n\n"
-            "4. INTERACTIONS\n"
-            "See Major Interactions section."
-        ),
-        "contraindications": [
-            "Hypersensitivity to penicillins or any beta-lactam antibiotic",
-            "History of severe immediate hypersensitivity reaction (anaphylaxis, Stevens-Johnson syndrome)",
-        ],
-        "majorInteractions": [
-            {"drug": "Methotrexate", "effect": "Reduced renal excretion of methotrexate; increased toxicity risk — monitor closely."},
-            {"drug": "Allopurinol",  "effect": "Increased risk of skin rash when used concurrently."},
-            {"drug": "Warfarin",     "effect": "May potentiate anticoagulant effect; monitor INR during and after a course."},
-        ],
-    },
-}
 
 
 @app.get("/spc/{atc_code}")
@@ -639,65 +275,10 @@ async def get_spc(atc_code: str, current: dict = Depends(get_current_user)):
     return spc
 
 
-_MOCK_ACTIVE_ALERTS = [
-    {
-        "id": "AL-1001",
-        "type": "INTERACTION",
-        "description": "Warfarin + Aspirin: high risk of bleeding. Immediate review required before dispensing.",
-        "rxId": "RX2024-005",
-        "createdAt": "2026-04-30T08:14:00Z",
-    },
-    {
-        "id": "AL-1002",
-        "type": "G6PD",
-        "description": "Patient P003 has G6PD deficiency. Verify medication safety against current SPC.",
-        "rxId": "RX2024-002",
-        "createdAt": "2026-04-30T07:42:00Z",
-    },
-    {
-        "id": "AL-1003",
-        "type": "PREGNANCY",
-        "description": "Patient P001 is 18 weeks pregnant. Check teratogenicity classification before approval.",
-        "rxId": "RX2024-003",
-        "createdAt": "2026-04-30T06:20:00Z",
-    },
-    {
-        "id": "AL-1004",
-        "type": "CONTRAINDICATION",
-        "description": "Metformin contraindicated — patient eGFR < 30 ml/min recorded last week.",
-        "rxId": None,
-        "createdAt": "2026-04-29T18:05:00Z",
-    },
-]
-
-
 @app.get("/alerts/active")
 async def get_active_alerts(current: dict = Depends(get_current_user)):
     """Return active safety alerts for the dashboard."""
     return {"alerts": _MOCK_ACTIVE_ALERTS}
-
-
-# ── Pharmacist ↔ Prescriber messaging (mock thread per prescription) ────────
-_MOCK_MESSAGES: dict = {
-    "RX2024-005": [
-        {
-            "id": "m-005-1",
-            "rxId": "RX2024-005",
-            "from": "pharmacist",
-            "fromName": "Demo Pharmacist",
-            "body": "Patient is currently on Aspirin 100 mg. Could you confirm the bleeding-risk plan and the INR monitoring schedule before I dispense?",
-            "sentAt": "2026-04-29T14:30:00Z",
-        },
-        {
-            "id": "m-005-2",
-            "rxId": "RX2024-005",
-            "from": "prescriber",
-            "fromName": "Dr. Michael Chen",
-            "body": "Yes — patient has a recent stent (12/2025). Please continue but stress INR every 3–5 days for the first two weeks. I've already booked the follow-up labs for next Monday.",
-            "sentAt": "2026-04-29T16:12:00Z",
-        },
-    ],
-}
 
 
 @app.get("/messages")
@@ -721,364 +302,6 @@ async def post_message(payload: MessagePayload, current: dict = Depends(get_curr
     }
     _MOCK_MESSAGES.setdefault(payload.rxId, []).append(msg)
     return msg
-
-
-# ── Documentation & Legal Log (mock) ────────────────────────────────────────
-_MOCK_DOCUMENTATION: list = [
-    {
-        "id": "DOC-2026-0007",
-        "rxId": "RX2024-005",
-        "patientName": "Maria Stavrou",
-        "drugName": "Warfarin 5 mg",
-        "setting": "Private",
-        "deliveryMethod": "BOTH",
-        "language": "Greek",
-        "informationProvided": (
-            "Reviewed bleeding precautions, INR monitoring schedule, dietary "
-            "considerations (vitamin K), and signs of over-anticoagulation. Patient "
-            "received printed leaflet and digital copy via the patient portal."
-        ),
-        "pharmacistName": "Demo Pharmacist",
-        "pharmacistLicense": "PH-12345",
-        "signatureConfirmed": True,
-        "dispensedAt": "2026-04-29T10:30:00+00:00",
-    },
-    {
-        "id": "DOC-2026-0006",
-        "rxId": "RX2024-001",
-        "patientName": "Sarah Johnson",
-        "drugName": "Amoxicillin 500 mg",
-        "setting": "Private",
-        "deliveryMethod": "PRINT",
-        "language": "English",
-        "informationProvided": (
-            "Counselled on full course completion, symptom-watch for hypersensitivity, "
-            "and gastrointestinal side effects. Provided printed leaflet."
-        ),
-        "pharmacistName": "Demo Pharmacist",
-        "pharmacistLicense": "PH-12345",
-        "signatureConfirmed": True,
-        "dispensedAt": "2026-04-15T16:02:00+00:00",
-    },
-    {
-        "id": "DOC-2026-0005",
-        "rxId": "RX2024-002",
-        "patientName": "James Martinez",
-        "drugName": "Warfarin 7.5 mg",
-        "setting": "Hospital",
-        "deliveryMethod": "DIGITAL",
-        "language": "English",
-        "informationProvided": (
-            "Reviewed inpatient protocol with the ward pharmacist and the patient. "
-            "Digital counselling pack pushed to the patient's hospital portal."
-        ),
-        "pharmacistName": "Demo Pharmacist",
-        "pharmacistLicense": "PH-12345",
-        "signatureConfirmed": True,
-        "dispensedAt": "2026-04-12T09:18:00+00:00",
-    },
-    {
-        "id": "DOC-2026-0004",
-        "rxId": "RX2024-003",
-        "patientName": "Maria Garcia",
-        "drugName": "Lisinopril 10 mg",
-        "setting": "Private",
-        "deliveryMethod": "PRINT",
-        "language": "Greek",
-        "informationProvided": (
-            "Discussed renal function monitoring, dry-cough as a possible side effect, "
-            "and the need to avoid concurrent NSAIDs. Printed leaflet handed over."
-        ),
-        "pharmacistName": "Demo Pharmacist",
-        "pharmacistLicense": "PH-12345",
-        "signatureConfirmed": True,
-        "dispensedAt": "2026-03-22T11:44:00+00:00",
-    },
-    {
-        "id": "DOC-2026-0003",
-        "rxId": "RX2023-118",
-        "patientName": "Eleni Nikolaou",
-        "drugName": "Atorvastatin 20 mg",
-        "setting": "Private",
-        "deliveryMethod": "BOTH",
-        "language": "Greek",
-        "informationProvided": (
-            "Reviewed muscle pain warnings and lipid panel follow-up timing. Both "
-            "printed leaflet and digital copy delivered."
-        ),
-        "pharmacistName": "Demo Pharmacist",
-        "pharmacistLicense": "PH-12345",
-        "signatureConfirmed": True,
-        "dispensedAt": "2026-03-10T15:05:00+00:00",
-    },
-    {
-        "id": "DOC-2026-0002",
-        "rxId": "RX2023-091",
-        "patientName": "Dimitrios Konstantinou",
-        "drugName": "Metformin 1000 mg",
-        "setting": "Hospital",
-        "deliveryMethod": "DIGITAL",
-        "language": "Greek",
-        "informationProvided": (
-            "Discussed lactic-acidosis red-flag symptoms and renal function checks. "
-            "Digital counselling sent to the inpatient app."
-        ),
-        "pharmacistName": "Demo Pharmacist",
-        "pharmacistLicense": "PH-12345",
-        "signatureConfirmed": True,
-        "dispensedAt": "2026-02-27T08:51:00+00:00",
-    },
-]
-
-
-def _doc_stats() -> dict:
-    s = {"total": len(_MOCK_DOCUMENTATION), "print": 0, "digital": 0, "both": 0}
-    for d in _MOCK_DOCUMENTATION:
-        m = d["deliveryMethod"]
-        if m == "PRINT":
-            s["print"] += 1
-        elif m == "DIGITAL":
-            s["digital"] += 1
-        elif m == "BOTH":
-            s["both"] += 1
-    return s
-
-
-def _filter_docs(query: Optional[str], method: Optional[str]) -> list:
-    items = list(_MOCK_DOCUMENTATION)
-    if query:
-        q = query.lower().strip()
-        items = [
-            d for d in items
-            if q in d["patientName"].lower() or q in d["rxId"].lower() or q in d["drugName"].lower()
-        ]
-    if method and method.upper() != "ALL":
-        items = [d for d in items if d["deliveryMethod"] == method.upper()]
-    items.sort(key=lambda d: d["dispensedAt"], reverse=True)
-    return items
-
-
-def _csv_response(rows: list, filename: str) -> StreamingResponse:
-    out = io.StringIO()
-    writer = csv.writer(out)
-    writer.writerow([
-        "ID", "Dispensed At", "Rx Code", "Patient", "Drug", "Setting",
-        "Delivery Method", "Language", "Information Provided",
-        "Pharmacist", "Licence", "Signature Confirmed",
-    ])
-    for d in rows:
-        writer.writerow([
-            d["id"], d["dispensedAt"], d["rxId"], d["patientName"], d["drugName"],
-            d["setting"], d["deliveryMethod"], d["language"], d["informationProvided"],
-            d["pharmacistName"], d["pharmacistLicense"],
-            "yes" if d["signatureConfirmed"] else "no",
-        ])
-    out.seek(0)
-    return StreamingResponse(
-        iter([out.getvalue()]),
-        media_type="text/csv",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
-    )
-
-
-# ── PDF generation (reportlab — falls back to CSV when not installed) ───────
-try:
-    from reportlab.lib import colors as _rl_colors
-    from reportlab.lib.pagesizes import A4 as _RL_A4
-    from reportlab.lib.styles import getSampleStyleSheet as _rl_styles
-    from reportlab.lib.units import cm as _RL_CM
-    from reportlab.platypus import (
-        SimpleDocTemplate as _RLSimpleDocTemplate,
-        Paragraph as _RLParagraph,
-        Spacer as _RLSpacer,
-        Table as _RLTable,
-        TableStyle as _RLTableStyle,
-    )
-    REPORTLAB_AVAILABLE = True
-except ImportError:
-    REPORTLAB_AVAILABLE = False
-
-
-PHARMACY_NAME = "MedCare Pharmacy"
-PHARMACY_LICENCE = "PHC-2024-1138"
-PHARMACIST_LICENCE = "PH-12345"
-RETENTION_NOTICE = (
-    "Records are retained for the legally required period (minimum 5 years per the Εθνικός "
-    "Οργανισμός Φαρμάκων (Ε.Ο.Φ.) record-retention rules) and are accessible for audits and "
-    "inspections. Each entry includes pharmacist signature, timestamp, and delivery confirmation."
-)
-
-
-def _safe_filename_part(s: str) -> str:
-    out = "".join(c if c.isalnum() else "_" for c in (s or "")).strip("_")
-    return out or "record"
-
-
-def _mark_exported(records: list) -> str:
-    """Stamp an exported_at on each record (immutability marker) and return the timestamp."""
-    ts = datetime.now(timezone.utc).isoformat()
-    for r in records:
-        r.setdefault("exportedAt", ts)
-        # Once exported, records are considered immutable. We don't update further.
-    return ts
-
-
-def _pdf_full_report(rows: list, current: dict) -> bytes:
-    """Render the full Documentation & Legal Log as a PDF. Requires reportlab."""
-    buf = io.BytesIO()
-    doc = _RLSimpleDocTemplate(
-        buf, pagesize=_RL_A4,
-        leftMargin=1.6 * _RL_CM, rightMargin=1.6 * _RL_CM,
-        topMargin=1.8 * _RL_CM, bottomMargin=1.8 * _RL_CM,
-        title="PharmAssist Documentation & Legal Log",
-    )
-    styles = _rl_styles()
-    title = styles["Title"]
-    h2 = styles["Heading2"]
-    body = styles["BodyText"]
-
-    elements = []
-    generated_at = datetime.now(timezone.utc).isoformat()
-    if rows:
-        oldest = min(r["dispensedAt"] for r in rows)[:10]
-        newest = max(r["dispensedAt"] for r in rows)[:10]
-        date_range = f"{oldest} – {newest}"
-    else:
-        date_range = "—"
-
-    elements.append(_RLParagraph("PharmAssist — Documentation & Legal Log", title))
-    elements.append(_RLSpacer(1, 0.3 * _RL_CM))
-    elements.append(_RLParagraph(
-        f"<b>Pharmacy:</b> {PHARMACY_NAME} (Licence {PHARMACY_LICENCE})<br/>"
-        f"<b>Pharmacist:</b> {current.get('name', '')} (Licence {PHARMACIST_LICENCE})<br/>"
-        f"<b>Date range:</b> {date_range}<br/>"
-        f"<b>Records:</b> {len(rows)}<br/>"
-        f"<b>Generated:</b> {generated_at}",
-        body,
-    ))
-    elements.append(_RLSpacer(1, 0.5 * _RL_CM))
-
-    table_data = [["Date", "Rx", "Patient", "Drug", "Method", "Language", "Setting"]]
-    for r in rows:
-        table_data.append([
-            r["dispensedAt"][:10], r["rxId"], r["patientName"], r["drugName"],
-            r["deliveryMethod"].title(), r["language"], r["setting"],
-        ])
-    table = _RLTable(table_data, repeatRows=1, hAlign="LEFT")
-    table.setStyle(_RLTableStyle([
-        ("BACKGROUND", (0, 0), (-1, 0), _rl_colors.HexColor("#DBEAFE")),
-        ("TEXTCOLOR",  (0, 0), (-1, 0), _rl_colors.HexColor("#1E40AF")),
-        ("FONTNAME",   (0, 0), (-1, 0), "Helvetica-Bold"),
-        ("FONTSIZE",   (0, 0), (-1, -1), 8),
-        ("GRID",       (0, 0), (-1, -1), 0.25, _rl_colors.HexColor("#CBD5E1")),
-        ("VALIGN",     (0, 0), (-1, -1), "TOP"),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-        ("TOPPADDING",    (0, 0), (-1, -1), 4),
-    ]))
-    elements.append(table)
-    elements.append(_RLSpacer(1, 0.6 * _RL_CM))
-
-    elements.append(_RLParagraph("Legal Compliance", h2))
-    elements.append(_RLParagraph(
-        "All documentation records are maintained in compliance with pharmacy regulations and "
-        "HIPAA requirements. " + RETENTION_NOTICE,
-        body,
-    ))
-    elements.append(_RLSpacer(1, 0.6 * _RL_CM))
-
-    elements.append(_RLParagraph("Pharmacist Signature", h2))
-    elements.append(_RLParagraph(
-        f"<b>Name:</b> {current.get('name', '')}<br/>"
-        f"<b>Licence:</b> {PHARMACIST_LICENCE}<br/>"
-        f"<b>Generated at:</b> {generated_at}<br/><br/>"
-        "<i>Electronically signed via PharmAssist.</i>",
-        body,
-    ))
-
-    doc.build(elements)
-    return buf.getvalue()
-
-
-def _pdf_single_record(rec: dict, current: dict) -> bytes:
-    """Render a single documentation record as a one-page PDF."""
-    buf = io.BytesIO()
-    doc = _RLSimpleDocTemplate(
-        buf, pagesize=_RL_A4,
-        leftMargin=1.8 * _RL_CM, rightMargin=1.8 * _RL_CM,
-        topMargin=2.0 * _RL_CM, bottomMargin=2.0 * _RL_CM,
-        title=f"PharmAssist Documentation Record — {rec['id']}",
-    )
-    styles = _rl_styles()
-    title = styles["Title"]
-    h2 = styles["Heading2"]
-    body = styles["BodyText"]
-
-    elements = []
-    generated_at = datetime.now(timezone.utc).isoformat()
-
-    elements.append(_RLParagraph("PharmAssist — Documentation Record", title))
-    elements.append(_RLSpacer(1, 0.4 * _RL_CM))
-    elements.append(_RLParagraph(
-        f"<b>Record:</b> {rec['id']}<br/>"
-        f"<b>Pharmacy:</b> {PHARMACY_NAME} (Licence {PHARMACY_LICENCE})<br/>"
-        f"<b>Generated:</b> {generated_at}",
-        body,
-    ))
-    elements.append(_RLSpacer(1, 0.5 * _RL_CM))
-
-    elements.append(_RLParagraph("Patient", h2))
-    elements.append(_RLParagraph(
-        f"<b>Name:</b> {rec['patientName']}<br/>"
-        f"<b>Prescription code:</b> {rec['rxId']}<br/>"
-        f"<b>Setting:</b> {rec['setting']}",
-        body,
-    ))
-    elements.append(_RLSpacer(1, 0.4 * _RL_CM))
-
-    elements.append(_RLParagraph("Drug", h2))
-    elements.append(_RLParagraph(rec["drugName"], body))
-    elements.append(_RLSpacer(1, 0.4 * _RL_CM))
-
-    elements.append(_RLParagraph("Counseling Provided", h2))
-    elements.append(_RLParagraph(
-        rec["informationProvided"].replace("\n", "<br/>"),
-        body,
-    ))
-    elements.append(_RLSpacer(1, 0.4 * _RL_CM))
-
-    elements.append(_RLParagraph("Delivery", h2))
-    elements.append(_RLParagraph(
-        f"<b>Language:</b> {rec['language']}<br/>"
-        f"<b>Method:</b> {rec['deliveryMethod'].title()}<br/>"
-        f"<b>Dispensed at:</b> {rec['dispensedAt']}",
-        body,
-    ))
-    elements.append(_RLSpacer(1, 0.5 * _RL_CM))
-
-    elements.append(_RLParagraph("Pharmacist Signature", h2))
-    elements.append(_RLParagraph(
-        f"<b>Name:</b> PharmD {rec['pharmacistName']}<br/>"
-        f"<b>Licence:</b> {rec['pharmacistLicense']}<br/>"
-        f"<b>Generated by:</b> {current.get('name', '')} (Licence {PHARMACIST_LICENCE})<br/>"
-        f"<b>Timestamp:</b> {generated_at}<br/><br/>"
-        "<i>Electronically signed via PharmAssist.</i>",
-        body,
-    ))
-    elements.append(_RLSpacer(1, 0.5 * _RL_CM))
-
-    elements.append(_RLParagraph("Retention Notice", h2))
-    elements.append(_RLParagraph(RETENTION_NOTICE, body))
-
-    doc.build(elements)
-    return buf.getvalue()
-
-
-def _pdf_response(payload: bytes, filename: str) -> StreamingResponse:
-    return StreamingResponse(
-        io.BytesIO(payload),
-        media_type="application/pdf",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
-    )
 
 
 # Order matters: fixed paths must be declared *before* the catch-all {id} path.
@@ -1165,73 +388,6 @@ async def create_documentation_record(
     return record
 
 
-# ── Patient Instructions (mock generation + delivery) ───────────────────────
-_INSTRUCTION_DELIVERIES: list = []
-
-
-def _instructions_template(rx: dict, language: str, opts: dict) -> str:
-    drug = rx["medication"]
-    pt = rx["patient"]
-    notes = (opts or {}).get("additionalNotes", "").strip()
-    include_side = bool((opts or {}).get("includeSideEffects", True))
-    include_lifestyle = bool((opts or {}).get("includeLifestyle", True))
-
-    lang = (language or "en").lower()
-    if lang.startswith("el"):
-        lines = [
-            f"ΟΔΗΓΙΕΣ ΑΣΘΕΝΟΥΣ — {drug['drugName']}",
-            f"Ασθενής: {pt['name']}",
-            "",
-            "ΛΗΨΗ:",
-            f"  Δόση: {drug['dose']} ({drug['form']}, {drug['route']})",
-            f"  Συχνότητα: {drug['frequency']}",
-            f"  Διάρκεια θεραπείας: {drug['treatmentDuration']}",
-        ]
-        if notes:
-            lines += ["", "ΣΗΜΑΝΤΙΚΑ ΣΗΜΕΙΑ:", notes]
-        if include_side:
-            lines += ["", "ΠΙΘΑΝΕΣ ΑΝΕΠΙΘΥΜΗΤΕΣ ΕΝΕΡΓΕΙΕΣ:",
-                      "Ενημερώστε αμέσως τον φαρμακοποιό ή ιατρό σας αν παρατηρήσετε ασυνήθιστα συμπτώματα."]
-        if include_lifestyle:
-            lines += ["", "ΔΙΑΤΡΟΦΙΚΕΣ / ΤΡΟΠΟΥ ΖΩΗΣ ΟΔΗΓΙΕΣ:",
-                      "Διατηρήστε σταθερή πρόσληψη βιταμίνης Κ. Αποφύγετε αλκοόλ. Ενυδάτωση."]
-        lines += [
-            "", "ΑΝ ΞΕΧΑΣΕΤΕ ΜΙΑ ΔΟΣΗ:",
-            "Πάρτε την μόλις τη θυμηθείτε, εκτός αν πλησιάζει η ώρα της επόμενης. Μη διπλασιάσετε.",
-            "", "ΕΠΙΚΟΙΝΩΝΙΑ ΜΕ ΙΑΤΡΟ ΑΝ:",
-            "• Εμφανιστούν σοβαρά συμπτώματα ή αιμορραγία",
-            "• Δεν βελτιώνεστε εντός λίγων ημερών",
-            "• Ξεκινήσετε νέα φαρμακευτική αγωγή",
-        ]
-    else:
-        lines = [
-            f"PATIENT INSTRUCTIONS — {drug['drugName']}",
-            f"Patient: {pt['name']}",
-            "",
-            "HOW TO TAKE:",
-            f"  Dose: {drug['dose']} ({drug['form']}, {drug['route']})",
-            f"  Frequency: {drug['frequency']}",
-            f"  Treatment duration: {drug['treatmentDuration']}",
-        ]
-        if notes:
-            lines += ["", "KEY POINTS:", notes]
-        if include_side:
-            lines += ["", "POSSIBLE SIDE EFFECTS:",
-                      "Tell your pharmacist or doctor immediately if you notice unusual symptoms."]
-        if include_lifestyle:
-            lines += ["", "DIET / LIFESTYLE:",
-                      "Maintain consistent vitamin K intake. Avoid alcohol. Stay hydrated."]
-        lines += [
-            "", "IF YOU MISS A DOSE:",
-            "Take it as soon as you remember, unless it is close to the next dose. Do not double up.",
-            "", "CONTACT YOUR DOCTOR IF:",
-            "• You develop severe symptoms or bleeding",
-            "• You do not improve within a few days",
-            "• You start any new medication",
-        ]
-    return "\n".join(lines)
-
-
 @app.post("/instructions/generate")
 async def generate_instructions(
     payload: InstructionsGenerate,
@@ -1262,264 +418,6 @@ async def send_instructions(payload: InstructionsSend, current: dict = Depends(g
     return {"success": True, **entry}
 
 
-# ── Side Effect Reports / Pharmacovigilance (mock) ──────────────────────────
-# Severity: MILD | MODERATE | SEVERE
-# Status:   PENDING_REVIEW | ESCALATED | EOF_REPORTED
-_MOCK_SIDE_EFFECTS: list = [
-    {
-        "id": "ADR-2026-0009",
-        "patientId": "P001",
-        "patientName": "Maria Stavrou",
-        "patientPhone": "+30 694 312 3456",
-        "rxId": "RX2024-005",
-        "drugName": "Warfarin 5 mg",
-        "severity": "SEVERE",
-        "status": "ESCALATED",
-        "reportedAt": "2026-04-29T16:42:00+00:00",
-        "symptom": "Dark stools, dizziness on standing, gum bleeding after brushing teeth.",
-        "onset": "8 hours after the second dose",
-    },
-    {
-        "id": "ADR-2026-0008",
-        "patientId": "P004",
-        "patientName": "Eleni Papadopoulos",
-        "patientPhone": "+30 697 555 0142",
-        "rxId": "RX2024-002",
-        "drugName": "Warfarin 7.5 mg",
-        "severity": "MODERATE",
-        "status": "PENDING_REVIEW",
-        "reportedAt": "2026-04-28T11:05:00+00:00",
-        "symptom": "Persistent nosebleeds and unusual bruising on forearms.",
-        "onset": "Within 48 hours of dose increase",
-    },
-    {
-        "id": "ADR-2026-0007",
-        "patientId": "P010",
-        "patientName": "Sarah Johnson",
-        "patientPhone": "+30 698 011 2233",
-        "rxId": "RX2024-001",
-        "drugName": "Amoxicillin 500 mg",
-        "severity": "MILD",
-        "status": "PENDING_REVIEW",
-        "reportedAt": "2026-04-26T08:20:00+00:00",
-        "symptom": "Diffuse maculopapular rash on torso, no breathing difficulty.",
-        "onset": "Day 3 of antibiotic course",
-    },
-    {
-        "id": "ADR-2026-0006",
-        "patientId": "P012",
-        "patientName": "Dimitrios Konstantinou",
-        "patientPhone": "+30 698 555 7012",
-        "rxId": None,
-        "drugName": "Atorvastatin 20 mg",
-        "severity": "SEVERE",
-        "status": "EOF_REPORTED",
-        "reportedAt": "2026-04-22T19:14:00+00:00",
-        "symptom": "Generalised muscle pain, dark urine, ALT 5x upper limit.",
-        "onset": "Three weeks after starting therapy",
-    },
-    {
-        "id": "ADR-2026-0005",
-        "patientId": "P020",
-        "patientName": "Anna Kostas",
-        "patientPhone": "+30 697 999 0011",
-        "rxId": None,
-        "drugName": "Clopidogrel 75 mg",
-        "severity": "MODERATE",
-        "status": "ESCALATED",
-        "reportedAt": "2026-04-15T12:00:00+00:00",
-        "symptom": "Two episodes of melena, mild dyspnoea on exertion.",
-        "onset": "Two weeks into therapy",
-    },
-    {
-        "id": "ADR-2026-0004",
-        "patientId": "P031",
-        "patientName": "Nikos Vlachos",
-        "patientPhone": "+30 698 222 0099",
-        "rxId": None,
-        "drugName": "Metformin 1000 mg",
-        "severity": "MILD",
-        "status": "EOF_REPORTED",
-        "reportedAt": "2026-03-30T10:30:00+00:00",
-        "symptom": "Mild gastrointestinal upset and metallic taste.",
-        "onset": "First week of therapy",
-    },
-]
-
-
-_PATIENT_PROFILES: dict = {
-    "P001": {
-        "id": "P001", "amka": "15031962456",
-        "firstName": "Maria", "lastName": "Stavrou", "name": "Maria Stavrou",
-        "dateOfBirth": "1962-03-15", "age": 64, "sex": "F",
-        "phone": "+30 694 312 3456",
-        "conditions": ["Type II Diabetes", "Hypertension", "Hyperlipidemia"],
-        "allergies": ["Penicillin (anaphylaxis)", "Sulfa drugs"],
-        "intolerances": ["Lactose"],
-        "safetyFlags": {
-            "g6pd": False,
-            "pregnancyWeeks": None,
-            "renalFunction": "MILD_IMPAIRMENT",
-            "hepaticFunction": "NORMAL",
-            "breastfeeding": False,
-        },
-    },
-    "P004": {
-        "id": "P004", "amka": "08111974201",
-        "firstName": "Eleni", "lastName": "Papadopoulos", "name": "Eleni Papadopoulos",
-        "dateOfBirth": "1974-11-08", "age": 51, "sex": "F",
-        "phone": "+30 697 555 0142",
-        "conditions": ["Atrial fibrillation"],
-        "allergies": [],
-        "intolerances": [],
-        "safetyFlags": {
-            "g6pd": False,
-            "pregnancyWeeks": None,
-            "renalFunction": "NORMAL",
-            "hepaticFunction": "NORMAL",
-            "breastfeeding": False,
-        },
-    },
-    "P010": {
-        "id": "P010", "amka": "22071993789",
-        "firstName": "Sarah", "lastName": "Johnson", "name": "Sarah Johnson",
-        "dateOfBirth": "1993-07-22", "age": 32, "sex": "F",
-        "phone": "+30 698 011 2233",
-        "conditions": ["Bacterial sinusitis"],
-        "allergies": [],
-        "intolerances": [],
-        "safetyFlags": {
-            "g6pd": False,
-            "pregnancyWeeks": 18,
-            "renalFunction": "NORMAL",
-            "hepaticFunction": "NORMAL",
-            "breastfeeding": False,
-        },
-    },
-    "P012": {
-        "id": "P012", "amka": "03051961334",
-        "firstName": "Dimitrios", "lastName": "Konstantinou", "name": "Dimitrios Konstantinou",
-        "dateOfBirth": "1961-05-03", "age": 64, "sex": "M",
-        "phone": "+30 698 555 7012",
-        "conditions": ["Hyperlipidemia", "Coronary artery disease"],
-        "allergies": [],
-        "intolerances": [],
-        "safetyFlags": {
-            "g6pd": False,
-            "pregnancyWeeks": None,
-            "renalFunction": "NORMAL",
-            "hepaticFunction": "MODERATE_IMPAIRMENT",
-            "breastfeeding": False,
-        },
-    },
-    "P020": {
-        "id": "P020", "amka": "12101948112",
-        "firstName": "Anna", "lastName": "Kostas", "name": "Anna Kostas",
-        "dateOfBirth": "1948-10-12", "age": 77, "sex": "F",
-        "phone": "+30 697 999 0011",
-        "conditions": ["Coronary stent (2025)", "Atrial fibrillation"],
-        "allergies": [],
-        "intolerances": [],
-        "safetyFlags": {
-            "g6pd": False,
-            "pregnancyWeeks": None,
-            "renalFunction": "MODERATE_IMPAIRMENT",
-            "hepaticFunction": "NORMAL",
-            "breastfeeding": False,
-        },
-    },
-    "P031": {
-        "id": "P031", "amka": "27021982557",
-        "firstName": "Nikos", "lastName": "Vlachos", "name": "Nikos Vlachos",
-        "dateOfBirth": "1982-02-27", "age": 43, "sex": "M",
-        "phone": "+30 698 222 0099",
-        "conditions": ["Type II Diabetes"],
-        "allergies": ["Aspirin (urticaria)"],
-        "intolerances": [],
-        "safetyFlags": {
-            "g6pd": True,
-            "pregnancyWeeks": None,
-            "renalFunction": "NORMAL",
-            "hepaticFunction": "NORMAL",
-            "breastfeeding": False,
-        },
-    },
-}
-
-
-# Static prescription history per patient (additional rxs that are not part
-# of the verification mock). The current status of any rx that is also seeded
-# in _MOCK_PRESCRIPTIONS is overlaid live so flag/approve actions reflect.
-_PATIENT_RX_HISTORY_BASE: dict = {
-    "P001": [
-        {"rxId": "RX2024-005", "date": "2026-04-28", "drugName": "Warfarin 5 mg",      "prescriberName": "Dr. Michael Chen",   "status": "PENDING"},
-        {"rxId": "RX2023-118", "date": "2025-11-12", "drugName": "Atorvastatin 20 mg", "prescriberName": "Dr. Michael Chen",   "status": "COMPLETED"},
-        {"rxId": "RX2023-077", "date": "2025-09-03", "drugName": "Metformin 1000 mg",  "prescriberName": "Dr. Maria Lampraki", "status": "COMPLETED"},
-        {"rxId": "RX2023-022", "date": "2025-04-19", "drugName": "Ramipril 5 mg",      "prescriberName": "Dr. Maria Lampraki", "status": "COMPLETED"},
-    ],
-    "P004": [
-        {"rxId": "RX2024-002", "date": "2026-03-11", "drugName": "Warfarin 7.5 mg",    "prescriberName": "Dr. Emily Roberts",  "status": "FLAGGED"},
-        {"rxId": "RX2023-054", "date": "2025-08-20", "drugName": "Bisoprolol 5 mg",    "prescriberName": "Dr. Emily Roberts",  "status": "COMPLETED"},
-    ],
-    "P010": [
-        {"rxId": "RX2024-001", "date": "2026-03-11", "drugName": "Amoxicillin 500 mg", "prescriberName": "Dr. Michael Chen",   "status": "PENDING"},
-    ],
-    "P012": [
-        {"rxId": "RX2023-091", "date": "2025-12-08", "drugName": "Atorvastatin 20 mg", "prescriberName": "Dr. David Lee",      "status": "COMPLETED"},
-        {"rxId": "RX2023-044", "date": "2025-06-14", "drugName": "Aspirin 100 mg",     "prescriberName": "Dr. David Lee",      "status": "COMPLETED"},
-    ],
-    "P020": [
-        {"rxId": "RX2023-066", "date": "2025-09-30", "drugName": "Clopidogrel 75 mg",  "prescriberName": "Dr. Sophia Roussou", "status": "COMPLETED"},
-    ],
-    "P031": [
-        {"rxId": "RX2023-032", "date": "2025-05-18", "drugName": "Metformin 1000 mg",  "prescriberName": "Dr. Niko Pateli",    "status": "COMPLETED"},
-    ],
-}
-
-
-def _patient_rx_history(patient_id: str) -> list:
-    rows = list(_PATIENT_RX_HISTORY_BASE.get(patient_id, []))
-    for row in rows:
-        live = _MOCK_PRESCRIPTIONS.get(row["rxId"])
-        if live and live.get("status"):
-            row["status"] = live["status"]
-    rows.sort(key=lambda r: r["date"], reverse=True)
-    return rows
-
-
-def _patient_adr_history(patient_id: str) -> list:
-    rows = [r for r in _MOCK_SIDE_EFFECTS if r["patientId"] == patient_id]
-    rows.sort(key=lambda r: r["reportedAt"], reverse=True)
-    return rows
-
-
-def _resolve_patient(patient_key: str) -> Optional[dict]:
-    """Look up by patient id (P001) or AMKA (15031962456)."""
-    direct = _PATIENT_PROFILES.get(patient_key)
-    if direct:
-        return direct
-    for p in _PATIENT_PROFILES.values():
-        if p.get("amka") == patient_key:
-            return p
-    return None
-
-
-def _se_stats() -> dict:
-    s = {"total": len(_MOCK_SIDE_EFFECTS), "pendingReview": 0, "severe": 0, "escalated": 0}
-    for r in _MOCK_SIDE_EFFECTS:
-        if r["status"] == "PENDING_REVIEW":
-            s["pendingReview"] += 1
-        if r["severity"] == "SEVERE":
-            s["severe"] += 1
-        if r["status"] == "ESCALATED":
-            s["escalated"] += 1
-    return s
-
-
-_SEVERITY_RANK = {"MILD": 0, "MODERATE": 1, "SEVERE": 2}
-_STATUS_RANK   = {"PENDING_REVIEW": 0, "ESCALATED": 1, "EOF_REPORTED": 2}
-
-
 @app.get("/side-effects")
 async def list_side_effects(
     q: Optional[str] = Query(None, description="Free-text search across patient, drug, symptom."),
@@ -1543,14 +441,6 @@ async def list_side_effects(
     else:
         items.sort(key=lambda r: r["reportedAt"], reverse=True)
     return {"items": items, "stats": _se_stats()}
-
-
-def _next_status(current_status: str) -> str:
-    if current_status == "PENDING_REVIEW":
-        return "ESCALATED"
-    if current_status == "ESCALATED":
-        return "EOF_REPORTED"
-    return current_status
 
 
 @app.post("/side-effects/{report_id}/flag")
@@ -1620,16 +510,6 @@ async def approve_prescription(rx_id: str, current: dict = Depends(get_current_u
     return {"success": True, "rxId": rx_id, "status": rx["status"], "completedAt": rx["completedAt"]}
 
 
-# Static queue rows that may not have full prescription details. The actual
-# status comes from _MOCK_PRESCRIPTIONS when the rxId is also seeded there.
-_MOCK_QUEUE_BASE = [
-    {"rxId": "RX2024-001", "patientName": "Sarah Johnson",  "medication": "Amoxicillin", "physician": "Dr. Michael Chen",  "date": "2026-03-11", "status": "PENDING"},
-    {"rxId": "RX2024-002", "patientName": "James Martinez", "medication": "Warfarin",    "physician": "Dr. Emily Roberts", "date": "2026-03-11", "status": "FLAGGED"},
-    {"rxId": "RX2024-003", "patientName": "Maria Garcia",   "medication": "Lisinopril",  "physician": "Dr. David Lee",     "date": "2026-03-11", "status": "PENDING"},
-    {"rxId": "RX2024-005", "patientName": "Maria Stavrou",  "medication": "Warfarin",    "physician": "Dr. Michael Chen",  "date": "2026-04-28", "status": "PENDING"},
-]
-
-
 @app.get("/prescriptions")
 async def list_prescriptions(current: dict = Depends(get_current_user)):
     """Return the prescription queue for the dashboard, with up-to-date statuses."""
@@ -1667,10 +547,6 @@ async def patch_prescription(
         "notes": rx.get("flagNotes"),
         "notifyPhysician": rx.get("notifyPhysician"),
     }
-
-
-# In-memory log of physician notifications (would be email/SMS/queue in prod)
-_PHYSICIAN_NOTIFICATIONS: list = []
 
 
 @app.post("/notifications/physician")
