@@ -2,21 +2,26 @@
 
 In production the session state would live in Redis or a real DB; here it's
 just a per-process dict so a `uvicorn --reload` reset clears it.
+
+Pharmapi credentials are sourced from the centralised settings.
 """
 
-import os
 import time
 
 import httpx
 from fastapi import HTTPException
 
+from ..config import get_settings
 
-PHARMAPI_BASE    = os.getenv("PHARMAPI_BASE", "https://testeps.e-prescription.gr/pharmapiv2")
-PHARMAPI_USER    = os.getenv("PHARMAPI_USERNAME", "medcare1pharmapi")
-PHARMAPI_PASS    = os.getenv("PHARMAPI_PASSWORD", "Aa900919081908!!")
-PHARMAPI_API_KEY = os.getenv("PHARMAPI_API_KEY", "pi2jwygkd07yho3a4dw6jc55tg5ra3uc")
 
-SESSION_WINDOW_SECONDS = 23 * 3600  # 23h (refresh before 24h hard limit)
+# Module-level constants kept for backward compat — anything that imports
+# these by name keeps working. Sourced from settings at first import.
+_settings = get_settings()
+PHARMAPI_BASE    = _settings.pharmapi_base
+PHARMAPI_USER    = _settings.pharmapi_username
+PHARMAPI_PASS    = _settings.pharmapi_password
+PHARMAPI_API_KEY = _settings.pharmapi_api_key
+SESSION_WINDOW_SECONDS = _settings.pharmapi_session_window_seconds
 
 
 # In-memory 24h session tracker. Mutated by the /pharmapi/connect handler.
