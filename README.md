@@ -28,7 +28,7 @@ No server needed — it talks directly to the FastAPI backend.
 
 | Field    | Value                   |
 |----------|-------------------------|
-| Email    | medcare1pharmapi |
+| username    | medcare1pharmapi |
 | Password | Aa900990099009!!                 |
 
 ## Pharmapi credentials
