@@ -65,18 +65,28 @@ def _parse_pharmapi_error(r: httpx.Response) -> str:
         return r.text[:200]
 
 
-async def pharmapi_get(path: str, accept_xml: bool = False) -> dict:
-    """Authenticated GET to Pharmapi. Raises HTTPException on failure."""
+async def pharmapi_get(
+    path: str,
+    accept_xml: bool = False,
+    params: Optional[dict] = None,
+) -> dict:
+    """Authenticated GET to Pharmapi. Raises HTTPException on failure.
+
+    `params` is passed through to httpx so query-string values are properly
+    URL-encoded. Callers MUST NOT pre-build a query string in `path` from
+    untrusted input — pass them via `params` instead.
+    """
     url = f"{PHARMAPI_BASE}{path}"
     headers = pharmapi_headers()
     if accept_xml:
         headers["Accept"] = "application/xml"
-    print(f"[Pharmapi] GET {url}")
+    print(f"[Pharmapi] GET {url} params={params}")
     async with httpx.AsyncClient(timeout=15.0) as client:
         r = await client.get(
             url,
             auth=(PHARMAPI_USER, PHARMAPI_PASS),
             headers=headers,
+            params=params,
         )
     print(f"[Pharmapi] {r.status_code} — {r.text[:500]}")
 
@@ -172,27 +182,33 @@ def _date(raw: Optional[str]) -> Optional[str]:
     return raw.strip()[:10]
 
 
+_PHARMAPI_STATUS_MAP = {
+    "PENDING":    "PENDING",
+    "ACTIVE":     "PENDING",     # assume active = awaiting dispense
+    "COMPLETED":  "COMPLETED",
+    "EXECUTED":   "COMPLETED",
+    "CANCELLED":  "FLAGGED",
+    "EXPIRED":    "FLAGGED",
+    "PARTIAL":    "PENDING",     # partially dispensed — still actionable
+}
+
+
 def _map_pharmapi_status(pharmapi_status: Optional[str]) -> str:
     """
     Map ΗΔΥΚΑ prescription status string to our internal status.
 
-    NOTE: The exact status strings Pharmapi uses are unknown until a real
-    prescription is fetched. Update this map when real values are seen.
-    Known so far: the status object has {id, status} — we map the string.
+    Unknown / missing values fall back to "UNKNOWN" (NOT "PENDING") so a status
+    string we haven't enumerated never makes a prescription dispensable in our
+    UI. Unmapped values are logged so the gap is visible — extend the map when
+    new real-world values are observed.
     """
     if not pharmapi_status:
-        return "PENDING"
+        return "UNKNOWN"
     s = pharmapi_status.upper().strip()
-    mapping = {
-        "PENDING":    "PENDING",
-        "ACTIVE":     "PENDING",     # assume active = awaiting dispense
-        "COMPLETED":  "COMPLETED",
-        "EXECUTED":   "COMPLETED",
-        "CANCELLED":  "FLAGGED",
-        "EXPIRED":    "FLAGGED",
-        "PARTIAL":    "PENDING",     # partially dispensed — still actionable
-    }
-    return mapping.get(s, "PENDING")
+    if s not in _PHARMAPI_STATUS_MAP:
+        print(f"[Pharmapi] WARNING: unmapped status '{pharmapi_status}' — defaulting to UNKNOWN")
+        return "UNKNOWN"
+    return _PHARMAPI_STATUS_MAP[s]
 
 
 def parse_prescription_search_xml(xml_text: str) -> list[dict]:
@@ -222,9 +238,9 @@ def parse_prescription_search_xml(xml_text: str) -> list[dict]:
         insurance_el = item.find("socialInsurance")
 
         amka = _el(patient, "amka") if patient is not None else None
-        first_name = _el(patient, "firstName") if patient is not None else ""
-        last_name = _el(patient, "lastName") if patient is not None else ""
-        patient_name = f"{first_name} {last_name}".strip() or "Άγνωστος"
+        first_name = _el(patient, "firstName") if patient is not None else None
+        last_name = _el(patient, "lastName") if patient is not None else None
+        patient_name = " ".join(filter(None, [first_name, last_name])) or "Άγνωστος"
 
         pharmapi_status = _el(status_el, "status") if status_el is not None else None
 
@@ -271,19 +287,15 @@ async def pharmapi_search_prescriptions(
     Returns a list of normalised queue items (same shape as MOCK_QUEUE_BASE).
     Raises HTTPException on Pharmapi errors.
     """
-    params: list[str] = [
-        f"page={page}",
-        f"size={size}",
-        f"prescribed={str(prescribed).lower()}",
-    ]
-    if from_date:
-        params.append(f"from={from_date}")
-    if to_date:
-        params.append(f"to={to_date}")
-    if barcode:
-        params.append(f"barcode={barcode}")
-    if amka:
-        params.append(f"amka={amka}")
+    params: dict = {
+        "page": page,
+        "size": size,
+        "prescribed": str(prescribed).lower(),
+    }
+    if from_date: params["from"] = from_date
+    if to_date:   params["to"] = to_date
+    if barcode:   params["barcode"] = barcode
+    if amka:      params["amka"] = amka
 
-    raw = await pharmapi_get(f"/api/v1/prescriptions/search?{'&'.join(params)}", accept_xml=True)
+    raw = await pharmapi_get("/api/v1/prescriptions/search", params=params, accept_xml=True)
     return parse_prescription_search_xml(raw.get("raw_xml", ""))

@@ -146,15 +146,13 @@ async def approve_prescription(rx_id: str, current: dict = Depends(get_current_u
         rx["completedAt"] = datetime.now(timezone.utc).isoformat()
         return {"success": True, "rxId": rx_id, "status": rx["status"], "completedAt": rx["completedAt"]}
 
-    # Live mode: record dispense locally (no Pharmapi endpoint for this).
-    # TODO: write to dispensing_log table once DB layer is added (ADR-002).
-    completed_at = datetime.now(timezone.utc).isoformat()
-    return {
-        "success": True,
-        "rxId": rx_id,
-        "status": "COMPLETED",
-        "completedAt": completed_at,
-    }
+    # Live mode: dispensing_log table not yet implemented (ADR-002). Fail closed
+    # so a pharmacist never gets a green checkmark for a dispense that wasn't
+    # persisted anywhere. Replace with a real write once ADR-002 lands.
+    raise HTTPException(
+        status_code=501,
+        detail="Live dispense not yet wired to dispensing_log (ADR-002).",
+    )
 
 
 @router.patch("/{rx_id}")
@@ -185,12 +183,9 @@ async def patch_prescription(
             "notifyPhysician": rx.get("notifyPhysician"),
         }
 
-    # Live mode: TODO — write to dispensing_log table (ADR-002).
-    return {
-        "success": True,
-        "rxId": rx_id,
-        "status": patch.status.upper() if patch.status else "FLAGGED",
-        "discrepancyType": patch.discrepancy_type,
-        "notes": patch.notes,
-        "notifyPhysician": patch.notify_physician,
-    }
+    # Live mode: dispensing_log table not yet implemented (ADR-002). Same fail-
+    # closed contract as approve — see comment there.
+    raise HTTPException(
+        status_code=501,
+        detail="Live flag/patch not yet wired to dispensing_log (ADR-002).",
+    )
