@@ -1,4 +1,7 @@
-"""Auth primitives: stdlib HS256 JWT, the demo user store, and password hashing.
+"""Auth primitives: stdlib HS256 JWT + the runtime user cache.
+
+The USERS dict is populated at login time from the Pharmapi
+/api/v1/user/me response; it's not a demo store any more.
 
 Reads SECRET_KEY / TOKEN_EXPIRE_MINUTES from the centralised settings.
 """
@@ -21,20 +24,10 @@ SECRET_KEY = _settings.secret_key
 TOKEN_EXPIRE_MIN = _settings.token_expire_minutes
 
 
-# ── Demo user store (replace with DB in production) ─────────────────────────
-# SHA-256 of password — run: python3 -c "import hashlib; print(hashlib.sha256(b'demo123').hexdigest())"
-USERS = {
-    "pharmacist@demo.gr": {
-        "name": "Demo Pharmacist",
-        "pharmacy": "MedCare Pharmacy",
-        # SHA-256("demo123")
-        "pw_hash": "d3ad9315b7be5dd53b31a273b3b3aba5defe700808305aa16a3062b76658a791",
-    },
-}
-
-
-def verify_password(plain: str, hashed: str) -> bool:
-    return hashlib.sha256(plain.encode()).hexdigest() == hashed
+# Runtime cache: written by /auth/login on successful Pharmapi auth,
+# read by deps.get_current_user when a JWT comes in. Starts empty —
+# a server restart clears it and forces re-login.
+USERS: dict = {}
 
 
 # ── Minimal JWT (stdlib only — no python-jose needed) ───────────────────────

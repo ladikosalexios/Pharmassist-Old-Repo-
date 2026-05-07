@@ -9,6 +9,7 @@ from ..deps import get_current_user
 from ..schemas.auth import SessionStatus
 from ..services.pharmapi import (
     SESSION_WINDOW_SECONDS,
+    _start_pharmapi_session,
     pharmapi_get,
     pharmapi_session,
     session_is_valid,
@@ -29,23 +30,17 @@ async def pharmapi_connect(current: dict = Depends(get_current_user)):
 
     Error G12 = never connected → call this.
     Error G14 = 24h expired    → call this again.
+
+    No-op refresh if /auth/login already opened the window.
     """
-    # Correct path per docs: /api/v1/user/me (returns XML)
     data = await pharmapi_get("/api/v1/user/me", accept_xml=True)
-
-    now = time.time()
-    pharmapi_session.update({
-        "connected": True,
-        "connected_at": datetime.now(timezone.utc).isoformat(),
-        "connected_at_ts": now,
-        "user_data": data,
-    })
-
+    _start_pharmapi_session(data)
     return {
         "success": True,
         "message": "Pharmapi session established. Valid for 24h.",
         "session_valid_until": datetime.fromtimestamp(
-            now + SESSION_WINDOW_SECONDS, tz=timezone.utc
+            pharmapi_session["connected_at_ts"] + SESSION_WINDOW_SECONDS,
+            tz=timezone.utc,
         ).isoformat(),
         "pharmapi_user": data,
     }

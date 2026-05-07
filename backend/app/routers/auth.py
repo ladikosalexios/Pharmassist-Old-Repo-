@@ -1,11 +1,12 @@
 """Pharmacist login + session info."""
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends
 from fastapi.security import OAuth2PasswordRequestForm
 
 from ..deps import get_current_user
 from ..schemas.auth import PharmacistMe, TokenResponse
-from ..services.security import USERS, create_jwt, verify_password
+from ..services.pharmapi import _start_pharmapi_session, verify_pharmapi_credentials
+from ..services.security import USERS, create_jwt
 
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -13,24 +14,21 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 @router.post("/login", response_model=TokenResponse)
 async def login(form: OAuth2PasswordRequestForm = Depends()):
+    """Validate credentials live against Pharmapi GET /api/v1/user/me.
+
+    On success: cache the profile, pin the 24h Pharmapi session, and
+    return a JWT for subsequent calls.
     """
-    Step 1: Pharmacist logs into PharmAssist.
-    Demo: pharmacist@demo.gr / demo123
-    Returns JWT for all subsequent calls.
-    """
-    user = USERS.get(form.username)
-    if not user or not verify_password(form.password, user["pw_hash"]):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid email or password",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+    profile = await verify_pharmapi_credentials(form.username, form.password)
+
+    name = profile.get("name") or form.username
+    pharmacy = ((profile.get("pharmacy") or {}).get("name")) or ""
+
+    USERS[form.username] = {"name": name, "pharmacy": pharmacy}
+    _start_pharmapi_session(profile)
+
     token = create_jwt({"sub": form.username})
-    return TokenResponse(
-        access_token=token,
-        pharmacist_name=user["name"],
-        pharmacy=user["pharmacy"],
-    )
+    return TokenResponse(access_token=token, pharmacist_name=name, pharmacy=pharmacy)
 
 
 @router.get("/me", response_model=PharmacistMe)
