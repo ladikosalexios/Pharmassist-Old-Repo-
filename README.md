@@ -38,7 +38,7 @@ Set via environment variables (or edit main.py directly for POC):
 ```bash
 # Already defaulted in code — only set these if you want to override:
 export PHARMAPI_USERNAME=medcare1pharmapi
-export PHARMAPI_PASSWORD=Aa900919081908!!
+export PHARMAPI_PASSWORD=Aa900990099009!!
 export PHARMAPI_API_KEY=pi2jwygkd07yho3a4dw6jc55tg5ra3uc
 ```
 
