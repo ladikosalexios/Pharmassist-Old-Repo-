@@ -28,8 +28,8 @@ No server needed — it talks directly to the FastAPI backend.
 
 | Field    | Value                   |
 |----------|-------------------------|
-| Email    | pharmacist@demo.gr      |
-| Password | demo123                 |
+| Email    | medcare1pharmapi |
+| Password | Aa900990099009!!                 |
 
 ## Pharmapi credentials
 
