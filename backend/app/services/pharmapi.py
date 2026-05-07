@@ -7,7 +7,9 @@ Pharmapi credentials are sourced from the centralised settings.
 """
 
 import time
+import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
+from typing import Optional
 
 import httpx
 from fastapi import HTTPException
@@ -63,18 +65,28 @@ def _parse_pharmapi_error(r: httpx.Response) -> str:
         return r.text[:200]
 
 
-async def pharmapi_get(path: str, accept_xml: bool = False) -> dict:
-    """Authenticated GET to Pharmapi. Raises HTTPException on failure."""
+async def pharmapi_get(
+    path: str,
+    accept_xml: bool = False,
+    params: Optional[dict] = None,
+) -> dict:
+    """Authenticated GET to Pharmapi. Raises HTTPException on failure.
+
+    `params` is passed through to httpx so query-string values are properly
+    URL-encoded. Callers MUST NOT pre-build a query string in `path` from
+    untrusted input — pass them via `params` instead.
+    """
     url = f"{PHARMAPI_BASE}{path}"
     headers = pharmapi_headers()
     if accept_xml:
         headers["Accept"] = "application/xml"
-    print(f"[Pharmapi] GET {url}")
+    print(f"[Pharmapi] GET {url} params={params}")
     async with httpx.AsyncClient(timeout=15.0) as client:
         r = await client.get(
             url,
             auth=(PHARMAPI_USER, PHARMAPI_PASS),
             headers=headers,
+            params=params,
         )
     print(f"[Pharmapi] {r.status_code} — {r.text[:500]}")
 
@@ -153,3 +165,137 @@ def _start_pharmapi_session(user_data: dict) -> None:
         "connected_at_ts": now,
         "user_data": user_data,
     })
+
+
+# ── Prescription search XML parser ──────────────────────────────────────────
+
+def _el(parent: ET.Element, tag: str) -> Optional[str]:
+    """Safe text extraction from an XML element."""
+    el = parent.find(tag)
+    return el.text.strip() if el is not None and el.text else None
+
+
+def _date(raw: Optional[str]) -> Optional[str]:
+    """Trim 'YYYY-MM-DD HH:MM:SS' → 'YYYY-MM-DD'."""
+    if not raw:
+        return None
+    return raw.strip()[:10]
+
+
+_PHARMAPI_STATUS_MAP = {
+    "PENDING":    "PENDING",
+    "ACTIVE":     "PENDING",     # assume active = awaiting dispense
+    "COMPLETED":  "COMPLETED",
+    "EXECUTED":   "COMPLETED",
+    "CANCELLED":  "FLAGGED",
+    "EXPIRED":    "FLAGGED",
+    "PARTIAL":    "PENDING",     # partially dispensed — still actionable
+}
+
+
+def _map_pharmapi_status(pharmapi_status: Optional[str]) -> str:
+    """
+    Map ΗΔΥΚΑ prescription status string to our internal status.
+
+    Unknown / missing values fall back to "UNKNOWN" (NOT "PENDING") so a status
+    string we haven't enumerated never makes a prescription dispensable in our
+    UI. Unmapped values are logged so the gap is visible — extend the map when
+    new real-world values are observed.
+    """
+    if not pharmapi_status:
+        return "UNKNOWN"
+    s = pharmapi_status.upper().strip()
+    if s not in _PHARMAPI_STATUS_MAP:
+        print(f"[Pharmapi] WARNING: unmapped status '{pharmapi_status}' — defaulting to UNKNOWN")
+        return "UNKNOWN"
+    return _PHARMAPI_STATUS_MAP[s]
+
+
+def parse_prescription_search_xml(xml_text: str) -> list[dict]:
+    """
+    Parse the XML response from GET /api/v1/prescriptions/search.
+
+    Returns a list of normalised prescription queue items. Each item matches
+    the shape expected by the /prescriptions dashboard (same as MOCK_QUEUE_BASE),
+    with additional Pharmapi-specific fields preserved.
+
+    Fields NOT available in the search response (populated as None):
+      - medication / drugName  → requires a per-prescription detail call
+      - physician              → requires a per-prescription detail call
+    """
+    if not xml_text:
+        return []
+
+    try:
+        root = ET.fromstring(xml_text)
+    except ET.ParseError as exc:
+        raise HTTPException(502, f"Pharmapi: could not parse prescription XML — {exc}")
+
+    items = []
+    for item in root.findall(".//contents/item"):
+        patient = item.find("patientInfo")
+        status_el = item.find("status")
+        insurance_el = item.find("socialInsurance")
+
+        amka = _el(patient, "amka") if patient is not None else None
+        first_name = _el(patient, "firstName") if patient is not None else None
+        last_name = _el(patient, "lastName") if patient is not None else None
+        patient_name = " ".join(filter(None, [first_name, last_name])) or "Άγνωστος"
+
+        pharmapi_status = _el(status_el, "status") if status_el is not None else None
+
+        items.append({
+            # ── Core fields (same shape as MOCK_QUEUE_BASE) ─────────────────
+            "rxId":        _el(item, "barcode"),
+            "patientName": patient_name,
+            "medication":  None,   # not in search — populated on detail fetch
+            "physician":   None,   # not in search — populated on detail fetch
+            "date":        _date(_el(item, "issueDate")),
+            "status":      _map_pharmapi_status(pharmapi_status),
+
+            # ── Extra Pharmapi fields (useful for UI / filtering) ────────────
+            "patientAmka":           amka,
+            "expiryDate":            _date(_el(item, "expiryDate")),
+            "executions":            _el(item, "executions"),
+            "medicineDrug":          _el(item, "medicineDrug") == "true",
+            "socialInsurance":       (
+                _el(patient, "socialInsuranceShortName") if patient is not None
+                else (_el(insurance_el, "shortName") if insurance_el is not None else None)
+            ),
+            "pharmApiStatus":        pharmapi_status,   # raw value for debugging
+        })
+
+    return items
+
+
+async def pharmapi_search_prescriptions(
+    prescribed: bool = False,
+    page: int = 0,
+    size: int = 50,
+    from_date: Optional[str] = None,
+    to_date: Optional[str] = None,
+    barcode: Optional[str] = None,
+    amka: Optional[str] = None,
+) -> list[dict]:
+    """
+    Fetch the prescription queue (or a specific prescription) from Pharmapi.
+
+    prescribed=False  → pending prescriptions (the dashboard queue)
+    prescribed=True   → already-dispensed prescriptions (history)
+    barcode=<code>    → find one specific prescription by barcode
+
+    Returns a list of normalised queue items (same shape as MOCK_QUEUE_BASE).
+    Raises HTTPException on Pharmapi errors.
+    """
+    params: dict = {
+        "page": page,
+        "size": size,
+        "prescribed": str(prescribed).lower(),
+    }
+    if from_date: params["from"] = from_date
+    if to_date:   params["to"] = to_date
+    if barcode:   params["barcode"] = barcode
+    if amka:      params["amka"] = amka
+
+    raw = await pharmapi_get("/api/v1/prescriptions/search", params=params, accept_xml=True)
+    return parse_prescription_search_xml(raw.get("raw_xml", ""))
