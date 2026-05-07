@@ -32,8 +32,8 @@ from typing import Optional
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from .app.config import Settings, get_settings
-from .app.routers import (
+from app.config import Settings, get_settings
+from app.routers import (
     alerts,
     auth,
     documentation,
@@ -48,7 +48,6 @@ from .app.routers import (
     side_effects,
     spc,
 )
-
 
 # Order doesn't affect routing (each router has its own prefix), but include
 # order is what /docs and /openapi.json render in. Group public → auth → core
