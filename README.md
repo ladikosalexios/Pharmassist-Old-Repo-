@@ -8,23 +8,19 @@ Proof-of-concept: pharmacist login → JWT → proxy calls to Pharmapi.
 
 ## Setup (5 minutes)
 
-### 1. Backend
+### 1. Docker
 
-```bash
-cd backend
-pip install -r requirements.txt
-uvicorn main:app --reload
-```
+The project runs in Docker. Containers are managed by Docker Compose.
 
-Backend runs at http://127.0.0.1:8000
-Auto-docs at http://127.0.0.1:8000/docs
+1. Download [Docker](https://www.docker.com/products/docker-desktop/)
+2. Run Docker
+3. Navigate to project root
+4. Run `docker compose build` (first time only)
+5. Run `docker compose up -d`
 
-### 2. Frontend
+### 2. Demo login
 
-Just open `frontend/index.html` in your browser.
-No server needed — it talks directly to the FastAPI backend.
-
-### 3. Demo login
+Navigate to http://localhost:5173/login
 
 | Field    | Value                   |
 |----------|-------------------------|
