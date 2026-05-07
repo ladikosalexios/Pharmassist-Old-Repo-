@@ -2,8 +2,9 @@
 
 import time
 from datetime import datetime, timezone
+from typing import Optional
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 
 from ..deps import get_current_user
 from ..schemas.auth import SessionStatus
@@ -11,6 +12,7 @@ from ..services.pharmapi import (
     SESSION_WINDOW_SECONDS,
     _start_pharmapi_session,
     pharmapi_get,
+    pharmapi_search_prescriptions,
     pharmapi_session,
     session_is_valid,
 )
@@ -24,7 +26,7 @@ async def pharmapi_connect(current: dict = Depends(get_current_user)):
     """
     Step 2: Establish (or refresh) the 24h Pharmapi session.
 
-    Calls GET /api/v1user/me on Pharmapi with Basic Auth + Api-Key.
+    Calls GET /api/v1/user/me on Pharmapi with Basic Auth + Api-Key.
     Per ΗΔΥΚΑ docs: every pharmacist must call this at least once before
     using any other API endpoint. Must be refreshed within 24h.
 
@@ -79,10 +81,74 @@ async def get_my_pharmacy(current: dict = Depends(get_current_user)):
     return await pharmapi_get("/pharmacies/myPharmacy")
 
 
-@router.get("/prescriptions/{barcode}")
-async def get_prescription(barcode: str, current: dict = Depends(get_current_user)):
+@router.get("/prescriptions/queue")
+async def get_prescription_queue(
+    current: dict = Depends(get_current_user),
+    page: int = Query(0, ge=0, description="Page number (0-indexed)"),
+    size: int = Query(50, ge=1, le=200, description="Results per page"),
+    from_date: Optional[str] = Query(None, alias="from", description="Start date YYYY-MM-DD"),
+    to_date: Optional[str] = Query(None, alias="to", description="End date YYYY-MM-DD"),
+    amka: Optional[str] = Query(None, description="Filter by patient AMKA"),
+):
     """
-    Load a prescription by barcode from Pharmapi.
-    Requires active Pharmapi session.
+    Fetch the pending prescription queue from ΗΔΥΚΑ.
+
+    Returns prescriptions that have not yet been dispensed (prescribed=false).
+    Each item contains: barcode, patient name, patient AMKA, issue/expiry date,
+    status, insurance info.
+
+    NOTE: Drug name and prescriber are NOT in the search response — those
+    require a per-prescription detail call (GET /pharmapi/prescriptions/{barcode}).
+    The frontend should populate those fields lazily when a pharmacist opens
+    a prescription for verification.
+    """
+    items = await pharmapi_search_prescriptions(
+        prescribed=False,
+        page=page,
+        size=size,
+        from_date=from_date,
+        to_date=to_date,
+        amka=amka,
+    )
+    return {"items": items, "count": len(items)}
+
+
+@router.get("/prescriptions/history")
+async def get_prescription_history(
+    current: dict = Depends(get_current_user),
+    page: int = Query(0, ge=0),
+    size: int = Query(50, ge=1, le=200),
+    from_date: Optional[str] = Query(None, alias="from"),
+    to_date: Optional[str] = Query(None, alias="to"),
+    amka: Optional[str] = Query(None),
+    barcode: Optional[str] = Query(None),
+):
+    """
+    Fetch already-dispensed prescriptions from ΗΔΥΚΑ (prescribed=true).
+    Useful for patient history lookup and dispensing audit.
+    """
+    items = await pharmapi_search_prescriptions(
+        prescribed=True,
+        page=page,
+        size=size,
+        from_date=from_date,
+        to_date=to_date,
+        amka=amka,
+        barcode=barcode,
+    )
+    return {"items": items, "count": len(items)}
+
+
+@router.get("/prescriptions/{barcode}")
+async def get_prescription_detail(barcode: str, current: dict = Depends(get_current_user)):
+    """
+    Fetch full prescription detail by barcode from ΗΔΥΚΑ.
+
+    This is the detail call — it returns drug name, dosage, prescriber, and
+    all fields not present in the search/queue response. Call this when a
+    pharmacist opens a prescription for verification.
+
+    NOTE: Response shape is TBD — update the normaliser in services/prescriptions.py
+    once the first real barcode is fetched and the JSON/XML shape is confirmed.
     """
     return await pharmapi_get(f"/prescriptions/{barcode}")
