@@ -28,8 +28,19 @@ async def login(form: OAuth2PasswordRequestForm = Depends()):
     _start_pharmapi_session(profile)
 
     token = create_jwt({"sub": form.username})
-    return TokenResponse(access_token=token, pharmacist_name=name, pharmacy=pharmacy)
+    # return TokenResponse(access_token=token, pharmacist_name=name, pharmacy=pharmacy)
+    name_obj = profile.get("name", {})
+    pharmacist_name = f"{name_obj.get('firstname', '')} {name_obj.get('lastname', '')}".strip() \
+        if isinstance(name_obj, dict) else str(name_obj)
 
+    pharmacy_obj = profile.get("pharmacy", {})
+    pharmacy_name = pharmacy_obj.get("name", "") if isinstance(pharmacy_obj, dict) else str(pharmacy_obj)
+
+    return TokenResponse(
+        access_token=token,
+        pharmacist_name=pharmacist_name or form.username,
+        pharmacy=pharmacy_name,
+    )
 
 @router.get("/me", response_model=PharmacistMe)
 async def me(current: dict = Depends(get_current_user)):
