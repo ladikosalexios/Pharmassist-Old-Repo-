@@ -18,3 +18,17 @@ services:
       - "8000:8000"
     volumes:
       - ./backend:/usr/src/app
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: pharmassist
+      POSTGRES_USER: pharmassist
+      POSTGRES_PASSWORD: pharmassist_dev
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:

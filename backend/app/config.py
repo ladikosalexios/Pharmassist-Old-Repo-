@@ -15,7 +15,10 @@ import os
 from functools import lru_cache
 from typing import List
 
+from dotenv import load_dotenv
 from pydantic import BaseModel
+
+load_dotenv()  # backend/.env when run from backend/
 
 
 def _env_list(key: str, default: List[str]) -> List[str]:
@@ -63,6 +66,9 @@ class Settings(BaseModel):
     pharmapi_api_key: str
     pharmapi_session_window_seconds: int
 
+    # ── Database ────────────────────────────────────────────────────────────
+    database_url: str
+
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
@@ -88,5 +94,10 @@ def get_settings() -> Settings:
         pharmapi_api_key=os.getenv("PHARMAPI_API_KEY", "pi2jwygkd07yho3a4dw6jc55tg5ra3uc"),
         pharmapi_session_window_seconds=_env_int(
             "PHARMAPI_SESSION_WINDOW_SECONDS", 23 * 3600,  # 23h (refresh before 24h hard limit)
+        ),
+
+        database_url=os.getenv(
+            "DATABASE_URL",
+            "postgresql+asyncpg://pharmassist:pharmassist_dev@localhost:5432/pharmassist",
         ),
     )
