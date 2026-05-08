@@ -48,6 +48,7 @@ from app.routers import (
     side_effects,
     spc,
 )
+import app.db.models  # noqa — registers all SQLAlchemy models at startup
 
 # Order doesn't affect routing (each router has its own prefix), but include
 # order is what /docs and /openapi.json render in. Group public → auth → core
