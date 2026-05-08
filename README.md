@@ -48,6 +48,46 @@ export PHARMAPI_API_KEY=pi2jwygkd07yho3a4dw6jc55tg5ra3uc
 | Pharmacy details | GET /pharmapi/pharmacy |
 | Load prescription | GET /pharmapi/prescriptions/{barcode} |
 
+## Optional tools
+
+### Adminer — browse the database in your browser
+
+Adminer is a lightweight web UI for inspecting the Postgres database. It's
+defined as an opt-in service in `compose.yaml` under the `tools` profile,
+so it does **not** start with `docker compose up` by default — you only run
+it when you actually want it.
+
+**Start Adminer:**
+
+```bash
+docker compose --profile tools up adminer
+```
+
+**Open it:**
+
+http://localhost:8080
+
+**Login:**
+
+| Field    | Value             |
+|----------|-------------------|
+| System   | `PostgreSQL`      |
+| Server   | `db` (prefilled)  |
+| Username | `pharmassist`     |
+| Password | `pharmassist_dev` |
+| Database | `pharmassist`     |
+
+Once logged in you get a sidebar of every table, can click rows to view/edit,
+run ad-hoc SQL, and see a foreign-key schema diagram via the **schema** link
+at the top.
+
+**Stop it:** `docker compose --profile tools stop adminer` (or just `Ctrl+C`
+if you ran it in the foreground).
+
+> Adminer needs the `db` service to be running. The `db` service is added
+> by the database-foundation PR — once that's merged, Adminer connects to
+> it automatically over the compose network.
+
 ## What's NOT in this POC (next steps)
 
 - PostgreSQL database (users, patients, audit log)
