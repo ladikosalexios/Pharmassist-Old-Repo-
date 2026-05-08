@@ -3,9 +3,9 @@ from datetime import datetime
 from sqlalchemy import BigInteger, String, Integer, DateTime, ForeignKey, text
 from sqlalchemy.dialects.postgresql import UUID, INET, JSONB
 from sqlalchemy.orm import Mapped, mapped_column
-from ..base import Base
+from ..base import Base, TimestampMixin
 
-class AuditLog(Base):
+class AuditLog(Base, TimestampMixin):
     __tablename__ = "audit_log"
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     pharmacist_id: Mapped[str | None] = mapped_column(UUID(as_uuid=True), ForeignKey("pharmacists.id"))

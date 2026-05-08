@@ -5,9 +5,9 @@ from datetime import datetime
 from sqlalchemy import String, DateTime, ForeignKey, Index, text
 from sqlalchemy.dialects.postgresql import UUID, INET
 from sqlalchemy.orm import Mapped, mapped_column
-from ..base import Base
+from ..base import Base, TimestampMixin
 
-class DocumentationLog(Base):
+class DocumentationLog(Base, TimestampMixin):
     __tablename__ = "documentation_logs"
     __table_args__ = (
         Index("ix_doc_logs_patient_amka_dispensed", "patient_amka", "dispensed_at"),
