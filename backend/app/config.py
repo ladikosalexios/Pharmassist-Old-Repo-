@@ -79,23 +79,26 @@ def get_settings() -> Settings:
             "FastAPI backend bridging pharmacist login → Pharmapi (ΗΔΥΚΑ)",
         ),
         app_version=os.getenv("APP_VERSION", "0.1.0"),
-
         cors_allow_origins=_env_list("CORS_ALLOW_ORIGINS", ["*"]),
         cors_allow_credentials=_env_bool("CORS_ALLOW_CREDENTIALS", True),
         cors_allow_methods=_env_list("CORS_ALLOW_METHODS", ["*"]),
         cors_allow_headers=_env_list("CORS_ALLOW_HEADERS", ["*"]),
-
         secret_key=os.getenv("SECRET_KEY", "pharmassist-dev-secret-CHANGE-IN-PROD"),
-        token_expire_minutes=_env_int("TOKEN_EXPIRE_MINUTES", 480),  # 8h pharmacist session
-
-        pharmapi_base=os.getenv("PHARMAPI_BASE", "https://testeps.e-prescription.gr/pharmapiv2"),
-        pharmapi_username=os.getenv("PHARMAPI_USERNAME", "medcare1pharmapi"),
-        pharmapi_password=os.getenv("PHARMAPI_PASSWORD", "Aa900919081908!!"),
-        pharmapi_api_key=os.getenv("PHARMAPI_API_KEY", "pi2jwygkd07yho3a4dw6jc55tg5ra3uc"),
-        pharmapi_session_window_seconds=_env_int(
-            "PHARMAPI_SESSION_WINDOW_SECONDS", 23 * 3600,  # 23h (refresh before 24h hard limit)
+        token_expire_minutes=_env_int(
+            "TOKEN_EXPIRE_MINUTES", 480
+        ),  # 8h pharmacist session
+        pharmapi_base=os.getenv(
+            "PHARMAPI_BASE", "https://testeps.e-prescription.gr/pharmapiv2"
         ),
-
+        pharmapi_username=os.getenv("PHARMAPI_USERNAME", "medcare1pharmapi"),
+        pharmapi_password=os.getenv("PHARMAPI_PASSWORD", "Aa900990099009!!"),
+        pharmapi_api_key=os.getenv(
+            "PHARMAPI_API_KEY", "pi2jwygkd07yho3a4dw6jc55tg5ra3uc"
+        ),
+        pharmapi_session_window_seconds=_env_int(
+            "PHARMAPI_SESSION_WINDOW_SECONDS",
+            23 * 3600,  # 23h (refresh before 24h hard limit)
+        ),
         database_url=os.getenv(
             "DATABASE_URL",
             "postgresql+asyncpg://pharmassist:pharmassist_dev@localhost:5432/pharmassist",
