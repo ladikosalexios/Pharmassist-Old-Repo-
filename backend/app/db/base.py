@@ -15,6 +15,12 @@ class Base(DeclarativeBase):
 
 
 class TimestampMixin:
+    # `onupdate=now()` makes SQLAlchemy emit the new value in its UPDATE
+    # statements (so `obj.updated_at` is fresh after flush via RETURNING).
+    # It does NOT cover updates from raw SQL, psql, or any other writer
+    # — a BEFORE UPDATE trigger handles that case (see migration adding
+    # set_updated_at_now()). Keep both: the trigger is the source of truth,
+    # `onupdate` is the ergonomic ORM path.
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=text("now()")
     )
