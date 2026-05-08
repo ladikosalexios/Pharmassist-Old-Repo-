@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Query
+from fastapi.security import OAuth2PasswordRequestForm
 
 from ..deps import get_current_user
 from ..schemas.auth import SessionStatus
@@ -15,6 +16,7 @@ from ..services.pharmapi import (
     pharmapi_search_prescriptions,
     pharmapi_session,
     session_is_valid,
+    verify_pharmapi_credentials,
 )
 
 
@@ -22,21 +24,34 @@ router = APIRouter(prefix="/pharmapi", tags=["pharmapi"])
 
 
 @router.post("/connect")
-async def pharmapi_connect(current: dict = Depends(get_current_user)):
+async def pharmapi_connect(
+    form: OAuth2PasswordRequestForm = Depends(),
+    current: dict = Depends(get_current_user),
+):
     """
-    Step 2: Establish (or refresh) the 24h Pharmapi session.
+    Step 2: Establish (or refresh) the 24h Pharmapi session for the
+    *caller's* Pharmapi credentials.
 
-    Calls GET /api/v1/user/me on Pharmapi with Basic Auth + Api-Key.
-    Per ΗΔΥΚΑ docs: every pharmacist must call this at least once before
-    using any other API endpoint. Must be refreshed within 24h.
+    Validates the supplied username/password against Pharmapi GET
+    /api/v1/user/me (Basic Auth + Api-Key) and pins the session to
+    that pharmacist's profile. Per ΗΔΥΚΑ docs every pharmacist must
+    call this at least once before using any other API endpoint, and
+    must refresh within 24h.
 
     Error G12 = never connected → call this.
     Error G14 = 24h expired    → call this again.
 
-    No-op refresh if /auth/login already opened the window.
+    Refreshable mid-session: re-call after the 24h lapses without
+    needing to log out.
+
+    Mirrors the credential-validation pattern already used by
+    /auth/login (see app/routers/auth.py). Previously this handler
+    relied on env-default service-account credentials, which meant
+    the cached session.user_data was the wrong person regardless of
+    who called it.
     """
-    data = await pharmapi_get("/api/v1/user/me", accept_xml=True)
-    _start_pharmapi_session(data)
+    profile = await verify_pharmapi_credentials(form.username, form.password)
+    _start_pharmapi_session(profile)
     return {
         "success": True,
         "message": "Pharmapi session established. Valid for 24h.",
@@ -44,7 +59,7 @@ async def pharmapi_connect(current: dict = Depends(get_current_user)):
             pharmapi_session["connected_at_ts"] + SESSION_WINDOW_SECONDS,
             tz=timezone.utc,
         ).isoformat(),
-        "pharmapi_user": data,
+        "pharmapi_user": profile,
     }
 
 
