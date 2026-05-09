@@ -24,10 +24,12 @@ async def login(form: OAuth2PasswordRequestForm = Depends()):
     name = profile.get("name") or form.username
     pharmacy = ((profile.get("pharmacy") or {}).get("name")) or ""
 
-    USERS[form.username] = {"name": name, "pharmacy": pharmacy}
+    pharmacist_email = profile.get("email") or f"{form.username}@pharmapi.local"
+
+    USERS[pharmacist_email] = {"name": name, "pharmacy": pharmacy}
     _start_pharmapi_session(profile)
 
-    token = create_jwt({"sub": form.username})
+    token = create_jwt({"sub": pharmacist_email})
     # return TokenResponse(access_token=token, pharmacist_name=name, pharmacy=pharmacy)
     name_obj = profile.get("name", {})
     pharmacist_name = f"{name_obj.get('firstname', '')} {name_obj.get('lastname', '')}".strip() \

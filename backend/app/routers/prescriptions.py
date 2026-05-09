@@ -18,14 +18,22 @@ the fixed path before the catch-all. Same reason ``/{rx_id}/approve`` comes
 before the bare ``/{rx_id}``.
 """
 
+import ipaddress
 import os
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from ..db.session import get_session
 from ..deps import get_current_user
-from ..schemas.prescriptions import PrescriptionPatch
-from ..services.pharmapi import pharmapi_get, pharmapi_search_prescriptions
+from ..schemas.prescriptions import ApproveResponse, PatchResponse, PrescriptionPatch
+from ..services.documentation import record_prescription_action
+from ..services.pharmapi import (
+    pharmapi_execute_prescription,
+    pharmapi_get,
+    pharmapi_search_prescriptions,
+)
 from ..services.prescriptions import MOCK_PRESCRIPTIONS, MOCK_QUEUE_BASE
 
 
@@ -35,6 +43,24 @@ router = APIRouter(prefix="/prescriptions", tags=["prescriptions"])
 def _is_mock() -> bool:
     """Re-read at request time so the flag can be toggled via env without restart."""
     return os.getenv("PHARMAPI_MOCK", "true").lower() not in ("false", "0", "no")
+
+
+def _client_meta(request: Request) -> tuple:
+    """(ip, user_agent) for documentation_logs columns. Both nullable upstream.
+
+    documentation_logs.ip_address is a Postgres INET — non-IP strings
+    (e.g. 'testclient' under TestClient, or a proxy-forwarded hostname)
+    will fail validation. Coerce anything we can't parse to None.
+    """
+    raw = request.client.host if request.client else None
+    ip = None
+    if raw:
+        try:
+            ipaddress.ip_address(raw)
+            ip = raw
+        except ValueError:
+            ip = None
+    return ip, request.headers.get("user-agent")
 
 
 def _normalize_pharmapi_detail(raw: dict, barcode: str) -> dict:
@@ -133,59 +159,133 @@ async def get_prescription_for_verification(rx_id: str, current: dict = Depends(
 
 
 # ── Actions (approve / flag / patch) ────────────────────────────────────────
-# Pharmapi has no "approve" or "flag" endpoint — dispense is tracked locally.
-# In both modes these write to local state (mock dict or, later, dispensing_log DB).
+# Approve: POSTs (fake) to ΗΔΥΚΑ for an exec_ref, then writes a documentation_logs
+# row (action_type=APPROVE) with the safety-check snapshot. Mock-only.
+# Flag: PATCH with status=FLAGGED writes a documentation_logs row (action_type=FLAG)
+# with the snapshot + discrepancy fields. No ΗΔΥΚΑ call (not a dispense).
+# Both fail closed in live mode until real ΗΔΥΚΑ dispense wiring lands.
 
-@router.post("/{rx_id}/approve")
-async def approve_prescription(rx_id: str, current: dict = Depends(get_current_user)):
-    if _is_mock():
-        rx = MOCK_PRESCRIPTIONS.get(rx_id)
-        if not rx:
-            raise HTTPException(status_code=404, detail=f"Prescription {rx_id} not found")
-        rx["status"] = "COMPLETED"
-        rx["completedAt"] = datetime.now(timezone.utc).isoformat()
-        return {"success": True, "rxId": rx_id, "status": rx["status"], "completedAt": rx["completedAt"]}
+@router.post("/{rx_id}/approve", response_model=ApproveResponse)
+async def approve_prescription(
+    rx_id: str,
+    request: Request,
+    current: dict = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    if not _is_mock():
+        # Real ΗΔΥΚΑ dispense POST not yet wired.
+        raise HTTPException(
+            status_code=501,
+            detail="Live dispense not yet wired to ΗΔΥΚΑ POST.",
+        )
 
-    # Live mode: dispensing_log table not yet implemented (ADR-002). Fail closed
-    # so a pharmacist never gets a green checkmark for a dispense that wasn't
-    # persisted anywhere. Replace with a real write once ADR-002 lands.
-    raise HTTPException(
-        status_code=501,
-        detail="Live dispense not yet wired to dispensing_log (ADR-002).",
+    rx = MOCK_PRESCRIPTIONS.get(rx_id)
+    if not rx:
+        raise HTTPException(status_code=404, detail=f"Prescription {rx_id} not found")
+
+    # 1) Snapshot safety checks at action time (cast to plain list of dicts so
+    #    JSONB serialisation doesn't surprise us if the source ever shifts to
+    #    something pydantic-ish).
+    snapshot = [dict(c) for c in rx.get("safetyChecks", [])]
+
+    # 2) Pretend-POST to ΗΔΥΚΑ. Returns a synthetic exec_ref in mock mode.
+    exec_resp = await pharmapi_execute_prescription(
+        barcode=rx_id,
+        eof_licence_no=rx.get("prescriber", {}).get("licenceId", ""),
+    )
+
+    # 3) Persist documentation_logs row.
+    ip, ua = _client_meta(request)
+    log = await record_prescription_action(
+        session,
+        action_type="APPROVE",
+        rx=rx,
+        safety_checks=snapshot,
+        pharmacist_email=current["email"],
+        pharmapi_exec_ref=exec_resp["exec_ref"],
+        discrepancy_type=None,
+        notes=None,
+        info_provided="Counselling delivered per SPC",
+        delivery_method="DIGITAL",
+        ip_address=ip,
+        user_agent=ua,
+    )
+
+    # 4) Mutate in-memory mock so subsequent GETs reflect COMPLETED status.
+    rx["status"] = "COMPLETED"
+    rx["completedAt"] = datetime.now(timezone.utc).isoformat()
+
+    return ApproveResponse(
+        success=True,
+        rxId=rx_id,
+        status=rx["status"],
+        completedAt=rx["completedAt"],
+        execId=exec_resp["exec_ref"],
+        documentationLogId=str(log.id),
     )
 
 
-@router.patch("/{rx_id}")
+@router.patch("/{rx_id}", response_model=PatchResponse)
 async def patch_prescription(
     rx_id: str,
     patch: PrescriptionPatch,
+    request: Request,
     current: dict = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
 ):
-    """Partial update — used by the Flag Discrepancy modal."""
-    if _is_mock():
-        rx = MOCK_PRESCRIPTIONS.get(rx_id)
-        if not rx:
-            raise HTTPException(status_code=404, detail=f"Prescription {rx_id} not found")
-        if patch.status is not None:
-            rx["status"] = patch.status.upper()
-        if patch.discrepancy_type is not None:
-            rx["discrepancyType"] = patch.discrepancy_type
-        if patch.notes is not None:
-            rx["flagNotes"] = patch.notes
-        if patch.notify_physician is not None:
-            rx["notifyPhysician"] = bool(patch.notify_physician)
-        return {
-            "success": True,
-            "rxId": rx_id,
-            "status": rx["status"],
-            "discrepancyType": rx.get("discrepancyType"),
-            "notes": rx.get("flagNotes"),
-            "notifyPhysician": rx.get("notifyPhysician"),
-        }
+    """Partial update — used by the Flag Discrepancy modal.
 
-    # Live mode: dispensing_log table not yet implemented (ADR-002). Same fail-
-    # closed contract as approve — see comment there.
-    raise HTTPException(
-        status_code=501,
-        detail="Live flag/patch not yet wired to dispensing_log (ADR-002).",
+    A FLAGGED status flip writes a documentation_logs row (action_type=FLAG).
+    Other partial edits (e.g. notify_physician=true with no status change)
+    update the in-memory mock only — they aren't audit-worthy by themselves.
+    """
+    if not _is_mock():
+        raise HTTPException(
+            status_code=501,
+            detail="Live flag/patch not yet wired to ΗΔΥΚΑ.",
+        )
+
+    rx = MOCK_PRESCRIPTIONS.get(rx_id)
+    if not rx:
+        raise HTTPException(status_code=404, detail=f"Prescription {rx_id} not found")
+
+    flagging = (patch.status or "").upper() == "FLAGGED"
+    log_id = None
+
+    if flagging:
+        snapshot = [dict(c) for c in rx.get("safetyChecks", [])]
+        ip, ua = _client_meta(request)
+        log = await record_prescription_action(
+            session,
+            action_type="FLAG",
+            rx=rx,
+            safety_checks=snapshot,
+            pharmacist_email=current["email"],
+            pharmapi_exec_ref=None,
+            discrepancy_type=patch.discrepancy_type,
+            notes=patch.notes,
+            info_provided=None,
+            delivery_method=None,
+            ip_address=ip,
+            user_agent=ua,
+        )
+        log_id = str(log.id)
+
+    if patch.status is not None:
+        rx["status"] = patch.status.upper()
+    if patch.discrepancy_type is not None:
+        rx["discrepancyType"] = patch.discrepancy_type
+    if patch.notes is not None:
+        rx["flagNotes"] = patch.notes
+    if patch.notify_physician is not None:
+        rx["notifyPhysician"] = bool(patch.notify_physician)
+
+    return PatchResponse(
+        success=True,
+        rxId=rx_id,
+        status=rx["status"],
+        discrepancyType=rx.get("discrepancyType"),
+        notes=rx.get("flagNotes"),
+        notifyPhysician=rx.get("notifyPhysician"),
+        documentationLogId=log_id,
     )

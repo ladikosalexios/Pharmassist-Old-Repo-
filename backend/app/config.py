@@ -90,7 +90,7 @@ def get_settings() -> Settings:
 
         pharmapi_base=os.getenv("PHARMAPI_BASE", "https://testeps.e-prescription.gr/pharmapiv2"),
         pharmapi_username=os.getenv("PHARMAPI_USERNAME", "medcare1pharmapi"),
-        pharmapi_password=os.getenv("PHARMAPI_PASSWORD", "Aa900919081908!!"),
+        pharmapi_password=os.getenv("PHARMAPI_PASSWORD", "Aa900990099009!!"),
         pharmapi_api_key=os.getenv("PHARMAPI_API_KEY", "pi2jwygkd07yho3a4dw6jc55tg5ra3uc"),
         pharmapi_session_window_seconds=_env_int(
             "PHARMAPI_SESSION_WINDOW_SECONDS", 23 * 3600,  # 23h (refresh before 24h hard limit)
