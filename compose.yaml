@@ -18,6 +18,13 @@ services:
       - "8000:8000"
     volumes:
       - ./backend:/usr/src/app
+    environment:
+      # Override config.py default — `localhost` would mean the backend
+      # container itself; we want the `db` service on the compose network.
+      DATABASE_URL: postgresql+asyncpg://pharmassist:pharmassist_dev@db:5432/pharmassist
+      PHARMAPI_MOCK: "true"
+    depends_on:
+      - db
   db:
     image: postgres:16-alpine
     restart: unless-stopped
