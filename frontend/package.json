@@ -7,7 +7,11 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
-    "typecheck": "tsc -b --noEmit"
+    "typecheck": "tsc -b --noEmit",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
   },
   "dependencies": {
     "react": "^18.3.1",
@@ -15,13 +19,20 @@
     "react-router-dom": "^6.26.2"
   },
   "devDependencies": {
+    "@eslint/js": "^9.13.0",
     "@types/react": "^18.3.11",
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.3.2",
     "autoprefixer": "^10.4.20",
+    "eslint": "^9.13.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-react": "^7.37.2",
+    "eslint-plugin-react-hooks": "^5.0.0",
     "postcss": "^8.4.47",
+    "prettier": "^3.3.3",
     "tailwindcss": "^3.4.13",
     "typescript": "^5.6.2",
+    "typescript-eslint": "^8.12.2",
     "vite": "^5.4.8"
   }
 }

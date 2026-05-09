@@ -1,0 +1,22 @@
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+extend-exclude = ["alembic/versions"]  # auto-generated migrations — don't fight them
+
+[tool.ruff.lint]
+# Conservative starter set. Expand once we're comfortable.
+#   E/W = pycodestyle errors + warnings (includes E501 line-too-long)
+#   F   = pyflakes (real bugs: undefined names, unused imports, etc)
+#   I   = isort  (consistent import order)
+#   B   = bugbear (subtle correctness bugs like mutable default args)
+#   UP  = pyupgrade (use modern Python idioms — we target 3.13)
+select = ["E", "W", "F", "I", "B", "UP"]
+
+[tool.ruff.lint.per-file-ignores]
+# __init__.py re-exports legitimately appear "unused"
+"__init__.py" = ["F401"]
+
+[tool.ruff.format]
+# Single-quote vs double-quote: we don't care strongly, default is double.
+# preserve = leave existing quote style; "double" = enforce double.
+quote-style = "double"
