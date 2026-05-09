@@ -1,6 +1,5 @@
 """Summary of Product Characteristics (mock) keyed by ATC code."""
 
-
 MOCK_SPC: dict = {
     "B01AA03": {
         "atcCode": "B01AA03",
@@ -40,10 +39,22 @@ MOCK_SPC: dict = {
             "Hypersensitivity to warfarin or any excipient",
         ],
         "majorInteractions": [
-            {"drug": "Aspirin",     "effect": "Concurrent use significantly increases bleeding risk; use only with documented indication and close INR monitoring."},
-            {"drug": "NSAIDs",      "effect": "Increased bleeding risk via platelet inhibition and gastric mucosal damage; avoid concurrent use."},
-            {"drug": "Amiodarone",  "effect": "Potentiates warfarin effect via CYP2C9 inhibition; reduce warfarin dose by 30–50% and recheck INR within 5 days."},
-            {"drug": "Fluconazole", "effect": "Marked CYP2C9 inhibition; INR can rise sharply within 3–5 days."},
+            {
+                "drug": "Aspirin",
+                "effect": "Concurrent use significantly increases bleeding risk; use only with documented indication and close INR monitoring.",
+            },
+            {
+                "drug": "NSAIDs",
+                "effect": "Increased bleeding risk via platelet inhibition and gastric mucosal damage; avoid concurrent use.",
+            },
+            {
+                "drug": "Amiodarone",
+                "effect": "Potentiates warfarin effect via CYP2C9 inhibition; reduce warfarin dose by 30–50% and recheck INR within 5 days.",
+            },
+            {
+                "drug": "Fluconazole",
+                "effect": "Marked CYP2C9 inhibition; INR can rise sharply within 3–5 days.",
+            },
         ],
     },
     "J01CA04": {
@@ -74,9 +85,18 @@ MOCK_SPC: dict = {
             "History of severe immediate hypersensitivity reaction (anaphylaxis, Stevens-Johnson syndrome)",
         ],
         "majorInteractions": [
-            {"drug": "Methotrexate", "effect": "Reduced renal excretion of methotrexate; increased toxicity risk — monitor closely."},
-            {"drug": "Allopurinol",  "effect": "Increased risk of skin rash when used concurrently."},
-            {"drug": "Warfarin",     "effect": "May potentiate anticoagulant effect; monitor INR during and after a course."},
+            {
+                "drug": "Methotrexate",
+                "effect": "Reduced renal excretion of methotrexate; increased toxicity risk — monitor closely.",
+            },
+            {
+                "drug": "Allopurinol",
+                "effect": "Increased risk of skin rash when used concurrently.",
+            },
+            {
+                "drug": "Warfarin",
+                "effect": "May potentiate anticoagulant effect; monitor INR during and after a course.",
+            },
         ],
     },
 }

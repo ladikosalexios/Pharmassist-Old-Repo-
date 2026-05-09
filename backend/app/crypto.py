@@ -1,5 +1,8 @@
-import base64, os
+import base64
+import os
+
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+
 
 def _get_key() -> bytes:
     raw = os.environ.get("CREDENTIAL_ENCRYPTION_KEY")
@@ -7,11 +10,13 @@ def _get_key() -> bytes:
         raise RuntimeError("CREDENTIAL_ENCRYPTION_KEY not set")
     return base64.b64decode(raw)
 
+
 def encrypt_credential(plaintext: str) -> str:
     key = _get_key()
     nonce = os.urandom(12)
     ct = AESGCM(key).encrypt(nonce, plaintext.encode(), None)
     return base64.b64encode(nonce + ct).decode()
+
 
 def decrypt_credential(encrypted: str) -> str:
     key = _get_key()

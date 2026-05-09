@@ -1,6 +1,5 @@
 """Active safety alerts (mock) for the dashboard."""
 
-
 MOCK_ACTIVE_ALERTS = [
     {
         "id": "AL-1001",

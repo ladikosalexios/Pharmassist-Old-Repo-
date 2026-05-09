@@ -1,37 +1,53 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { ClockIcon, FlagIcon, CheckIcon, AlertCircleIcon, ChevronRightIcon, FileTextIcon } from "../components/Icons";
+import {
+  ClockIcon,
+  FlagIcon,
+  CheckIcon,
+  AlertCircleIcon,
+  ChevronRightIcon,
+  FileTextIcon,
+} from "../components/Icons";
 import { SafetyAlertsPanel } from "../components/SafetyAlertsPanel";
 import { KeyboardShortcutsCard } from "../components/KeyboardShortcutsCard";
 import { ApiError, listPrescriptions } from "../lib/api";
 import type { QueueItem } from "../types";
 
 const STATUS_CHIP: Record<QueueItem["status"], string> = {
-  PENDING:   "bg-amber-100 text-amber-800",
-  FLAGGED:   "bg-red-100 text-red-800",
+  PENDING: "bg-amber-100 text-amber-800",
+  FLAGGED: "bg-red-100 text-red-800",
   COMPLETED: "bg-emerald-100 text-emerald-800",
 };
 
 const STATUS_LABEL: Record<QueueItem["status"], string> = {
-  PENDING:   "Pending",
-  FLAGGED:   "Flagged",
+  PENDING: "Pending",
+  FLAGGED: "Flagged",
   COMPLETED: "Completed",
 };
 
 export function Dashboard() {
-  const today = new Date().toLocaleDateString("en-GB", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
+  const today = new Date().toLocaleDateString("en-GB", {
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
   const [queue, setQueue] = useState<QueueItem[] | null>(null);
   const [queueError, setQueueError] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
     listPrescriptions()
-      .then((items) => { if (active) setQueue(items); })
+      .then((items) => {
+        if (active) setQueue(items);
+      })
       .catch((e: unknown) => {
         if (!active) return;
         setQueueError(e instanceof ApiError ? e.message : "Could not load the prescription queue.");
       });
-    return () => { active = false; };
+    return () => {
+      active = false;
+    };
   }, []);
 
   const counts = useMemo(() => {
@@ -41,12 +57,27 @@ export function Dashboard() {
   }, [queue]);
 
   const stats = [
-    { label: "Pending Verification", value: counts.PENDING,   Icon: ClockIcon,       tone: "bg-amber-100 text-amber-700" },
-    { label: "Flagged Issues",       value: counts.FLAGGED,   Icon: FlagIcon,        tone: "bg-red-100 text-red-700" },
-    { label: "Completed Today",      value: counts.COMPLETED, Icon: CheckIcon,       tone: "bg-emerald-100 text-emerald-700" },
+    {
+      label: "Pending Verification",
+      value: counts.PENDING,
+      Icon: ClockIcon,
+      tone: "bg-amber-100 text-amber-700",
+    },
+    {
+      label: "Flagged Issues",
+      value: counts.FLAGGED,
+      Icon: FlagIcon,
+      tone: "bg-red-100 text-red-700",
+    },
+    {
+      label: "Completed Today",
+      value: counts.COMPLETED,
+      Icon: CheckIcon,
+      tone: "bg-emerald-100 text-emerald-700",
+    },
     // Critical Alerts is sourced from /alerts/active in SafetyAlertsPanel; we keep
     // a placeholder here until we lift that into a shared store.
-    { label: "Critical Alerts",      value: 1,                Icon: AlertCircleIcon, tone: "bg-red-100 text-red-700" },
+    { label: "Critical Alerts", value: 1, Icon: AlertCircleIcon, tone: "bg-red-100 text-red-700" },
   ];
 
   return (
@@ -62,7 +93,9 @@ export function Dashboard() {
             <div className="flex items-start justify-between">
               <div>
                 <div className="text-sm font-medium text-slate-500">{label}</div>
-                <div className="mt-1 text-3xl font-bold text-slate-900">{queue || label === "Critical Alerts" ? value : "—"}</div>
+                <div className="mt-1 text-3xl font-bold text-slate-900">
+                  {queue || label === "Critical Alerts" ? value : "—"}
+                </div>
               </div>
               <div className={`flex h-9 w-9 items-center justify-center rounded-lg ${tone}`}>
                 <Icon width={18} height={18} />
@@ -83,9 +116,13 @@ export function Dashboard() {
               <span>{queueError}</span>
             </div>
           ) : !queue ? (
-            <div className="px-6 py-8 text-sm text-slate-500"><span className="spinner text-brand-600" /> Loading queue…</div>
+            <div className="px-6 py-8 text-sm text-slate-500">
+              <span className="spinner text-brand-600" /> Loading queue…
+            </div>
           ) : queue.length === 0 ? (
-            <div className="px-6 py-8 text-center text-sm text-slate-500">No prescriptions in the queue.</div>
+            <div className="px-6 py-8 text-center text-sm text-slate-500">
+              No prescriptions in the queue.
+            </div>
           ) : (
             <ul>
               {queue.map((rx) => (
@@ -96,14 +133,28 @@ export function Dashboard() {
                   >
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
-                        <span className="text-sm font-semibold text-slate-900">{rx.patientName}</span>
-                        <span className={`chip ${STATUS_CHIP[rx.status]}`}>{STATUS_LABEL[rx.status]}</span>
+                        <span className="text-sm font-semibold text-slate-900">
+                          {rx.patientName}
+                        </span>
+                        <span className={`chip ${STATUS_CHIP[rx.status]}`}>
+                          {STATUS_LABEL[rx.status]}
+                        </span>
                       </div>
                       <div className="mt-1 grid grid-cols-1 gap-x-6 gap-y-1 text-xs text-slate-500 sm:grid-cols-2">
-                        <span>Code: <span className="font-medium text-slate-700">{rx.rxId}</span></span>
-                        <span>Physician: <span className="font-medium text-slate-700">{rx.physician}</span></span>
-                        <span>Medication: <span className="font-medium text-slate-700">{rx.medication}</span></span>
-                        <span>Date: <span className="font-medium text-slate-700">{rx.date}</span></span>
+                        <span>
+                          Code: <span className="font-medium text-slate-700">{rx.rxId}</span>
+                        </span>
+                        <span>
+                          Physician:{" "}
+                          <span className="font-medium text-slate-700">{rx.physician}</span>
+                        </span>
+                        <span>
+                          Medication:{" "}
+                          <span className="font-medium text-slate-700">{rx.medication}</span>
+                        </span>
+                        <span>
+                          Date: <span className="font-medium text-slate-700">{rx.date}</span>
+                        </span>
                       </div>
                     </div>
                     <ChevronRightIcon className="shrink-0 text-slate-400" />

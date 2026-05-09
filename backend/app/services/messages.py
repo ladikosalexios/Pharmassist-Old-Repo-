@@ -1,6 +1,5 @@
 """Pharmacist ↔ prescriber message threads (mock, keyed by rxId)."""
 
-
 MOCK_MESSAGES: dict = {
     "RX2024-005": [
         {

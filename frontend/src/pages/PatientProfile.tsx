@@ -1,54 +1,66 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
-  AlertCircleIcon, AlertTriangleIcon, AlertOctagonIcon, CheckCircleIcon,
-  ChevronLeftIcon, ChevronRightIcon, PhoneIcon, ShieldIcon, UsersIcon,
+  AlertCircleIcon,
+  AlertTriangleIcon,
+  AlertOctagonIcon,
+  CheckCircleIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  PhoneIcon,
+  ShieldIcon,
+  UsersIcon,
 } from "../components/Icons";
-import {
-  ApiError, getPatient, getPatientPrescriptions, getPatientSideEffects,
-} from "../lib/api";
+import { ApiError, getPatient, getPatientPrescriptions, getPatientSideEffects } from "../lib/api";
 import { fallbackForPatient, isProfileShapeIncomplete } from "../lib/patientFallback";
 import type {
-  AdrSeverity, AdrStatus, OrganFunction, PatientProfile as Profile,
-  PatientRxHistoryRow, PatientSafetyFlags, SideEffectReport,
+  AdrSeverity,
+  AdrStatus,
+  OrganFunction,
+  PatientProfile as Profile,
+  PatientRxHistoryRow,
+  PatientSafetyFlags,
+  SideEffectReport,
 } from "../types";
 
 const TABS = ["rx", "adr", "safety"] as const;
-type Tab = typeof TABS[number];
+type Tab = (typeof TABS)[number];
 const TAB_LABEL: Record<Tab, string> = {
-  rx:     "Prescription History",
-  adr:    "Side Effect History",
+  rx: "Prescription History",
+  adr: "Side Effect History",
   safety: "Safety Profile",
 };
 
 const RX_STATUS_CHIP: Record<string, string> = {
-  PENDING:   "bg-amber-100 text-amber-800",
+  PENDING: "bg-amber-100 text-amber-800",
   COMPLETED: "bg-emerald-100 text-emerald-800",
-  FLAGGED:   "bg-red-100 text-red-800",
+  FLAGGED: "bg-red-100 text-red-800",
 };
 const RX_STATUS_LABEL: Record<string, string> = {
-  PENDING:   "Pending",
+  PENDING: "Pending",
   COMPLETED: "Completed",
-  FLAGGED:   "Flagged",
+  FLAGGED: "Flagged",
 };
 
 const SEVERITY_TONE: Record<AdrSeverity, string> = {
-  MILD:     "bg-amber-100 text-amber-800",
+  MILD: "bg-amber-100 text-amber-800",
   MODERATE: "bg-orange-100 text-orange-800",
-  SEVERE:   "bg-red-100 text-red-800",
+  SEVERE: "bg-red-100 text-red-800",
 };
 const SEVERITY_LABEL: Record<AdrSeverity, string> = {
-  MILD: "Mild", MODERATE: "Moderate", SEVERE: "Severe",
+  MILD: "Mild",
+  MODERATE: "Moderate",
+  SEVERE: "Severe",
 };
 const ADR_STATUS_TONE: Record<AdrStatus, string> = {
   PENDING_REVIEW: "border border-amber-300 bg-white text-amber-800",
-  ESCALATED:      "border border-red-300 bg-white text-red-800",
-  EOF_REPORTED:   "border border-emerald-600 bg-emerald-600 text-white",
+  ESCALATED: "border border-red-300 bg-white text-red-800",
+  EOF_REPORTED: "border border-emerald-600 bg-emerald-600 text-white",
 };
 const ADR_STATUS_LABEL: Record<AdrStatus, string> = {
   PENDING_REVIEW: "Pending Review",
-  ESCALATED:      "Escalated",
-  EOF_REPORTED:   "EOF Reported",
+  ESCALATED: "Escalated",
+  EOF_REPORTED: "EOF Reported",
 };
 
 export function PatientProfile() {
@@ -104,10 +116,14 @@ export function PatientProfile() {
           setProfileError(e instanceof ApiError ? e.message : "Could not load patient profile.");
         }
       })
-      .finally(() => { if (active) setProfileLoading(false); });
+      .finally(() => {
+        if (active) setProfileLoading(false);
+      });
 
     getPatientPrescriptions(id)
-      .then((items) => { if (active) setRxHistory(items); })
+      .then((items) => {
+        if (active) setRxHistory(items);
+      })
       .catch((e: unknown) => {
         if (!active) return;
         if (fb) {
@@ -119,7 +135,9 @@ export function PatientProfile() {
       });
 
     getPatientSideEffects(id)
-      .then((items) => { if (active) setAdrHistory(items); })
+      .then((items) => {
+        if (active) setAdrHistory(items);
+      })
       .catch((e: unknown) => {
         if (!active) return;
         if (fb) {
@@ -130,7 +148,9 @@ export function PatientProfile() {
         }
       });
 
-    return () => { active = false; };
+    return () => {
+      active = false;
+    };
   }, [id]);
 
   const isPregnant =
@@ -141,11 +161,18 @@ export function PatientProfile() {
       {/* Back link */}
       <div className="mb-3 flex items-center gap-2 text-sm">
         {fromRx ? (
-          <Link to={`/prescription/${fromRx}`} className="inline-flex items-center gap-1 text-brand-600 hover:underline">
+          <Link
+            to={`/prescription/${fromRx}`}
+            className="inline-flex items-center gap-1 text-brand-600 hover:underline"
+          >
             <ChevronLeftIcon width={14} height={14} /> Back to {fromRx}
           </Link>
         ) : (
-          <button type="button" onClick={() => navigate(-1)} className="inline-flex items-center gap-1 text-brand-600 hover:underline">
+          <button
+            type="button"
+            onClick={() => navigate(-1)}
+            className="inline-flex items-center gap-1 text-brand-600 hover:underline"
+          >
             <ChevronLeftIcon width={14} height={14} /> Back
           </button>
         )}
@@ -166,7 +193,9 @@ export function PatientProfile() {
           {usingFallback && (
             <div className="mb-3 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[13px] text-amber-800">
               <AlertCircleIcon width={14} height={14} className="mt-0.5 shrink-0" />
-              <span>Showing demo data — the patients API is unreachable or returned an outdated shape.</span>
+              <span>
+                Showing demo data — the patients API is unreachable or returned an outdated shape.
+              </span>
             </div>
           )}
           <header className="card p-6">
@@ -177,23 +206,42 @@ export function PatientProfile() {
               <div className="min-w-0 flex-1">
                 <h1 className="text-2xl font-bold text-slate-900">{profile.name}</h1>
                 <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-slate-600">
-                  {profile.amka && <span>AMKA: <span className="font-mono text-slate-800">{profile.amka}</span></span>}
+                  {profile.amka && (
+                    <span>
+                      AMKA: <span className="font-mono text-slate-800">{profile.amka}</span>
+                    </span>
+                  )}
                   {typeof profile.age === "number" && <span>{profile.age} years</span>}
                   {profile.dateOfBirth && <span>DOB: {profile.dateOfBirth}</span>}
-                  {profile.sex && <span>Sex: {profile.sex === "F" ? "Female" : profile.sex === "M" ? "Male" : profile.sex}</span>}
+                  {profile.sex && (
+                    <span>
+                      Sex:{" "}
+                      {profile.sex === "F" ? "Female" : profile.sex === "M" ? "Male" : profile.sex}
+                    </span>
+                  )}
                   {profile.phone && (
-                    <a href={`tel:${profile.phone}`} className="inline-flex items-center gap-1 text-brand-600 hover:underline">
+                    <a
+                      href={`tel:${profile.phone}`}
+                      className="inline-flex items-center gap-1 text-brand-600 hover:underline"
+                    >
                       <PhoneIcon width={13} height={13} /> {profile.phone}
                     </a>
                   )}
                 </div>
 
                 <div className="mt-4">
-                  <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Medical Conditions</div>
+                  <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    Medical Conditions
+                  </div>
                   <div className="mt-2 flex flex-wrap gap-2">
                     {profile.conditions && profile.conditions.length > 0 ? (
                       profile.conditions.map((c) => (
-                        <span key={c} className="chip border border-brand-100 bg-brand-50 text-brand-700">{c}</span>
+                        <span
+                          key={c}
+                          className="chip border border-brand-100 bg-brand-50 text-brand-700"
+                        >
+                          {c}
+                        </span>
                       ))
                     ) : (
                       <span className="text-sm text-slate-500">None recorded.</span>
@@ -202,12 +250,16 @@ export function PatientProfile() {
                 </div>
 
                 <div className="mt-4">
-                  <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Allergies</div>
+                  <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    Allergies
+                  </div>
                   <div className="mt-2">
                     {profile.allergies && profile.allergies.length > 0 ? (
                       <ul className="flex flex-wrap gap-2">
                         {profile.allergies.map((a) => (
-                          <li key={a} className="chip border border-red-200 bg-red-50 text-red-800">{a}</li>
+                          <li key={a} className="chip border border-red-200 bg-red-50 text-red-800">
+                            {a}
+                          </li>
                         ))}
                       </ul>
                     ) : (
@@ -226,7 +278,11 @@ export function PatientProfile() {
           </header>
 
           {/* Tabs */}
-          <div role="tablist" aria-label="Patient sections" className="mt-6 mb-4 flex gap-1 border-b border-slate-200">
+          <div
+            role="tablist"
+            aria-label="Patient sections"
+            className="mt-6 mb-4 flex gap-1 border-b border-slate-200"
+          >
             {TABS.map((t) => (
               <button
                 key={t}
@@ -245,8 +301,8 @@ export function PatientProfile() {
             ))}
           </div>
 
-          {tab === "rx"     && <RxHistoryTab rows={rxHistory} error={rxError} />}
-          {tab === "adr"    && <AdrHistoryTab rows={adrHistory} error={adrError} />}
+          {tab === "rx" && <RxHistoryTab rows={rxHistory} error={rxError} />}
+          {tab === "adr" && <AdrHistoryTab rows={adrHistory} error={adrError} />}
           {tab === "safety" && (
             <SafetyProfileTab
               flags={profile.safetyFlags}
@@ -260,7 +316,13 @@ export function PatientProfile() {
   );
 }
 
-function RxHistoryTab({ rows, error }: { rows: PatientRxHistoryRow[] | null; error: string | null }) {
+function RxHistoryTab({
+  rows,
+  error,
+}: {
+  rows: PatientRxHistoryRow[] | null;
+  error: string | null;
+}) {
   if (error) {
     return (
       <div className="card flex items-start gap-2 px-4 py-3 text-sm text-red-700">
@@ -277,7 +339,11 @@ function RxHistoryTab({ rows, error }: { rows: PatientRxHistoryRow[] | null; err
     );
   }
   if (rows.length === 0) {
-    return <div className="card px-4 py-10 text-center text-sm text-slate-500">No prescriptions on record.</div>;
+    return (
+      <div className="card px-4 py-10 text-center text-sm text-slate-500">
+        No prescriptions on record.
+      </div>
+    );
   }
   return (
     <div className="card overflow-hidden">
@@ -305,13 +371,19 @@ function RxHistoryTab({ rows, error }: { rows: PatientRxHistoryRow[] | null; err
               >
                 <td className="px-4 py-3 text-slate-700">{r.date}</td>
                 <td className="px-4 py-3">
-                  <Link to={`/prescription/${r.rxId}`} className="text-brand-600 hover:underline" onClick={(e) => e.stopPropagation()}>
+                  <Link
+                    to={`/prescription/${r.rxId}`}
+                    className="text-brand-600 hover:underline"
+                    onClick={(e) => e.stopPropagation()}
+                  >
                     {r.drugName}
                   </Link>
                 </td>
                 <td className="px-4 py-3 text-slate-700">{r.prescriberName}</td>
                 <td className="px-4 py-3">
-                  <span className={`chip ${RX_STATUS_CHIP[r.status] ?? "bg-slate-100 text-slate-800"}`}>
+                  <span
+                    className={`chip ${RX_STATUS_CHIP[r.status] ?? "bg-slate-100 text-slate-800"}`}
+                  >
                     {RX_STATUS_LABEL[r.status] ?? r.status}
                   </span>
                 </td>
@@ -344,7 +416,11 @@ function AdrHistoryTab({ rows, error }: { rows: SideEffectReport[] | null; error
     );
   }
   if (rows.length === 0) {
-    return <div className="card px-4 py-10 text-center text-sm text-slate-500">No adverse drug reactions on record.</div>;
+    return (
+      <div className="card px-4 py-10 text-center text-sm text-slate-500">
+        No adverse drug reactions on record.
+      </div>
+    );
   }
   return (
     <ul className="space-y-3">
@@ -353,14 +429,21 @@ function AdrHistoryTab({ rows, error }: { rows: SideEffectReport[] | null; error
           <article className="card p-4">
             <div className="flex flex-wrap items-center gap-2">
               {r.rxId ? (
-                <Link to={`/prescription/${r.rxId}`} className="text-sm font-semibold text-brand-600 hover:underline">
+                <Link
+                  to={`/prescription/${r.rxId}`}
+                  className="text-sm font-semibold text-brand-600 hover:underline"
+                >
                   {r.drugName}
                 </Link>
               ) : (
                 <span className="text-sm font-semibold text-slate-900">{r.drugName}</span>
               )}
-              <span className={`chip ${SEVERITY_TONE[r.severity]}`}>{SEVERITY_LABEL[r.severity]}</span>
-              <span className={`chip ${ADR_STATUS_TONE[r.status]}`}>{ADR_STATUS_LABEL[r.status]}</span>
+              <span className={`chip ${SEVERITY_TONE[r.severity]}`}>
+                {SEVERITY_LABEL[r.severity]}
+              </span>
+              <span className={`chip ${ADR_STATUS_TONE[r.status]}`}>
+                {ADR_STATUS_LABEL[r.status]}
+              </span>
               <span className="ml-auto text-xs text-slate-500">{formatDate(r.reportedAt)}</span>
             </div>
             <p className="mt-2 text-[13px] leading-relaxed text-slate-700">{r.symptom}</p>
@@ -379,21 +462,25 @@ interface SafetyProfileTabProps {
 }
 
 const ORGAN_TONE: Record<OrganFunction, { chip: string; alert: boolean }> = {
-  NORMAL:               { chip: "bg-emerald-100 text-emerald-800", alert: false },
-  MILD_IMPAIRMENT:      { chip: "bg-amber-100 text-amber-800",     alert: false },
-  MODERATE_IMPAIRMENT:  { chip: "bg-red-100 text-red-800",         alert: true },
-  SEVERE_IMPAIRMENT:    { chip: "bg-red-100 text-red-800",         alert: true },
+  NORMAL: { chip: "bg-emerald-100 text-emerald-800", alert: false },
+  MILD_IMPAIRMENT: { chip: "bg-amber-100 text-amber-800", alert: false },
+  MODERATE_IMPAIRMENT: { chip: "bg-red-100 text-red-800", alert: true },
+  SEVERE_IMPAIRMENT: { chip: "bg-red-100 text-red-800", alert: true },
 };
 const ORGAN_LABEL: Record<OrganFunction, string> = {
-  NORMAL:               "Normal",
-  MILD_IMPAIRMENT:      "Mild impairment",
-  MODERATE_IMPAIRMENT:  "Moderate impairment",
-  SEVERE_IMPAIRMENT:    "Severe impairment",
+  NORMAL: "Normal",
+  MILD_IMPAIRMENT: "Mild impairment",
+  MODERATE_IMPAIRMENT: "Moderate impairment",
+  SEVERE_IMPAIRMENT: "Severe impairment",
 };
 
 function SafetyProfileTab({ flags, intolerances, isPregnant }: SafetyProfileTabProps) {
   if (!flags) {
-    return <div className="card px-4 py-10 text-center text-sm text-slate-500">No safety profile recorded.</div>;
+    return (
+      <div className="card px-4 py-10 text-center text-sm text-slate-500">
+        No safety profile recorded.
+      </div>
+    );
   }
 
   const renalTone = ORGAN_TONE[flags.renalFunction];
@@ -401,7 +488,7 @@ function SafetyProfileTab({ flags, intolerances, isPregnant }: SafetyProfileTabP
   const alerts: string[] = [];
   if (flags.g6pd) alerts.push("G6PD deficiency");
   if (isPregnant) alerts.push(`Pregnancy (${flags.pregnancyWeeks} weeks)`);
-  if (renalTone.alert)   alerts.push(`Renal: ${ORGAN_LABEL[flags.renalFunction]}`);
+  if (renalTone.alert) alerts.push(`Renal: ${ORGAN_LABEL[flags.renalFunction]}`);
   if (hepaticTone.alert) alerts.push(`Hepatic: ${ORGAN_LABEL[flags.hepaticFunction]}`);
 
   return (
@@ -413,7 +500,9 @@ function SafetyProfileTab({ flags, intolerances, isPregnant }: SafetyProfileTabP
         ) : (
           <ul className="flex flex-wrap gap-2">
             {intolerances.map((i) => (
-              <li key={i} className="chip border border-amber-200 bg-amber-50 text-amber-800">{i}</li>
+              <li key={i} className="chip border border-amber-200 bg-amber-50 text-amber-800">
+                {i}
+              </li>
             ))}
           </ul>
         )}
@@ -424,7 +513,8 @@ function SafetyProfileTab({ flags, intolerances, isPregnant }: SafetyProfileTabP
           <h2 className="text-base font-semibold text-slate-900">Special Flags</h2>
           {alerts.length > 0 && (
             <span className="inline-flex items-center gap-1 rounded-md bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700">
-              <AlertOctagonIcon width={12} height={12} /> {alerts.length} alert{alerts.length === 1 ? "" : "s"} active
+              <AlertOctagonIcon width={12} height={12} /> {alerts.length} alert
+              {alerts.length === 1 ? "" : "s"} active
             </span>
           )}
         </div>
@@ -440,18 +530,34 @@ function SafetyProfileTab({ flags, intolerances, isPregnant }: SafetyProfileTabP
             icon={<AlertTriangleIcon width={16} height={16} />}
             label="Pregnancy"
             tone={isPregnant ? "warn" : "normal"}
-            value={isPregnant ? `${flags.pregnancyWeeks} weeks — verify teratogenicity` : "Not pregnant / not applicable"}
+            value={
+              isPregnant
+                ? `${flags.pregnancyWeeks} weeks — verify teratogenicity`
+                : "Not pregnant / not applicable"
+            }
           />
           <FlagCard
             icon={<ShieldIcon width={16} height={16} />}
             label="Renal Function"
-            tone={flags.renalFunction === "NORMAL" ? "normal" : flags.renalFunction === "MILD_IMPAIRMENT" ? "warn" : "alert"}
+            tone={
+              flags.renalFunction === "NORMAL"
+                ? "normal"
+                : flags.renalFunction === "MILD_IMPAIRMENT"
+                  ? "warn"
+                  : "alert"
+            }
             value={ORGAN_LABEL[flags.renalFunction]}
           />
           <FlagCard
             icon={<ShieldIcon width={16} height={16} />}
             label="Hepatic Function"
-            tone={flags.hepaticFunction === "NORMAL" ? "normal" : flags.hepaticFunction === "MILD_IMPAIRMENT" ? "warn" : "alert"}
+            tone={
+              flags.hepaticFunction === "NORMAL"
+                ? "normal"
+                : flags.hepaticFunction === "MILD_IMPAIRMENT"
+                  ? "warn"
+                  : "alert"
+            }
             value={ORGAN_LABEL[flags.hepaticFunction]}
           />
         </div>
@@ -466,16 +572,40 @@ function SafetyProfileTab({ flags, intolerances, isPregnant }: SafetyProfileTabP
 
 type FlagTone = "normal" | "warn" | "alert";
 const FLAG_TONE: Record<FlagTone, { box: string; label: string; icon: React.ReactNode }> = {
-  normal: { box: "border-emerald-200 bg-emerald-50 text-emerald-800", label: "text-emerald-700", icon: <CheckCircleIcon width={14} height={14} /> },
-  warn:   { box: "border-amber-200 bg-amber-50 text-amber-800",       label: "text-amber-700",   icon: <AlertTriangleIcon width={14} height={14} /> },
-  alert:  { box: "border-red-200 bg-red-50 text-red-800",             label: "text-red-700",     icon: <AlertOctagonIcon width={14} height={14} /> },
+  normal: {
+    box: "border-emerald-200 bg-emerald-50 text-emerald-800",
+    label: "text-emerald-700",
+    icon: <CheckCircleIcon width={14} height={14} />,
+  },
+  warn: {
+    box: "border-amber-200 bg-amber-50 text-amber-800",
+    label: "text-amber-700",
+    icon: <AlertTriangleIcon width={14} height={14} />,
+  },
+  alert: {
+    box: "border-red-200 bg-red-50 text-red-800",
+    label: "text-red-700",
+    icon: <AlertOctagonIcon width={14} height={14} />,
+  },
 };
 
-function FlagCard({ icon, label, value, tone }: { icon: React.ReactNode; label: string; value: string; tone: FlagTone }) {
+function FlagCard({
+  icon,
+  label,
+  value,
+  tone,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  tone: FlagTone;
+}) {
   const t = FLAG_TONE[tone];
   return (
     <div className={`rounded-xl border p-3.5 ${t.box}`}>
-      <div className={`flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide ${t.label}`}>
+      <div
+        className={`flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide ${t.label}`}
+      >
         {icon}
         <span>{label}</span>
         <span className="ml-auto">{t.icon}</span>

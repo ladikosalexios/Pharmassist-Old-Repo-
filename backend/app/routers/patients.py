@@ -10,7 +10,6 @@ from fastapi import APIRouter, Depends, HTTPException
 from ..deps import get_current_user
 from ..services.patients import adr_history, resolve, rx_history
 
-
 router = APIRouter(prefix="/patients", tags=["patients"])
 
 

@@ -7,8 +7,8 @@ dependency stays isolated).
 import csv
 import hashlib
 import io
-from datetime import datetime, timezone
-from typing import Literal, Optional
+from datetime import UTC, datetime
+from typing import Literal
 
 from fastapi import HTTPException
 from fastapi.responses import StreamingResponse
@@ -19,7 +19,6 @@ from ..db.models.documentation_log import DocumentationLog
 from ..db.models.pharmacist import Pharmacist
 from ..db.models.pharmacist_pharmacy import PharmacistPharmacy
 from .security import SECRET_KEY
-
 
 MOCK_DOCUMENTATION: list = [
     {
@@ -141,12 +140,13 @@ def stats() -> dict:
     return s
 
 
-def filter_records(query: Optional[str], method: Optional[str]) -> list:
+def filter_records(query: str | None, method: str | None) -> list:
     items = list(MOCK_DOCUMENTATION)
     if query:
         q = query.lower().strip()
         items = [
-            d for d in items
+            d
+            for d in items
             if q in d["patientName"].lower() or q in d["rxId"].lower() or q in d["drugName"].lower()
         ]
     if method and method.upper() != "ALL":
@@ -158,18 +158,39 @@ def filter_records(query: Optional[str], method: Optional[str]) -> list:
 def csv_response(rows: list, filename: str) -> StreamingResponse:
     out = io.StringIO()
     writer = csv.writer(out)
-    writer.writerow([
-        "ID", "Dispensed At", "Rx Code", "Patient", "Drug", "Setting",
-        "Delivery Method", "Language", "Information Provided",
-        "Pharmacist", "Licence", "Signature Confirmed",
-    ])
+    writer.writerow(
+        [
+            "ID",
+            "Dispensed At",
+            "Rx Code",
+            "Patient",
+            "Drug",
+            "Setting",
+            "Delivery Method",
+            "Language",
+            "Information Provided",
+            "Pharmacist",
+            "Licence",
+            "Signature Confirmed",
+        ]
+    )
     for d in rows:
-        writer.writerow([
-            d["id"], d["dispensedAt"], d["rxId"], d["patientName"], d["drugName"],
-            d["setting"], d["deliveryMethod"], d["language"], d["informationProvided"],
-            d["pharmacistName"], d["pharmacistLicense"],
-            "yes" if d["signatureConfirmed"] else "no",
-        ])
+        writer.writerow(
+            [
+                d["id"],
+                d["dispensedAt"],
+                d["rxId"],
+                d["patientName"],
+                d["drugName"],
+                d["setting"],
+                d["deliveryMethod"],
+                d["language"],
+                d["informationProvided"],
+                d["pharmacistName"],
+                d["pharmacistLicense"],
+                "yes" if d["signatureConfirmed"] else "no",
+            ]
+        )
     out.seek(0)
     return StreamingResponse(
         iter([out.getvalue()]),
@@ -180,7 +201,7 @@ def csv_response(rows: list, filename: str) -> StreamingResponse:
 
 def mark_exported(records: list) -> str:
     """Stamp an exportedAt on each record (immutability marker) and return the timestamp."""
-    ts = datetime.now(timezone.utc).isoformat()
+    ts = datetime.now(UTC).isoformat()
     for r in records:
         r.setdefault("exportedAt", ts)
         # Once exported, records are considered immutable. We don't update further.
@@ -189,9 +210,8 @@ def mark_exported(records: list) -> str:
 
 # ── Prescription action audit (DB-backed) ─────────────────────────────────────
 
-async def _resolve_pharmacist_default_pharmacy(
-    session: AsyncSession, email: str
-) -> tuple:
+
+async def _resolve_pharmacist_default_pharmacy(session: AsyncSession, email: str) -> tuple:
     """Look up (pharmacist_id, pharmacy_id, eof_licence_no) for a JWT-authenticated user.
 
     Joins pharmacists → pharmacist_pharmacies on the default link. The seed
@@ -229,13 +249,13 @@ async def record_prescription_action(
     rx: dict,
     safety_checks: list,
     pharmacist_email: str,
-    pharmapi_exec_ref: Optional[str],
-    discrepancy_type: Optional[str],
-    notes: Optional[str],
-    info_provided: Optional[str],
-    delivery_method: Optional[str],
-    ip_address: Optional[str],
-    user_agent: Optional[str],
+    pharmapi_exec_ref: str | None,
+    discrepancy_type: str | None,
+    notes: str | None,
+    info_provided: str | None,
+    delivery_method: str | None,
+    ip_address: str | None,
+    user_agent: str | None,
 ) -> DocumentationLog:
     """Persist a documentation_logs row for an approve/flag action.
 
@@ -247,7 +267,7 @@ async def record_prescription_action(
         session, pharmacist_email
     )
 
-    dispensed_at = datetime.now(timezone.utc)
+    dispensed_at = datetime.now(UTC)
     row = DocumentationLog(
         pharmacist_id=pharmacist_id,
         pharmacy_id=pharmacy_id,

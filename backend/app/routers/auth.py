@@ -8,7 +8,6 @@ from ..schemas.auth import PharmacistMe, TokenResponse
 from ..services.pharmapi import _start_pharmapi_session, verify_pharmapi_credentials
 from ..services.security import USERS, create_jwt
 
-
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
@@ -32,17 +31,23 @@ async def login(form: OAuth2PasswordRequestForm = Depends()):
     token = create_jwt({"sub": pharmacist_email})
     # return TokenResponse(access_token=token, pharmacist_name=name, pharmacy=pharmacy)
     name_obj = profile.get("name", {})
-    pharmacist_name = f"{name_obj.get('firstname', '')} {name_obj.get('lastname', '')}".strip() \
-        if isinstance(name_obj, dict) else str(name_obj)
+    pharmacist_name = (
+        f"{name_obj.get('firstname', '')} {name_obj.get('lastname', '')}".strip()
+        if isinstance(name_obj, dict)
+        else str(name_obj)
+    )
 
     pharmacy_obj = profile.get("pharmacy", {})
-    pharmacy_name = pharmacy_obj.get("name", "") if isinstance(pharmacy_obj, dict) else str(pharmacy_obj)
+    pharmacy_name = (
+        pharmacy_obj.get("name", "") if isinstance(pharmacy_obj, dict) else str(pharmacy_obj)
+    )
 
     return TokenResponse(
         access_token=token,
         pharmacist_name=pharmacist_name or form.username,
         pharmacy=pharmacy_name,
     )
+
 
 @router.get("/me", response_model=PharmacistMe)
 async def me(current: dict = Depends(get_current_user)):

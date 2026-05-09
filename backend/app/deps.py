@@ -10,7 +10,6 @@ from fastapi.security import OAuth2PasswordBearer
 
 from .services.security import USERS, decode_jwt
 
-
 # tokenUrl is what the FastAPI Swagger UI uses for its "Authorize" button —
 # it must match the actual login route, registered in routers/auth.py.
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")

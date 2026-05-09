@@ -14,18 +14,22 @@ interface DocumentationDetailModalProps {
 }
 
 const METHOD_TONE: Record<DeliveryMethod, string> = {
-  PRINT:   "bg-blue-100 text-blue-800",
+  PRINT: "bg-blue-100 text-blue-800",
   DIGITAL: "bg-emerald-100 text-emerald-800",
-  BOTH:    "bg-violet-100 text-violet-800",
+  BOTH: "bg-violet-100 text-violet-800",
 };
 
 const METHOD_LABEL: Record<DeliveryMethod, string> = {
-  PRINT:   "Print",
+  PRINT: "Print",
   DIGITAL: "Digital",
-  BOTH:    "Print + Digital",
+  BOTH: "Print + Digital",
 };
 
-export function DocumentationDetailModal({ open, recordId, onClose }: DocumentationDetailModalProps) {
+export function DocumentationDetailModal({
+  open,
+  recordId,
+  onClose,
+}: DocumentationDetailModalProps) {
   useModalRegistration(open);
   const titleId = useId();
   const { toast } = useToast();
@@ -41,18 +45,26 @@ export function DocumentationDetailModal({ open, recordId, onClose }: Documentat
     setError(null);
     setRecord(null);
     getDocumentationRecord(recordId)
-      .then((data) => { if (active) setRecord(data); })
+      .then((data) => {
+        if (active) setRecord(data);
+      })
       .catch((e: unknown) => {
         if (!active) return;
         setError(e instanceof ApiError ? e.message : "Could not load this record.");
       })
-      .finally(() => { if (active) setLoading(false); });
-    return () => { active = false; };
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
   }, [open, recordId]);
 
   useEffect(() => {
     if (!open) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape" && !exporting) onClose(); };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !exporting) onClose();
+    };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [open, exporting, onClose]);
@@ -75,7 +87,9 @@ export function DocumentationDetailModal({ open, recordId, onClose }: Documentat
   return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 animate-fade-in"
-      onMouseDown={(e) => { if (e.target === e.currentTarget && !exporting) onClose(); }}
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget && !exporting) onClose();
+      }}
       role="presentation"
     >
       <div
@@ -123,32 +137,52 @@ export function DocumentationDetailModal({ open, recordId, onClose }: Documentat
             <div className="space-y-5">
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <Field label="Patient" value={record.patientName} />
-                <Field label="Prescription Code" value={<span className="font-mono">{record.rxId}</span>} />
-                <Field label="Drug" value={
-                  <Link to={`/prescription/${record.rxId}`} className="text-brand-600 hover:underline">
-                    {record.drugName}
-                  </Link>
-                } />
+                <Field
+                  label="Prescription Code"
+                  value={<span className="font-mono">{record.rxId}</span>}
+                />
+                <Field
+                  label="Drug"
+                  value={
+                    <Link
+                      to={`/prescription/${record.rxId}`}
+                      className="text-brand-600 hover:underline"
+                    >
+                      {record.drugName}
+                    </Link>
+                  }
+                />
                 <Field label="Setting" value={record.setting} />
                 <Field label="Language" value={record.language} />
                 <Field
                   label="Delivery Method"
-                  value={<span className={`chip ${METHOD_TONE[record.deliveryMethod]}`}>{METHOD_LABEL[record.deliveryMethod]}</span>}
+                  value={
+                    <span className={`chip ${METHOD_TONE[record.deliveryMethod]}`}>
+                      {METHOD_LABEL[record.deliveryMethod]}
+                    </span>
+                  }
                 />
               </div>
 
               <div>
-                <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Information Provided</div>
+                <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Information Provided
+                </div>
                 <p className="mt-2 rounded-lg bg-slate-50 p-4 text-sm leading-relaxed text-slate-700 whitespace-pre-wrap">
                   {record.informationProvided}
                 </p>
               </div>
 
               <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Pharmacist Signature</div>
+                <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Pharmacist Signature
+                </div>
                 <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <Field label="Dispensed By" value={`PharmD ${record.pharmacistName}`} />
-                  <Field label="Licence" value={<span className="font-mono">{record.pharmacistLicense}</span>} />
+                  <Field
+                    label="Licence"
+                    value={<span className="font-mono">{record.pharmacistLicense}</span>}
+                  />
                   <Field label="Dispensed At" value={formatTimestamp(record.dispensedAt)} />
                   <Field
                     label="Signature"
@@ -169,7 +203,12 @@ export function DocumentationDetailModal({ open, recordId, onClose }: Documentat
         </div>
 
         <div className="flex items-center justify-end gap-2 border-t border-slate-200 px-6 py-3">
-          <button type="button" onClick={onClose} disabled={exporting} className="btn btn-outline disabled:opacity-60 disabled:cursor-not-allowed">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={exporting}
+            className="btn btn-outline disabled:opacity-60 disabled:cursor-not-allowed"
+          >
             Close
           </button>
           <button

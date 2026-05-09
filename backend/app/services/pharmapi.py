@@ -10,21 +10,19 @@ import os
 import time
 import uuid
 import xml.etree.ElementTree as ET
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 
 import httpx
 from fastapi import HTTPException
 
 from ..config import get_settings
 
-
 # Module-level constants kept for backward compat — anything that imports
 # these by name keeps working. Sourced from settings at first import.
 _settings = get_settings()
-PHARMAPI_BASE    = _settings.pharmapi_base
-PHARMAPI_USER    = _settings.pharmapi_username
-PHARMAPI_PASS    = _settings.pharmapi_password
+PHARMAPI_BASE = _settings.pharmapi_base
+PHARMAPI_USER = _settings.pharmapi_username
+PHARMAPI_PASS = _settings.pharmapi_password
 PHARMAPI_API_KEY = _settings.pharmapi_api_key
 SESSION_WINDOW_SECONDS = _settings.pharmapi_session_window_seconds
 
@@ -32,9 +30,9 @@ SESSION_WINDOW_SECONDS = _settings.pharmapi_session_window_seconds
 # In-memory 24h session tracker. Mutated by the /pharmapi/connect handler.
 pharmapi_session: dict = {
     "connected": False,
-    "connected_at": None,    # ISO timestamp
+    "connected_at": None,  # ISO timestamp
     "connected_at_ts": 0.0,  # unix timestamp
-    "user_data": None,       # response from /api/v1user/me
+    "user_data": None,  # response from /api/v1user/me
 }
 
 
@@ -70,7 +68,7 @@ def _parse_pharmapi_error(r: httpx.Response) -> str:
 async def pharmapi_get(
     path: str,
     accept_xml: bool = False,
-    params: Optional[dict] = None,
+    params: dict | None = None,
 ) -> dict:
     """Authenticated GET to Pharmapi. Raises HTTPException on failure.
 
@@ -112,9 +110,14 @@ async def pharmapi_get(
         err = r.text
 
     if "G12" in err:
-        raise HTTPException(502, "Pharmapi: no active connection — call POST /pharmapi/connect first")
+        raise HTTPException(
+            502, "Pharmapi: no active connection — call POST /pharmapi/connect first"
+        )
     if "G14" in err or "914" in err or "Connection time limit" in err:
-        raise HTTPException(502, "Pharmapi: 24h session expired — log into https://test.e-prescription.gr/epregen2/ first, then retry")
+        raise HTTPException(
+            502,
+            "Pharmapi: 24h session expired — log into https://test.e-prescription.gr/epregen2/ first, then retry",
+        )
     if "G15" in err:
         raise HTTPException(500, "Pharmapi: Api-Key missing — set PHARMAPI_API_KEY env var")
     if "G11" in err:
@@ -152,7 +155,10 @@ async def verify_pharmapi_credentials(username: str, password: str) -> dict:
     if "G11" in err:
         raise HTTPException(500, "Pharmapi: Api-Key invalid — check PHARMAPI_API_KEY value")
     if "G14" in err or "914" in err or "Connection time limit" in err:
-        raise HTTPException(502, "Pharmapi: 24h session expired — log into https://test.e-prescription.gr/epregen2/ first, then retry")
+        raise HTTPException(
+            502,
+            "Pharmapi: 24h session expired — log into https://test.e-prescription.gr/epregen2/ first, then retry",
+        )
     if r.status_code == 401:
         raise HTTPException(401, "Invalid Pharmapi credentials")
     raise HTTPException(502, f"Pharmapi error {r.status_code}: {err}")
@@ -161,23 +167,26 @@ async def verify_pharmapi_credentials(username: str, password: str) -> dict:
 def _start_pharmapi_session(user_data: dict) -> None:
     """Pin the 24h connection window — shared by /auth/login and /pharmapi/connect."""
     now = time.time()
-    pharmapi_session.update({
-        "connected": True,
-        "connected_at": datetime.now(timezone.utc).isoformat(),
-        "connected_at_ts": now,
-        "user_data": user_data,
-    })
+    pharmapi_session.update(
+        {
+            "connected": True,
+            "connected_at": datetime.now(UTC).isoformat(),
+            "connected_at_ts": now,
+            "user_data": user_data,
+        }
+    )
 
 
 # ── Prescription search XML parser ──────────────────────────────────────────
 
-def _el(parent: ET.Element, tag: str) -> Optional[str]:
+
+def _el(parent: ET.Element, tag: str) -> str | None:
     """Safe text extraction from an XML element."""
     el = parent.find(tag)
     return el.text.strip() if el is not None and el.text else None
 
 
-def _date(raw: Optional[str]) -> Optional[str]:
+def _date(raw: str | None) -> str | None:
     """Trim 'YYYY-MM-DD HH:MM:SS' → 'YYYY-MM-DD'."""
     if not raw:
         return None
@@ -185,17 +194,17 @@ def _date(raw: Optional[str]) -> Optional[str]:
 
 
 _PHARMAPI_STATUS_MAP = {
-    "PENDING":    "PENDING",
-    "ACTIVE":     "PENDING",     # assume active = awaiting dispense
-    "COMPLETED":  "COMPLETED",
-    "EXECUTED":   "COMPLETED",
-    "CANCELLED":  "FLAGGED",
-    "EXPIRED":    "FLAGGED",
-    "PARTIAL":    "PENDING",     # partially dispensed — still actionable
+    "PENDING": "PENDING",
+    "ACTIVE": "PENDING",  # assume active = awaiting dispense
+    "COMPLETED": "COMPLETED",
+    "EXECUTED": "COMPLETED",
+    "CANCELLED": "FLAGGED",
+    "EXPIRED": "FLAGGED",
+    "PARTIAL": "PENDING",  # partially dispensed — still actionable
 }
 
 
-def _map_pharmapi_status(pharmapi_status: Optional[str]) -> str:
+def _map_pharmapi_status(pharmapi_status: str | None) -> str:
     """
     Map ΗΔΥΚΑ prescription status string to our internal status.
 
@@ -246,26 +255,28 @@ def parse_prescription_search_xml(xml_text: str) -> list[dict]:
 
         pharmapi_status = _el(status_el, "status") if status_el is not None else None
 
-        items.append({
-            # ── Core fields (same shape as MOCK_QUEUE_BASE) ─────────────────
-            "rxId":        _el(item, "barcode"),
-            "patientName": patient_name,
-            "medication":  None,   # not in search — populated on detail fetch
-            "physician":   None,   # not in search — populated on detail fetch
-            "date":        _date(_el(item, "issueDate")),
-            "status":      _map_pharmapi_status(pharmapi_status),
-
-            # ── Extra Pharmapi fields (useful for UI / filtering) ────────────
-            "patientAmka":           amka,
-            "expiryDate":            _date(_el(item, "expiryDate")),
-            "executions":            _el(item, "executions"),
-            "medicineDrug":          _el(item, "medicineDrug") == "true",
-            "socialInsurance":       (
-                _el(patient, "socialInsuranceShortName") if patient is not None
-                else (_el(insurance_el, "shortName") if insurance_el is not None else None)
-            ),
-            "pharmApiStatus":        pharmapi_status,   # raw value for debugging
-        })
+        items.append(
+            {
+                # ── Core fields (same shape as MOCK_QUEUE_BASE) ─────────────────
+                "rxId": _el(item, "barcode"),
+                "patientName": patient_name,
+                "medication": None,  # not in search — populated on detail fetch
+                "physician": None,  # not in search — populated on detail fetch
+                "date": _date(_el(item, "issueDate")),
+                "status": _map_pharmapi_status(pharmapi_status),
+                # ── Extra Pharmapi fields (useful for UI / filtering) ────────────
+                "patientAmka": amka,
+                "expiryDate": _date(_el(item, "expiryDate")),
+                "executions": _el(item, "executions"),
+                "medicineDrug": _el(item, "medicineDrug") == "true",
+                "socialInsurance": (
+                    _el(patient, "socialInsuranceShortName")
+                    if patient is not None
+                    else (_el(insurance_el, "shortName") if insurance_el is not None else None)
+                ),
+                "pharmApiStatus": pharmapi_status,  # raw value for debugging
+            }
+        )
 
     return items
 
@@ -287,7 +298,7 @@ async def pharmapi_execute_prescription(
     if os.getenv("PHARMAPI_MOCK", "true").lower() not in ("false", "0", "no"):
         return {
             "exec_ref": f"MOCK-EXEC-{uuid.uuid4().hex[:12].upper()}",
-            "executed_at": datetime.now(timezone.utc).isoformat(),
+            "executed_at": datetime.now(UTC).isoformat(),
             "status": "EXECUTED",
             "barcode": barcode,
             "eof_licence_no": eof_licence_no,
@@ -299,10 +310,10 @@ async def pharmapi_search_prescriptions(
     prescribed: bool = False,
     page: int = 0,
     size: int = 50,
-    from_date: Optional[str] = None,
-    to_date: Optional[str] = None,
-    barcode: Optional[str] = None,
-    amka: Optional[str] = None,
+    from_date: str | None = None,
+    to_date: str | None = None,
+    barcode: str | None = None,
+    amka: str | None = None,
 ) -> list[dict]:
     """
     Fetch the prescription queue (or a specific prescription) from Pharmapi.
@@ -319,10 +330,14 @@ async def pharmapi_search_prescriptions(
         "size": size,
         "prescribed": str(prescribed).lower(),
     }
-    if from_date: params["from"] = from_date
-    if to_date:   params["to"] = to_date
-    if barcode:   params["barcode"] = barcode
-    if amka:      params["amka"] = amka
+    if from_date:
+        params["from"] = from_date
+    if to_date:
+        params["to"] = to_date
+    if barcode:
+        params["barcode"] = barcode
+    if amka:
+        params["amka"] = amka
 
     raw = await pharmapi_get("/api/v1/prescriptions/search", params=params, accept_xml=True)
     return parse_prescription_search_xml(raw.get("raw_xml", ""))

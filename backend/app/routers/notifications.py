@@ -1,13 +1,12 @@
 """Out-of-band notifications (physician channel for now)."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends
 
 from ..deps import get_current_user
 from ..schemas.notifications import PhysicianNotification
 from ..services.notifications import PHYSICIAN_NOTIFICATIONS
-
 
 router = APIRouter(prefix="/notifications", tags=["notifications"])
 
@@ -20,7 +19,7 @@ async def notify_physician(
     entry = {
         "rxId": payload.rxId,
         "message": payload.message,
-        "sentAt": datetime.now(timezone.utc).isoformat(),
+        "sentAt": datetime.now(UTC).isoformat(),
         "by": current["email"],
     }
     PHYSICIAN_NOTIFICATIONS.append(entry)

@@ -20,7 +20,7 @@ before the bare ``/{rx_id}``.
 
 import ipaddress
 import os
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -35,7 +35,6 @@ from ..services.pharmapi import (
     pharmapi_search_prescriptions,
 )
 from ..services.prescriptions import MOCK_PRESCRIPTIONS, MOCK_QUEUE_BASE
-
 
 router = APIRouter(prefix="/prescriptions", tags=["prescriptions"])
 
@@ -80,10 +79,15 @@ def _normalize_pharmapi_detail(raw: dict, barcode: str) -> dict:
         "_raw": raw,  # ← Remove once real shape is confirmed and mapped
         "patient": {
             "amka": patient_info.get("amka"),
-            "name": " ".join(filter(None, [
-                patient_info.get("firstName"),
-                patient_info.get("lastName"),
-            ])),
+            "name": " ".join(
+                filter(
+                    None,
+                    [
+                        patient_info.get("firstName"),
+                        patient_info.get("lastName"),
+                    ],
+                )
+            ),
         },
         "medication": {
             # TBD — update when real detail endpoint response shape is confirmed
@@ -97,6 +101,7 @@ def _normalize_pharmapi_detail(raw: dict, barcode: str) -> dict:
 
 
 # ── Queue + list ─────────────────────────────────────────────────────────────
+
 
 @router.get("/next")
 async def next_pending_prescription(current: dict = Depends(get_current_user)):
@@ -141,6 +146,7 @@ async def list_prescriptions(current: dict = Depends(get_current_user)):
 
 # ── Per-prescription detail ───────────────────────────────────────────────────
 
+
 @router.get("/{rx_id}")
 async def get_prescription_for_verification(rx_id: str, current: dict = Depends(get_current_user)):
     """
@@ -164,6 +170,7 @@ async def get_prescription_for_verification(rx_id: str, current: dict = Depends(
 # Flag: PATCH with status=FLAGGED writes a documentation_logs row (action_type=FLAG)
 # with the snapshot + discrepancy fields. No ΗΔΥΚΑ call (not a dispense).
 # Both fail closed in live mode until real ΗΔΥΚΑ dispense wiring lands.
+
 
 @router.post("/{rx_id}/approve", response_model=ApproveResponse)
 async def approve_prescription(
@@ -213,7 +220,7 @@ async def approve_prescription(
 
     # 4) Mutate in-memory mock so subsequent GETs reflect COMPLETED status.
     rx["status"] = "COMPLETED"
-    rx["completedAt"] = datetime.now(timezone.utc).isoformat()
+    rx["completedAt"] = datetime.now(UTC).isoformat()
 
     return ApproveResponse(
         success=True,

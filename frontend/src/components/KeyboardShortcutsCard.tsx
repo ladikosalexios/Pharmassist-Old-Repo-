@@ -4,11 +4,11 @@ interface Shortcut {
 }
 
 const SHORTCUTS: Shortcut[] = [
-  { keys: ["D"],      description: "Go to dashboard" },
-  { keys: ["P"],      description: "Open next pending prescription" },
-  { keys: ["C"],      description: "Confirm approval (on a prescription)" },
-  { keys: ["F"],      description: "Flag discrepancy (on a prescription)" },
-  { keys: ["Esc"],    description: "Close any open modal or drawer" },
+  { keys: ["D"], description: "Go to dashboard" },
+  { keys: ["P"], description: "Open next pending prescription" },
+  { keys: ["C"], description: "Confirm approval (on a prescription)" },
+  { keys: ["F"], description: "Flag discrepancy (on a prescription)" },
+  { keys: ["Esc"], description: "Close any open modal or drawer" },
 ];
 
 export function KeyboardShortcutsCard() {
@@ -17,9 +17,14 @@ export function KeyboardShortcutsCard() {
       <h2 className="mb-3 text-base font-semibold text-slate-900">Keyboard Shortcuts</h2>
       <ul className="space-y-2">
         {SHORTCUTS.map((s) => (
-          <li key={s.description} className="flex items-center justify-between gap-3 text-[13px] text-slate-700">
+          <li
+            key={s.description}
+            className="flex items-center justify-between gap-3 text-[13px] text-slate-700"
+          >
             <span className="flex items-center gap-1">
-              {s.keys.map((k) => <Key key={k} label={k} />)}
+              {s.keys.map((k) => (
+                <Key key={k} label={k} />
+              ))}
             </span>
             <span className="text-right text-slate-600">{s.description}</span>
           </li>

@@ -171,7 +171,11 @@ export interface SideEffectListResponse {
   stats: SideEffectStats;
 }
 
-export type OrganFunction = "NORMAL" | "MILD_IMPAIRMENT" | "MODERATE_IMPAIRMENT" | "SEVERE_IMPAIRMENT";
+export type OrganFunction =
+  | "NORMAL"
+  | "MILD_IMPAIRMENT"
+  | "MODERATE_IMPAIRMENT"
+  | "SEVERE_IMPAIRMENT";
 
 export interface PatientSafetyFlags {
   g6pd: boolean;

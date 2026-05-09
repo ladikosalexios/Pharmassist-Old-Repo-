@@ -1,36 +1,43 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import {
-  AlertCircleIcon, CheckIcon, ChevronLeftIcon, DownloadIcon, FileTextIcon, MailIcon, SendIcon,
+  AlertCircleIcon,
+  CheckIcon,
+  ChevronLeftIcon,
+  DownloadIcon,
+  FileTextIcon,
+  MailIcon,
+  SendIcon,
 } from "../components/Icons";
 import { useToast } from "../components/Toast";
 import {
-  ApiError, createDocumentationEntry, getPrescription, listPrescriptions,
+  ApiError,
+  createDocumentationEntry,
+  getPrescription,
+  listPrescriptions,
   sendInstructions,
 } from "../lib/api";
 import { defaultAdditionalNotes, renderInstructions } from "../lib/instructions";
-import type {
-  DeliveryMethod, InstructionsLanguage, Prescription, QueueItem,
-} from "../types";
+import type { DeliveryMethod, InstructionsLanguage, Prescription, QueueItem } from "../types";
 
 const LANGUAGE_OPTIONS: { value: InstructionsLanguage; label: string }[] = [
-  { value: "el",    label: "Greek" },
-  { value: "en",    label: "English" },
+  { value: "el", label: "Greek" },
+  { value: "en", label: "English" },
   { value: "other", label: "Other (English template)" },
 ];
 
 const METHOD_OPTIONS: { value: DeliveryMethod; label: string }[] = [
-  { value: "PRINT",   label: "Print only" },
+  { value: "PRINT", label: "Print only" },
   { value: "DIGITAL", label: "Digital only" },
-  { value: "BOTH",    label: "Both" },
+  { value: "BOTH", label: "Both" },
 ];
 
 const SETTING_OPTIONS = [
-  { value: "Private",  label: "Private" },
+  { value: "Private", label: "Private" },
   { value: "Hospital", label: "Hospital" },
 ] as const;
 
-type Setting = typeof SETTING_OPTIONS[number]["value"];
+type Setting = (typeof SETTING_OPTIONS)[number]["value"];
 
 export function Instructions() {
   const { toast } = useToast();
@@ -64,17 +71,24 @@ export function Instructions() {
   useEffect(() => {
     let active = true;
     listPrescriptions()
-      .then((items) => { if (active) setQueue(items); })
+      .then((items) => {
+        if (active) setQueue(items);
+      })
       .catch((e: unknown) => {
         if (!active) return;
         setQueueError(e instanceof ApiError ? e.message : "Could not load the prescription queue.");
       });
-    return () => { active = false; };
+    return () => {
+      active = false;
+    };
   }, []);
 
   // When the selected rxId changes, fetch the full prescription and pre-fill notes.
   useEffect(() => {
-    if (!rxId) { setRx(null); return; }
+    if (!rxId) {
+      setRx(null);
+      return;
+    }
     let active = true;
     setRxLoading(true);
     setRxError(null);
@@ -88,8 +102,12 @@ export function Instructions() {
         if (!active) return;
         setRxError(e instanceof ApiError ? e.message : "Could not load this prescription.");
       })
-      .finally(() => { if (active) setRxLoading(false); });
-    return () => { active = false; };
+      .finally(() => {
+        if (active) setRxLoading(false);
+      });
+    return () => {
+      active = false;
+    };
     // We deliberately don't re-fetch when language alone changes; the notes
     // prefill only re-runs on rxId switch.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -111,7 +129,8 @@ export function Instructions() {
   // Sync rxId into the URL so refreshes preserve context.
   useEffect(() => {
     const next = new URLSearchParams(search);
-    if (rxId) next.set("rxId", rxId); else next.delete("rxId");
+    if (rxId) next.set("rxId", rxId);
+    else next.delete("rxId");
     if (next.toString() !== search.toString()) setSearch(next, { replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rxId]);
@@ -185,14 +204,20 @@ export function Instructions() {
   return (
     <div className="p-8">
       <div className="mb-3 print:hidden">
-        <Link to="/dashboard" className="inline-flex items-center gap-1 text-sm text-brand-600 hover:underline">
+        <Link
+          to="/dashboard"
+          className="inline-flex items-center gap-1 text-sm text-brand-600 hover:underline"
+        >
           <ChevronLeftIcon width={14} height={14} /> Back to Dashboard
         </Link>
       </div>
 
       <header className="mb-6 print:hidden">
         <h1 className="text-2xl font-bold text-slate-900">Generate Patient Instructions</h1>
-        <p className="mt-1 text-sm text-slate-500">Compose, preview, and dispatch personalised counselling notes for an approved prescription.</p>
+        <p className="mt-1 text-sm text-slate-500">
+          Compose, preview, and dispatch personalised counselling notes for an approved
+          prescription.
+        </p>
       </header>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 print:block">
@@ -213,7 +238,9 @@ export function Instructions() {
               onChange={(e) => setRxId(e.target.value)}
               className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-brand-600 focus:ring-2 focus:ring-brand-100"
             >
-              <option value="" disabled>Select a prescription…</option>
+              <option value="" disabled>
+                Select a prescription…
+              </option>
               {eligible.map((q) => (
                 <option key={q.rxId} value={q.rxId}>
                   {q.rxId} — {q.patientName} · {q.medication}
@@ -236,7 +263,11 @@ export function Instructions() {
                 onChange={(e) => setLanguage(e.target.value as InstructionsLanguage)}
                 className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-brand-600 focus:ring-2 focus:ring-brand-100"
               >
-                {LANGUAGE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                {LANGUAGE_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
               </select>
             </Field>
 
@@ -246,7 +277,11 @@ export function Instructions() {
                 onChange={(e) => setMethod(e.target.value as DeliveryMethod)}
                 className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-brand-600 focus:ring-2 focus:ring-brand-100"
               >
-                {METHOD_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                {METHOD_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
               </select>
             </Field>
 
@@ -256,7 +291,11 @@ export function Instructions() {
                 onChange={(e) => setSetting(e.target.value as Setting)}
                 className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-brand-600 focus:ring-2 focus:ring-brand-100"
               >
-                {SETTING_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                {SETTING_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
               </select>
             </Field>
           </div>
@@ -298,7 +337,13 @@ export function Instructions() {
               disabled={!preview || sending}
               className="btn btn-primary disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              {sending ? <span className="spinner" /> : method === "DIGITAL" ? <MailIcon /> : <SendIcon />}
+              {sending ? (
+                <span className="spinner" />
+              ) : method === "DIGITAL" ? (
+                <MailIcon />
+              ) : (
+                <SendIcon />
+              )}
               {sending ? "Sending…" : "Send Digital"}
             </button>
             <button
@@ -314,11 +359,7 @@ export function Instructions() {
         </section>
 
         {/* Preview */}
-        <section
-          id="instructions-preview"
-          className="card p-6"
-          aria-live="polite"
-        >
+        <section id="instructions-preview" className="card p-6" aria-live="polite">
           <header className="mb-4 flex items-start justify-between gap-3 print:hidden">
             <div>
               <h2 className="text-base font-semibold text-slate-900">Preview</h2>
@@ -360,7 +401,15 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-function Checkbox({ label, checked, onChange }: { label: string; checked: boolean; onChange: (v: boolean) => void }) {
+function Checkbox({
+  label,
+  checked,
+  onChange,
+}: {
+  label: string;
+  checked: boolean;
+  onChange: (v: boolean) => void;
+}) {
   return (
     <label className="flex cursor-pointer items-start gap-2.5 text-[13px] text-slate-700">
       <input
