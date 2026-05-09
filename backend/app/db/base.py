@@ -1,6 +1,9 @@
 from datetime import datetime
-from sqlalchemy import DateTime, MetaData, text
+import uuid
+from app.db.session import get_db
+from sqlalchemy import DateTime, MetaData, text, select
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+from sqlalchemy.ext.asyncio import AsyncSession
 
 NAMING_CONVENTION = {
     "ix": "ix_%(column_0_label)s",
@@ -10,8 +13,23 @@ NAMING_CONVENTION = {
     "pk": "pk_%(table_name)s",
 }
 
+
 class Base(DeclarativeBase):
     metadata = MetaData(naming_convention=NAMING_CONVENTION)
+
+    @classmethod
+    async def get_by_id(cls, session: AsyncSession, id):
+        """Returns record from the database with given ID, or None if it does not exist."""
+        if isinstance(id, str):
+            id = uuid.UUID(id)
+        result = await session.scalars(select(cls).where(cls.id == id))
+        return result.one_or_none()
+
+    @classmethod
+    async def get_all(cls, session: AsyncSession):
+        """Returns all records from the DB of the given class."""
+        result = await session.scalars(select(cls))
+        return result.all()
 
 
 class TimestampMixin:
@@ -25,5 +43,8 @@ class TimestampMixin:
         DateTime(timezone=True), nullable=False, server_default=text("now()")
     )
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, server_default=text("now()"), onupdate=text("now()")
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=text("now()"),
+        onupdate=text("now()"),
     )
