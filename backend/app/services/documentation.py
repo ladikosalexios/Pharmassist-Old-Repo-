@@ -190,7 +190,7 @@ def mark_exported(records: list) -> str:
 # ── Prescription action audit (DB-backed) ─────────────────────────────────────
 
 async def _resolve_pharmacist_default_pharmacy(
-    db: AsyncSession, email: str
+    session: AsyncSession, email: str
 ) -> tuple:
     """Look up (pharmacist_id, pharmacy_id, eof_licence_no) for a JWT-authenticated user.
 
@@ -208,7 +208,7 @@ async def _resolve_pharmacist_default_pharmacy(
         .where(Pharmacist.email == email)
         .where(PharmacistPharmacy.is_default.is_(True))
     )
-    row = (await db.execute(stmt)).first()
+    row = (await session.execute(stmt)).first()
     if not row:
         raise HTTPException(
             status_code=401,
@@ -223,7 +223,7 @@ def _signature(pharmacist_id, barcode: str, dispensed_at: datetime) -> str:
 
 
 async def record_prescription_action(
-    db: AsyncSession,
+    session: AsyncSession,
     *,
     action_type: Literal["APPROVE", "FLAG"],
     rx: dict,
@@ -244,7 +244,7 @@ async def record_prescription_action(
     pharmacist_signature documented on the model and commits.
     """
     pharmacist_id, pharmacy_id, _ = await _resolve_pharmacist_default_pharmacy(
-        db, pharmacist_email
+        session, pharmacist_email
     )
 
     dispensed_at = datetime.now(timezone.utc)
@@ -267,7 +267,7 @@ async def record_prescription_action(
         ip_address=ip_address,
         user_agent=user_agent,
     )
-    db.add(row)
-    await db.commit()
-    await db.refresh(row)
+    session.add(row)
+    await session.commit()
+    await session.refresh(row)
     return row

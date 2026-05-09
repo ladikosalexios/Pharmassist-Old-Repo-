@@ -25,7 +25,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..db.session import get_db
+from ..db.session import get_session
 from ..deps import get_current_user
 from ..schemas.prescriptions import ApproveResponse, PatchResponse, PrescriptionPatch
 from ..services.documentation import record_prescription_action
@@ -170,7 +170,7 @@ async def approve_prescription(
     rx_id: str,
     request: Request,
     current: dict = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    session: AsyncSession = Depends(get_session),
 ):
     if not _is_mock():
         # Real ΗΔΥΚΑ dispense POST not yet wired.
@@ -197,7 +197,7 @@ async def approve_prescription(
     # 3) Persist documentation_logs row.
     ip, ua = _client_meta(request)
     log = await record_prescription_action(
-        db,
+        session,
         action_type="APPROVE",
         rx=rx,
         safety_checks=snapshot,
@@ -231,7 +231,7 @@ async def patch_prescription(
     patch: PrescriptionPatch,
     request: Request,
     current: dict = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    session: AsyncSession = Depends(get_session),
 ):
     """Partial update — used by the Flag Discrepancy modal.
 
@@ -256,7 +256,7 @@ async def patch_prescription(
         snapshot = [dict(c) for c in rx.get("safetyChecks", [])]
         ip, ua = _client_meta(request)
         log = await record_prescription_action(
-            db,
+            session,
             action_type="FLAG",
             rx=rx,
             safety_checks=snapshot,
