@@ -4,6 +4,11 @@ Severity: MILD | MODERATE | SEVERE.
 Status:   PENDING_REVIEW | ESCALATED | EOF_REPORTED.
 """
 
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.db.session import get_db
+from app.db.models.adr_report import AdrReport
 
 MOCK_SIDE_EFFECTS: list = [
     {
@@ -86,20 +91,23 @@ MOCK_SIDE_EFFECTS: list = [
     },
 ]
 
-
 SEVERITY_RANK = {"MILD": 0, "MODERATE": 1, "SEVERE": 2}
-STATUS_RANK   = {"PENDING_REVIEW": 0, "ESCALATED": 1, "EOF_REPORTED": 2}
+STATUS_RANK = {"PENDING_REVIEW": 0, "ESCALATED": 1, "EOF_REPORTED": 2}
 
 
-def stats() -> dict:
-    s = {"total": len(MOCK_SIDE_EFFECTS), "pendingReview": 0, "severe": 0, "escalated": 0}
-    for r in MOCK_SIDE_EFFECTS:
-        if r["status"] == "PENDING_REVIEW":
-            s["pendingReview"] += 1
-        if r["severity"] == "SEVERE":
-            s["severe"] += 1
-        if r["status"] == "ESCALATED":
-            s["escalated"] += 1
+async def count_status(session: AsyncSession, status: str) -> int:
+    return await session.scalar(
+        select(func.count(AdrReport.id)).where(AdrReport.status == status)
+    )
+
+
+async def stats(session: AsyncSession) -> dict:
+    s = {
+        "total": await session.scalar(select(func.count()).select_from(AdrReport)),
+        "pendingReview": await count_status(session, "PENDING_REVIEW"),
+        "severe": await count_status(session, "ESCALATED"),
+        "escalated": await count_status(session, "EOF_REPORTED"),
+    }
     return s
 
 
@@ -109,3 +117,20 @@ def next_status(current_status: str) -> str:
     if current_status == "ESCALATED":
         return "EOF_REPORTED"
     return current_status
+
+
+def get_adr_report_dict(adr_report: AdrReport) -> dict:
+    """Returns a dict representation of the given AdrReport class object."""
+    return {
+        "id": adr_report.id,
+        "patientId": adr_report.patient_amka,
+        "patientName": adr_report.patient_name,
+        "patientPhone": "PLACEHOLDER",
+        "rxId": "PLACEHOLDER",
+        "drugName": adr_report.medicine_name,
+        "severity": adr_report.severity,
+        "status": adr_report.status,
+        "reportedAt": str(adr_report.reported_at),
+        "symptom": adr_report.symptom_description,
+        "onset": adr_report.onset_timing,
+    }
