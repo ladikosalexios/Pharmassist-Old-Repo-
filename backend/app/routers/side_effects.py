@@ -6,7 +6,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.session import get_db
+from app.db.session import get_session
 from app.db.models.adr_report import AdrReport
 from ..deps import get_current_user
 from ..services.side_effects import (
@@ -27,7 +27,7 @@ async def list_side_effects(
     ),
     sort: Optional[str] = Query("date", description="date | severity | status"),
     current: dict = Depends(get_current_user),
-    session: AsyncSession = Depends(get_db),
+    session: AsyncSession = Depends(get_session),
 ):
     items = await AdrReport.get_all(session)
     if q:
@@ -62,7 +62,7 @@ async def list_side_effects(
 async def flag_side_effect(
     report_id: str,
     current: dict = Depends(get_current_user),
-    session: AsyncSession = Depends(get_db),
+    session: AsyncSession = Depends(get_session),
 ):
     """Advance the report's pharmacovigilance status one step (PENDING_REVIEW → ESCALATED → EOF_REPORTED)."""
     rec = await AdrReport.get_by_id(session, report_id)

@@ -7,7 +7,6 @@ Status:   PENDING_REVIEW | ESCALATED | EOF_REPORTED.
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.session import get_db
 from app.db.models.adr_report import AdrReport
 
 MOCK_SIDE_EFFECTS: list = [

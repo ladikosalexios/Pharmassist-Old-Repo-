@@ -1,6 +1,5 @@
 from datetime import datetime
 import uuid
-from app.db.session import get_db
 from sqlalchemy import DateTime, MetaData, text, select
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -22,14 +21,12 @@ class Base(DeclarativeBase):
         """Returns record from the database with given ID, or None if it does not exist."""
         if isinstance(id, str):
             id = uuid.UUID(id)
-        result = await session.scalars(select(cls).where(cls.id == id))
-        return result.one_or_none()
+        return (await session.scalars(select(cls).where(cls.id == id))).one_or_none()
 
     @classmethod
     async def get_all(cls, session: AsyncSession):
         """Returns all records from the DB of the given class."""
-        result = await session.scalars(select(cls))
-        return result.all()
+        return (await session.scalars(select(cls))).all()
 
 
 class TimestampMixin:
