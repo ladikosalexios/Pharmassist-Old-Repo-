@@ -6,7 +6,9 @@ just a per-process dict so a `uvicorn --reload` reset clears it.
 Pharmapi credentials are sourced from the centralised settings.
 """
 
+import os
 import time
+import uuid
 import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
 from typing import Optional
@@ -266,6 +268,31 @@ def parse_prescription_search_xml(xml_text: str) -> list[dict]:
         })
 
     return items
+
+
+async def pharmapi_execute_prescription(
+    barcode: str,
+    eof_licence_no: str,
+) -> dict:
+    """Pretend-POST a dispense to ΗΔΥΚΑ. Mock-only for now.
+
+    In mock mode (PHARMAPI_MOCK=true, default) returns a synthetic exec_ref
+    immediately — no network. This is what the approve flow persists on
+    documentation_logs.pharmapi_exec_ref so the row carries a plausible
+    "we told ΗΔΥΚΑ this was dispensed" reference.
+
+    In live mode this would POST to the ΗΔΥΚΑ dispense endpoint; that wiring
+    isn't in place yet (live approve still 501s upstream of this call).
+    """
+    if os.getenv("PHARMAPI_MOCK", "true").lower() not in ("false", "0", "no"):
+        return {
+            "exec_ref": f"MOCK-EXEC-{uuid.uuid4().hex[:12].upper()}",
+            "executed_at": datetime.now(timezone.utc).isoformat(),
+            "status": "EXECUTED",
+            "barcode": barcode,
+            "eof_licence_no": eof_licence_no,
+        }
+    raise HTTPException(501, "Live ΗΔΥΚΑ dispense POST not yet implemented")
 
 
 async def pharmapi_search_prescriptions(
