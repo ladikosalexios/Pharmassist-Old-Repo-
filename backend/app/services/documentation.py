@@ -12,7 +12,7 @@ from typing import Literal, Optional
 
 from fastapi import HTTPException
 from fastapi.responses import StreamingResponse
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..db.models.documentation_log import DocumentationLog
@@ -205,7 +205,7 @@ async def _resolve_pharmacist_default_pharmacy(
             PharmacistPharmacy.pharmacy_id,
         )
         .join(PharmacistPharmacy, PharmacistPharmacy.pharmacist_id == Pharmacist.id)
-        .where(Pharmacist.email == email)
+        .where(func.lower(Pharmacist.email) == email.lower())
         .where(PharmacistPharmacy.is_default.is_(True))
     )
     row = (await session.execute(stmt)).first()
