@@ -5,11 +5,20 @@ dependency stays isolated).
 """
 
 import csv
+import hashlib
 import io
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Literal, Optional
 
+from fastapi import HTTPException
 from fastapi.responses import StreamingResponse
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from ..db.models.documentation_log import DocumentationLog
+from ..db.models.pharmacist import Pharmacist
+from ..db.models.pharmacist_pharmacy import PharmacistPharmacy
+from .security import SECRET_KEY
 
 
 MOCK_DOCUMENTATION: list = [
@@ -176,3 +185,89 @@ def mark_exported(records: list) -> str:
         r.setdefault("exportedAt", ts)
         # Once exported, records are considered immutable. We don't update further.
     return ts
+
+
+# ── Prescription action audit (DB-backed) ─────────────────────────────────────
+
+async def _resolve_pharmacist_default_pharmacy(
+    db: AsyncSession, email: str
+) -> tuple:
+    """Look up (pharmacist_id, pharmacy_id, eof_licence_no) for a JWT-authenticated user.
+
+    Joins pharmacists → pharmacist_pharmacies on the default link. The seed
+    script always creates exactly one default link per pharmacist; if a
+    pharmacist somehow has none, that's a data-integrity bug — fail loud.
+    """
+    stmt = (
+        select(
+            Pharmacist.id,
+            Pharmacist.eof_licence_no,
+            PharmacistPharmacy.pharmacy_id,
+        )
+        .join(PharmacistPharmacy, PharmacistPharmacy.pharmacist_id == Pharmacist.id)
+        .where(Pharmacist.email == email)
+        .where(PharmacistPharmacy.is_default.is_(True))
+    )
+    row = (await db.execute(stmt)).first()
+    if not row:
+        raise HTTPException(
+            status_code=401,
+            detail=f"No default-pharmacy link for {email}. Run scripts/seed.py.",
+        )
+    return row[0], row[2], row[1]
+
+
+def _signature(pharmacist_id, barcode: str, dispensed_at: datetime) -> str:
+    payload = f"{pharmacist_id}{barcode}{dispensed_at.isoformat()}{SECRET_KEY}"
+    return hashlib.sha256(payload.encode()).hexdigest()
+
+
+async def record_prescription_action(
+    db: AsyncSession,
+    *,
+    action_type: Literal["APPROVE", "FLAG"],
+    rx: dict,
+    safety_checks: list,
+    pharmacist_email: str,
+    pharmapi_exec_ref: Optional[str],
+    discrepancy_type: Optional[str],
+    notes: Optional[str],
+    info_provided: Optional[str],
+    delivery_method: Optional[str],
+    ip_address: Optional[str],
+    user_agent: Optional[str],
+) -> DocumentationLog:
+    """Persist a documentation_logs row for an approve/flag action.
+
+    Single write path used by both POST /prescriptions/{id}/approve and
+    PATCH /prescriptions/{id} when status flips to FLAGGED. Computes the
+    pharmacist_signature documented on the model and commits.
+    """
+    pharmacist_id, pharmacy_id, _ = await _resolve_pharmacist_default_pharmacy(
+        db, pharmacist_email
+    )
+
+    dispensed_at = datetime.now(timezone.utc)
+    row = DocumentationLog(
+        pharmacist_id=pharmacist_id,
+        pharmacy_id=pharmacy_id,
+        action_type=action_type,
+        prescription_barcode=rx["rxId"],
+        patient_amka=rx["patient"]["amka"],
+        patient_name=rx["patient"]["name"],
+        medicine_name=rx["medication"]["drugName"],
+        info_provided=info_provided,
+        delivery_method=delivery_method,
+        discrepancy_type=discrepancy_type,
+        notes=notes,
+        safety_check_snapshot=safety_checks,
+        dispensed_at=dispensed_at,
+        pharmapi_exec_ref=pharmapi_exec_ref,
+        pharmacist_signature=_signature(pharmacist_id, rx["rxId"], dispensed_at),
+        ip_address=ip_address,
+        user_agent=user_agent,
+    )
+    db.add(row)
+    await db.commit()
+    await db.refresh(row)
+    return row
