@@ -1,6 +1,5 @@
 """Auth + session schemas (login response, /auth/me, Pharmapi session status)."""
 
-
 from pydantic import BaseModel
 
 

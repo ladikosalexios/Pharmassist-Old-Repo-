@@ -1,6 +1,5 @@
 """Prescription mutation schemas (PATCH /prescriptions/:id and friends)."""
 
-
 from pydantic import BaseModel
 
 

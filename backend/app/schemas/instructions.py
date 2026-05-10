@@ -1,6 +1,5 @@
 """Patient instructions generation + delivery schemas."""
 
-
 from pydantic import BaseModel
 
 

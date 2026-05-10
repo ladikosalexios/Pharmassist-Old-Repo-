@@ -1,15 +1,4 @@
-"""Pharmacovigilance / adverse drug reaction reports (mock).
-
-Severity: MILD | MODERATE | SEVERE.
-Status:   PENDING_REVIEW | ESCALATED | EOF_REPORTED.
-"""
-
-from sqlalchemy import func, select
-from sqlalchemy.ext.asyncio import AsyncSession
-
-from app.db.models.adr_report import AdrReport
-
-MOCK_SIDE_EFFECTS: list = [
+SEED_ADR_REPORTS: list = [
     {
         "id": "ADR-2026-0009",
         "patientId": "P001",
@@ -89,47 +78,3 @@ MOCK_SIDE_EFFECTS: list = [
         "onset": "First week of therapy",
     },
 ]
-
-SEVERITY_RANK = {"MILD": 0, "MODERATE": 1, "SEVERE": 2}
-STATUS_RANK = {"PENDING_REVIEW": 0, "ESCALATED": 1, "EOF_REPORTED": 2}
-
-
-async def count_report_stat(session: AsyncSession, stat_name: str, stat_value: str) -> int:
-    return await session.scalar(
-        select(func.count(AdrReport.id)).where(getattr(AdrReport, stat_name) == stat_value)
-    )
-
-
-async def stats(session: AsyncSession) -> dict:
-    s = {
-        "total": await session.scalar(select(func.count()).select_from(AdrReport)),
-        "pendingReview": await count_report_stat(session, "status", "PENDING_REVIEW"),
-        "severe": await count_report_stat(session, "severity", "SEVERE"),
-        "escalated": await count_report_stat(session, "status", "ESCALATED"),
-    }
-    return s
-
-
-def next_status(current_status: str) -> str:
-    if current_status == "PENDING_REVIEW":
-        return "ESCALATED"
-    if current_status == "ESCALATED":
-        return "EOF_REPORTED"
-    return current_status
-
-
-def get_adr_report_dict(adr_report: AdrReport) -> dict:
-    """Returns a dict representation of the given AdrReport class object."""
-    return {
-        "id": adr_report.id,
-        "patientId": adr_report.patient_amka,
-        "patientName": adr_report.patient_name,
-        "patientPhone": None,
-        "rxId": None,
-        "drugName": adr_report.medicine_name,
-        "severity": adr_report.severity,
-        "status": adr_report.status,
-        "reportedAt": str(adr_report.reported_at),
-        "symptom": adr_report.symptom_description,
-        "onset": adr_report.onset_timing,
-    }

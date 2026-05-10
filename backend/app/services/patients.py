@@ -5,7 +5,6 @@ record there, so flag/approve actions on the verification page show up
 immediately in a patient's history.
 """
 
-
 from .prescriptions import MOCK_PRESCRIPTIONS
 from .side_effects import MOCK_SIDE_EFFECTS
 

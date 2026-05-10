@@ -18,9 +18,7 @@ Two distinct passwords are involved here, do not confuse them:
     pharmacist_pharmacies.pharmapi_password.
 """
 
-import asyncio
-import os
-import sys
+import asyncio, os, sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
@@ -28,6 +26,7 @@ from dataclasses import dataclass
 
 import bcrypt
 from sqlalchemy import text
+from datetime import datetime
 
 from app.config import get_settings
 from app.crypto import encrypt_credential
@@ -35,8 +34,10 @@ from app.db.models.patient_condition import PatientCondition
 from app.db.models.pharmacist import Pharmacist
 from app.db.models.pharmacist_pharmacy import PharmacistPharmacy
 from app.db.models.pharmacy import Pharmacy
+from app.db.models.adr_report import AdrReport
 from app.db.session import AsyncSessionLocal
 from app.services.pharmapi import verify_pharmapi_credentials
+from scripts.seed_data import SEED_ADR_REPORTS
 
 settings = get_settings()
 
@@ -107,6 +108,24 @@ def _validate(profile: dict) -> SeedProfile:
     )
 
 
+def seed_adr_report(report: dict, pharmacist_id: str, pharmacy_id: str) -> AdrReport:
+    return AdrReport(
+        pharmacist_id=pharmacist_id,
+        pharmacy_id=pharmacy_id,
+        patient_amka=report["patientId"],
+        patient_name=report["patientName"],
+        medicine_barcode=None,
+        medicine_name=report["drugName"],
+        atc_code=None,
+        symptom_description=report["symptom"],
+        onset_timing=report["onset"],
+        severity=report["severity"],
+        status=report["status"],
+        eof_report_ref=None,
+        reported_at=datetime.fromisoformat(report["reportedAt"]),
+    )
+
+
 async def seed():
     print(f"[seed] Authenticating to Pharmapi as {settings.pharmapi_username}...")
     raw_profile = await verify_pharmapi_credentials(
@@ -119,7 +138,7 @@ async def seed():
         # patient_conditions, pharmacist_pharmacies via FK chains.
         await db.execute(
             text(
-                "TRUNCATE pharmacist_pharmacies, patient_conditions, pharmacists, pharmacies "
+                "TRUNCATE pharmacist_pharmacies, patient_conditions, pharmacists, pharmacies, adr_reports"
                 "RESTART IDENTITY CASCADE"
             )
         )
@@ -175,7 +194,15 @@ async def seed():
                 )
             )
 
+        # commit records with no foreign keys
         await db.commit()
+
+        for report in SEED_ADR_REPORTS:
+            adr_report = seed_adr_report(report, pharmacist.id, pharmacy.id)
+            db.add(adr_report)
+
+        await db.commit()
+
         print("✓ Seed complete (sourced from Pharmapi /user/me)")
         print(
             f"  Pharmacy:    {pharmacy.id}  /  {p.pharmacy_name}  /  unit_id={p.pharmacy_unit_id}"
