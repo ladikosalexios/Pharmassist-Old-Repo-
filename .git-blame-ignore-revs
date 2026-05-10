@@ -1,0 +1,8 @@
+# Commits listed here are skipped by 'git blame --ignore-revs-file=.git-blame-ignore-revs'
+# (and by GitHub's web blame). Used for whole-repo formatting / rename passes that
+# would otherwise pollute blame for everyone who actually wrote each line.
+#
+# To use locally: git config blame.ignoreRevsFile .git-blame-ignore-revs
+
+# Mass-format with ruff + prettier (PR 2/3 of lint rollout)
+b273404f906ef5a1872ed581905e1356484f274b

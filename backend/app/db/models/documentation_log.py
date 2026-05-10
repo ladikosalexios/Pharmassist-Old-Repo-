@@ -8,10 +8,13 @@
 #             discrepancy_type + notes carry the reason. pharmapi_exec_ref NULL.
 import uuid
 from datetime import datetime
-from sqlalchemy import String, Text, DateTime, ForeignKey, Index, CheckConstraint, text
-from sqlalchemy.dialects.postgresql import UUID, INET, JSONB
+
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, String, Text, text
+from sqlalchemy.dialects.postgresql import INET, JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
+
 from ..base import Base, TimestampMixin
+
 
 class DocumentationLog(Base, TimestampMixin):
     __tablename__ = "documentation_logs"
@@ -20,9 +23,18 @@ class DocumentationLog(Base, TimestampMixin):
         Index("ix_doc_logs_pharmacy_dispensed", "pharmacy_id", "dispensed_at"),
         CheckConstraint("action_type IN ('APPROVE', 'FLAG')", name="action_type_valid"),
     )
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, server_default=text("gen_random_uuid()"))
-    pharmacist_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("pharmacists.id"), nullable=False)
-    pharmacy_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("pharmacies.id"), nullable=False)
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+        server_default=text("gen_random_uuid()"),
+    )
+    pharmacist_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("pharmacists.id"), nullable=False
+    )
+    pharmacy_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("pharmacies.id"), nullable=False
+    )
     action_type: Mapped[str] = mapped_column(String, nullable=False)  # APPROVE | FLAG
     prescription_barcode: Mapped[str] = mapped_column(String, nullable=False)
     patient_amka: Mapped[str] = mapped_column(String, nullable=False)
@@ -31,11 +43,15 @@ class DocumentationLog(Base, TimestampMixin):
     medicine_name: Mapped[str] = mapped_column(String, nullable=False)
     info_provided: Mapped[str | None] = mapped_column(String)  # APPROVE only
     language: Mapped[str] = mapped_column(String, nullable=False, default="el")
-    delivery_method: Mapped[str | None] = mapped_column(String)  # APPROVE only: PRINT | DIGITAL | BOTH
+    delivery_method: Mapped[str | None] = mapped_column(
+        String
+    )  # APPROVE only: PRINT | DIGITAL | BOTH
     discrepancy_type: Mapped[str | None] = mapped_column(String)  # FLAG only
     notes: Mapped[str | None] = mapped_column(Text)  # FLAG only
     safety_check_snapshot: Mapped[list] = mapped_column(JSONB, nullable=False)
-    dispensed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=text("now()"))
+    dispensed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )
     pharmapi_exec_ref: Mapped[str | None] = mapped_column(String)
     exported_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     pharmacist_signature: Mapped[str] = mapped_column(String, nullable=False)

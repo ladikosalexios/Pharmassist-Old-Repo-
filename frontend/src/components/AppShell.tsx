@@ -11,25 +11,31 @@ export function AppShell() {
   const { toast } = useToast();
 
   // Global shortcuts that should work on any authenticated page.
-  useKeyboardShortcuts({
-    d: () => {
-      toast("Opening dashboard…", "info");
-      navigate("/dashboard");
-    },
-    p: async () => {
-      toast("Opening next prescription…", "info");
-      try {
-        const next = await getNextPrescription();
-        navigate(`/prescription/${next.rxId}`);
-      } catch (e) {
-        if (e instanceof ApiError && e.status === 404) {
-          toast("No pending prescriptions in the queue.", "info");
-        } else {
-          toast(e instanceof ApiError ? e.message : "Could not load the next prescription.", "error");
+  useKeyboardShortcuts(
+    {
+      d: () => {
+        toast("Opening dashboard…", "info");
+        navigate("/dashboard");
+      },
+      p: async () => {
+        toast("Opening next prescription…", "info");
+        try {
+          const next = await getNextPrescription();
+          navigate(`/prescription/${next.rxId}`);
+        } catch (e) {
+          if (e instanceof ApiError && e.status === 404) {
+            toast("No pending prescriptions in the queue.", "info");
+          } else {
+            toast(
+              e instanceof ApiError ? e.message : "Could not load the next prescription.",
+              "error",
+            );
+          }
         }
-      }
+      },
     },
-  }, { enabled: !!user });
+    { enabled: !!user },
+  );
 
   if (loading) {
     return (

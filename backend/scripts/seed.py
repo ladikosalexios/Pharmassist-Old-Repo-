@@ -17,11 +17,14 @@ Two distinct passwords are involved here, do not confuse them:
     call upstream APIs; AES-256-GCM-encrypted into
     pharmacist_pharmacies.pharmapi_password.
 """
-import asyncio, os, sys
+
+import asyncio
+import os
+import sys
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from dataclasses import dataclass
-from typing import Optional
 
 import bcrypt
 from sqlalchemy import text
@@ -45,14 +48,15 @@ LOCAL_LOGIN_PASSWORD = b"test1234"
 @dataclass(frozen=True)
 class SeedProfile:
     """Validated extract of Pharmapi /user/me, ready to insert."""
+
     pharmacy_name: str
     pharmacy_unit_id: int
-    pharmacy_address: Optional[str]
-    pharmacy_tax_id: Optional[str]
+    pharmacy_address: str | None
+    pharmacy_tax_id: str | None
     pharmacist_full_name: str
     pharmacist_email: str
-    pharmacist_phone: Optional[str]
-    pharmacist_amka: Optional[str]
+    pharmacist_phone: str | None
+    pharmacist_amka: str | None
     pharmacist_eof_licence_no: str
 
 
@@ -113,10 +117,12 @@ async def seed():
     async with AsyncSessionLocal() as db:
         # Idempotent: wipe seeded tables before re-inserting. CASCADE clears
         # patient_conditions, pharmacist_pharmacies via FK chains.
-        await db.execute(text(
-            "TRUNCATE pharmacist_pharmacies, patient_conditions, pharmacists, pharmacies "
-            "RESTART IDENTITY CASCADE"
-        ))
+        await db.execute(
+            text(
+                "TRUNCATE pharmacist_pharmacies, patient_conditions, pharmacists, pharmacies "
+                "RESTART IDENTITY CASCADE"
+            )
+        )
 
         pharmacy = Pharmacy(
             name=p.pharmacy_name,
@@ -130,7 +136,9 @@ async def seed():
         # bcrypt of the LOCAL PharmAssist login password — what a pharmacist
         # types into /auth/login on this app. NOT the ΗΔΥΚΑ Pharmapi password
         # (that one lives encrypted on the link row below).
-        local_password_hash = bcrypt.hashpw(LOCAL_LOGIN_PASSWORD, bcrypt.gensalt(rounds=12)).decode()
+        local_password_hash = bcrypt.hashpw(
+            LOCAL_LOGIN_PASSWORD, bcrypt.gensalt(rounds=12)
+        ).decode()
         pharmacist = Pharmacist(
             email=p.pharmacist_email,
             password_hash=local_password_hash,
@@ -156,19 +164,25 @@ async def seed():
         db.add(link)
 
         if p.pharmacist_amka:
-            db.add(PatientCondition(
-                amka=p.pharmacist_amka,
-                condition_code="G6PD",
-                severity="MODERATE",
-                notes="Seeded from Pharmapi /user/me — verify with patient on first visit",
-                recorded_by=pharmacist.id,
-                pharmacy_id=pharmacy.id,
-            ))
+            db.add(
+                PatientCondition(
+                    amka=p.pharmacist_amka,
+                    condition_code="G6PD",
+                    severity="MODERATE",
+                    notes="Seeded from Pharmapi /user/me — verify with patient on first visit",
+                    recorded_by=pharmacist.id,
+                    pharmacy_id=pharmacy.id,
+                )
+            )
 
         await db.commit()
         print("✓ Seed complete (sourced from Pharmapi /user/me)")
-        print(f"  Pharmacy:    {pharmacy.id}  /  {p.pharmacy_name}  /  unit_id={p.pharmacy_unit_id}")
-        print(f"  Pharmacist:  {pharmacist.id}  /  {p.pharmacist_email}  /  {p.pharmacist_full_name}")
+        print(
+            f"  Pharmacy:    {pharmacy.id}  /  {p.pharmacy_name}  /  unit_id={p.pharmacy_unit_id}"
+        )
+        print(
+            f"  Pharmacist:  {pharmacist.id}  /  {p.pharmacist_email}  /  {p.pharmacist_full_name}"
+        )
         print(f"  Local login: {p.pharmacist_email}  /  test1234   (PharmAssist /auth/login)")
         print(f"  EOF licence: {p.pharmacist_eof_licence_no}")
         if p.pharmacist_amka:

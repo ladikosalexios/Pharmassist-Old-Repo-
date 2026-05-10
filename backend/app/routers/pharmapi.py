@@ -1,8 +1,7 @@
 """Pharmapi (ΗΔΥΚΑ) bridge — connect, status, pharmacy lookup, prescription fetch."""
 
 import time
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, Query
 
@@ -16,7 +15,6 @@ from ..services.pharmapi import (
     pharmapi_session,
     session_is_valid,
 )
-
 
 router = APIRouter(prefix="/pharmapi", tags=["pharmapi"])
 
@@ -42,7 +40,7 @@ async def pharmapi_connect(current: dict = Depends(get_current_user)):
         "message": "Pharmapi session established. Valid for 24h.",
         "session_valid_until": datetime.fromtimestamp(
             pharmapi_session["connected_at_ts"] + SESSION_WINDOW_SECONDS,
-            tz=timezone.utc,
+            tz=UTC,
         ).isoformat(),
         "pharmapi_user": data,
     }
@@ -86,9 +84,9 @@ async def get_prescription_queue(
     current: dict = Depends(get_current_user),
     page: int = Query(0, ge=0, description="Page number (0-indexed)"),
     size: int = Query(50, ge=1, le=200, description="Results per page"),
-    from_date: Optional[str] = Query(None, alias="from", description="Start date YYYY-MM-DD"),
-    to_date: Optional[str] = Query(None, alias="to", description="End date YYYY-MM-DD"),
-    amka: Optional[str] = Query(None, description="Filter by patient AMKA"),
+    from_date: str | None = Query(None, alias="from", description="Start date YYYY-MM-DD"),
+    to_date: str | None = Query(None, alias="to", description="End date YYYY-MM-DD"),
+    amka: str | None = Query(None, description="Filter by patient AMKA"),
 ):
     """
     Fetch the pending prescription queue from ΗΔΥΚΑ.
@@ -118,10 +116,10 @@ async def get_prescription_history(
     current: dict = Depends(get_current_user),
     page: int = Query(0, ge=0),
     size: int = Query(50, ge=1, le=200),
-    from_date: Optional[str] = Query(None, alias="from"),
-    to_date: Optional[str] = Query(None, alias="to"),
-    amka: Optional[str] = Query(None),
-    barcode: Optional[str] = Query(None),
+    from_date: str | None = Query(None, alias="from"),
+    to_date: str | None = Query(None, alias="to"),
+    amka: str | None = Query(None),
+    barcode: str | None = Query(None),
 ):
     """
     Fetch already-dispensed prescriptions from ΗΔΥΚΑ (prescribed=true).

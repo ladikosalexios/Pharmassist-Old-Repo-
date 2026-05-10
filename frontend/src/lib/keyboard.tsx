@@ -1,4 +1,13 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 
 interface ModalRegistryValue {
   isOpen: boolean;
@@ -11,14 +20,18 @@ const ModalRegistryContext = createContext<ModalRegistryValue | undefined>(undef
 export function ModalRegistryProvider({ children }: { children: ReactNode }) {
   const [count, setCount] = useState(0);
   const push = useCallback(() => setCount((c) => c + 1), []);
-  const pop  = useCallback(() => setCount((c) => Math.max(0, c - 1)), []);
-  const value = useMemo<ModalRegistryValue>(() => ({ isOpen: count > 0, push, pop }), [count, push, pop]);
+  const pop = useCallback(() => setCount((c) => Math.max(0, c - 1)), []);
+  const value = useMemo<ModalRegistryValue>(
+    () => ({ isOpen: count > 0, push, pop }),
+    [count, push, pop],
+  );
   return <ModalRegistryContext.Provider value={value}>{children}</ModalRegistryContext.Provider>;
 }
 
 function useModalRegistry(): ModalRegistryValue {
   const ctx = useContext(ModalRegistryContext);
-  if (!ctx) throw new Error("Modal registry context missing — wrap the app in <ModalRegistryProvider>");
+  if (!ctx)
+    throw new Error("Modal registry context missing — wrap the app in <ModalRegistryProvider>");
   return ctx;
 }
 
@@ -61,7 +74,10 @@ interface UseKeyboardShortcutsOptions {
  * - Shortcuts are skipped while a registered modal is open, unless
  *   `bypassModalGuard` is set.
  */
-export function useKeyboardShortcuts(shortcuts: ShortcutMap, options: UseKeyboardShortcutsOptions = {}): void {
+export function useKeyboardShortcuts(
+  shortcuts: ShortcutMap,
+  options: UseKeyboardShortcutsOptions = {},
+): void {
   const { bypassModalGuard = false, enabled = true } = options;
   const { isOpen } = useModalRegistry();
   const shortcutsRef = useRef(shortcuts);

@@ -13,18 +13,23 @@ interface FlagDiscrepancyModalProps {
 }
 
 const DISCREPANCY_OPTIONS: { value: DiscrepancyType; label: string }[] = [
-  { value: "dose_error",            label: "Dose error" },
+  { value: "dose_error", label: "Dose error" },
   { value: "drug_drug_interaction", label: "Drug-drug interaction" },
-  { value: "missing_info",          label: "Missing info" },
-  { value: "suspected_forgery",     label: "Suspected forgery" },
-  { value: "other",                 label: "Other" },
+  { value: "missing_info", label: "Missing info" },
+  { value: "suspected_forgery", label: "Suspected forgery" },
+  { value: "other", label: "Other" },
 ];
 
 const TYPE_LABEL: Record<DiscrepancyType, string> = Object.fromEntries(
   DISCREPANCY_OPTIONS.map((o) => [o.value, o.label]),
 ) as Record<DiscrepancyType, string>;
 
-export function FlagDiscrepancyModal({ rxId, open, onClose, onFlagged }: FlagDiscrepancyModalProps) {
+export function FlagDiscrepancyModal({
+  rxId,
+  open,
+  onClose,
+  onFlagged,
+}: FlagDiscrepancyModalProps) {
   useModalRegistration(open);
   const titleId = useId();
   const [discrepancyType, setDiscrepancyType] = useState<DiscrepancyType | "">("");
@@ -152,9 +157,13 @@ export function FlagDiscrepancyModal({ rxId, open, onClose, onFlagged }: FlagDis
             onChange={(e) => setDiscrepancyType(e.target.value as DiscrepancyType | "")}
             className="mt-1.5 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-brand-600 focus:ring-2 focus:ring-brand-100"
           >
-            <option value="" disabled>Select a type…</option>
+            <option value="" disabled>
+              Select a type…
+            </option>
             {DISCREPANCY_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>{o.label}</option>
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
             ))}
           </select>
 

@@ -16,8 +16,15 @@ interface ApproveConfirmModalProps {
 }
 
 export function ApproveConfirmModal({
-  open, rxId, patientName, drugName, dose,
-  submitting, error, onClose, onConfirm,
+  open,
+  rxId,
+  patientName,
+  drugName,
+  dose,
+  submitting,
+  error,
+  onClose,
+  onConfirm,
 }: ApproveConfirmModalProps) {
   useModalRegistration(open);
   const titleId = useId();
@@ -71,7 +78,8 @@ export function ApproveConfirmModal({
               Confirm Prescription Approval
             </h2>
             <p className="text-xs text-slate-500">
-              <span className="font-mono">{rxId}</span> — once approved, the prescription is recorded.
+              <span className="font-mono">{rxId}</span> — once approved, the prescription is
+              recorded.
             </p>
           </div>
         </div>
@@ -127,7 +135,9 @@ export function ApproveConfirmModal({
 
 function Row({ label, value, last }: { label: string; value: string; last?: boolean }) {
   return (
-    <div className={`flex items-center justify-between ${last ? "" : "border-b border-slate-200 pb-2 mb-2"}`}>
+    <div
+      className={`flex items-center justify-between ${last ? "" : "border-b border-slate-200 pb-2 mb-2"}`}
+    >
       <span className="text-xs font-medium uppercase tracking-wide text-slate-500">{label}</span>
       <span className="text-sm font-semibold text-slate-900">{value}</span>
     </div>

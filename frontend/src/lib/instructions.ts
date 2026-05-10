@@ -23,18 +23,24 @@ export function renderInstructions(
       `  Διάρκεια θεραπείας: ${drug.treatmentDuration}`,
     ];
     if (notes) lines.push("", "ΣΗΜΑΝΤΙΚΑ ΣΗΜΕΙΑ:", notes);
-    if (options.includeSideEffects) lines.push(
-      "", "ΠΙΘΑΝΕΣ ΑΝΕΠΙΘΥΜΗΤΕΣ ΕΝΕΡΓΕΙΕΣ:",
-      "Ενημερώστε αμέσως τον φαρμακοποιό ή ιατρό σας αν παρατηρήσετε ασυνήθιστα συμπτώματα.",
-    );
-    if (options.includeLifestyle) lines.push(
-      "", "ΔΙΑΤΡΟΦΙΚΕΣ / ΤΡΟΠΟΥ ΖΩΗΣ ΟΔΗΓΙΕΣ:",
-      "Διατηρήστε σταθερή πρόσληψη βιταμίνης Κ. Αποφύγετε αλκοόλ. Ενυδάτωση.",
-    );
+    if (options.includeSideEffects)
+      lines.push(
+        "",
+        "ΠΙΘΑΝΕΣ ΑΝΕΠΙΘΥΜΗΤΕΣ ΕΝΕΡΓΕΙΕΣ:",
+        "Ενημερώστε αμέσως τον φαρμακοποιό ή ιατρό σας αν παρατηρήσετε ασυνήθιστα συμπτώματα.",
+      );
+    if (options.includeLifestyle)
+      lines.push(
+        "",
+        "ΔΙΑΤΡΟΦΙΚΕΣ / ΤΡΟΠΟΥ ΖΩΗΣ ΟΔΗΓΙΕΣ:",
+        "Διατηρήστε σταθερή πρόσληψη βιταμίνης Κ. Αποφύγετε αλκοόλ. Ενυδάτωση.",
+      );
     lines.push(
-      "", "ΑΝ ΞΕΧΑΣΕΤΕ ΜΙΑ ΔΟΣΗ:",
+      "",
+      "ΑΝ ΞΕΧΑΣΕΤΕ ΜΙΑ ΔΟΣΗ:",
       "Πάρτε την μόλις τη θυμηθείτε, εκτός αν πλησιάζει η ώρα της επόμενης. Μη διπλασιάσετε.",
-      "", "ΕΠΙΚΟΙΝΩΝΙΑ ΜΕ ΙΑΤΡΟ ΑΝ:",
+      "",
+      "ΕΠΙΚΟΙΝΩΝΙΑ ΜΕ ΙΑΤΡΟ ΑΝ:",
       "• Εμφανιστούν σοβαρά συμπτώματα ή αιμορραγία",
       "• Δεν βελτιώνεστε εντός λίγων ημερών",
       "• Ξεκινήσετε νέα φαρμακευτική αγωγή",
@@ -53,18 +59,24 @@ export function renderInstructions(
     `  Treatment duration: ${drug.treatmentDuration}`,
   ];
   if (notes) lines.push("", "KEY POINTS:", notes);
-  if (options.includeSideEffects) lines.push(
-    "", "POSSIBLE SIDE EFFECTS:",
-    "Tell your pharmacist or doctor immediately if you notice unusual symptoms.",
-  );
-  if (options.includeLifestyle) lines.push(
-    "", "DIET / LIFESTYLE:",
-    "Maintain consistent vitamin K intake. Avoid alcohol. Stay hydrated.",
-  );
+  if (options.includeSideEffects)
+    lines.push(
+      "",
+      "POSSIBLE SIDE EFFECTS:",
+      "Tell your pharmacist or doctor immediately if you notice unusual symptoms.",
+    );
+  if (options.includeLifestyle)
+    lines.push(
+      "",
+      "DIET / LIFESTYLE:",
+      "Maintain consistent vitamin K intake. Avoid alcohol. Stay hydrated.",
+    );
   lines.push(
-    "", "IF YOU MISS A DOSE:",
+    "",
+    "IF YOU MISS A DOSE:",
     "Take it as soon as you remember, unless it is close to the next dose. Do not double up.",
-    "", "CONTACT YOUR DOCTOR IF:",
+    "",
+    "CONTACT YOUR DOCTOR IF:",
     "• You develop severe symptoms or bleeding",
     "• You do not improve within a few days",
     "• You start any new medication",
@@ -76,8 +88,9 @@ export function renderInstructions(
 export function defaultAdditionalNotes(rx: Prescription, language: InstructionsLanguage): string {
   const c = rx.spcQuickReference?.contraindications ?? [];
   if (c.length === 0) return "";
-  const lead = language === "el"
-    ? "Σημειώστε τα παρακάτω βασικά σημεία SPC:"
-    : "Note the following key SPC points:";
+  const lead =
+    language === "el"
+      ? "Σημειώστε τα παρακάτω βασικά σημεία SPC:"
+      : "Note the following key SPC points:";
   return [lead, ...c.map((line) => `• ${line}`)].join("\n");
 }

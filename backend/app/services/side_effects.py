@@ -4,7 +4,6 @@ Severity: MILD | MODERATE | SEVERE.
 Status:   PENDING_REVIEW | ESCALATED | EOF_REPORTED.
 """
 
-
 MOCK_SIDE_EFFECTS: list = [
     {
         "id": "ADR-2026-0009",
@@ -88,7 +87,7 @@ MOCK_SIDE_EFFECTS: list = [
 
 
 SEVERITY_RANK = {"MILD": 0, "MODERATE": 1, "SEVERE": 2}
-STATUS_RANK   = {"PENDING_REVIEW": 0, "ESCALATED": 1, "EOF_REPORTED": 2}
+STATUS_RANK = {"PENDING_REVIEW": 0, "ESCALATED": 1, "EOF_REPORTED": 2}
 
 
 def stats() -> dict:

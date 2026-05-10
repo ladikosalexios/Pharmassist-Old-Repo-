@@ -3,7 +3,6 @@
 Status values: ok | review | block.
 """
 
-
 MOCK_SAFETY_CHECKS: dict = {
     "RX2024-005": [
         {

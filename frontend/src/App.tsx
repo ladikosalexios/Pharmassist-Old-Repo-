@@ -17,9 +17,9 @@ export function App() {
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/prescription/:rxId" element={<PrescriptionVerification />} />
         <Route path="/documentation" element={<Documentation />} />
-        <Route path="/side-effects"  element={<SideEffects />} />
-        <Route path="/patients/:id"  element={<PatientProfile />} />
-        <Route path="/instructions"  element={<Instructions />} />
+        <Route path="/side-effects" element={<SideEffects />} />
+        <Route path="/patients/:id" element={<PatientProfile />} />
+        <Route path="/instructions" element={<Instructions />} />
       </Route>
       <Route path="/" element={<Navigate to="/dashboard" replace />} />
       <Route path="*" element={<Navigate to="/dashboard" replace />} />

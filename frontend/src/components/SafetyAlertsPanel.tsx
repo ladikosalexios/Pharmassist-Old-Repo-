@@ -1,7 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import {
-  AlertCircleIcon, ChevronRightIcon, ShieldIcon, ClockIcon, AlertTriangleIcon, PillIcon,
+  AlertCircleIcon,
+  ChevronRightIcon,
+  ShieldIcon,
+  ClockIcon,
+  AlertTriangleIcon,
+  PillIcon,
 } from "./Icons";
 import { ApiError, getActiveAlerts } from "../lib/api";
 import type { ActiveAlert, AlertType } from "../types";
@@ -11,22 +16,47 @@ type Severity = "Critical" | "High Priority" | "Medium Priority";
 interface AlertVisual {
   Icon: typeof PillIcon;
   severity: Severity;
-  border: string;        // border + accent color
-  bg: string;            // soft background tint
-  label: string;         // text color for the type label
+  border: string; // border + accent color
+  bg: string; // soft background tint
+  label: string; // text color for the type label
   pulse?: boolean;
 }
 
 const ALERT_VISUAL: Record<AlertType, AlertVisual> = {
-  INTERACTION:      { Icon: PillIcon,           severity: "Critical",        border: "border-red-300",    bg: "bg-red-50",     label: "text-red-700",    pulse: true },
-  G6PD:             { Icon: ShieldIcon,         severity: "High Priority",   border: "border-orange-300", bg: "bg-orange-50",  label: "text-orange-700" },
-  PREGNANCY:        { Icon: ClockIcon,          severity: "Medium Priority", border: "border-yellow-300", bg: "bg-yellow-50",  label: "text-yellow-700" },
-  CONTRAINDICATION: { Icon: AlertTriangleIcon,  severity: "High Priority",   border: "border-orange-300", bg: "bg-orange-50",  label: "text-orange-700" },
+  INTERACTION: {
+    Icon: PillIcon,
+    severity: "Critical",
+    border: "border-red-300",
+    bg: "bg-red-50",
+    label: "text-red-700",
+    pulse: true,
+  },
+  G6PD: {
+    Icon: ShieldIcon,
+    severity: "High Priority",
+    border: "border-orange-300",
+    bg: "bg-orange-50",
+    label: "text-orange-700",
+  },
+  PREGNANCY: {
+    Icon: ClockIcon,
+    severity: "Medium Priority",
+    border: "border-yellow-300",
+    bg: "bg-yellow-50",
+    label: "text-yellow-700",
+  },
+  CONTRAINDICATION: {
+    Icon: AlertTriangleIcon,
+    severity: "High Priority",
+    border: "border-orange-300",
+    bg: "bg-orange-50",
+    label: "text-orange-700",
+  },
 };
 
 const SEVERITY_COLOR: Record<Severity, string> = {
-  Critical:          "text-red-600",
-  "High Priority":   "text-orange-600",
+  Critical: "text-red-600",
+  "High Priority": "text-orange-600",
   "Medium Priority": "text-amber-600",
 };
 
@@ -47,13 +77,19 @@ export function SafetyAlertsPanel({ maxHeightClass = "max-h-96" }: SafetyAlertsP
     setLoading(true);
     setError(null);
     getActiveAlerts()
-      .then((data) => { if (active) setAlerts(data); })
+      .then((data) => {
+        if (active) setAlerts(data);
+      })
       .catch((e: unknown) => {
         if (!active) return;
         setError(e instanceof ApiError ? e.message : "Could not load active alerts.");
       })
-      .finally(() => { if (active) setLoading(false); });
-    return () => { active = false; };
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
   }, []);
 
   const counts = countSeverities(alerts ?? []);
@@ -90,11 +126,21 @@ export function SafetyAlertsPanel({ maxHeightClass = "max-h-96" }: SafetyAlertsP
       )}
 
       <footer className="border-t border-slate-200 bg-slate-50 px-5 py-4">
-        <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Alert Summary</div>
+        <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+          Alert Summary
+        </div>
         <ul className="space-y-1 text-xs">
-          <SummaryRow label="Critical"        count={counts.Critical}         color={SEVERITY_COLOR.Critical} />
-          <SummaryRow label="High Priority"   count={counts["High Priority"]} color={SEVERITY_COLOR["High Priority"]} />
-          <SummaryRow label="Medium Priority" count={counts["Medium Priority"]} color={SEVERITY_COLOR["Medium Priority"]} />
+          <SummaryRow label="Critical" count={counts.Critical} color={SEVERITY_COLOR.Critical} />
+          <SummaryRow
+            label="High Priority"
+            count={counts["High Priority"]}
+            color={SEVERITY_COLOR["High Priority"]}
+          />
+          <SummaryRow
+            label="Medium Priority"
+            count={counts["Medium Priority"]}
+            color={SEVERITY_COLOR["Medium Priority"]}
+          />
         </ul>
       </footer>
     </section>

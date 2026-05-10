@@ -1,15 +1,14 @@
 """Prescription mutation schemas (PATCH /prescriptions/:id and friends)."""
 
-from typing import Optional
 
 from pydantic import BaseModel
 
 
 class PrescriptionPatch(BaseModel):
-    status: Optional[str] = None
-    discrepancy_type: Optional[str] = None
-    notes: Optional[str] = None
-    notify_physician: Optional[bool] = None
+    status: str | None = None
+    discrepancy_type: str | None = None
+    notes: str | None = None
+    notify_physician: bool | None = None
 
 
 class ApproveResponse(BaseModel):
@@ -25,7 +24,7 @@ class PatchResponse(BaseModel):
     success: bool
     rxId: str
     status: str
-    discrepancyType: Optional[str] = None
-    notes: Optional[str] = None
-    notifyPhysician: Optional[bool] = None
-    documentationLogId: Optional[str] = None  # only populated when status=FLAGGED
+    discrepancyType: str | None = None
+    notes: str | None = None
+    notifyPhysician: bool | None = None
+    documentationLogId: str | None = None  # only populated when status=FLAGGED

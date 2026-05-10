@@ -27,11 +27,11 @@ Project layout:
   main.py        — create_app() factory; uvicorn entrypoint (this file)
 """
 
-from typing import Optional
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+import app.db.models  # noqa — registers all SQLAlchemy models at startup
 from app.config import Settings, get_settings
 from app.routers import (
     alerts,
@@ -48,7 +48,6 @@ from app.routers import (
     side_effects,
     spc,
 )
-import app.db.models  # noqa — registers all SQLAlchemy models at startup
 
 # Order doesn't affect routing (each router has its own prefix), but include
 # order is what /docs and /openapi.json render in. Group public → auth → core
@@ -70,7 +69,7 @@ _ROUTER_MODULES = (
 )
 
 
-def create_app(settings: Optional[Settings] = None) -> FastAPI:
+def create_app(settings: Settings | None = None) -> FastAPI:
     """Build a fully-wired FastAPI app.
 
     Tests can construct an isolated instance with custom settings by passing

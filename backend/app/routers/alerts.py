@@ -5,7 +5,6 @@ from fastapi import APIRouter, Depends
 from ..deps import get_current_user
 from ..services.alerts import MOCK_ACTIVE_ALERTS
 
-
 router = APIRouter(prefix="/alerts", tags=["alerts"])
 
 

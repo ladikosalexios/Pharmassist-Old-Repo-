@@ -27,7 +27,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const token = sessionStorage.getItem("pa_token");
-    if (!token) { setLoading(false); return; }
+    if (!token) {
+      setLoading(false);
+      return;
+    }
     apiMe()
       .then((data) => {
         setUser({ name: data.name, pharmacy: data.pharmacy, email: data.email });
@@ -41,21 +44,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .finally(() => setLoading(false));
   }, []);
 
-  const value = useMemo<AuthContextValue>(() => ({
-    user,
-    loading,
-    async signIn(email, password) {
-      const data = await apiLogin(email, password);
-      sessionStorage.setItem("pa_token", data.access_token);
-      sessionStorage.setItem("pa_name", data.pharmacist_name);
-      sessionStorage.setItem("pa_pharmacy", data.pharmacy);
-      setUser({ name: data.pharmacist_name, pharmacy: data.pharmacy });
-    },
-    signOut() {
-      sessionStorage.clear();
-      setUser(null);
-    },
-  }), [user, loading]);
+  const value = useMemo<AuthContextValue>(
+    () => ({
+      user,
+      loading,
+      async signIn(email, password) {
+        const data = await apiLogin(email, password);
+        sessionStorage.setItem("pa_token", data.access_token);
+        sessionStorage.setItem("pa_name", data.pharmacist_name);
+        sessionStorage.setItem("pa_pharmacy", data.pharmacy);
+        setUser({ name: data.pharmacist_name, pharmacy: data.pharmacy });
+      },
+      signOut() {
+        sessionStorage.clear();
+        setUser(null);
+      },
+    }),
+    [user, loading],
+  );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

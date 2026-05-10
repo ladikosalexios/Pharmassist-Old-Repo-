@@ -16,10 +16,22 @@ interface ToastContextValue {
 const ToastContext = createContext<ToastContextValue | undefined>(undefined);
 
 const TONE: Record<ToastVariant, { box: string; icon: ReactNode }> = {
-  success: { box: "border-emerald-200 bg-emerald-50 text-emerald-800", icon: <CheckCircleIcon width={16} height={16} className="text-emerald-600" /> },
-  warn:    { box: "border-amber-200 bg-amber-50 text-amber-800",       icon: <AlertTriangleIcon width={16} height={16} className="text-amber-600" /> },
-  error:   { box: "border-red-200 bg-red-50 text-red-800",             icon: <AlertCircleIcon width={16} height={16} className="text-red-600" /> },
-  info:    { box: "border-slate-200 bg-white text-slate-800",          icon: <CheckCircleIcon width={16} height={16} className="text-brand-600" /> },
+  success: {
+    box: "border-emerald-200 bg-emerald-50 text-emerald-800",
+    icon: <CheckCircleIcon width={16} height={16} className="text-emerald-600" />,
+  },
+  warn: {
+    box: "border-amber-200 bg-amber-50 text-amber-800",
+    icon: <AlertTriangleIcon width={16} height={16} className="text-amber-600" />,
+  },
+  error: {
+    box: "border-red-200 bg-red-50 text-red-800",
+    icon: <AlertCircleIcon width={16} height={16} className="text-red-600" />,
+  },
+  info: {
+    box: "border-slate-200 bg-white text-slate-800",
+    icon: <CheckCircleIcon width={16} height={16} className="text-brand-600" />,
+  },
 };
 
 const DURATION_MS = 4000;
@@ -31,11 +43,14 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     setToasts((ts) => ts.filter((t) => t.id !== id));
   }, []);
 
-  const toast = useCallback((message: string, variant: ToastVariant = "success") => {
-    const id = Date.now() + Math.random();
-    setToasts((ts) => [...ts, { id, message, variant }]);
-    setTimeout(() => dismiss(id), DURATION_MS);
-  }, [dismiss]);
+  const toast = useCallback(
+    (message: string, variant: ToastVariant = "success") => {
+      const id = Date.now() + Math.random();
+      setToasts((ts) => [...ts, { id, message, variant }]);
+      setTimeout(() => dismiss(id), DURATION_MS);
+    },
+    [dismiss],
+  );
 
   const value = useMemo(() => ({ toast }), [toast]);
 
@@ -63,7 +78,16 @@ export function ToastProvider({ children }: { children: ReactNode }) {
                 className="ml-1 -mr-1 rounded p-0.5 text-slate-500 hover:bg-black/5 hover:text-slate-900"
                 aria-label="Dismiss"
               >
-                <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                <svg
+                  width={14}
+                  height={14}
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
                   <line x1="18" y1="6" x2="6" y2="18" />
                   <line x1="6" y1="6" x2="18" y2="18" />
                 </svg>

@@ -1,5 +1,11 @@
 import { useEffect, useState } from "react";
-import { CheckCircleIcon, AlertTriangleIcon, AlertOctagonIcon, AlertCircleIcon, ChevronRightIcon } from "./Icons";
+import {
+  CheckCircleIcon,
+  AlertTriangleIcon,
+  AlertOctagonIcon,
+  AlertCircleIcon,
+  ChevronRightIcon,
+} from "./Icons";
 import { ApiError, getSafetyChecks } from "../lib/api";
 import type { CheckStatus, SafetyCheck } from "../types";
 
@@ -12,9 +18,27 @@ interface Tone {
 }
 
 const TONE: Record<CheckStatus, Tone> = {
-  ok:     { Icon: CheckCircleIcon,   iconClass: "text-emerald-600", rowBg: "bg-emerald-50", border: "border-emerald-200", label: "No issues detected" },
-  review: { Icon: AlertTriangleIcon, iconClass: "text-amber-600",   rowBg: "bg-amber-50",   border: "border-amber-200",   label: "Review required" },
-  block:  { Icon: AlertOctagonIcon,  iconClass: "text-red-600",     rowBg: "bg-red-50",     border: "border-red-200",     label: "Immediate action required" },
+  ok: {
+    Icon: CheckCircleIcon,
+    iconClass: "text-emerald-600",
+    rowBg: "bg-emerald-50",
+    border: "border-emerald-200",
+    label: "No issues detected",
+  },
+  review: {
+    Icon: AlertTriangleIcon,
+    iconClass: "text-amber-600",
+    rowBg: "bg-amber-50",
+    border: "border-amber-200",
+    label: "Review required",
+  },
+  block: {
+    Icon: AlertOctagonIcon,
+    iconClass: "text-red-600",
+    rowBg: "bg-red-50",
+    border: "border-red-200",
+    label: "Immediate action required",
+  },
 };
 
 interface SafetyChecksPanelProps {
@@ -33,13 +57,19 @@ export function SafetyChecksPanel({ rxId }: SafetyChecksPanelProps) {
     setError(null);
     setExpandedId(null);
     getSafetyChecks(rxId)
-      .then((data) => { if (active) setChecks(data); })
+      .then((data) => {
+        if (active) setChecks(data);
+      })
       .catch((e: unknown) => {
         if (!active) return;
         setError(e instanceof ApiError ? e.message : "Could not load safety checks.");
       })
-      .finally(() => { if (active) setLoading(false); });
-    return () => { active = false; };
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
   }, [rxId]);
 
   return (
@@ -72,11 +102,22 @@ export function SafetyChecksPanel({ rxId }: SafetyChecksPanelProps) {
       )}
 
       <footer className="border-t border-slate-200 bg-slate-50 px-5 py-4">
-        <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Status Legend</div>
+        <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+          Status Legend
+        </div>
         <ul className="space-y-1.5 text-xs text-slate-700">
-          <li className="flex items-center gap-2"><CheckCircleIcon width={14} height={14} className="text-emerald-600" /> Circle — No issues detected</li>
-          <li className="flex items-center gap-2"><AlertTriangleIcon width={14} height={14} className="text-amber-600" /> Triangle — Review required</li>
-          <li className="flex items-center gap-2"><AlertOctagonIcon width={14} height={14} className="text-red-600" /> Octagon — Immediate action</li>
+          <li className="flex items-center gap-2">
+            <CheckCircleIcon width={14} height={14} className="text-emerald-600" /> Circle — No
+            issues detected
+          </li>
+          <li className="flex items-center gap-2">
+            <AlertTriangleIcon width={14} height={14} className="text-amber-600" /> Triangle —
+            Review required
+          </li>
+          <li className="flex items-center gap-2">
+            <AlertOctagonIcon width={14} height={14} className="text-red-600" /> Octagon — Immediate
+            action
+          </li>
         </ul>
       </footer>
     </section>
@@ -84,7 +125,9 @@ export function SafetyChecksPanel({ rxId }: SafetyChecksPanelProps) {
 }
 
 function CheckRow({
-  check, isExpanded, onToggle,
+  check,
+  isExpanded,
+  onToggle,
 }: {
   check: SafetyCheck;
   isExpanded: boolean;
@@ -128,20 +171,23 @@ function CheckRow({
       )}
 
       {expandable && isExpanded && (
-        <div
-          id={`check-body-${check.id}`}
-          className={`border-t ${tone.border} px-5 py-4`}
-        >
+        <div id={`check-body-${check.id}`} className={`border-t ${tone.border} px-5 py-4`}>
           {check.details && (
             <div>
-              <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Full details</div>
+              <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Full details
+              </div>
               <p className="mt-1 text-[13px] leading-relaxed text-slate-700">{check.details}</p>
             </div>
           )}
           {check.recommendedAction && (
             <div className="mt-4">
-              <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Recommended action</div>
-              <p className={`mt-1 rounded-md border ${tone.border} bg-white p-3 text-[13px] leading-relaxed text-slate-700`}>
+              <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Recommended action
+              </div>
+              <p
+                className={`mt-1 rounded-md border ${tone.border} bg-white p-3 text-[13px] leading-relaxed text-slate-700`}
+              >
                 {check.recommendedAction}
               </p>
             </div>

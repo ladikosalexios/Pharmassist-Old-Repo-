@@ -1,6 +1,5 @@
 """Documentation & Legal Log schemas."""
 
-from typing import Optional
 
 from pydantic import BaseModel
 
@@ -10,4 +9,4 @@ class DocumentationCreate(BaseModel):
     instructions: str
     language: str
     method: str
-    setting: Optional[str] = "Private"
+    setting: str | None = "Private"

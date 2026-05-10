@@ -56,7 +56,9 @@ export function Login() {
             </div>
           )}
 
-          <label htmlFor="email" className="mb-1.5 block text-[13px] font-medium text-slate-600">Email</label>
+          <label htmlFor="email" className="mb-1.5 block text-[13px] font-medium text-slate-600">
+            Email
+          </label>
           <input
             id="email"
             type="email"
@@ -68,10 +70,17 @@ export function Login() {
           />
 
           <div className="mt-3.5 flex items-center justify-between">
-            <label htmlFor="password" className="text-[13px] font-medium text-slate-600">Password</label>
+            <label htmlFor="password" className="text-[13px] font-medium text-slate-600">
+              Password
+            </label>
             <a
               href="#"
-              onClick={(e) => { e.preventDefault(); setErr("Password recovery is not yet available. Please contact your pharmacy admin."); }}
+              onClick={(e) => {
+                e.preventDefault();
+                setErr(
+                  "Password recovery is not yet available. Please contact your pharmacy admin.",
+                );
+              }}
               className="text-[13px] font-medium text-brand-600 hover:underline"
             >
               Forgot password?
@@ -96,19 +105,24 @@ export function Login() {
             </button>
           </div>
 
-          <button
-            type="submit"
-            disabled={submitting}
-            className="btn btn-primary mt-5 w-full py-3"
-          >
-            {submitting ? (<><span className="spinner" /> Signing in…</>) : "Sign In"}
+          <button type="submit" disabled={submitting} className="btn btn-primary mt-5 w-full py-3">
+            {submitting ? (
+              <>
+                <span className="spinner" /> Signing in…
+              </>
+            ) : (
+              "Sign In"
+            )}
           </button>
 
           <div className="mt-4 text-center text-[13px] text-slate-500">
             New to PharmAssist?{" "}
             <a
               href="#"
-              onClick={(e) => { e.preventDefault(); setErr("Pharmacy registration is not yet available in this demo build."); }}
+              onClick={(e) => {
+                e.preventDefault();
+                setErr("Pharmacy registration is not yet available in this demo build.");
+              }}
               className="font-medium text-brand-600 hover:underline"
             >
               First time? Register your pharmacy licence
@@ -117,7 +131,8 @@ export function Login() {
         </form>
 
         <div className="mt-7 border-t border-slate-200 pt-5 text-center text-[11px] leading-relaxed text-slate-500">
-          Access restricted to licensed pharmacists. Regulated under Εθνικός Οργανισμός Φαρμάκων (Ε.Ο.Φ.)
+          Access restricted to licensed pharmacists. Regulated under Εθνικός Οργανισμός Φαρμάκων
+          (Ε.Ο.Φ.)
         </div>
       </div>
     </div>
