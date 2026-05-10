@@ -1,12 +1,14 @@
 """Pharmacovigilance / adverse drug reaction reports."""
 
-from datetime import UTC, datetime
-
 from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.session import get_session
+from app.db.models.adr_event import AdrEvent
 from app.db.models.adr_report import AdrReport
+from app.db.models.pharmacist import Pharmacist
+from app.db.session import get_session
+
 from ..deps import get_current_user
 from ..services.side_effects import (
     SEVERITY_RANK,
@@ -67,9 +69,23 @@ async def flag_side_effect(
         raise HTTPException(status_code=404, detail=f"Side-effect report {report_id} not found")
     previous = rec.status
     rec.status = next_status(previous)
-    # TODO: replace the next two lines with the creation of an adr_event?
-    # rec.lastFlaggedAt = datetime.now(timezone.utc).isoformat()
-    # rec.lastFlaggedBy = current["email"]
+
+    # create the associated adr_event
+    pharmacist_id = await session.scalar(
+        select(Pharmacist.id).where(func.lower(Pharmacist.email) == current["email"].lower())
+    )
+    if pharmacist_id is None:
+        raise HTTPException(401, detail="Pharmacist not found")
+    session.add(
+        AdrEvent(
+            adr_id=rec.id,
+            actor_id=pharmacist_id,
+            event_type="STATUS_CHANGED",
+            from_status=previous,
+            to_status=rec.status,
+        )
+    )
+
     await session.commit()
     return {
         "success": True,
