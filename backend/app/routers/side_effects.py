@@ -21,9 +21,7 @@ router = APIRouter(prefix="/side-effects", tags=["side-effects"])
 
 @router.get("")
 async def list_side_effects(
-    q: str | None = Query(
-        None, description="Free-text search across patient, drug, symptom."
-    ),
+    q: str | None = Query(None, description="Free-text search across patient, drug, symptom."),
     sort: str | None = Query("date", description="date | severity | status"),
     current: dict = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
@@ -66,9 +64,7 @@ async def flag_side_effect(
     """Advance the report's pharmacovigilance status one step (PENDING_REVIEW → ESCALATED → EOF_REPORTED)."""
     rec = await AdrReport.get_by_id(session, report_id)
     if rec is None:
-        raise HTTPException(
-            status_code=404, detail=f"Side-effect report {report_id} not found"
-        )
+        raise HTTPException(status_code=404, detail=f"Side-effect report {report_id} not found")
     previous = rec.status
     rec.status = next_status(previous)
     # TODO: replace the next two lines with the creation of an adr_event?

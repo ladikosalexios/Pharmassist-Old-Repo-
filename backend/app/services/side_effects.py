@@ -94,13 +94,9 @@ SEVERITY_RANK = {"MILD": 0, "MODERATE": 1, "SEVERE": 2}
 STATUS_RANK = {"PENDING_REVIEW": 0, "ESCALATED": 1, "EOF_REPORTED": 2}
 
 
-async def count_report_stat(
-    session: AsyncSession, stat_name: str, stat_value: str
-) -> int:
+async def count_report_stat(session: AsyncSession, stat_name: str, stat_value: str) -> int:
     return await session.scalar(
-        select(func.count(AdrReport.id)).where(
-            getattr(AdrReport, stat_name) == stat_value
-        )
+        select(func.count(AdrReport.id)).where(getattr(AdrReport, stat_name) == stat_value)
     )
 
 

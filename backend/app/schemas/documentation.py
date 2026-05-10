@@ -1,6 +1,5 @@
 """Documentation & Legal Log schemas."""
 
-
 from pydantic import BaseModel
 
 

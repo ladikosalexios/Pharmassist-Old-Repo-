@@ -27,7 +27,6 @@ Project layout:
   main.py        — create_app() factory; uvicorn entrypoint (this file)
 """
 
-
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 

@@ -80,9 +80,7 @@ def _validate(profile: dict) -> SeedProfile:
 
     pharmacy_unit_id = pharmacy_obj.get("id")
     if pharmacy_unit_id is None:
-        raise SystemExit(
-            "[seed] Pharmapi /user/me pharmacy.id is missing — cannot seed"
-        )
+        raise SystemExit("[seed] Pharmapi /user/me pharmacy.id is missing — cannot seed")
 
     pharmapi_user_id = profile.get("id")
     eof_licence_no = (
@@ -103,8 +101,7 @@ def _validate(profile: dict) -> SeedProfile:
         pharmacy_address=full_address,
         pharmacy_tax_id=pharmacy_obj.get("taxRegistryNo"),
         pharmacist_full_name=_full_name(profile.get("name")),
-        pharmacist_email=profile.get("email")
-        or f"{settings.pharmapi_username}@pharmapi.local",
+        pharmacist_email=profile.get("email") or f"{settings.pharmapi_username}@pharmapi.local",
         pharmacist_phone=profile.get("mobile"),
         pharmacist_amka=profile.get("amka"),
         pharmacist_eof_licence_no=str(eof_licence_no),
