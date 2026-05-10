@@ -1,14 +1,30 @@
 import type {
-  ActiveAlert, AdrSort, DeliveryMethod, DeliveryMethodFilter, DocumentationListResponse,
-  DocumentationRecord, GeneratedInstructions, InstructionsOptions, PatientProfile,
-  PatientRxHistoryRow, Prescription, PrescriptionMessage, QueueItem, SafetyCheck,
-  SideEffectListResponse, SideEffectReport, SpcDetails,
+  ActiveAlert,
+  AdrSort,
+  DeliveryMethod,
+  DeliveryMethodFilter,
+  DocumentationListResponse,
+  DocumentationRecord,
+  GeneratedInstructions,
+  InstructionsOptions,
+  PatientProfile,
+  PatientRxHistoryRow,
+  Prescription,
+  PrescriptionMessage,
+  QueueItem,
+  SafetyCheck,
+  SideEffectListResponse,
+  SideEffectReport,
+  SpcDetails,
 } from "../types";
 
 const API_BASE = (import.meta.env.VITE_API_BASE as string | undefined) ?? "";
 
 export class ApiError extends Error {
-  constructor(public status: number, message: string) {
+  constructor(
+    public status: number,
+    message: string,
+  ) {
     super(message);
   }
 }
@@ -60,7 +76,10 @@ export async function listPrescriptions(): Promise<QueueItem[]> {
   const r = await fetch(`${API_BASE}/prescriptions`, { headers: authHeaders() });
   const data = (await handle(r)) as { items?: QueueItem[] };
   if (!Array.isArray(data?.items)) {
-    throw new ApiError(0, "Unexpected response from /prescriptions (missing 'items' array). Is the API running and proxied?");
+    throw new ApiError(
+      0,
+      "Unexpected response from /prescriptions (missing 'items' array). Is the API running and proxied?",
+    );
   }
   return data.items;
 }
@@ -81,7 +100,10 @@ export async function getSpc(atcCode: string): Promise<SpcDetails> {
     !Array.isArray(data.contraindications) ||
     !Array.isArray(data.majorInteractions)
   ) {
-    throw new ApiError(0, `Unexpected response from /spc/${atcCode} (missing required fields). Is the API running and proxied?`);
+    throw new ApiError(
+      0,
+      `Unexpected response from /spc/${atcCode} (missing required fields). Is the API running and proxied?`,
+    );
   }
   return data as SpcDetails;
 }
@@ -92,7 +114,10 @@ export async function getSafetyChecks(rxId: string): Promise<SafetyCheck[]> {
   });
   const data = (await handle(r)) as { rxId?: string; checks?: SafetyCheck[] };
   if (!Array.isArray(data?.checks)) {
-    throw new ApiError(0, "Unexpected response from /safety-checks (missing 'checks' array). Is the API running and proxied?");
+    throw new ApiError(
+      0,
+      "Unexpected response from /safety-checks (missing 'checks' array). Is the API running and proxied?",
+    );
   }
   return data.checks;
 }
@@ -101,12 +126,17 @@ export async function getActiveAlerts(): Promise<ActiveAlert[]> {
   const r = await fetch(`${API_BASE}/alerts/active`, { headers: authHeaders() });
   const data = (await handle(r)) as { alerts?: ActiveAlert[] };
   if (!Array.isArray(data?.alerts)) {
-    throw new ApiError(0, "Unexpected response from /alerts/active (missing 'alerts' array). Is the API running and proxied?");
+    throw new ApiError(
+      0,
+      "Unexpected response from /alerts/active (missing 'alerts' array). Is the API running and proxied?",
+    );
   }
   return data.alerts;
 }
 
-export async function approvePrescription(rxId: string): Promise<{ success: boolean; status: string }> {
+export async function approvePrescription(
+  rxId: string,
+): Promise<{ success: boolean; status: string }> {
   const r = await fetch(`${API_BASE}/prescriptions/${encodeURIComponent(rxId)}/approve`, {
     method: "POST",
     headers: authHeaders(),
@@ -149,7 +179,10 @@ export async function patchPrescription(
   return handle(r) as Promise<PrescriptionPatchResponse>;
 }
 
-export async function notifyPhysician(rxId: string, message: string): Promise<{ success: boolean; delivered: boolean }> {
+export async function notifyPhysician(
+  rxId: string,
+  message: string,
+): Promise<{ success: boolean; delivered: boolean }> {
   const r = await fetch(`${API_BASE}/notifications/physician`, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...authHeaders() },
@@ -164,12 +197,19 @@ export async function getMessages(rxId: string): Promise<PrescriptionMessage[]> 
   });
   const data = (await handle(r)) as { items?: PrescriptionMessage[] };
   if (!Array.isArray(data?.items)) {
-    throw new ApiError(0, "Unexpected response from /messages (missing 'items' array). Is the API running and proxied?");
+    throw new ApiError(
+      0,
+      "Unexpected response from /messages (missing 'items' array). Is the API running and proxied?",
+    );
   }
   return data.items;
 }
 
-export async function sendMessage(to: string, rxId: string, body: string): Promise<PrescriptionMessage> {
+export async function sendMessage(
+  to: string,
+  rxId: string,
+  body: string,
+): Promise<PrescriptionMessage> {
   const r = await fetch(`${API_BASE}/messages`, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...authHeaders() },
@@ -178,10 +218,12 @@ export async function sendMessage(to: string, rxId: string, body: string): Promi
   return handle(r) as Promise<PrescriptionMessage>;
 }
 
-export async function listDocumentation(params: {
-  q?: string;
-  method?: DeliveryMethodFilter;
-} = {}): Promise<DocumentationListResponse> {
+export async function listDocumentation(
+  params: {
+    q?: string;
+    method?: DeliveryMethodFilter;
+  } = {},
+): Promise<DocumentationListResponse> {
   const qs = new URLSearchParams();
   if (params.q) qs.set("q", params.q);
   if (params.method && params.method !== "ALL") qs.set("method", params.method);
@@ -190,7 +232,10 @@ export async function listDocumentation(params: {
   });
   const data = (await handle(r)) as Partial<DocumentationListResponse>;
   if (!Array.isArray(data?.items) || !data.stats || typeof data.total !== "number") {
-    throw new ApiError(0, "Unexpected response from /documentation. Is the API running and proxied?");
+    throw new ApiError(
+      0,
+      "Unexpected response from /documentation. Is the API running and proxied?",
+    );
   }
   return data as DocumentationListResponse;
 }
@@ -209,7 +254,8 @@ async function downloadFile(url: string, fallbackName: string): Promise<void> {
     throw new ApiError(r.status, (data as { detail?: string }).detail ?? `HTTP ${r.status}`);
   }
   const blob = await r.blob();
-  const filename = parseContentDispositionFilename(r.headers.get("content-disposition")) ?? fallbackName;
+  const filename =
+    parseContentDispositionFilename(r.headers.get("content-disposition")) ?? fallbackName;
   const objectUrl = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = objectUrl;
@@ -225,7 +271,11 @@ function parseContentDispositionFilename(header: string | null): string | null {
   if (!header) return null;
   const utf8 = /filename\*\s*=\s*UTF-8''([^;]+)/i.exec(header);
   if (utf8) {
-    try { return decodeURIComponent(utf8[1].trim()); } catch { /* fall through */ }
+    try {
+      return decodeURIComponent(utf8[1].trim());
+    } catch {
+      /* fall through */
+    }
   }
   const plain = /filename\s*=\s*"?([^";]+)"?/i.exec(header);
   return plain ? plain[1].trim() : null;
@@ -246,12 +296,17 @@ export async function exportDocumentation(
   await downloadFile(url, `PharmAssist_DocumentationLog_${today}.${fmt}`);
 }
 
-export async function exportDocumentationRecord(id: string, format: ExportFormat = "pdf"): Promise<void> {
+export async function exportDocumentationRecord(
+  id: string,
+  format: ExportFormat = "pdf",
+): Promise<void> {
   const url = `${API_BASE}/documentation/${encodeURIComponent(id)}/export?format=${format}`;
   await downloadFile(url, `${id}.${format}`);
 }
 
-export async function listSideEffects(params: { q?: string; sort?: AdrSort } = {}): Promise<SideEffectListResponse> {
+export async function listSideEffects(
+  params: { q?: string; sort?: AdrSort } = {},
+): Promise<SideEffectListResponse> {
   const qs = new URLSearchParams();
   if (params.q) qs.set("q", params.q);
   if (params.sort) qs.set("sort", params.sort);
@@ -260,17 +315,30 @@ export async function listSideEffects(params: { q?: string; sort?: AdrSort } = {
   });
   const data = (await handle(r)) as Partial<SideEffectListResponse>;
   if (!Array.isArray(data?.items) || !data.stats) {
-    throw new ApiError(0, "Unexpected response from /side-effects. Is the API running and proxied?");
+    throw new ApiError(
+      0,
+      "Unexpected response from /side-effects. Is the API running and proxied?",
+    );
   }
   return data as SideEffectListResponse;
 }
 
-export async function flagSideEffect(reportId: string): Promise<{ success: boolean; status: SideEffectReport["status"]; previousStatus: SideEffectReport["status"] }> {
+export async function flagSideEffect(
+  reportId: string,
+): Promise<{
+  success: boolean;
+  status: SideEffectReport["status"];
+  previousStatus: SideEffectReport["status"];
+}> {
   const r = await fetch(`${API_BASE}/side-effects/${encodeURIComponent(reportId)}/flag`, {
     method: "POST",
     headers: authHeaders(),
   });
-  return handle(r) as Promise<{ success: boolean; status: SideEffectReport["status"]; previousStatus: SideEffectReport["status"] }>;
+  return handle(r) as Promise<{
+    success: boolean;
+    status: SideEffectReport["status"];
+    previousStatus: SideEffectReport["status"];
+  }>;
 }
 
 export async function getPatient(patientId: string): Promise<PatientProfile> {

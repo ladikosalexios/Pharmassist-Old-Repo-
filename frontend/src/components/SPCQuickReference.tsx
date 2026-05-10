@@ -45,16 +45,24 @@ export function SPCQuickReference({ drugName, atcCode, fallback }: SPCQuickRefer
     if (!atcCode) {
       setLiveError("This medication has no ATC code on file, so the live SPC cannot be loaded.");
       setLoading(false);
-      return () => { active = false; };
+      return () => {
+        active = false;
+      };
     }
     getSpc(atcCode)
-      .then((data) => { if (active) setSpc(data); })
+      .then((data) => {
+        if (active) setSpc(data);
+      })
       .catch((e: unknown) => {
         if (!active) return;
         setLiveError(e instanceof ApiError ? e.message : "Could not load the live SPC.");
       })
-      .finally(() => { if (active) setLoading(false); });
-    return () => { active = false; };
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
   }, [atcCode]);
 
   const view: View | null = useMemo(() => {
@@ -90,7 +98,12 @@ export function SPCQuickReference({ drugName, atcCode, fallback }: SPCQuickRefer
           <h2 className="text-base font-semibold text-slate-900">SPC Quick Reference</h2>
           <p className="text-xs text-slate-500">
             {drugName}
-            {spc?.atcCode && <> · <span className="font-mono">{spc.atcCode}</span></>}
+            {spc?.atcCode && (
+              <>
+                {" "}
+                · <span className="font-mono">{spc.atcCode}</span>
+              </>
+            )}
             {spc?.version && <> · {spc.version}</>}
             {view?.source === "fallback" && <> · from prescription record</>}
           </p>
@@ -129,17 +142,23 @@ export function SPCQuickReference({ drugName, atcCode, fallback }: SPCQuickRefer
             )}
 
             <div>
-              <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">SPC Recommended Dosage</div>
+              <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                SPC Recommended Dosage
+              </div>
               <p className="mt-2 rounded-lg bg-brand-50 p-4 text-sm leading-relaxed text-slate-700">
                 {view.recommendedDosage}
               </p>
             </div>
 
             <div className="mt-6">
-              <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Key Contraindications</div>
+              <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Key Contraindications
+              </div>
               {view.contraindications.length ? (
                 <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-700">
-                  {view.contraindications.map((c, i) => <li key={i}>{c}</li>)}
+                  {view.contraindications.map((c, i) => (
+                    <li key={i}>{c}</li>
+                  ))}
                 </ul>
               ) : (
                 <p className="mt-2 text-sm text-slate-500">None recorded.</p>
@@ -147,11 +166,16 @@ export function SPCQuickReference({ drugName, atcCode, fallback }: SPCQuickRefer
             </div>
 
             <div className="mt-6">
-              <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Major Interactions</div>
+              <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Major Interactions
+              </div>
               {view.majorInteractions.length ? (
                 <div className="mt-2 space-y-2">
                   {view.majorInteractions.map((it, i) => (
-                    <div key={i} className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm">
+                    <div
+                      key={i}
+                      className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm"
+                    >
                       <span className="font-bold text-slate-900">{it.drug}</span>
                       <span className="ml-2 text-amber-800">— {it.effect}</span>
                     </div>
@@ -165,19 +189,15 @@ export function SPCQuickReference({ drugName, atcCode, fallback }: SPCQuickRefer
         )}
       </div>
 
-      {spc && (
-        <FullSpcModal
-          open={fullSpcOpen}
-          spc={spc}
-          onClose={() => setFullSpcOpen(false)}
-        />
-      )}
+      {spc && <FullSpcModal open={fullSpcOpen} spc={spc} onClose={() => setFullSpcOpen(false)} />}
     </section>
   );
 }
 
 function FullSpcModal({
-  open, spc, onClose,
+  open,
+  spc,
+  onClose,
 }: {
   open: boolean;
   spc: SpcDetails;
@@ -188,7 +208,9 @@ function FullSpcModal({
 
   useEffect(() => {
     if (!open) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [open, onClose]);
@@ -198,7 +220,9 @@ function FullSpcModal({
   return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 animate-fade-in"
-      onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
       role="presentation"
     >
       <div
@@ -213,7 +237,8 @@ function FullSpcModal({
               {spc.drugName} — Full SPC
             </h2>
             <p className="text-xs text-slate-500">
-              <span className="font-mono">{spc.atcCode}</span> · {spc.version} · Updated {formatDate(spc.updatedAt)}
+              <span className="font-mono">{spc.atcCode}</span> · {spc.version} · Updated{" "}
+              {formatDate(spc.updatedAt)}
             </p>
           </div>
           <button
@@ -240,8 +265,12 @@ function FullSpcModal({
             >
               Open on EOF.gr ↗
             </a>
-          ) : <span />}
-          <button type="button" onClick={onClose} className="btn btn-outline">Close</button>
+          ) : (
+            <span />
+          )}
+          <button type="button" onClick={onClose} className="btn btn-outline">
+            Close
+          </button>
         </div>
       </div>
     </div>,

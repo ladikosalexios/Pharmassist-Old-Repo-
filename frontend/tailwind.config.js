@@ -5,7 +5,7 @@ export default {
     extend: {
       colors: {
         brand: {
-          50:  "#EFF6FF",
+          50: "#EFF6FF",
           100: "#DBEAFE",
           200: "#BFDBFE",
           500: "#3B82F6",
@@ -20,19 +20,19 @@ export default {
       },
       keyframes: {
         "alert-in": {
-          "0%":   { opacity: "0", transform: "translateY(-4px)" },
+          "0%": { opacity: "0", transform: "translateY(-4px)" },
           "100%": { opacity: "1", transform: "translateY(0)" },
         },
         "pulse-red-border": {
           "0%, 100%": { boxShadow: "0 0 0 0 rgba(220, 38, 38, 0.55)" },
-          "50%":      { boxShadow: "0 0 0 6px rgba(220, 38, 38, 0)" },
+          "50%": { boxShadow: "0 0 0 6px rgba(220, 38, 38, 0)" },
         },
         "slide-in-right": {
-          "0%":   { transform: "translateX(100%)" },
+          "0%": { transform: "translateX(100%)" },
           "100%": { transform: "translateX(0)" },
         },
         "fade-in": {
-          "0%":   { opacity: "0" },
+          "0%": { opacity: "0" },
           "100%": { opacity: "1" },
         },
       },

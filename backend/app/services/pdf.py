@@ -7,10 +7,9 @@ here means the rest of the app never has to know reportlab is optional.
 """
 
 import io
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi.responses import StreamingResponse
-
 
 try:
     from reportlab.lib import colors as _rl_colors
@@ -18,12 +17,21 @@ try:
     from reportlab.lib.styles import getSampleStyleSheet as _rl_styles
     from reportlab.lib.units import cm as _RL_CM
     from reportlab.platypus import (
-        SimpleDocTemplate as _RLSimpleDocTemplate,
         Paragraph as _RLParagraph,
+    )
+    from reportlab.platypus import (
+        SimpleDocTemplate as _RLSimpleDocTemplate,
+    )
+    from reportlab.platypus import (
         Spacer as _RLSpacer,
+    )
+    from reportlab.platypus import (
         Table as _RLTable,
+    )
+    from reportlab.platypus import (
         TableStyle as _RLTableStyle,
     )
+
     REPORTLAB_AVAILABLE = True
 except ImportError:
     REPORTLAB_AVAILABLE = False
@@ -48,9 +56,12 @@ def full_report(rows: list, current: dict) -> bytes:
     """Render the full Documentation & Legal Log as a PDF. Requires reportlab."""
     buf = io.BytesIO()
     doc = _RLSimpleDocTemplate(
-        buf, pagesize=_RL_A4,
-        leftMargin=1.6 * _RL_CM, rightMargin=1.6 * _RL_CM,
-        topMargin=1.8 * _RL_CM, bottomMargin=1.8 * _RL_CM,
+        buf,
+        pagesize=_RL_A4,
+        leftMargin=1.6 * _RL_CM,
+        rightMargin=1.6 * _RL_CM,
+        topMargin=1.8 * _RL_CM,
+        bottomMargin=1.8 * _RL_CM,
         title="PharmAssist Documentation & Legal Log",
     )
     styles = _rl_styles()
@@ -59,7 +70,7 @@ def full_report(rows: list, current: dict) -> bytes:
     body = styles["BodyText"]
 
     elements = []
-    generated_at = datetime.now(timezone.utc).isoformat()
+    generated_at = datetime.now(UTC).isoformat()
     if rows:
         oldest = min(r["dispensedAt"] for r in rows)[:10]
         newest = max(r["dispensedAt"] for r in rows)[:10]
@@ -69,52 +80,69 @@ def full_report(rows: list, current: dict) -> bytes:
 
     elements.append(_RLParagraph("PharmAssist — Documentation & Legal Log", title))
     elements.append(_RLSpacer(1, 0.3 * _RL_CM))
-    elements.append(_RLParagraph(
-        f"<b>Pharmacy:</b> {PHARMACY_NAME} (Licence {PHARMACY_LICENCE})<br/>"
-        f"<b>Pharmacist:</b> {current.get('name', '')} (Licence {PHARMACIST_LICENCE})<br/>"
-        f"<b>Date range:</b> {date_range}<br/>"
-        f"<b>Records:</b> {len(rows)}<br/>"
-        f"<b>Generated:</b> {generated_at}",
-        body,
-    ))
+    elements.append(
+        _RLParagraph(
+            f"<b>Pharmacy:</b> {PHARMACY_NAME} (Licence {PHARMACY_LICENCE})<br/>"
+            f"<b>Pharmacist:</b> {current.get('name', '')} (Licence {PHARMACIST_LICENCE})<br/>"
+            f"<b>Date range:</b> {date_range}<br/>"
+            f"<b>Records:</b> {len(rows)}<br/>"
+            f"<b>Generated:</b> {generated_at}",
+            body,
+        )
+    )
     elements.append(_RLSpacer(1, 0.5 * _RL_CM))
 
     table_data = [["Date", "Rx", "Patient", "Drug", "Method", "Language", "Setting"]]
     for r in rows:
-        table_data.append([
-            r["dispensedAt"][:10], r["rxId"], r["patientName"], r["drugName"],
-            r["deliveryMethod"].title(), r["language"], r["setting"],
-        ])
+        table_data.append(
+            [
+                r["dispensedAt"][:10],
+                r["rxId"],
+                r["patientName"],
+                r["drugName"],
+                r["deliveryMethod"].title(),
+                r["language"],
+                r["setting"],
+            ]
+        )
     table = _RLTable(table_data, repeatRows=1, hAlign="LEFT")
-    table.setStyle(_RLTableStyle([
-        ("BACKGROUND", (0, 0), (-1, 0), _rl_colors.HexColor("#DBEAFE")),
-        ("TEXTCOLOR",  (0, 0), (-1, 0), _rl_colors.HexColor("#1E40AF")),
-        ("FONTNAME",   (0, 0), (-1, 0), "Helvetica-Bold"),
-        ("FONTSIZE",   (0, 0), (-1, -1), 8),
-        ("GRID",       (0, 0), (-1, -1), 0.25, _rl_colors.HexColor("#CBD5E1")),
-        ("VALIGN",     (0, 0), (-1, -1), "TOP"),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-        ("TOPPADDING",    (0, 0), (-1, -1), 4),
-    ]))
+    table.setStyle(
+        _RLTableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), _rl_colors.HexColor("#DBEAFE")),
+                ("TEXTCOLOR", (0, 0), (-1, 0), _rl_colors.HexColor("#1E40AF")),
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("FONTSIZE", (0, 0), (-1, -1), 8),
+                ("GRID", (0, 0), (-1, -1), 0.25, _rl_colors.HexColor("#CBD5E1")),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                ("TOPPADDING", (0, 0), (-1, -1), 4),
+            ]
+        )
+    )
     elements.append(table)
     elements.append(_RLSpacer(1, 0.6 * _RL_CM))
 
     elements.append(_RLParagraph("Legal Compliance", h2))
-    elements.append(_RLParagraph(
-        "All documentation records are maintained in compliance with pharmacy regulations and "
-        "HIPAA requirements. " + RETENTION_NOTICE,
-        body,
-    ))
+    elements.append(
+        _RLParagraph(
+            "All documentation records are maintained in compliance with pharmacy regulations and "
+            "HIPAA requirements. " + RETENTION_NOTICE,
+            body,
+        )
+    )
     elements.append(_RLSpacer(1, 0.6 * _RL_CM))
 
     elements.append(_RLParagraph("Pharmacist Signature", h2))
-    elements.append(_RLParagraph(
-        f"<b>Name:</b> {current.get('name', '')}<br/>"
-        f"<b>Licence:</b> {PHARMACIST_LICENCE}<br/>"
-        f"<b>Generated at:</b> {generated_at}<br/><br/>"
-        "<i>Electronically signed via PharmAssist.</i>",
-        body,
-    ))
+    elements.append(
+        _RLParagraph(
+            f"<b>Name:</b> {current.get('name', '')}<br/>"
+            f"<b>Licence:</b> {PHARMACIST_LICENCE}<br/>"
+            f"<b>Generated at:</b> {generated_at}<br/><br/>"
+            "<i>Electronically signed via PharmAssist.</i>",
+            body,
+        )
+    )
 
     doc.build(elements)
     return buf.getvalue()
@@ -124,9 +152,12 @@ def single_record(rec: dict, current: dict) -> bytes:
     """Render a single documentation record as a one-page PDF."""
     buf = io.BytesIO()
     doc = _RLSimpleDocTemplate(
-        buf, pagesize=_RL_A4,
-        leftMargin=1.8 * _RL_CM, rightMargin=1.8 * _RL_CM,
-        topMargin=2.0 * _RL_CM, bottomMargin=2.0 * _RL_CM,
+        buf,
+        pagesize=_RL_A4,
+        leftMargin=1.8 * _RL_CM,
+        rightMargin=1.8 * _RL_CM,
+        topMargin=2.0 * _RL_CM,
+        bottomMargin=2.0 * _RL_CM,
         title=f"PharmAssist Documentation Record — {rec['id']}",
     )
     styles = _rl_styles()
@@ -135,25 +166,29 @@ def single_record(rec: dict, current: dict) -> bytes:
     body = styles["BodyText"]
 
     elements = []
-    generated_at = datetime.now(timezone.utc).isoformat()
+    generated_at = datetime.now(UTC).isoformat()
 
     elements.append(_RLParagraph("PharmAssist — Documentation Record", title))
     elements.append(_RLSpacer(1, 0.4 * _RL_CM))
-    elements.append(_RLParagraph(
-        f"<b>Record:</b> {rec['id']}<br/>"
-        f"<b>Pharmacy:</b> {PHARMACY_NAME} (Licence {PHARMACY_LICENCE})<br/>"
-        f"<b>Generated:</b> {generated_at}",
-        body,
-    ))
+    elements.append(
+        _RLParagraph(
+            f"<b>Record:</b> {rec['id']}<br/>"
+            f"<b>Pharmacy:</b> {PHARMACY_NAME} (Licence {PHARMACY_LICENCE})<br/>"
+            f"<b>Generated:</b> {generated_at}",
+            body,
+        )
+    )
     elements.append(_RLSpacer(1, 0.5 * _RL_CM))
 
     elements.append(_RLParagraph("Patient", h2))
-    elements.append(_RLParagraph(
-        f"<b>Name:</b> {rec['patientName']}<br/>"
-        f"<b>Prescription code:</b> {rec['rxId']}<br/>"
-        f"<b>Setting:</b> {rec['setting']}",
-        body,
-    ))
+    elements.append(
+        _RLParagraph(
+            f"<b>Name:</b> {rec['patientName']}<br/>"
+            f"<b>Prescription code:</b> {rec['rxId']}<br/>"
+            f"<b>Setting:</b> {rec['setting']}",
+            body,
+        )
+    )
     elements.append(_RLSpacer(1, 0.4 * _RL_CM))
 
     elements.append(_RLParagraph("Drug", h2))
@@ -161,30 +196,36 @@ def single_record(rec: dict, current: dict) -> bytes:
     elements.append(_RLSpacer(1, 0.4 * _RL_CM))
 
     elements.append(_RLParagraph("Counseling Provided", h2))
-    elements.append(_RLParagraph(
-        rec["informationProvided"].replace("\n", "<br/>"),
-        body,
-    ))
+    elements.append(
+        _RLParagraph(
+            rec["informationProvided"].replace("\n", "<br/>"),
+            body,
+        )
+    )
     elements.append(_RLSpacer(1, 0.4 * _RL_CM))
 
     elements.append(_RLParagraph("Delivery", h2))
-    elements.append(_RLParagraph(
-        f"<b>Language:</b> {rec['language']}<br/>"
-        f"<b>Method:</b> {rec['deliveryMethod'].title()}<br/>"
-        f"<b>Dispensed at:</b> {rec['dispensedAt']}",
-        body,
-    ))
+    elements.append(
+        _RLParagraph(
+            f"<b>Language:</b> {rec['language']}<br/>"
+            f"<b>Method:</b> {rec['deliveryMethod'].title()}<br/>"
+            f"<b>Dispensed at:</b> {rec['dispensedAt']}",
+            body,
+        )
+    )
     elements.append(_RLSpacer(1, 0.5 * _RL_CM))
 
     elements.append(_RLParagraph("Pharmacist Signature", h2))
-    elements.append(_RLParagraph(
-        f"<b>Name:</b> PharmD {rec['pharmacistName']}<br/>"
-        f"<b>Licence:</b> {rec['pharmacistLicense']}<br/>"
-        f"<b>Generated by:</b> {current.get('name', '')} (Licence {PHARMACIST_LICENCE})<br/>"
-        f"<b>Timestamp:</b> {generated_at}<br/><br/>"
-        "<i>Electronically signed via PharmAssist.</i>",
-        body,
-    ))
+    elements.append(
+        _RLParagraph(
+            f"<b>Name:</b> PharmD {rec['pharmacistName']}<br/>"
+            f"<b>Licence:</b> {rec['pharmacistLicense']}<br/>"
+            f"<b>Generated by:</b> {current.get('name', '')} (Licence {PHARMACIST_LICENCE})<br/>"
+            f"<b>Timestamp:</b> {generated_at}<br/><br/>"
+            "<i>Electronically signed via PharmAssist.</i>",
+            body,
+        )
+    )
     elements.append(_RLSpacer(1, 0.5 * _RL_CM))
 
     elements.append(_RLParagraph("Retention Notice", h2))

@@ -6,8 +6,7 @@ routes in this single file makes the ordering self-evident.
 """
 
 import time
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
@@ -29,20 +28,19 @@ from ..services.pdf import (
 )
 from ..services.prescriptions import MOCK_PRESCRIPTIONS
 
-
 router = APIRouter(prefix="/documentation", tags=["documentation"])
 
 
 @router.get("/export")
 async def export_documentation(
-    q: Optional[str] = Query(None, description="Free-text search across patient, rxId, drug."),
-    method: Optional[str] = Query(None, description="PRINT | DIGITAL | BOTH | ALL"),
+    q: str | None = Query(None, description="Free-text search across patient, rxId, drug."),
+    method: str | None = Query(None, description="PRINT | DIGITAL | BOTH | ALL"),
     format: str = Query("pdf", description="pdf | csv (default pdf)"),
     current: dict = Depends(get_current_user),
 ):
     rows = filter_records(q, method)
     mark_exported(rows)
-    today = datetime.now(timezone.utc).date().isoformat()
+    today = datetime.now(UTC).date().isoformat()
     fmt = (format or "pdf").lower()
     if fmt == "pdf" and REPORTLAB_AVAILABLE:
         return pdf_response(full_report(rows, current), f"PharmAssist_DocumentationLog_{today}.pdf")
@@ -68,8 +66,8 @@ async def export_documentation_record(
 
 @router.get("")
 async def list_documentation(
-    q: Optional[str] = Query(None, description="Free-text search across patient, rxId, drug."),
-    method: Optional[str] = Query(None, description="PRINT | DIGITAL | BOTH | ALL"),
+    q: str | None = Query(None, description="Free-text search across patient, rxId, drug."),
+    method: str | None = Query(None, description="PRINT | DIGITAL | BOTH | ALL"),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
     current: dict = Depends(get_current_user),
@@ -102,7 +100,7 @@ async def create_documentation_record(
         "id": new_id,
         "rxId": payload.rxId,
         "patientName": rx["patient"]["name"],
-        "drugName": f'{rx["medication"]["drugName"]} {rx["medication"]["dose"]}',
+        "drugName": f"{rx['medication']['drugName']} {rx['medication']['dose']}",
         "setting": payload.setting or "Private",
         "deliveryMethod": payload.method.upper(),
         "language": payload.language,
@@ -110,7 +108,7 @@ async def create_documentation_record(
         "pharmacistName": current.get("name", "Pharmacist"),
         "pharmacistLicense": "PH-12345",
         "signatureConfirmed": True,
-        "dispensedAt": datetime.now(timezone.utc).isoformat(),
+        "dispensedAt": datetime.now(UTC).isoformat(),
     }
     MOCK_DOCUMENTATION.insert(0, record)
     return record

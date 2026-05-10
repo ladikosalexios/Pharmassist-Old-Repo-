@@ -1,11 +1,21 @@
 import { NavLink } from "react-router-dom";
 import { useAuth } from "../lib/auth";
-import { GridIcon, FileTextIcon, UsersIcon, ClockIcon, AlertTriangleIcon, SettingsIcon, LogOutIcon, ShieldIcon, ClipboardIcon } from "./Icons";
+import {
+  GridIcon,
+  FileTextIcon,
+  UsersIcon,
+  ClockIcon,
+  AlertTriangleIcon,
+  SettingsIcon,
+  LogOutIcon,
+  ShieldIcon,
+  ClipboardIcon,
+} from "./Icons";
 
 const NAV = [
-  { to: "/dashboard",     label: "Dashboard",            Icon: GridIcon },
-  { to: "/documentation", label: "Documentation Log",    Icon: ClipboardIcon },
-  { to: "/side-effects",  label: "Side Effect Reports",  Icon: AlertTriangleIcon },
+  { to: "/dashboard", label: "Dashboard", Icon: GridIcon },
+  { to: "/documentation", label: "Documentation Log", Icon: ClipboardIcon },
+  { to: "/side-effects", label: "Side Effect Reports", Icon: AlertTriangleIcon },
 ];
 
 export function Sidebar() {
@@ -26,7 +36,9 @@ export function Sidebar() {
             to={to}
             className={({ isActive }) =>
               `mb-1 flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-                isActive ? "bg-brand-100 text-brand-600" : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                isActive
+                  ? "bg-brand-100 text-brand-600"
+                  : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
               }`
             }
           >

@@ -16,7 +16,6 @@ from fastapi import HTTPException
 
 from ..config import get_settings
 
-
 # Module-level constants kept for backward compat with anything that imports
 # them by name. Sourced from settings at first import.
 _settings = get_settings()

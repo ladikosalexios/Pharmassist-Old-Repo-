@@ -3,15 +3,15 @@ import { ApiError, getSpc } from "../lib/api";
 import type { Prescription, SpcDetails } from "../types";
 
 const STATUS_CHIP: Record<string, string> = {
-  PENDING:   "bg-amber-100 text-amber-800",
+  PENDING: "bg-amber-100 text-amber-800",
   COMPLETED: "bg-emerald-100 text-emerald-800",
-  FLAGGED:   "bg-red-100 text-red-800",
+  FLAGGED: "bg-red-100 text-red-800",
 };
 
 const STATUS_LABEL: Record<string, string> = {
-  PENDING:   "Pending",
+  PENDING: "Pending",
   COMPLETED: "Completed",
-  FLAGGED:   "Flagged",
+  FLAGGED: "Flagged",
 };
 
 interface PrescriptionDetailsCardProps {
@@ -26,13 +26,17 @@ export function PrescriptionDetailsCard({ rx }: PrescriptionDetailsCardProps) {
     if (!atcCode) return;
     let active = true;
     getSpc(atcCode)
-      .then((data) => { if (active) setSpc(data); })
+      .then((data) => {
+        if (active) setSpc(data);
+      })
       .catch((e: unknown) => {
         // Non-fatal: card still renders the static SPC version from the
         // prescription. Surface in console only.
         if (e instanceof ApiError) console.warn("PrescriptionDetailsCard SPC fetch:", e.message);
       });
-    return () => { active = false; };
+    return () => {
+      active = false;
+    };
   }, [atcCode]);
 
   const versionInfo = computeVersionInfo(rx.spcVersion, spc, rx.dateIssued);

@@ -1,7 +1,6 @@
 """Pharmacovigilance / adverse drug reaction reports."""
 
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -22,10 +21,10 @@ router = APIRouter(prefix="/side-effects", tags=["side-effects"])
 
 @router.get("")
 async def list_side_effects(
-    q: Optional[str] = Query(
+    q: str | None = Query(
         None, description="Free-text search across patient, drug, symptom."
     ),
-    sort: Optional[str] = Query("date", description="date | severity | status"),
+    sort: str | None = Query("date", description="date | severity | status"),
     current: dict = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ):
@@ -42,7 +41,7 @@ async def list_side_effects(
     sort_key = (sort or "date").lower()
     if sort_key == "severity":
         items.sort(
-            key=lambda r: (SEVERITY_RANK.get(r.severity, -1), r.reported_at),
+            key=lambda r: (SEVERITY_RANK.get(r["severity"], -1), r["reportedAt"]),
             reverse=True,
         )
     elif sort_key == "status":

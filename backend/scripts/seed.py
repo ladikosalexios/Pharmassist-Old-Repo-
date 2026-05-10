@@ -23,7 +23,6 @@ import asyncio, os, sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from dataclasses import dataclass
-from typing import Optional
 
 import bcrypt
 from sqlalchemy import text
@@ -53,12 +52,12 @@ class SeedProfile:
 
     pharmacy_name: str
     pharmacy_unit_id: int
-    pharmacy_address: Optional[str]
-    pharmacy_tax_id: Optional[str]
+    pharmacy_address: str | None
+    pharmacy_tax_id: str | None
     pharmacist_full_name: str
     pharmacist_email: str
-    pharmacist_phone: Optional[str]
-    pharmacist_amka: Optional[str]
+    pharmacist_phone: str | None
+    pharmacist_amka: str | None
     pharmacist_eof_licence_no: str
 
 
@@ -142,7 +141,7 @@ async def seed():
         # patient_conditions, pharmacist_pharmacies via FK chains.
         await db.execute(
             text(
-                "TRUNCATE pharmacist_pharmacies, patient_conditions, pharmacists, pharmacies, adr_reports "
+                "TRUNCATE pharmacist_pharmacies, patient_conditions, pharmacists, pharmacies, adr_reports"
                 "RESTART IDENTITY CASCADE"
             )
         )
@@ -214,9 +213,7 @@ async def seed():
         print(
             f"  Pharmacist:  {pharmacist.id}  /  {p.pharmacist_email}  /  {p.pharmacist_full_name}"
         )
-        print(
-            f"  Local login: {p.pharmacist_email}  /  test1234   (PharmAssist /auth/login)"
-        )
+        print(f"  Local login: {p.pharmacist_email}  /  test1234   (PharmAssist /auth/login)")
         print(f"  EOF licence: {p.pharmacist_eof_licence_no}")
         if p.pharmacist_amka:
             print(f"  Condition:   G6PD MODERATE on AMKA {p.pharmacist_amka}")

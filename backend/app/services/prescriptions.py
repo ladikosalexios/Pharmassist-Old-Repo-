@@ -11,7 +11,6 @@ drift from the detail records. Adding a prescription is a one-place change.
 
 from .safety_checks import MOCK_SAFETY_CHECKS
 
-
 MOCK_PRESCRIPTIONS: dict = {
     "RX2024-005": {
         "rxId": "RX2024-005",
@@ -56,9 +55,15 @@ MOCK_PRESCRIPTIONS: dict = {
                 "Pregnancy (except for mechanical heart valves)",
             ],
             "majorInteractions": [
-                {"drug": "Aspirin", "effect": "High risk of bleeding when combined with anticoagulants."},
+                {
+                    "drug": "Aspirin",
+                    "effect": "High risk of bleeding when combined with anticoagulants.",
+                },
                 {"drug": "NSAIDs", "effect": "Increased bleeding risk; avoid concurrent use."},
-                {"drug": "Amiodarone", "effect": "Potentiates warfarin effect; reduce warfarin dose by 30–50%."},
+                {
+                    "drug": "Amiodarone",
+                    "effect": "Potentiates warfarin effect; reduce warfarin dose by 30–50%.",
+                },
             ],
         },
         "safetyChecks": MOCK_SAFETY_CHECKS["RX2024-005"],
@@ -102,7 +107,7 @@ MOCK_PRESCRIPTIONS: dict = {
             ],
             "majorInteractions": [
                 {"drug": "Methotrexate", "effect": "Reduced excretion; increased toxicity risk."},
-                {"drug": "Allopurinol",  "effect": "Increased risk of skin rash."},
+                {"drug": "Allopurinol", "effect": "Increased risk of skin rash."},
             ],
         },
         "safetyChecks": MOCK_SAFETY_CHECKS["RX2024-001"],
@@ -149,7 +154,10 @@ MOCK_PRESCRIPTIONS: dict = {
             ],
             "majorInteractions": [
                 {"drug": "Aspirin", "effect": "Bleeding risk."},
-                {"drug": "Acenocoumarol", "effect": "Both are vitamin-K antagonists — duplicate anticoagulation."},
+                {
+                    "drug": "Acenocoumarol",
+                    "effect": "Both are vitamin-K antagonists — duplicate anticoagulation.",
+                },
             ],
         },
         "safetyChecks": MOCK_SAFETY_CHECKS["RX2024-002"],
@@ -238,8 +246,14 @@ MOCK_PRESCRIPTIONS: dict = {
                 "Severe hepatic impairment",
             ],
             "majorInteractions": [
-                {"drug": "Iodinated contrast", "effect": "Risk of acute renal failure — pause metformin."},
-                {"drug": "Loop diuretics", "effect": "Reduced renal function may unmask metformin contraindication."},
+                {
+                    "drug": "Iodinated contrast",
+                    "effect": "Risk of acute renal failure — pause metformin.",
+                },
+                {
+                    "drug": "Loop diuretics",
+                    "effect": "Reduced renal function may unmask metformin contraindication.",
+                },
             ],
         },
         "safetyChecks": MOCK_SAFETY_CHECKS["RX2024-006"],
@@ -283,7 +297,10 @@ MOCK_PRESCRIPTIONS: dict = {
                 "Pregnancy / breastfeeding",
             ],
             "majorInteractions": [
-                {"drug": "Clarithromycin", "effect": "Increased atorvastatin exposure — myopathy risk."},
+                {
+                    "drug": "Clarithromycin",
+                    "effect": "Increased atorvastatin exposure — myopathy risk.",
+                },
                 {"drug": "Cyclosporine", "effect": "Significantly increased atorvastatin levels."},
             ],
         },
@@ -370,7 +387,10 @@ MOCK_PRESCRIPTIONS: dict = {
                 "Hypersensitivity to penicillins or beta-lactams",
             ],
             "majorInteractions": [
-                {"drug": "Methotrexate", "effect": "Reduced excretion — relevant in oncology paeds only."},
+                {
+                    "drug": "Methotrexate",
+                    "effect": "Reduced excretion — relevant in oncology paeds only.",
+                },
             ],
         },
         "safetyChecks": MOCK_SAFETY_CHECKS["RX2024-009"],

@@ -1,6 +1,5 @@
 """Patient instruction template + delivery log."""
 
-
 # In-memory log of instruction sends (would be email/SMS/queue in prod).
 INSTRUCTION_DELIVERIES: list = []
 
@@ -31,15 +30,23 @@ def render_instructions(rx: dict, language: str, opts: dict) -> str:
         if notes:
             lines += ["", "ΣΗΜΑΝΤΙΚΑ ΣΗΜΕΙΑ:", notes]
         if include_side:
-            lines += ["", "ΠΙΘΑΝΕΣ ΑΝΕΠΙΘΥΜΗΤΕΣ ΕΝΕΡΓΕΙΕΣ:",
-                      "Ενημερώστε αμέσως τον φαρμακοποιό ή ιατρό σας αν παρατηρήσετε ασυνήθιστα συμπτώματα."]
+            lines += [
+                "",
+                "ΠΙΘΑΝΕΣ ΑΝΕΠΙΘΥΜΗΤΕΣ ΕΝΕΡΓΕΙΕΣ:",
+                "Ενημερώστε αμέσως τον φαρμακοποιό ή ιατρό σας αν παρατηρήσετε ασυνήθιστα συμπτώματα.",
+            ]
         if include_lifestyle:
-            lines += ["", "ΔΙΑΤΡΟΦΙΚΕΣ / ΤΡΟΠΟΥ ΖΩΗΣ ΟΔΗΓΙΕΣ:",
-                      "Διατηρήστε σταθερή πρόσληψη βιταμίνης Κ. Αποφύγετε αλκοόλ. Ενυδάτωση."]
+            lines += [
+                "",
+                "ΔΙΑΤΡΟΦΙΚΕΣ / ΤΡΟΠΟΥ ΖΩΗΣ ΟΔΗΓΙΕΣ:",
+                "Διατηρήστε σταθερή πρόσληψη βιταμίνης Κ. Αποφύγετε αλκοόλ. Ενυδάτωση.",
+            ]
         lines += [
-            "", "ΑΝ ΞΕΧΑΣΕΤΕ ΜΙΑ ΔΟΣΗ:",
+            "",
+            "ΑΝ ΞΕΧΑΣΕΤΕ ΜΙΑ ΔΟΣΗ:",
             "Πάρτε την μόλις τη θυμηθείτε, εκτός αν πλησιάζει η ώρα της επόμενης. Μη διπλασιάσετε.",
-            "", "ΕΠΙΚΟΙΝΩΝΙΑ ΜΕ ΙΑΤΡΟ ΑΝ:",
+            "",
+            "ΕΠΙΚΟΙΝΩΝΙΑ ΜΕ ΙΑΤΡΟ ΑΝ:",
             "• Εμφανιστούν σοβαρά συμπτώματα ή αιμορραγία",
             "• Δεν βελτιώνεστε εντός λίγων ημερών",
             "• Ξεκινήσετε νέα φαρμακευτική αγωγή",
@@ -57,15 +64,23 @@ def render_instructions(rx: dict, language: str, opts: dict) -> str:
         if notes:
             lines += ["", "KEY POINTS:", notes]
         if include_side:
-            lines += ["", "POSSIBLE SIDE EFFECTS:",
-                      "Tell your pharmacist or doctor immediately if you notice unusual symptoms."]
+            lines += [
+                "",
+                "POSSIBLE SIDE EFFECTS:",
+                "Tell your pharmacist or doctor immediately if you notice unusual symptoms.",
+            ]
         if include_lifestyle:
-            lines += ["", "DIET / LIFESTYLE:",
-                      "Maintain consistent vitamin K intake. Avoid alcohol. Stay hydrated."]
+            lines += [
+                "",
+                "DIET / LIFESTYLE:",
+                "Maintain consistent vitamin K intake. Avoid alcohol. Stay hydrated.",
+            ]
         lines += [
-            "", "IF YOU MISS A DOSE:",
+            "",
+            "IF YOU MISS A DOSE:",
             "Take it as soon as you remember, unless it is close to the next dose. Do not double up.",
-            "", "CONTACT YOUR DOCTOR IF:",
+            "",
+            "CONTACT YOUR DOCTOR IF:",
             "• You develop severe symptoms or bleeding",
             "• You do not improve within a few days",
             "• You start any new medication",

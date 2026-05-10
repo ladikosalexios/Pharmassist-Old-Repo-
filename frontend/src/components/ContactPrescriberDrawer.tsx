@@ -15,7 +15,11 @@ interface ContactPrescriberDrawerProps {
 }
 
 export function ContactPrescriberDrawer({
-  open, rxId, patientName, prescriber, onClose,
+  open,
+  rxId,
+  patientName,
+  prescriber,
+  onClose,
 }: ContactPrescriberDrawerProps) {
   useModalRegistration(open);
   const [messages, setMessages] = useState<PrescriptionMessage[] | null>(null);
@@ -34,12 +38,16 @@ export function ContactPrescriberDrawer({
     setLoadError(null);
     setMessages(null);
     getMessages(rxId)
-      .then((items) => { if (active) setMessages(items); })
+      .then((items) => {
+        if (active) setMessages(items);
+      })
       .catch((e: unknown) => {
         if (!active) return;
         setLoadError(e instanceof ApiError ? e.message : "Could not load message thread.");
       });
-    return () => { active = false; };
+    return () => {
+      active = false;
+    };
   }, [open, rxId]);
 
   // Close on Escape, focus the close button on open.
@@ -93,7 +101,9 @@ export function ContactPrescriberDrawer({
     <div className="fixed inset-0 z-50">
       <div
         className="absolute inset-0 bg-slate-900/40 animate-fade-in"
-        onClick={() => { if (!sending) onClose(); }}
+        onClick={() => {
+          if (!sending) onClose();
+        }}
         aria-hidden="true"
       />
 
@@ -129,9 +139,29 @@ export function ContactPrescriberDrawer({
               <div className="text-sm font-semibold text-slate-900">{prescriber.name}</div>
               <div className="mt-0.5 text-xs text-slate-500">{prescriber.specialty}</div>
               <dl className="mt-3 space-y-2 text-[13px]">
-                <Field label="Licence / ID" value={<span className="font-mono">{prescriber.licenceId}</span>} />
-                <Field label="Phone" value={<a href={`tel:${prescriber.contact}`} className="text-brand-600 hover:underline">{prescriber.contact}</a>} />
-                <Field label="Email" value={<a href={mailtoHref} className="text-brand-600 hover:underline">{prescriber.email}</a>} />
+                <Field
+                  label="Licence / ID"
+                  value={<span className="font-mono">{prescriber.licenceId}</span>}
+                />
+                <Field
+                  label="Phone"
+                  value={
+                    <a
+                      href={`tel:${prescriber.contact}`}
+                      className="text-brand-600 hover:underline"
+                    >
+                      {prescriber.contact}
+                    </a>
+                  }
+                />
+                <Field
+                  label="Email"
+                  value={
+                    <a href={mailtoHref} className="text-brand-600 hover:underline">
+                      {prescriber.email}
+                    </a>
+                  }
+                />
               </dl>
             </div>
 
@@ -159,8 +189,14 @@ export function ContactPrescriberDrawer({
           {/* Message history */}
           <section className="px-5 py-4">
             <div className="mb-3 flex items-center justify-between">
-              <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Message History</h3>
-              {messages && <span className="text-xs text-slate-500">{messages.length} message{messages.length === 1 ? "" : "s"}</span>}
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Message History
+              </h3>
+              {messages && (
+                <span className="text-xs text-slate-500">
+                  {messages.length} message{messages.length === 1 ? "" : "s"}
+                </span>
+              )}
             </div>
 
             {loadError ? (
@@ -169,14 +205,18 @@ export function ContactPrescriberDrawer({
                 <span>{loadError}</span>
               </div>
             ) : !messages ? (
-              <div className="flex items-center gap-2 text-sm text-slate-500"><span className="spinner text-brand-600" /> Loading messages…</div>
+              <div className="flex items-center gap-2 text-sm text-slate-500">
+                <span className="spinner text-brand-600" /> Loading messages…
+              </div>
             ) : messages.length === 0 ? (
               <div className="rounded-lg border border-dashed border-slate-200 px-4 py-6 text-center text-sm text-slate-500">
                 No messages yet. Start the thread below.
               </div>
             ) : (
               <ul className="space-y-3">
-                {messages.map((m) => <MessageRow key={m.id} message={m} />)}
+                {messages.map((m) => (
+                  <MessageRow key={m.id} message={m} />
+                ))}
                 <div ref={messagesEndRef} />
               </ul>
             )}
@@ -184,13 +224,19 @@ export function ContactPrescriberDrawer({
         </div>
 
         {/* Compose */}
-        <form id="compose" onSubmit={onSubmit} className="border-t border-slate-200 bg-slate-50 px-5 py-4">
+        <form
+          id="compose"
+          onSubmit={onSubmit}
+          className="border-t border-slate-200 bg-slate-50 px-5 py-4"
+        >
           {sendError && (
             <div className="mb-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800">
               {sendError}
             </div>
           )}
-          <label htmlFor="compose-textarea" className="sr-only">New message</label>
+          <label htmlFor="compose-textarea" className="sr-only">
+            New message
+          </label>
           <textarea
             id="compose-textarea"
             value={body}
@@ -228,12 +274,16 @@ function MessageRow({ message }: { message: PrescriptionMessage }) {
   const fromPharmacist = message.from === "pharmacist";
   return (
     <li className={`flex ${fromPharmacist ? "justify-end" : "justify-start"}`}>
-      <div className={`max-w-[85%] rounded-2xl px-3.5 py-2.5 text-[13px] leading-relaxed ${
-        fromPharmacist
-          ? "bg-brand-600 text-white"
-          : "bg-white text-slate-800 border border-slate-200"
-      }`}>
-        <div className={`mb-1 flex items-baseline gap-2 text-[11px] ${fromPharmacist ? "text-white/80" : "text-slate-500"}`}>
+      <div
+        className={`max-w-[85%] rounded-2xl px-3.5 py-2.5 text-[13px] leading-relaxed ${
+          fromPharmacist
+            ? "bg-brand-600 text-white"
+            : "bg-white text-slate-800 border border-slate-200"
+        }`}
+      >
+        <div
+          className={`mb-1 flex items-baseline gap-2 text-[11px] ${fromPharmacist ? "text-white/80" : "text-slate-500"}`}
+        >
           <span className="font-semibold">{message.fromName}</span>
           <span>{formatTimestamp(message.sentAt)}</span>
         </div>

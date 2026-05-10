@@ -1,14 +1,13 @@
 """Pharmacist ↔ prescriber message thread per prescription."""
 
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException
 
 from ..deps import get_current_user
 from ..schemas.messages import MessagePayload
 from ..services.messages import MOCK_MESSAGES
-
 
 router = APIRouter(prefix="/messages", tags=["messages"])
 
@@ -30,7 +29,7 @@ async def post_message(payload: MessagePayload, current: dict = Depends(get_curr
         "from": "pharmacist",
         "fromName": current["name"],
         "body": payload.body.strip(),
-        "sentAt": datetime.now(timezone.utc).isoformat(),
+        "sentAt": datetime.now(UTC).isoformat(),
     }
     MOCK_MESSAGES.setdefault(payload.rxId, []).append(msg)
     return msg

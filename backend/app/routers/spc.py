@@ -5,7 +5,6 @@ from fastapi import APIRouter, Depends, HTTPException
 from ..deps import get_current_user
 from ..services.spc import MOCK_SPC
 
-
 router = APIRouter(prefix="/spc", tags=["spc"])
 
 
