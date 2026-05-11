@@ -19,11 +19,12 @@ before the bare ``/{rx_id}``.
 """
 
 import ipaddress
-import os
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.utils.environment import is_mock_pharmapi
 
 from ..db.session import get_session
 from ..deps import get_current_user
@@ -37,11 +38,6 @@ from ..services.pharmapi import (
 from ..services.prescriptions import MOCK_PRESCRIPTIONS, MOCK_QUEUE_BASE
 
 router = APIRouter(prefix="/prescriptions", tags=["prescriptions"])
-
-
-def _is_mock() -> bool:
-    """Re-read at request time so the flag can be toggled via env without restart."""
-    return os.getenv("PHARMAPI_MOCK", "true").lower() not in ("false", "0", "no")
 
 
 def _client_meta(request: Request) -> tuple:
@@ -106,7 +102,7 @@ def _normalize_pharmapi_detail(raw: dict, barcode: str) -> dict:
 @router.get("/next")
 async def next_pending_prescription(current: dict = Depends(get_current_user)):
     """Return the next PENDING prescription in the queue (for the keyboard shortcut)."""
-    if _is_mock():
+    if is_mock_pharmapi():
         for base in MOCK_QUEUE_BASE:
             rx = MOCK_PRESCRIPTIONS.get(base["rxId"])
             status = rx["status"] if rx else base["status"]
@@ -131,7 +127,7 @@ async def list_prescriptions(current: dict = Depends(get_current_user)):
     in the ΗΔΥΚΑ search response. The frontend should populate them lazily from
     the detail call when a pharmacist opens a prescription for verification.
     """
-    if _is_mock():
+    if is_mock_pharmapi():
         items = []
         for base in MOCK_QUEUE_BASE:
             rx = MOCK_PRESCRIPTIONS.get(base["rxId"])
@@ -153,7 +149,7 @@ async def get_prescription_for_verification(rx_id: str, current: dict = Depends(
     Return full prescription data for the verification UI.
     In live mode, rx_id is the ΗΔΥΚΑ barcode.
     """
-    if _is_mock():
+    if is_mock_pharmapi():
         rx = MOCK_PRESCRIPTIONS.get(rx_id)
         if not rx:
             raise HTTPException(status_code=404, detail=f"Prescription {rx_id} not found")
@@ -179,7 +175,7 @@ async def approve_prescription(
     current: dict = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ):
-    if not _is_mock():
+    if not is_mock_pharmapi():
         # Real ΗΔΥΚΑ dispense POST not yet wired.
         raise HTTPException(
             status_code=501,
@@ -246,7 +242,7 @@ async def patch_prescription(
     Other partial edits (e.g. notify_physician=true with no status change)
     update the in-memory mock only — they aren't audit-worthy by themselves.
     """
-    if not _is_mock():
+    if not is_mock_pharmapi():
         raise HTTPException(
             status_code=501,
             detail="Live flag/patch not yet wired to ΗΔΥΚΑ.",

@@ -5,9 +5,12 @@ record there, so flag/approve actions on the verification page show up
 immediately in a patient's history.
 """
 
-from app.db.models.patient_condition import PatientCondition
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.db.models.patient_condition import PatientCondition
+from app.services.pharmapi import pharmapi_get_patient
+from app.utils.environment import is_mock_pharmapi
 
 from .prescriptions import MOCK_PRESCRIPTIONS
 from .side_effects import MOCK_SIDE_EFFECTS
@@ -253,19 +256,25 @@ def adr_history(patient_id: str) -> list:
     rows.sort(key=lambda r: r["reportedAt"], reverse=True)
     return rows
 
+
 async def conditions(session: AsyncSession, patient_id: str) -> list:
     return (
-        await session.scalars(
-            select(PatientCondition).where(PatientCondition.amka == patient_id)
-        )
+        await session.scalars(select(PatientCondition).where(PatientCondition.amka == patient_id))
     ).all()
 
-def resolve(patient_key: str) -> dict | None:
-    """Look up by patient id (P001) or AMKA (15031962456)."""
-    direct = PATIENT_PROFILES.get(patient_key)
-    if direct:
-        return direct
-    for p in PATIENT_PROFILES.values():
-        if p.get("amka") == patient_key:
-            return p
-    return None
+
+async def resolve(patient_key: str) -> dict | None:
+    """
+    Look up a patient from the third party service that provides their info.
+    Currently, the only service is pharmapi.
+    """
+    if not is_mock_pharmapi():
+        return await pharmapi_get_patient(patient_key)
+    else:
+        direct = PATIENT_PROFILES.get(patient_key)
+        if direct:
+            return direct
+        for p in PATIENT_PROFILES.values():
+            if p.get("amka") == patient_key:
+                return p
+        return None
