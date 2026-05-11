@@ -138,8 +138,7 @@ async def seed():
         # patient_conditions, pharmacist_pharmacies via FK chains.
         await db.execute(
             text(
-                "TRUNCATE pharmacist_pharmacies, patient_conditions, pharmacists, pharmacies, adr_reports"
-                "RESTART IDENTITY CASCADE"
+                "TRUNCATE pharmacist_pharmacies, patient_conditions, pharmacists, pharmacies, adr_reports RESTART IDENTITY CASCADE"  # noqa: E501
             )
         )
 
@@ -182,17 +181,17 @@ async def seed():
         )
         db.add(link)
 
-        if p.pharmacist_amka:
-            db.add(
-                PatientCondition(
-                    amka=p.pharmacist_amka,
-                    condition_code="G6PD",
-                    severity="MODERATE",
-                    notes="Seeded from Pharmapi /user/me — verify with patient on first visit",
-                    recorded_by=pharmacist.id,
-                    pharmacy_id=pharmacy.id,
-                )
+        TEST_PATIENT_AMKA = "15031962456" # TODO: replace with AMKA of patient in our test pharmacy
+        db.add(
+            PatientCondition(
+                amka=TEST_PATIENT_AMKA,
+                condition_code="G6PD",
+                severity="MODERATE",
+                notes="Seeded from Pharmapi /user/me — verify with patient on first visit",
+                recorded_by=pharmacist.id,
+                pharmacy_id=pharmacy.id,
             )
+        )
 
         # commit records with no foreign keys
         await db.commit()
@@ -212,8 +211,7 @@ async def seed():
         )
         print(f"  Local login: {p.pharmacist_email}  /  test1234   (PharmAssist /auth/login)")
         print(f"  EOF licence: {p.pharmacist_eof_licence_no}")
-        if p.pharmacist_amka:
-            print(f"  Condition:   G6PD MODERATE on AMKA {p.pharmacist_amka}")
+        print(f"  Condition:   G6PD MODERATE on AMKA {TEST_PATIENT_AMKA}")
 
 
 if __name__ == "__main__":
