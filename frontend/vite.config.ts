@@ -4,6 +4,9 @@ import react from "@vitejs/plugin-react";
 export default defineConfig({
   plugins: [react()],
   server: {
+    watch: {
+      usePolling: true, // Required for Docker on Windows/macOS to detect file changes
+    },
     port: 5173,
     proxy: {
       "/auth": "http://backend:8000",
