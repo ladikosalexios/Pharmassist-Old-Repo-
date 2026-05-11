@@ -17,7 +17,7 @@ router = APIRouter(prefix="/patients", tags=["patients"])
 
 @router.get("/{patient_id}/prescriptions")
 async def get_patient_prescriptions(patient_id: str, current: dict = Depends(get_current_user)):
-    profile = await resolve(patient_id)
+    profile = resolve(patient_id)
     if profile is None:
         raise HTTPException(status_code=404, detail=f"Patient {patient_id} not found")
     return {"items": rx_history(profile["id"])}
@@ -25,7 +25,7 @@ async def get_patient_prescriptions(patient_id: str, current: dict = Depends(get
 
 @router.get("/{patient_id}/side-effects")
 async def get_patient_side_effects(patient_id: str, current: dict = Depends(get_current_user)):
-    profile = await resolve(patient_id)
+    profile = resolve(patient_id)
     if profile is None:
         raise HTTPException(status_code=404, detail=f"Patient {patient_id} not found")
     return {"items": adr_history(profile["id"])}
@@ -42,7 +42,7 @@ async def get_patient_conditions(
 
 @router.get("/{patient_id}")
 async def get_patient(patient_id: str, current: dict = Depends(get_current_user)):
-    profile = await resolve(patient_id)
+    profile = resolve(patient_id)
     if profile is None:
         raise HTTPException(status_code=404, detail=f"Patient {patient_id} not found")
     return profile
