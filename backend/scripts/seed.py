@@ -186,6 +186,7 @@ async def seed():
             PatientCondition(
                 amka=TEST_PATIENT_AMKA,
                 condition_code="G6PD",
+                name="Glucose-6-phosphate dehydrogenase deficiency",
                 severity="MODERATE",
                 notes="Seeded from Pharmapi /user/me — verify with patient on first visit",
                 recorded_by=pharmacist.id,

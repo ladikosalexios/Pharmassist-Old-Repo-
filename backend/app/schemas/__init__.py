@@ -10,6 +10,8 @@ from .documentation import DocumentationCreate
 from .instructions import InstructionsGenerate, InstructionsSend
 from .messages import MessagePayload
 from .notifications import PhysicianNotification
+from .patient_conditions import PatientConditionPayload
+from .patients import PatientPayload
 from .prescriptions import PrescriptionPatch
 
 __all__ = [
@@ -22,4 +24,6 @@ __all__ = [
     "PrescriptionPatch",
     "SessionStatus",
     "TokenResponse",
+    "PatientPayload",
+    "PatientConditionPayload",
 ]

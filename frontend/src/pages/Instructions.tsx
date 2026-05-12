@@ -170,7 +170,7 @@ export function Instructions() {
     try {
       await sendInstructions({
         rxId: rx.rxId,
-        patientId: rx.patient.id,
+        patientId: rx.patient.amka,
         content: preview,
         method,
       });

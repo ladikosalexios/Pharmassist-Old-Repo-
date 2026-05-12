@@ -17,8 +17,8 @@ import { ApproveConfirmModal } from "../components/ApproveConfirmModal";
 import { ContactPrescriberDrawer } from "../components/ContactPrescriberDrawer";
 import { useToast } from "../components/Toast";
 import { useKeyboardShortcuts } from "../lib/keyboard";
-import { ApiError, getPrescription, approvePrescription } from "../lib/api";
-import type { Prescription } from "../types";
+import { ApiError, getPrescription, approvePrescription, getPatientConditions } from "../lib/api";
+import type { Prescription, PatientCondition } from "../types";
 
 export function PrescriptionVerification() {
   const { rxId = "" } = useParams<{ rxId: string }>();
@@ -36,6 +36,8 @@ export function PrescriptionVerification() {
   const [approveSubmitting, setApproveSubmitting] = useState(false);
   const [approveError, setApproveError] = useState<string | null>(null);
   const [blockedByChecks, setBlockedByChecks] = useState(false);
+  const [conditions, setConditions] = useState<PatientCondition[] | null>(null);
+  const [conditionsError, setConditionsError] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -57,6 +59,25 @@ export function PrescriptionVerification() {
       active = false;
     };
   }, [rxId]);
+
+  useEffect(() => {
+    if (!rx?.patient?.amka) return;
+    let active = true;
+    setConditionsError(null);
+    getPatientConditions(rx.patient.amka)
+      .then((data) => {
+        if (active) setConditions(data);
+      })
+      .catch((e: unknown) => {
+        if (!active) return;
+        setConditionsError(
+          e instanceof ApiError ? e.message : "Could not load patient conditions.",
+        );
+      });
+    return () => {
+      active = false;
+    };
+  }, [rx?.patient?.amka]);
 
   function onClickApprove() {
     if (!rx) return;
@@ -293,7 +314,7 @@ export function PrescriptionVerification() {
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-10">
         {/* Left main column */}
         <div className="space-y-6 lg:col-span-7">
-          <PatientInfoCard rx={rx} />
+          <PatientInfoCard rx={rx} conditions={conditions} conditionsError={conditionsError} />
           <MedicationDetailsCard rx={rx} />
           <SPCQuickReference
             drugName={rx.medication.drugName}
@@ -347,14 +368,22 @@ function Field({ label, value, mono }: { label: string; value: React.ReactNode; 
   );
 }
 
-function PatientInfoCard({ rx }: { rx: Prescription }) {
+function PatientInfoCard({
+  rx,
+  conditions,
+  conditionsError,
+}: {
+  rx: Prescription;
+  conditions: PatientCondition[] | null;
+  conditionsError: string | null;
+}) {
   const p = rx.patient;
   return (
     <Section
       title="Patient Information"
       action={
         <Link
-          to={`/patients/${p.id}?from=${encodeURIComponent(rx.rxId)}`}
+          to={`/patients/${p.amka}?from=${encodeURIComponent(rx.rxId)}`}
           className="text-sm font-medium text-brand-600 hover:underline"
         >
           View Full Patient Profile →
@@ -372,10 +401,17 @@ function PatientInfoCard({ rx }: { rx: Prescription }) {
           Medical Conditions
         </div>
         <div className="mt-2 flex flex-wrap gap-2">
-          {p.conditions.length ? (
-            p.conditions.map((c) => (
-              <span key={c} className="chip border border-brand-100 bg-brand-50 text-brand-700">
-                {c}
+          {conditionsError ? (
+            <span className="inline-flex items-center gap-1 text-sm text-red-600">
+              <AlertCircleIcon width={13} height={13} className="shrink-0" />
+              {conditionsError}
+            </span>
+          ) : conditions === null ? (
+            <span className="spinner text-brand-600" />
+          ) : conditions.length > 0 ? (
+            conditions.map((c) => (
+              <span key={c.id} className="chip border border-brand-100 bg-brand-50 text-brand-700">
+                {c.name}
               </span>
             ))
           ) : (

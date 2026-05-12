@@ -23,6 +23,7 @@ class PatientCondition(Base, TimestampMixin):
     condition_code: Mapped[str] = mapped_column(
         String, nullable=False
     )  # G6PD | PREGNANCY | RENAL_SEVERE | HEPATIC | etc.
+    name: Mapped[str] = mapped_column(String, nullable=False)  # e.g. "G6PD Deficiency"
     severity: Mapped[str | None] = mapped_column(String)  # MILD | MODERATE | SEVERE
     notes: Mapped[str | None] = mapped_column(String)
     recorded_by: Mapped[uuid.UUID] = mapped_column(
