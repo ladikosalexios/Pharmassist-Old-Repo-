@@ -375,7 +375,11 @@ export async function getPatientConditions(patientId: string): Promise<PatientCo
   const r = await fetch(`${API_BASE}/patients/${encodeURIComponent(patientId)}/conditions`, {
     headers: authHeaders(),
   });
-  return handle(r) as Promise<PatientCondition[]>
+  const data = (await handle(r)) as Promise<PatientCondition[]>
+  if (!Array.isArray(data)) {
+    throw new ApiError(0, `Unexpected response from /patients/${patientId}/side-effects.`);
+  }
+  return data as PatientCondition[];
 }
 
 export async function generateInstructions(
