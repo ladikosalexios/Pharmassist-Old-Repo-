@@ -267,7 +267,9 @@ export function PatientProfile() {
                         <AlertCircleIcon width={13} height={13} className="shrink-0" />
                         {conditionsError}
                       </span>
-                    ) : conditions && conditions.length > 0 ? (
+                    ) : conditions === null ? (
+                      <span className="spinner text-brand-600" />
+                    ) : conditions.length > 0 ? (
                       conditions.map((c) => (
                         <span
                           key={c.id}
