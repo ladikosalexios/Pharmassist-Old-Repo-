@@ -1,6 +1,15 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
+// Proxy entries that share a path prefix with a frontend route need a bypass:
+// browser page navigations (Accept: text/html) get index.html; API fetches
+// (Accept: application/json / */*) are forwarded to the backend as normal.
+const spaProxy = (target: string) => ({
+  target,
+  bypass: (req: { headers: Record<string, string | string[] | undefined> }) =>
+    req.headers["accept"]?.toString().includes("text/html") ? "/index.html" : null,
+});
+
 export default defineConfig({
   plugins: [react()],
   server: {
@@ -17,11 +26,11 @@ export default defineConfig({
       "/alerts": "http://backend:8000",
       "/messages": "http://backend:8000",
       "/notifications": "http://backend:8000",
-      "/documentation": "http://backend:8000",
-      "/side-effects": "http://backend:8000",
-      "/patients": "http://backend:8000",
-      "/instructions": "http://backend:8000",
       "/health": "http://backend:8000",
+      "/documentation": spaProxy("http://backend:8000"),
+      "/side-effects": spaProxy("http://backend:8000"),
+      "/patients": spaProxy("http://backend:8000"),
+      "/instructions": spaProxy("http://backend:8000"),
     },
   },
 });
