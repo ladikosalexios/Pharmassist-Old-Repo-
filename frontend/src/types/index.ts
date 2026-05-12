@@ -177,12 +177,12 @@ export interface PatientCondition {
   conditionCode: string;
   name: string;
   notes: string;
-  pharmacy_id: string;
-  created_at: string;
+  pharmacyId: string;
+  createdAt: string;
   severity: string;
-  recorded_by: string;
+  recordedBy: string;
   active: boolean;
-  updated_at: string;
+  updatedAt: string;
 }
 
 export type OrganFunction =

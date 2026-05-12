@@ -326,94 +326,94 @@ const ADR_HISTORY: Record<string, SideEffectReport[]> = {
 };
 
 const CONDITIONS: Record<string, PatientCondition[]> = {
-  15031962456: [
+  "15031962456": [
      {
       conditionCode: "G6PD",
       name: "Glucose-6-phosphate dehydrogenase deficiency",
       amka: "15031962456",
       notes: "Seeded from Pharmapi /user/me — verify with patient on first visit",
-      pharmacy_id: "e6d9f9cc-65da-4400-8194-fdd99ecace92",
-      created_at: "2026-05-11T17:45:03.373179+00:00",
+      pharmacyId: "e6d9f9cc-65da-4400-8194-fdd99ecace92",
+      createdAt: "2026-05-11T17:45:03.373179+00:00",
       severity: "MODERATE",
       id: "7cec3ae6-dcec-46f2-ab4d-1e293ce858a0",
-      recorded_by: "b77e5118-59e1-4318-9d3d-5d1de2e26c25",
+      recordedBy: "b77e5118-59e1-4318-9d3d-5d1de2e26c25",
       active: true,
-      updated_at: "2026-05-11T17:45:03.373179+00:00"
+      updatedAt: "2026-05-11T17:45:03.373179+00:00"
     },
   ],
   "08111974201": [
     {
       conditionCode: "G6PD",
       name: "Glucose-6-phosphate dehydrogenase deficiency",
-      amka: "15031962456",
+      amka: "08111974201",
       notes: "Seeded from Pharmapi /user/me — verify with patient on first visit",
-      pharmacy_id: "e6d9f9cc-65da-4400-8194-fdd99ecace92",
-      created_at: "2026-05-11T17:45:03.373179+00:00",
+      pharmacyId: "e6d9f9cc-65da-4400-8194-fdd99ecace92",
+      createdAt: "2026-05-11T17:45:03.373179+00:00",
       severity: "MODERATE",
       id: "7cec3ae6-dcec-46f2-ab4d-1e293ce858a0",
-      recorded_by: "b77e5118-59e1-4318-9d3d-5d1de2e26c25",
+      recordedBy: "b77e5118-59e1-4318-9d3d-5d1de2e26c25",
       active: true,
-      updated_at: "2026-05-11T17:45:03.373179+00:00"
+      updatedAt: "2026-05-11T17:45:03.373179+00:00"
     },
   ],
   "22071993789": [
    {
       conditionCode: "G6PD",
       name: "Glucose-6-phosphate dehydrogenase deficiency",
-      amka: "15031962456",
+      amka: "22071993789",
       notes: "Seeded from Pharmapi /user/me — verify with patient on first visit",
-      pharmacy_id: "e6d9f9cc-65da-4400-8194-fdd99ecace92",
-      created_at: "2026-05-11T17:45:03.373179+00:00",
+      pharmacyId: "e6d9f9cc-65da-4400-8194-fdd99ecace92",
+      createdAt: "2026-05-11T17:45:03.373179+00:00",
       severity: "MODERATE",
       id: "7cec3ae6-dcec-46f2-ab4d-1e293ce858a0",
-      recorded_by: "b77e5118-59e1-4318-9d3d-5d1de2e26c25",
+      recordedBy: "b77e5118-59e1-4318-9d3d-5d1de2e26c25",
       active: true,
-      updated_at: "2026-05-11T17:45:03.373179+00:00"
+      updatedAt: "2026-05-11T17:45:03.373179+00:00"
     },
   ],
   "03051961334": [
     {
       conditionCode: "G6PD",
       name: "Glucose-6-phosphate dehydrogenase deficiency",
-      amka: "15031962456",
+      amka: "03051961334",
       notes: "Seeded from Pharmapi /user/me — verify with patient on first visit",
-      pharmacy_id: "e6d9f9cc-65da-4400-8194-fdd99ecace92",
-      created_at: "2026-05-11T17:45:03.373179+00:00",
+      pharmacyId: "e6d9f9cc-65da-4400-8194-fdd99ecace92",
+      createdAt: "2026-05-11T17:45:03.373179+00:00",
       severity: "MODERATE",
       id: "7cec3ae6-dcec-46f2-ab4d-1e293ce858a0",
-      recorded_by: "b77e5118-59e1-4318-9d3d-5d1de2e26c25",
+      recordedBy: "b77e5118-59e1-4318-9d3d-5d1de2e26c25",
       active: true,
-      updated_at: "2026-05-11T17:45:03.373179+00:00"
+      updatedAt: "2026-05-11T17:45:03.373179+00:00"
     },
   ],
   "12101948112": [
    {
       conditionCode: "G6PD",
       name: "Glucose-6-phosphate dehydrogenase deficiency",
-      amka: "15031962456",
+      amka: "12101948112",
       notes: "Seeded from Pharmapi /user/me — verify with patient on first visit",
-      pharmacy_id: "e6d9f9cc-65da-4400-8194-fdd99ecace92",
-      created_at: "2026-05-11T17:45:03.373179+00:00",
+      pharmacyId: "e6d9f9cc-65da-4400-8194-fdd99ecace92",
+      createdAt: "2026-05-11T17:45:03.373179+00:00",
       severity: "MODERATE",
       id: "7cec3ae6-dcec-46f2-ab4d-1e293ce858a0",
-      recorded_by: "b77e5118-59e1-4318-9d3d-5d1de2e26c25",
+      recordedBy: "b77e5118-59e1-4318-9d3d-5d1de2e26c25",
       active: true,
-      updated_at: "2026-05-11T17:45:03.373179+00:00"
+      updatedAt: "2026-05-11T17:45:03.373179+00:00"
     },
   ],
   "27021982557": [
     {
       conditionCode: "G6PD",
       name: "Glucose-6-phosphate dehydrogenase deficiency",
-      amka: "15031962456",
+      amka: "27021982557",
       notes: "Seeded from Pharmapi /user/me — verify with patient on first visit",
-      pharmacy_id: "e6d9f9cc-65da-4400-8194-fdd99ecace92",
-      created_at: "2026-05-11T17:45:03.373179+00:00",
+      pharmacyId: "e6d9f9cc-65da-4400-8194-fdd99ecace92",
+      createdAt: "2026-05-11T17:45:03.373179+00:00",
       severity: "MODERATE",
       id: "7cec3ae6-dcec-46f2-ab4d-1e293ce858a0",
-      recorded_by: "b77e5118-59e1-4318-9d3d-5d1de2e26c25",
+      recordedBy: "b77e5118-59e1-4318-9d3d-5d1de2e26c25",
       active: true,
-      updated_at: "2026-05-11T17:45:03.373179+00:00"
+      updatedAt: "2026-05-11T17:45:03.373179+00:00"
     },
   ],
 }
