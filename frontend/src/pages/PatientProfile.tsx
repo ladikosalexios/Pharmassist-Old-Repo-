@@ -88,6 +88,7 @@ export function PatientProfile() {
   const [adrError, setAdrError] = useState<string | null>(null);
 
   const [conditions, setConditions] = useState<PatientCondition[] | null>(null);
+  const [conditionsError, setConditionsError] = useState<string | null>(null);
 
   const [usingFallback, setUsingFallback] = useState(false);
 
@@ -100,6 +101,7 @@ export function PatientProfile() {
     setAdrHistory(null);
     setRxError(null);
     setAdrError(null);
+    setConditionsError(null);
     setUsingFallback(false);
 
     const fb = fallbackForPatient(id);
@@ -168,7 +170,9 @@ export function PatientProfile() {
           setConditions(fb.conditions);
           setUsingFallback(true);
         } else {
-          setAdrError(e instanceof ApiError ? e.message : "Could not load patient conditions.");
+          setConditionsError(
+            e instanceof ApiError ? e.message : "Could not load patient conditions.",
+          );
         }
       });
 
@@ -258,7 +262,12 @@ export function PatientProfile() {
                     Medical Conditions
                   </div>
                   <div className="mt-2 flex flex-wrap gap-2">
-                    {conditions && conditions.length > 0 ? (
+                    {conditionsError ? (
+                      <span className="inline-flex items-center gap-1 text-sm text-red-600">
+                        <AlertCircleIcon width={13} height={13} className="shrink-0" />
+                        {conditionsError}
+                      </span>
+                    ) : conditions && conditions.length > 0 ? (
                       conditions.map((c) => (
                         <span
                           key={c.id}

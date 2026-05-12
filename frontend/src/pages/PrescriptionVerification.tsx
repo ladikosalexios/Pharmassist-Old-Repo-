@@ -37,6 +37,7 @@ export function PrescriptionVerification() {
   const [approveError, setApproveError] = useState<string | null>(null);
   const [blockedByChecks, setBlockedByChecks] = useState(false);
   const [conditions, setConditions] = useState<PatientCondition[] | null>(null);
+  const [conditionsError, setConditionsError] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -62,10 +63,20 @@ export function PrescriptionVerification() {
   useEffect(() => {
     if (!rx?.patient?.amka) return;
     let active = true;
+    setConditionsError(null);
     getPatientConditions(rx.patient.amka)
-      .then((data) => { if (active) setConditions(data); })
-      .catch(() => { if (active) setConditions([]); });
-    return () => { active = false; };
+      .then((data) => {
+        if (active) setConditions(data);
+      })
+      .catch((e: unknown) => {
+        if (!active) return;
+        setConditionsError(
+          e instanceof ApiError ? e.message : "Could not load patient conditions.",
+        );
+      });
+    return () => {
+      active = false;
+    };
   }, [rx?.patient?.amka]);
 
   function onClickApprove() {
@@ -303,7 +314,7 @@ export function PrescriptionVerification() {
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-10">
         {/* Left main column */}
         <div className="space-y-6 lg:col-span-7">
-          <PatientInfoCard rx={rx} conditions={conditions} />
+          <PatientInfoCard rx={rx} conditions={conditions} conditionsError={conditionsError} />
           <MedicationDetailsCard rx={rx} />
           <SPCQuickReference
             drugName={rx.medication.drugName}
@@ -357,7 +368,15 @@ function Field({ label, value, mono }: { label: string; value: React.ReactNode; 
   );
 }
 
-function PatientInfoCard({ rx, conditions }: { rx: Prescription; conditions: PatientCondition[] | null }) {
+function PatientInfoCard({
+  rx,
+  conditions,
+  conditionsError,
+}: {
+  rx: Prescription;
+  conditions: PatientCondition[] | null;
+  conditionsError: string | null;
+}) {
   const p = rx.patient;
   return (
     <Section
@@ -382,7 +401,12 @@ function PatientInfoCard({ rx, conditions }: { rx: Prescription; conditions: Pat
           Medical Conditions
         </div>
         <div className="mt-2 flex flex-wrap gap-2">
-          {conditions === null ? (
+          {conditionsError ? (
+            <span className="inline-flex items-center gap-1 text-sm text-red-600">
+              <AlertCircleIcon width={13} height={13} className="shrink-0" />
+              {conditionsError}
+            </span>
+          ) : conditions === null ? (
             <span className="spinner text-brand-600" />
           ) : conditions.length > 0 ? (
             conditions.map((c) => (
