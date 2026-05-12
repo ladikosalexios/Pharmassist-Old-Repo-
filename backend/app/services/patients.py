@@ -5,6 +5,11 @@ record there, so flag/approve actions on the verification page show up
 immediately in a patient's history.
 """
 
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.db.models.patient_condition import PatientCondition
+
 from .prescriptions import MOCK_PRESCRIPTIONS
 from .side_effects import MOCK_SIDE_EFFECTS
 
@@ -248,6 +253,16 @@ def adr_history(patient_id: str) -> list:
     rows = [r for r in MOCK_SIDE_EFFECTS if r["patientId"] == patient_id]
     rows.sort(key=lambda r: r["reportedAt"], reverse=True)
     return rows
+
+
+async def conditions(session: AsyncSession, patient_id: str, pharmacy_id: str) -> list:
+    return (
+        await session.scalars(
+            select(PatientCondition).where(
+                PatientCondition.amka == patient_id, PatientCondition.pharmacy_id == pharmacy_id
+            )
+        )
+    ).all()
 
 
 def resolve(patient_key: str) -> dict | None:
