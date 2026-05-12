@@ -8,6 +8,8 @@ sub-resource paths win over the catch-all profile fetch.
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.services.pharmacy import find_pharmacy_by_name
+
 from ..db.session import get_session
 from ..deps import get_current_user
 from ..services.patients import adr_history, conditions, resolve, rx_history
@@ -37,7 +39,11 @@ async def get_patient_conditions(
     current: dict = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ):
-    return await conditions(session, patient_id)
+    profile = resolve(patient_id)
+    if profile is None:
+        raise HTTPException(status_code=404, detail=f"Patient {patient_id} not found")
+    pharmacy = await find_pharmacy_by_name(session, current["pharmacy"])
+    return await conditions(session, profile["amka"], pharmacy.id)
 
 
 @router.get("/{patient_id}")
