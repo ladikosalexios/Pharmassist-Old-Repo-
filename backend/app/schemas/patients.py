@@ -1,18 +1,16 @@
-import uuid
-from datetime import datetime
-
-from .base import AppSchema
+from pydantic import BaseModel
 
 
-class PatientConditionOut(AppSchema):
-    id: uuid.UUID
+class PatientPayload(BaseModel):
+    id: str
     amka: str
-    condition_code: str
-    name: str
-    severity: str | None
-    notes: str | None
-    recorded_by: uuid.UUID
-    pharmacy_id: uuid.UUID
-    active: bool
-    created_at: datetime
-    updated_at: datetime
+    first_name: str
+    last_name: str
+    date_of_birth: str
+    age: int
+    sex: str
+    phone: str
+    conditions: list
+    allergies: list
+    intolerances: list
+    safety_flags: dict
