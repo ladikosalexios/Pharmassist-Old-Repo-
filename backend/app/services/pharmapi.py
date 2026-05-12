@@ -350,20 +350,20 @@ async def pharmapi_search_prescriptions(
 
 
 def clean_pharmapi_patient_data(data: dict) -> PatientPayload:
-    birhdate = datetime.strptime(data["dateOfBirth"], "%Y-%m-%d")
+    birthdate = datetime.strptime(data["dateOfBirth"], "%Y-%m-%d")
     return PatientPayload(
         id=data["amka"],
         amka=data["amka"],
         first_name=data["first_name"],
         last_name=data["last_name"],
         date_of_birth=data["dateOfBirth"],
-        age=age_from_date(birhdate),
+        age=age_from_date(birthdate),
         sex=data["sex"],
         phone=data["mobile"],
         conditions=None,
         allergies=None,
         intolerances=None,
-        saftey_flags=None,
+        safety_flags=None,
     )
 
 

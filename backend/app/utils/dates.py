@@ -1,8 +1,11 @@
 from datetime import datetime
 
-def age_from_date(date: datetime) -> int:
+
+def age_from_date(birthdate: datetime) -> int:
     """Returns the age of a person born on the given date, rounded down."""
-    today = date.today()
+    today = birthdate.today()
     # Subtract birth year from current year
     # Subtract 1 if the birthday hasn't happened yet this year
-    return today.year - date.year - ((today.month, today.day) < (date.month, date.day))
+    return (
+        today.year - birthdate.year - ((today.month, today.day) < (birthdate.month, birthdate.day))
+    )
