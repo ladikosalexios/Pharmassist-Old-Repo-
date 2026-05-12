@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..db.session import get_session
 from ..deps import get_current_user
+from ..schemas.patients import PatientConditionOut
 from ..services.patients import adr_history, conditions, resolve, rx_history
 
 router = APIRouter(prefix="/patients", tags=["patients"])
@@ -31,7 +32,7 @@ async def get_patient_side_effects(patient_id: str, current: dict = Depends(get_
     return {"items": adr_history(profile["id"])}
 
 
-@router.get("/{patient_id}/conditions")
+@router.get("/{patient_id}/conditions", response_model=list[PatientConditionOut])
 async def get_patient_conditions(
     patient_id: str,
     current: dict = Depends(get_current_user),
