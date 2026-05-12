@@ -7,6 +7,7 @@ import type {
   DocumentationRecord,
   GeneratedInstructions,
   InstructionsOptions,
+  PatientCondition,
   PatientProfile,
   PatientRxHistoryRow,
   Prescription,
@@ -368,6 +369,13 @@ export async function getPatientSideEffects(patientId: string): Promise<SideEffe
     throw new ApiError(0, `Unexpected response from /patients/${patientId}/side-effects.`);
   }
   return data.items;
+}
+
+export async function getPatientConditions(patientId: string): Promise<PatientCondition[]> {
+  const r = await fetch(`${API_BASE}/patients/${encodeURIComponent(patientId)}/conditions`, {
+    headers: authHeaders(),
+  });
+  return handle(r) as Promise<PatientCondition[]>
 }
 
 export async function generateInstructions(

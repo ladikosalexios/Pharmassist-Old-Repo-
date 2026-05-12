@@ -11,16 +11,23 @@ import {
   ShieldIcon,
   UsersIcon,
 } from "../components/Icons";
-import { ApiError, getPatient, getPatientPrescriptions, getPatientSideEffects } from "../lib/api";
+import {
+  ApiError,
+  getPatient,
+  getPatientConditions,
+  getPatientPrescriptions,
+  getPatientSideEffects,
+} from "../lib/api";
 import { fallbackForPatient, isProfileShapeIncomplete } from "../lib/patientFallback";
-import type {
-  AdrSeverity,
-  AdrStatus,
-  OrganFunction,
-  PatientProfile as Profile,
-  PatientRxHistoryRow,
-  PatientSafetyFlags,
-  SideEffectReport,
+import {
+  type AdrSeverity,
+  type AdrStatus,
+  type OrganFunction,
+  type PatientProfile as Profile,
+  type PatientRxHistoryRow,
+  type PatientSafetyFlags,
+  type SideEffectReport,
+  PatientCondition,
 } from "../types";
 
 const TABS = ["rx", "adr", "safety"] as const;
@@ -79,6 +86,8 @@ export function PatientProfile() {
 
   const [adrHistory, setAdrHistory] = useState<SideEffectReport[] | null>(null);
   const [adrError, setAdrError] = useState<string | null>(null);
+
+  const [conditions, setConditions] = useState<PatientCondition[] | null>(null);
 
   const [usingFallback, setUsingFallback] = useState(false);
 
@@ -145,6 +154,21 @@ export function PatientProfile() {
           setUsingFallback(true);
         } else {
           setAdrError(e instanceof ApiError ? e.message : "Could not load side-effect history.");
+        }
+      });
+
+    getPatientConditions(id)
+      .then((conditions) => {
+        if (!active) return;
+        setConditions(conditions);
+      })
+      .catch((e: unknown) => {
+        if (!active) return;
+        if (fb) {
+          setConditions(fb.conditions);
+          setUsingFallback(true);
+        } else {
+          setAdrError(e instanceof ApiError ? e.message : "Could not load patient conditions.");
         }
       });
 
@@ -234,13 +258,13 @@ export function PatientProfile() {
                     Medical Conditions
                   </div>
                   <div className="mt-2 flex flex-wrap gap-2">
-                    {profile.conditions && profile.conditions.length > 0 ? (
-                      profile.conditions.map((c) => (
+                    {conditions && conditions.length > 0 ? (
+                      conditions.map((c) => (
                         <span
-                          key={c}
+                          key={c.id}
                           className="chip border border-brand-100 bg-brand-50 text-brand-700"
                         >
-                          {c}
+                          {c.name}
                         </span>
                       ))
                     ) : (

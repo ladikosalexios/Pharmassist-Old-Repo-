@@ -171,6 +171,20 @@ export interface SideEffectListResponse {
   stats: SideEffectStats;
 }
 
+export interface PatientCondition {
+  id: string;
+  amka: string;
+  conditionCode: string;
+  name: string;
+  notes: string;
+  pharmacy_id: string;
+  created_at: string;
+  severity: string;
+  recorded_by: string;
+  active: boolean;
+  updated_at: string;
+}
+
 export type OrganFunction =
   | "NORMAL"
   | "MILD_IMPAIRMENT"

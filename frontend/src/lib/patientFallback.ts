@@ -2,17 +2,18 @@
 // Used by the Patient Profile page when the API returns nothing useful or
 // hasn't yet been restarted to pick up the expanded /patients endpoints.
 
-import type { PatientProfile, PatientRxHistoryRow, SideEffectReport } from "../types";
+import type { PatientCondition, PatientProfile, PatientRxHistoryRow, SideEffectReport } from "../types";
 
 interface PatientBundle {
   profile: PatientProfile;
   rxHistory: PatientRxHistoryRow[];
   adrHistory: SideEffectReport[];
+  conditions: PatientCondition[];
 }
 
 const PROFILES: PatientProfile[] = [
   {
-    id: "P001",
+    id: "15031962456",
     amka: "15031962456",
     firstName: "Maria",
     lastName: "Stavrou",
@@ -33,7 +34,7 @@ const PROFILES: PatientProfile[] = [
     },
   },
   {
-    id: "P004",
+    id: "08111974201",
     amka: "08111974201",
     firstName: "Eleni",
     lastName: "Papadopoulos",
@@ -54,7 +55,7 @@ const PROFILES: PatientProfile[] = [
     },
   },
   {
-    id: "P010",
+    id: "22071993789",
     amka: "22071993789",
     firstName: "Sarah",
     lastName: "Johnson",
@@ -75,7 +76,7 @@ const PROFILES: PatientProfile[] = [
     },
   },
   {
-    id: "P012",
+    id: "03051961334",
     amka: "03051961334",
     firstName: "Dimitrios",
     lastName: "Konstantinou",
@@ -96,7 +97,7 @@ const PROFILES: PatientProfile[] = [
     },
   },
   {
-    id: "P020",
+    id: "12101948112",
     amka: "12101948112",
     firstName: "Anna",
     lastName: "Kostas",
@@ -117,7 +118,7 @@ const PROFILES: PatientProfile[] = [
     },
   },
   {
-    id: "P031",
+    id: "27021982557",
     amka: "27021982557",
     firstName: "Nikos",
     lastName: "Vlachos",
@@ -140,7 +141,7 @@ const PROFILES: PatientProfile[] = [
 ];
 
 const RX_HISTORY: Record<string, PatientRxHistoryRow[]> = {
-  P001: [
+  15031962456: [
     {
       rxId: "RX2024-005",
       date: "2026-04-28",
@@ -170,7 +171,7 @@ const RX_HISTORY: Record<string, PatientRxHistoryRow[]> = {
       status: "COMPLETED",
     },
   ],
-  P004: [
+  "08111974201": [
     {
       rxId: "RX2024-002",
       date: "2026-03-11",
@@ -186,7 +187,7 @@ const RX_HISTORY: Record<string, PatientRxHistoryRow[]> = {
       status: "COMPLETED",
     },
   ],
-  P010: [
+  "22071993789": [
     {
       rxId: "RX2024-001",
       date: "2026-03-11",
@@ -195,7 +196,7 @@ const RX_HISTORY: Record<string, PatientRxHistoryRow[]> = {
       status: "PENDING",
     },
   ],
-  P012: [
+  "03051961334": [
     {
       rxId: "RX2023-091",
       date: "2025-12-08",
@@ -211,7 +212,7 @@ const RX_HISTORY: Record<string, PatientRxHistoryRow[]> = {
       status: "COMPLETED",
     },
   ],
-  P020: [
+  "12101948112": [
     {
       rxId: "RX2023-066",
       date: "2025-09-30",
@@ -220,7 +221,7 @@ const RX_HISTORY: Record<string, PatientRxHistoryRow[]> = {
       status: "COMPLETED",
     },
   ],
-  P031: [
+  "27021982557": [
     {
       rxId: "RX2023-032",
       date: "2025-05-18",
@@ -232,10 +233,10 @@ const RX_HISTORY: Record<string, PatientRxHistoryRow[]> = {
 };
 
 const ADR_HISTORY: Record<string, SideEffectReport[]> = {
-  P001: [
+  "15031962456": [
     {
       id: "ADR-2026-0009",
-      patientId: "P001",
+      patientId: "15031962456",
       patientName: "Maria Stavrou",
       patientPhone: "+30 694 312 3456",
       rxId: "RX2024-005",
@@ -247,10 +248,10 @@ const ADR_HISTORY: Record<string, SideEffectReport[]> = {
       onset: "8 hours after the second dose",
     },
   ],
-  P004: [
+  "08111974201": [
     {
       id: "ADR-2026-0008",
-      patientId: "P004",
+      patientId: "08111974201",
       patientName: "Eleni Papadopoulos",
       patientPhone: "+30 697 555 0142",
       rxId: "RX2024-002",
@@ -262,10 +263,10 @@ const ADR_HISTORY: Record<string, SideEffectReport[]> = {
       onset: "Within 48 hours of dose increase",
     },
   ],
-  P010: [
+  "22071993789": [
     {
       id: "ADR-2026-0007",
-      patientId: "P010",
+      patientId: "22071993789",
       patientName: "Sarah Johnson",
       patientPhone: "+30 698 011 2233",
       rxId: "RX2024-001",
@@ -277,10 +278,10 @@ const ADR_HISTORY: Record<string, SideEffectReport[]> = {
       onset: "Day 3 of antibiotic course",
     },
   ],
-  P012: [
+  "03051961334": [
     {
       id: "ADR-2026-0006",
-      patientId: "P012",
+      patientId: "03051961334",
       patientName: "Dimitrios Konstantinou",
       patientPhone: "+30 698 555 7012",
       rxId: null,
@@ -292,10 +293,10 @@ const ADR_HISTORY: Record<string, SideEffectReport[]> = {
       onset: "Three weeks after starting therapy",
     },
   ],
-  P020: [
+  "12101948112": [
     {
       id: "ADR-2026-0005",
-      patientId: "P020",
+      patientId: "12101948112",
       patientName: "Anna Kostas",
       patientPhone: "+30 697 999 0011",
       rxId: null,
@@ -307,10 +308,10 @@ const ADR_HISTORY: Record<string, SideEffectReport[]> = {
       onset: "Two weeks into therapy",
     },
   ],
-  P031: [
+  "27021982557": [
     {
       id: "ADR-2026-0004",
-      patientId: "P031",
+      patientId: "27021982557",
       patientName: "Nikos Vlachos",
       patientPhone: "+30 698 222 0099",
       rxId: null,
@@ -324,6 +325,99 @@ const ADR_HISTORY: Record<string, SideEffectReport[]> = {
   ],
 };
 
+const CONDITIONS: Record<string, PatientCondition[]> = {
+  15031962456: [
+     {
+      conditionCode: "G6PD",
+      name: "Glucose-6-phosphate dehydrogenase deficiency",
+      amka: "15031962456",
+      notes: "Seeded from Pharmapi /user/me — verify with patient on first visit",
+      pharmacy_id: "e6d9f9cc-65da-4400-8194-fdd99ecace92",
+      created_at: "2026-05-11T17:45:03.373179+00:00",
+      severity: "MODERATE",
+      id: "7cec3ae6-dcec-46f2-ab4d-1e293ce858a0",
+      recorded_by: "b77e5118-59e1-4318-9d3d-5d1de2e26c25",
+      active: true,
+      updated_at: "2026-05-11T17:45:03.373179+00:00"
+    },
+  ],
+  "08111974201": [
+    {
+      conditionCode: "G6PD",
+      name: "Glucose-6-phosphate dehydrogenase deficiency",
+      amka: "15031962456",
+      notes: "Seeded from Pharmapi /user/me — verify with patient on first visit",
+      pharmacy_id: "e6d9f9cc-65da-4400-8194-fdd99ecace92",
+      created_at: "2026-05-11T17:45:03.373179+00:00",
+      severity: "MODERATE",
+      id: "7cec3ae6-dcec-46f2-ab4d-1e293ce858a0",
+      recorded_by: "b77e5118-59e1-4318-9d3d-5d1de2e26c25",
+      active: true,
+      updated_at: "2026-05-11T17:45:03.373179+00:00"
+    },
+  ],
+  "22071993789": [
+   {
+      conditionCode: "G6PD",
+      name: "Glucose-6-phosphate dehydrogenase deficiency",
+      amka: "15031962456",
+      notes: "Seeded from Pharmapi /user/me — verify with patient on first visit",
+      pharmacy_id: "e6d9f9cc-65da-4400-8194-fdd99ecace92",
+      created_at: "2026-05-11T17:45:03.373179+00:00",
+      severity: "MODERATE",
+      id: "7cec3ae6-dcec-46f2-ab4d-1e293ce858a0",
+      recorded_by: "b77e5118-59e1-4318-9d3d-5d1de2e26c25",
+      active: true,
+      updated_at: "2026-05-11T17:45:03.373179+00:00"
+    },
+  ],
+  "03051961334": [
+    {
+      conditionCode: "G6PD",
+      name: "Glucose-6-phosphate dehydrogenase deficiency",
+      amka: "15031962456",
+      notes: "Seeded from Pharmapi /user/me — verify with patient on first visit",
+      pharmacy_id: "e6d9f9cc-65da-4400-8194-fdd99ecace92",
+      created_at: "2026-05-11T17:45:03.373179+00:00",
+      severity: "MODERATE",
+      id: "7cec3ae6-dcec-46f2-ab4d-1e293ce858a0",
+      recorded_by: "b77e5118-59e1-4318-9d3d-5d1de2e26c25",
+      active: true,
+      updated_at: "2026-05-11T17:45:03.373179+00:00"
+    },
+  ],
+  "12101948112": [
+   {
+      conditionCode: "G6PD",
+      name: "Glucose-6-phosphate dehydrogenase deficiency",
+      amka: "15031962456",
+      notes: "Seeded from Pharmapi /user/me — verify with patient on first visit",
+      pharmacy_id: "e6d9f9cc-65da-4400-8194-fdd99ecace92",
+      created_at: "2026-05-11T17:45:03.373179+00:00",
+      severity: "MODERATE",
+      id: "7cec3ae6-dcec-46f2-ab4d-1e293ce858a0",
+      recorded_by: "b77e5118-59e1-4318-9d3d-5d1de2e26c25",
+      active: true,
+      updated_at: "2026-05-11T17:45:03.373179+00:00"
+    },
+  ],
+  "27021982557": [
+    {
+      conditionCode: "G6PD",
+      name: "Glucose-6-phosphate dehydrogenase deficiency",
+      amka: "15031962456",
+      notes: "Seeded from Pharmapi /user/me — verify with patient on first visit",
+      pharmacy_id: "e6d9f9cc-65da-4400-8194-fdd99ecace92",
+      created_at: "2026-05-11T17:45:03.373179+00:00",
+      severity: "MODERATE",
+      id: "7cec3ae6-dcec-46f2-ab4d-1e293ce858a0",
+      recorded_by: "b77e5118-59e1-4318-9d3d-5d1de2e26c25",
+      active: true,
+      updated_at: "2026-05-11T17:45:03.373179+00:00"
+    },
+  ],
+}
+
 export function fallbackForPatient(key: string): PatientBundle | null {
   const profile = PROFILES.find((p) => p.id === key || p.amka === key);
   if (!profile) return null;
@@ -331,6 +425,7 @@ export function fallbackForPatient(key: string): PatientBundle | null {
     profile,
     rxHistory: RX_HISTORY[profile.id] ?? [],
     adrHistory: ADR_HISTORY[profile.id] ?? [],
+    conditions: CONDITIONS[profile.id] ?? []
   };
 }
 

@@ -354,7 +354,7 @@ function PatientInfoCard({ rx }: { rx: Prescription }) {
       title="Patient Information"
       action={
         <Link
-          to={`/patients/${p.id}?from=${encodeURIComponent(rx.rxId)}`}
+          to={`/patients/${p.amka}?from=${encodeURIComponent(rx.rxId)}`}
           className="text-sm font-medium text-brand-600 hover:underline"
         >
           View Full Patient Profile →
