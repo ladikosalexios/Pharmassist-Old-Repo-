@@ -15,6 +15,9 @@ from datetime import UTC, datetime
 import httpx
 from fastapi import HTTPException
 
+from app.schemas.patients import PatientPayload
+from app.utils.dates import age_from_date
+
 from ..config import get_settings
 
 # Module-level constants kept for backward compat — anything that imports
@@ -341,3 +344,37 @@ async def pharmapi_search_prescriptions(
 
     raw = await pharmapi_get("/api/v1/prescriptions/search", params=params, accept_xml=True)
     return parse_prescription_search_xml(raw.get("raw_xml", ""))
+
+
+# ── Patient search ──────────────────────────────────────────
+
+
+def clean_pharmapi_patient_data(data: dict) -> PatientPayload:
+    birthdate = datetime.strptime(data["dateOfBirth"], "%Y-%m-%d")
+    return PatientPayload(
+        id=data["amka"],
+        amka=data["amka"],
+        first_name=data["first_name"],
+        last_name=data["last_name"],
+        date_of_birth=data["dateOfBirth"],
+        age=age_from_date(birthdate),
+        sex=data["sex"],
+        phone=data["mobile"],
+        conditions=None,
+        allergies=None,
+        intolerances=None,
+        safety_flags=None,
+    )
+
+
+async def pharmapi_get_patient(amka: str) -> PatientPayload:
+    """
+    Fetch the patient's data from Pharmapi using their AMKA. Two endpoints must be accessed:
+    1. General patient data at common/getpatient
+    2. Patient drug intolerances at patients/{amkaOrEkaa}/medicinehistory/{pharmacyId}/intolerances
+
+    Sometimes, patients have an EKAA instead of AMKA, in which case we retry with that.
+    """
+    params: dict = {"amka": amka}
+    patient_json = await pharmapi_get("/api/v1/common/getpatient", params=params)
+    return clean_pharmapi_patient_data(patient_json)
