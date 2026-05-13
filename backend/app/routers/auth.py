@@ -20,31 +20,27 @@ async def login(form: OAuth2PasswordRequestForm = Depends()):
     """
     profile = await verify_pharmapi_credentials(form.username, form.password)
 
-    name = profile.get("name") or form.username
-    pharmacy = ((profile.get("pharmacy") or {}).get("name")) or ""
-
     pharmacist_email = profile.get("email") or f"{form.username}@pharmapi.local"
 
-    USERS[pharmacist_email] = {"name": name, "pharmacy": pharmacy}
-    _start_pharmapi_session(profile)
-
-    token = create_jwt({"sub": pharmacist_email})
-    # return TokenResponse(access_token=token, pharmacist_name=name, pharmacy=pharmacy)
     name_obj = profile.get("name", {})
     pharmacist_name = (
         f"{name_obj.get('firstname', '')} {name_obj.get('lastname', '')}".strip()
         if isinstance(name_obj, dict)
         else str(name_obj)
-    )
+    ) or form.username
 
     pharmacy_obj = profile.get("pharmacy", {})
     pharmacy_name = (
         pharmacy_obj.get("name", "") if isinstance(pharmacy_obj, dict) else str(pharmacy_obj)
     )
 
+    USERS[pharmacist_email] = {"name": pharmacist_name, "pharmacy": pharmacy_name}
+    _start_pharmapi_session(profile)
+
+    token = create_jwt({"sub": pharmacist_email})
     return TokenResponse(
         access_token=token,
-        pharmacist_name=pharmacist_name or form.username,
+        pharmacist_name=pharmacist_name,
         pharmacy=pharmacy_name,
     )
 
