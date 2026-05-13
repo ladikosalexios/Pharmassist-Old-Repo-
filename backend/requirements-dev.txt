@@ -2,4 +2,6 @@
 # Install with: pip install -r requirements-dev.txt  (also pulls runtime deps)
 -r requirements.txt
 
-ruff>=0.6.0
+# Pin exact ruff version: must match the rev in .pre-commit-config.yaml so
+# pre-commit, CI, and local installs all produce identical lint/format output.
+ruff==0.15.12

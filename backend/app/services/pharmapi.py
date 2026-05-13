@@ -149,8 +149,8 @@ async def verify_pharmapi_credentials(username: str, password: str) -> dict:
     if r.status_code == 200:
         try:
             return r.json()
-        except Exception:
-            raise HTTPException(502, "Pharmapi: /user/me did not return JSON")
+        except Exception as exc:
+            raise HTTPException(502, "Pharmapi: /user/me did not return JSON") from exc
 
     err = _parse_pharmapi_error(r)
     if "G15" in err:
@@ -243,7 +243,7 @@ def parse_prescription_search_xml(xml_text: str) -> list[dict]:
     try:
         root = ET.fromstring(xml_text)
     except ET.ParseError as exc:
-        raise HTTPException(502, f"Pharmapi: could not parse prescription XML — {exc}")
+        raise HTTPException(502, f"Pharmapi: could not parse prescription XML — {exc}") from exc
 
     items = []
     for item in root.findall(".//contents/item"):
