@@ -42,7 +42,7 @@ async def list_side_effects(
     sort_key = (sort or "date").lower()
     if sort_key == "severity":
         items.sort(
-            key=lambda r: (SEVERITY_RANK.get(r["severity"], -1), r["reportedAt"]),
+            key=lambda r: (SEVERITY_RANK.get(r.severity, -1), r.reported_at),
             reverse=True,
         )
     elif sort_key == "status":

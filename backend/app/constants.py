@@ -10,6 +10,7 @@ class AdrStatus:
     PENDING_REVIEW = "PENDING_REVIEW"
     ESCALATED = "ESCALATED"
     EOF_REPORTED = "EOF_REPORTED"
+    CLOSED = "CLOSED"
 
 
 class AdrSeverity:
