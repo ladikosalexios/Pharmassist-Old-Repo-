@@ -26,6 +26,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.utils.environment import is_mock_pharmapi
 
+from ..constants import ActionType, DeliveryMethod
 from ..db.session import get_session
 from ..deps import get_current_user
 from ..schemas.prescriptions import ApproveResponse, PatchResponse, PrescriptionPatch
@@ -201,7 +202,7 @@ async def approve_prescription(
     ip, ua = _client_meta(request)
     log = await record_prescription_action(
         session,
-        action_type="APPROVE",
+        action_type=ActionType.APPROVE,
         rx=rx,
         safety_checks=snapshot,
         pharmacist_email=current["email"],
@@ -209,7 +210,7 @@ async def approve_prescription(
         discrepancy_type=None,
         notes=None,
         info_provided="Counselling delivered per SPC",
-        delivery_method="DIGITAL",
+        delivery_method=DeliveryMethod.DIGITAL,
         ip_address=ip,
         user_agent=ua,
     )
@@ -260,7 +261,7 @@ async def patch_prescription(
         ip, ua = _client_meta(request)
         log = await record_prescription_action(
             session,
-            action_type="FLAG",
+            action_type=ActionType.FLAG,
             rx=rx,
             safety_checks=snapshot,
             pharmacist_email=current["email"],

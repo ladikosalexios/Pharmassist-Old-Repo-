@@ -5,6 +5,7 @@ from sqlalchemy import DateTime, ForeignKey, String, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from ...constants import AdrStatus
 from ..base import Base, TimestampMixin
 
 
@@ -31,7 +32,7 @@ class AdrReport(Base, TimestampMixin):
     onset_timing: Mapped[str | None] = mapped_column(String)
     severity: Mapped[str | None] = mapped_column(String)  # MILD | MODERATE | SEVERE
     status: Mapped[str] = mapped_column(
-        String, nullable=False, default="PENDING_REVIEW"
+        String, nullable=False, default=AdrStatus.PENDING_REVIEW
     )  # PENDING_REVIEW | ESCALATED | EOF_REPORTED | CLOSED
     eof_report_ref: Mapped[str | None] = mapped_column(String)
     reported_at: Mapped[datetime] = mapped_column(
