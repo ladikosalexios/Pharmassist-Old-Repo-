@@ -38,7 +38,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         localStorage.setItem("pa_pharmacy", data.pharmacy);
       })
       .catch(() => {
-        localStorage.clear();
+        localStorage.removeItem("pa_token");
+        localStorage.removeItem("pa_name");
+        localStorage.removeItem("pa_pharmacy");
         setUser(null);
       })
       .finally(() => setLoading(false));
@@ -56,7 +58,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser({ name: data.pharmacist_name, pharmacy: data.pharmacy });
       },
       signOut() {
-        localStorage.clear();
+        localStorage.removeItem("pa_token");
+        localStorage.removeItem("pa_name");
+        localStorage.removeItem("pa_pharmacy");
         setUser(null);
       },
     }),
