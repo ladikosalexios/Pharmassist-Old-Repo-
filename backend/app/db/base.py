@@ -1,8 +1,9 @@
-from datetime import datetime
 import uuid
-from sqlalchemy import DateTime, MetaData, text, select
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+from datetime import datetime
+
+from sqlalchemy import DateTime, MetaData, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 NAMING_CONVENTION = {
     "ix": "ix_%(column_0_label)s",

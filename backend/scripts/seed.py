@@ -18,23 +18,25 @@ Two distinct passwords are involved here, do not confuse them:
     pharmacist_pharmacies.pharmapi_password.
 """
 
-import asyncio, os, sys
+import asyncio
+import os
+import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from dataclasses import dataclass
+from datetime import datetime
 
 import bcrypt
 from sqlalchemy import text
-from datetime import datetime
 
 from app.config import get_settings
 from app.crypto import encrypt_credential
+from app.db.models.adr_report import AdrReport
 from app.db.models.patient_condition import PatientCondition
 from app.db.models.pharmacist import Pharmacist
 from app.db.models.pharmacist_pharmacy import PharmacistPharmacy
 from app.db.models.pharmacy import Pharmacy
-from app.db.models.adr_report import AdrReport
 from app.db.session import AsyncSessionLocal
 from app.services.pharmapi import verify_pharmapi_credentials
 from scripts.seed_data import SEED_ADR_REPORTS
@@ -181,7 +183,7 @@ async def seed():
         )
         db.add(link)
 
-        TEST_PATIENT_AMKA = "15031962456" # TODO: replace with AMKA of patient in our test pharmacy
+        TEST_PATIENT_AMKA = "15031962456"  # TODO: replace with AMKA of patient in our test pharmacy
         db.add(
             PatientCondition(
                 amka=TEST_PATIENT_AMKA,

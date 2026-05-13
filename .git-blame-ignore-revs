@@ -4,5 +4,5 @@
 #
 # To use locally: git config blame.ignoreRevsFile .git-blame-ignore-revs
 
-# Mass-format with ruff + prettier (PR 2/3 of lint rollout)
-b273404f906ef5a1872ed581905e1356484f274b
+# Mass-format with ruff + prettier (PR 2/3 of lint rollout, merged via #40)
+044c1be90f3ff598d5d5339602b19fe727f9cd0c

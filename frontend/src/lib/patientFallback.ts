@@ -2,7 +2,12 @@
 // Used by the Patient Profile page when the API returns nothing useful or
 // hasn't yet been restarted to pick up the expanded /patients endpoints.
 
-import type { PatientCondition, PatientProfile, PatientRxHistoryRow, SideEffectReport } from "../types";
+import type {
+  PatientCondition,
+  PatientProfile,
+  PatientRxHistoryRow,
+  SideEffectReport,
+} from "../types";
 
 interface PatientBundle {
   profile: PatientProfile;
@@ -331,7 +336,8 @@ const CONDITIONS: Record<string, PatientCondition[]> = {
       conditionCode: "G6PD",
       name: "Glucose-6-phosphate dehydrogenase deficiency",
       amka: "15031962456",
-      notes: "Confirmatory enzyme assay positive (2024). Patient also has mild renal impairment — review dose adjustments for all renally-cleared agents.",
+      notes:
+        "Confirmatory enzyme assay positive (2024). Patient also has mild renal impairment — review dose adjustments for all renally-cleared agents.",
       pharmacyId: "e6d9f9cc-65da-4400-8194-fdd99ecace92",
       createdAt: "2026-05-11T17:45:03.373179+00:00",
       severity: "MODERATE",
@@ -361,7 +367,8 @@ const CONDITIONS: Record<string, PatientCondition[]> = {
       conditionCode: "J01.0",
       name: "Acute maxillary sinusitis",
       amka: "22071993789",
-      notes: "Current episode; antibiotic course initiated. Patient 18 weeks pregnant — beta-lactam selected.",
+      notes:
+        "Current episode; antibiotic course initiated. Patient 18 weeks pregnant — beta-lactam selected.",
       pharmacyId: "e6d9f9cc-65da-4400-8194-fdd99ecace92",
       createdAt: "2026-03-09T14:30:15.002100+00:00",
       severity: "MILD",
@@ -376,7 +383,8 @@ const CONDITIONS: Record<string, PatientCondition[]> = {
       conditionCode: "I25.1",
       name: "Atherosclerotic coronary artery disease",
       amka: "03051961334",
-      notes: "Stable CAD; on dual therapy (statin + antiplatelet). Moderate hepatic impairment — dose adjustments applied.",
+      notes:
+        "Stable CAD; on dual therapy (statin + antiplatelet). Moderate hepatic impairment — dose adjustments applied.",
       pharmacyId: "e6d9f9cc-65da-4400-8194-fdd99ecace92",
       createdAt: "2024-11-18T08:55:22.441200+00:00",
       severity: "SEVERE",
@@ -391,7 +399,8 @@ const CONDITIONS: Record<string, PatientCondition[]> = {
       conditionCode: "Z95.5",
       name: "Presence of coronary angioplasty implant",
       amka: "12101948112",
-      notes: "Drug-eluting stent placed 2025; dual antiplatelet therapy ongoing. Concurrent AF — anticoagulation under review.",
+      notes:
+        "Drug-eluting stent placed 2025; dual antiplatelet therapy ongoing. Concurrent AF — anticoagulation under review.",
       pharmacyId: "e6d9f9cc-65da-4400-8194-fdd99ecace92",
       createdAt: "2025-06-03T11:20:09.883500+00:00",
       severity: "MODERATE",
@@ -406,7 +415,8 @@ const CONDITIONS: Record<string, PatientCondition[]> = {
       conditionCode: "E11.9",
       name: "Type 2 diabetes mellitus without complications",
       amka: "27021982557",
-      notes: "Managed with metformin. G6PD deficiency noted in safety flags — avoid oxidative-stress agents.",
+      notes:
+        "Managed with metformin. G6PD deficiency noted in safety flags — avoid oxidative-stress agents.",
       pharmacyId: "e6d9f9cc-65da-4400-8194-fdd99ecace92",
       createdAt: "2024-08-22T16:07:34.110400+00:00",
       severity: "MILD",
@@ -416,7 +426,7 @@ const CONDITIONS: Record<string, PatientCondition[]> = {
       updatedAt: "2024-08-22T16:07:34.110400+00:00",
     },
   ],
-}
+};
 
 export function fallbackForPatient(key: string): PatientBundle | null {
   const profile = PROFILES.find((p) => p.id === key || p.amka === key);
@@ -425,7 +435,7 @@ export function fallbackForPatient(key: string): PatientBundle | null {
     profile,
     rxHistory: RX_HISTORY[profile.id] ?? [],
     adrHistory: ADR_HISTORY[profile.id] ?? [],
-    conditions: CONDITIONS[profile.id] ?? []
+    conditions: CONDITIONS[profile.id] ?? [],
   };
 }
 

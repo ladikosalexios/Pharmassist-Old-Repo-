@@ -7,7 +7,6 @@ import { Documentation } from "./pages/Documentation";
 import { SideEffects } from "./pages/SideEffects";
 import { PatientProfile } from "./pages/PatientProfile";
 import { Instructions } from "./pages/Instructions";
-import { Placeholder } from "./pages/Placeholder";
 
 export function App() {
   return (

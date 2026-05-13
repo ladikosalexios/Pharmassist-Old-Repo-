@@ -15,6 +15,36 @@ select = ["E", "W", "F", "I", "B", "UP"]
 [tool.ruff.lint.per-file-ignores]
 # __init__.py re-exports legitimately appear "unused"
 "__init__.py" = ["F401"]
+# SQLAlchemy models use forward-ref strings (Mapped["OtherModel"]) — not real undefined names.
+# Module-level docstrings/comments are also long-form (medical context) — don't wrap them.
+"app/db/models/*.py" = ["F821", "E501"]
+# Mock-data fixtures and clinical strings (SPC text, ADR messages, safety-check descriptions,
+# patient-facing alerts) read worse when wrapped — keep them on one line. Routers/services
+# that embed long upstream URLs or clinical narrative also opt out.
+"app/services/alerts.py" = ["E501"]
+"app/services/instructions.py" = ["E501"]
+"app/services/messages.py" = ["E501"]
+"app/services/pharmapi.py" = ["E501"]
+"app/services/prescriptions.py" = ["E501"]
+"app/services/safety_checks.py" = ["E501"]
+"app/services/spc.py" = ["E501"]
+"app/routers/documentation.py" = ["E501"]
+"app/routers/instructions.py" = ["E501"]
+"app/routers/side_effects.py" = ["E501"]
+
+[tool.ruff.lint.flake8-bugbear]
+# FastAPI uses these in default args by convention; ruff B008 would otherwise flag them.
+extend-immutable-calls = [
+    "fastapi.Depends",
+    "fastapi.Query",
+    "fastapi.Header",
+    "fastapi.Body",
+    "fastapi.Form",
+    "fastapi.File",
+    "fastapi.Cookie",
+    "fastapi.Path",
+    "fastapi.Security",
+]
 
 [tool.ruff.format]
 # Single-quote vs double-quote: we don't care strongly, default is double.

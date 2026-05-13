@@ -463,8 +463,8 @@ export function SideEffects() {
             portal; keep the prescriber and patient informed at every stage.
           </li>
           <li>
-            Document every step in the patient's record: symptom, onset, action taken, EOF reference
-            number once issued.
+            Document every step in the patient&apos;s record: symptom, onset, action taken, EOF
+            reference number once issued.
           </li>
         </ol>
       </div>
