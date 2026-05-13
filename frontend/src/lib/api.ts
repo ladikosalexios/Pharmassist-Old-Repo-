@@ -31,7 +31,7 @@ export class ApiError extends Error {
 }
 
 function authHeaders(): Record<string, string> {
-  const token = sessionStorage.getItem("pa_token");
+  const token = localStorage.getItem("pa_token");
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
