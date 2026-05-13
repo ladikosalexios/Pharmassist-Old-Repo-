@@ -324,9 +324,7 @@ export async function listSideEffects(
   return data as SideEffectListResponse;
 }
 
-export async function flagSideEffect(
-  reportId: string,
-): Promise<{
+export async function flagSideEffect(reportId: string): Promise<{
   success: boolean;
   status: SideEffectReport["status"];
   previousStatus: SideEffectReport["status"];
@@ -375,7 +373,7 @@ export async function getPatientConditions(patientId: string): Promise<PatientCo
   const r = await fetch(`${API_BASE}/patients/${encodeURIComponent(patientId)}/conditions`, {
     headers: authHeaders(),
   });
-  const data = (await handle(r)) as Promise<PatientCondition[]>
+  const data = (await handle(r)) as Promise<PatientCondition[]>;
   if (!Array.isArray(data)) {
     throw new ApiError(0, `Unexpected response from /patients/${patientId}/side-effects.`);
   }

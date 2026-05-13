@@ -1,16 +1,6 @@
 import { NavLink } from "react-router-dom";
 import { useAuth } from "../lib/auth";
-import {
-  GridIcon,
-  FileTextIcon,
-  UsersIcon,
-  ClockIcon,
-  AlertTriangleIcon,
-  SettingsIcon,
-  LogOutIcon,
-  ShieldIcon,
-  ClipboardIcon,
-} from "./Icons";
+import { GridIcon, AlertTriangleIcon, LogOutIcon, ShieldIcon, ClipboardIcon } from "./Icons";
 
 const NAV = [
   { to: "/dashboard", label: "Dashboard", Icon: GridIcon },

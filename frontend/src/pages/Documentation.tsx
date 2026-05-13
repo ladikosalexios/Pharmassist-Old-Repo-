@@ -86,10 +86,9 @@ export function Documentation() {
     };
   }, [query, method]);
 
-  const stats = data?.stats ?? { total: 0, print: 0, digital: 0, both: 0 };
-
-  const statCards = useMemo(
-    () => [
+  const statCards = useMemo(() => {
+    const stats = data?.stats ?? { total: 0, print: 0, digital: 0, both: 0 };
+    return [
       {
         label: "Total Records",
         value: stats.total,
@@ -114,9 +113,8 @@ export function Documentation() {
         tone: "bg-violet-100 text-violet-700",
         valueClass: "text-violet-700",
       },
-    ],
-    [stats],
-  );
+    ];
+  }, [data]);
 
   async function onExportAll() {
     setExportingAll(true);
