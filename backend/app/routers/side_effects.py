@@ -9,6 +9,7 @@ from app.db.models.adr_report import AdrReport
 from app.db.models.pharmacist import Pharmacist
 from app.db.session import get_session
 
+from ..constants import AdrEventType
 from ..deps import get_current_user
 from ..services.side_effects import (
     SEVERITY_RANK,
@@ -41,7 +42,7 @@ async def list_side_effects(
     sort_key = (sort or "date").lower()
     if sort_key == "severity":
         items.sort(
-            key=lambda r: (SEVERITY_RANK.get(r["severity"], -1), r["reportedAt"]),
+            key=lambda r: (SEVERITY_RANK.get(r.severity, -1), r.reported_at),
             reverse=True,
         )
     elif sort_key == "status":
@@ -80,7 +81,7 @@ async def flag_side_effect(
         AdrEvent(
             adr_id=rec.id,
             actor_id=pharmacist_id,
-            event_type="STATUS_CHANGED",
+            event_type=AdrEventType.STATUS_CHANGED,
             from_status=previous,
             to_status=rec.status,
         )

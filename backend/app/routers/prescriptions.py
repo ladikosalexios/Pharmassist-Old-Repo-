@@ -26,6 +26,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.utils.environment import is_mock_pharmapi
 
+from ..constants import ActionType, DeliveryMethod, PrescriptionStatus
 from ..db.session import get_session
 from ..deps import get_current_user
 from ..schemas.prescriptions import ApproveResponse, PatchResponse, PrescriptionPatch
@@ -70,7 +71,7 @@ def _normalize_pharmapi_detail(raw: dict, barcode: str) -> dict:
     return {
         "rxId": barcode,
         "code": barcode,
-        "status": "PENDING",
+        "status": PrescriptionStatus.PENDING,
         "source": "pharmapi",
         "_raw": raw,  # ← Remove once real shape is confirmed and mapped
         "patient": {
@@ -106,13 +107,13 @@ async def next_pending_prescription(current: dict = Depends(get_current_user)):
         for base in MOCK_QUEUE_BASE:
             rx = MOCK_PRESCRIPTIONS.get(base["rxId"])
             status = rx["status"] if rx else base["status"]
-            if status == "PENDING":
+            if status == PrescriptionStatus.PENDING:
                 return {**base, "status": status}
         raise HTTPException(status_code=404, detail="No pending prescriptions in the queue")
 
     # Live mode: fetch queue from ΗΔΥΚΑ, return first PENDING item
     items = await pharmapi_search_prescriptions(prescribed=False, size=10)
-    pending = [i for i in items if i.get("status") == "PENDING"]
+    pending = [i for i in items if i.get("status") == PrescriptionStatus.PENDING]
     if not pending:
         raise HTTPException(status_code=404, detail="No pending prescriptions in the queue")
     return pending[0]
@@ -201,7 +202,7 @@ async def approve_prescription(
     ip, ua = _client_meta(request)
     log = await record_prescription_action(
         session,
-        action_type="APPROVE",
+        action_type=ActionType.APPROVE,
         rx=rx,
         safety_checks=snapshot,
         pharmacist_email=current["email"],
@@ -209,13 +210,13 @@ async def approve_prescription(
         discrepancy_type=None,
         notes=None,
         info_provided="Counselling delivered per SPC",
-        delivery_method="DIGITAL",
+        delivery_method=DeliveryMethod.DIGITAL,
         ip_address=ip,
         user_agent=ua,
     )
 
     # 4) Mutate in-memory mock so subsequent GETs reflect COMPLETED status.
-    rx["status"] = "COMPLETED"
+    rx["status"] = PrescriptionStatus.COMPLETED
     rx["completedAt"] = datetime.now(UTC).isoformat()
 
     return ApproveResponse(
@@ -252,7 +253,7 @@ async def patch_prescription(
     if not rx:
         raise HTTPException(status_code=404, detail=f"Prescription {rx_id} not found")
 
-    flagging = (patch.status or "").upper() == "FLAGGED"
+    flagging = (patch.status or "").upper() == PrescriptionStatus.FLAGGED
     log_id = None
 
     if flagging:
@@ -260,7 +261,7 @@ async def patch_prescription(
         ip, ua = _client_meta(request)
         log = await record_prescription_action(
             session,
-            action_type="FLAG",
+            action_type=ActionType.FLAG,
             rx=rx,
             safety_checks=snapshot,
             pharmacist_email=current["email"],

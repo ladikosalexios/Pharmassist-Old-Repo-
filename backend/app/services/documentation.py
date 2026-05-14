@@ -15,6 +15,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ..constants import DeliveryMethod, Setting
 from ..db.models.documentation_log import DocumentationLog
 from ..db.models.pharmacist import Pharmacist
 from ..db.models.pharmacist_pharmacy import PharmacistPharmacy
@@ -26,8 +27,8 @@ MOCK_DOCUMENTATION: list = [
         "rxId": "RX2024-005",
         "patientName": "Maria Stavrou",
         "drugName": "Warfarin 5 mg",
-        "setting": "Private",
-        "deliveryMethod": "BOTH",
+        "setting": Setting.PRIVATE,
+        "deliveryMethod": DeliveryMethod.BOTH,
         "language": "Greek",
         "informationProvided": (
             "Reviewed bleeding precautions, INR monitoring schedule, dietary "
@@ -44,8 +45,8 @@ MOCK_DOCUMENTATION: list = [
         "rxId": "RX2024-001",
         "patientName": "Sarah Johnson",
         "drugName": "Amoxicillin 500 mg",
-        "setting": "Private",
-        "deliveryMethod": "PRINT",
+        "setting": Setting.PRIVATE,
+        "deliveryMethod": DeliveryMethod.PRINT,
         "language": "English",
         "informationProvided": (
             "Counselled on full course completion, symptom-watch for hypersensitivity, "
@@ -61,8 +62,8 @@ MOCK_DOCUMENTATION: list = [
         "rxId": "RX2024-002",
         "patientName": "James Martinez",
         "drugName": "Warfarin 7.5 mg",
-        "setting": "Hospital",
-        "deliveryMethod": "DIGITAL",
+        "setting": Setting.HOSPITAL,
+        "deliveryMethod": DeliveryMethod.DIGITAL,
         "language": "English",
         "informationProvided": (
             "Reviewed inpatient protocol with the ward pharmacist and the patient. "
@@ -78,8 +79,8 @@ MOCK_DOCUMENTATION: list = [
         "rxId": "RX2024-003",
         "patientName": "Maria Garcia",
         "drugName": "Lisinopril 10 mg",
-        "setting": "Private",
-        "deliveryMethod": "PRINT",
+        "setting": Setting.PRIVATE,
+        "deliveryMethod": DeliveryMethod.PRINT,
         "language": "Greek",
         "informationProvided": (
             "Discussed renal function monitoring, dry-cough as a possible side effect, "
@@ -95,8 +96,8 @@ MOCK_DOCUMENTATION: list = [
         "rxId": "RX2023-118",
         "patientName": "Eleni Nikolaou",
         "drugName": "Atorvastatin 20 mg",
-        "setting": "Private",
-        "deliveryMethod": "BOTH",
+        "setting": Setting.PRIVATE,
+        "deliveryMethod": DeliveryMethod.BOTH,
         "language": "Greek",
         "informationProvided": (
             "Reviewed muscle pain warnings and lipid panel follow-up timing. Both "
@@ -112,8 +113,8 @@ MOCK_DOCUMENTATION: list = [
         "rxId": "RX2023-091",
         "patientName": "Dimitrios Konstantinou",
         "drugName": "Metformin 1000 mg",
-        "setting": "Hospital",
-        "deliveryMethod": "DIGITAL",
+        "setting": Setting.HOSPITAL,
+        "deliveryMethod": DeliveryMethod.DIGITAL,
         "language": "Greek",
         "informationProvided": (
             "Discussed lactic-acidosis red-flag symptoms and renal function checks. "
@@ -131,11 +132,11 @@ def stats() -> dict:
     s = {"total": len(MOCK_DOCUMENTATION), "print": 0, "digital": 0, "both": 0}
     for d in MOCK_DOCUMENTATION:
         m = d["deliveryMethod"]
-        if m == "PRINT":
+        if m == DeliveryMethod.PRINT:
             s["print"] += 1
-        elif m == "DIGITAL":
+        elif m == DeliveryMethod.DIGITAL:
             s["digital"] += 1
-        elif m == "BOTH":
+        elif m == DeliveryMethod.BOTH:
             s["both"] += 1
     return s
 

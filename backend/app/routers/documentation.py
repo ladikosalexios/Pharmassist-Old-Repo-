@@ -10,6 +10,7 @@ from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
+from ..constants import Setting
 from ..deps import get_current_user
 from ..schemas.documentation import DocumentationCreate
 from ..services.documentation import (
@@ -101,7 +102,7 @@ async def create_documentation_record(
         "rxId": payload.rxId,
         "patientName": rx["patient"]["name"],
         "drugName": f"{rx['medication']['drugName']} {rx['medication']['dose']}",
-        "setting": payload.setting or "Private",
+        "setting": payload.setting or Setting.PRIVATE,
         "deliveryMethod": payload.method.upper(),
         "language": payload.language,
         "informationProvided": payload.instructions,
