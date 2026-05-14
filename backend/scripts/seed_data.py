@@ -458,7 +458,9 @@ SAFETY_RULES_DATA: list = [
         "trigger_condition_code": "G6PD",
         "conflicting_atc": None,
         "severity": "MODERATE",
-        "message_en": "Patient has G6PD deficiency — high-dose aspirin may trigger haemolytic anaemia",
+        "message_en": (
+            "Patient has G6PD deficiency — high-dose aspirin may trigger haemolytic anaemia"
+        ),
         "details_en": (
             "High-dose aspirin can precipitate haemolytic anaemia in G6PD-deficient patients. "
             "Low-dose aspirin (≤100 mg/day) is generally considered safe."
