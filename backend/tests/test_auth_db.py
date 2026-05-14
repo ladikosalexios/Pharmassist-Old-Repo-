@@ -12,6 +12,7 @@ Env vars are written before importing the app because ``get_settings`` is
 import base64
 import os
 import uuid
+from datetime import UTC, datetime
 
 # Must be set before any `from app.*` / `from main import` line below.
 os.environ["PHARMAPI_MOCK"] = "true"
@@ -47,6 +48,7 @@ class _FakePharmacist:
     role = "pharmacist"
     password_hash = bcrypt.hashpw(PASSWORD.encode(), bcrypt.gensalt(rounds=4)).decode()
     active = True
+    last_login_at = None  # login handler writes to this; test_login asserts it.
 
 
 class _FakePharmacy:
@@ -91,8 +93,9 @@ def _bind_value_for(stmt, column_key: str):
 class _FakeAsyncSession:
     """Stand-in for ``AsyncSession``. Resolves rows by entity, and for
     Pharmacist queries also matches the email in the WHERE clause so wrong-
-    email tests get a real None back. Sufficient for the login + /me + logout
-    smoke paths; not a general SQLAlchemy mock."""
+    email tests get a real None back. ``commit`` is a no-op — the login
+    handler calls it after stamping ``last_login_at``. Sufficient for the
+    login + /me + logout smoke paths; not a general SQLAlchemy mock."""
 
     async def scalar(self, stmt):
         entity = stmt.column_descriptions[0]["entity"]
@@ -101,6 +104,9 @@ class _FakeAsyncSession:
             if queried_email is not None and queried_email != EMAIL:
                 return None
         return _ROWS.get(entity)
+
+    async def commit(self):
+        pass
 
 
 async def _fake_get_session():
@@ -111,6 +117,7 @@ app.dependency_overrides[get_session] = _fake_get_session
 
 
 def test_login_sets_cookie():
+    before = datetime.now(UTC)
     client = TestClient(app)
     r = client.post("/auth/login", json={"email": EMAIL, "password": PASSWORD})
     assert r.status_code == 200, r.text
@@ -121,6 +128,9 @@ def test_login_sets_cookie():
     assert "token" not in body
     assert body["pharmacist_id"] == str(PHARMACIST_ID)
     assert body["pharmacy_id"] == str(PHARMACY_ID)
+    # last_login_at was written within this request.
+    stamped = _ROWS[Pharmacist].last_login_at
+    assert stamped is not None and stamped >= before
 
 
 def test_me_returns_user():

@@ -6,6 +6,7 @@ returned in the response body. The response carries display fields
 """
 
 import os
+from datetime import UTC, datetime
 
 import bcrypt
 from fastapi import APIRouter, Depends, HTTPException, Response
@@ -98,6 +99,12 @@ async def login(
     profile = await verify_pharmapi_credentials_with_decrypted(pharmapi_username, pharmapi_password)
     _start_pharmapi_session(profile)
 
+    # Audit-grade timestamp; only updated once everything upstream has accepted
+    # the login, so a 502 from Pharmapi doesn't masquerade as a successful auth
+    # in the column.
+    pharmacist.last_login_at = datetime.now(UTC)
+    await db.commit()
+
     # JWT payload deliberately holds ids + email only — no creds, no profile.
     token = create_jwt(
         {
@@ -106,6 +113,9 @@ async def login(
             "email": pharmacist.email,
         }
     )
+    # path="/" is the Starlette default today, but pin it on both set_cookie
+    # and delete_cookie so a future default change can't leave a deletion
+    # request scoped to a different path than the original set.
     response.set_cookie(
         key=COOKIE_NAME,
         value=token,
@@ -113,6 +123,7 @@ async def login(
         samesite="strict",
         secure=_cookie_secure(),
         max_age=COOKIE_MAX_AGE_SECONDS,
+        path="/",
     )
 
     return LoginResponse(
@@ -131,6 +142,7 @@ async def logout(response: Response) -> dict:
         httponly=True,
         samesite="strict",
         secure=_cookie_secure(),
+        path="/",
     )
     return {"ok": True}
 
