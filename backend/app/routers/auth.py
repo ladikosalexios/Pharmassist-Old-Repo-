@@ -30,6 +30,14 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 COOKIE_NAME = "pharmassist_session"
 COOKIE_MAX_AGE_SECONDS = 8 * 60 * 60  # 28800s == 8h pharmacist session
 
+# Pinned to the same cost factor (rounds=12) as real password hashes (see
+# scripts/seed.py). Used to neutralise the timing side-channel when an email
+# isn't on file — we always pay one bcrypt verify regardless. Keep in sync if
+# the production cost factor ever changes.
+_DUMMY_PASSWORD_HASH: str = bcrypt.hashpw(
+    b"unused-dummy-for-constant-time-login", bcrypt.gensalt(rounds=12)
+).decode()
+
 
 def _cookie_secure() -> bool:
     """Secure cookie by default; opt out via COOKIE_SECURE=false for local HTTP."""
@@ -49,11 +57,13 @@ async def login(
             Pharmacist.active.is_(True),
         )
     )
-    # Same opaque error whether the email is unknown or the password wrong —
-    # don't tell an attacker which half of the pair was right.
-    if pharmacist is None or not bcrypt.checkpw(
-        body.password.encode(), pharmacist.password_hash.encode()
-    ):
+    # Always run bcrypt — against the real hash if the account exists, against
+    # the dummy hash otherwise — so unknown-email and wrong-password requests
+    # take the same wall-clock time. Do NOT short-circuit on `pharmacist is None`
+    # before checkpw, or you leak account existence via response latency.
+    password_hash = pharmacist.password_hash if pharmacist is not None else _DUMMY_PASSWORD_HASH
+    password_ok = bcrypt.checkpw(body.password.encode(), password_hash.encode())
+    if pharmacist is None or not password_ok:
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
     link = await db.scalar(

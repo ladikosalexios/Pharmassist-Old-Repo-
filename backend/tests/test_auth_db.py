@@ -110,6 +110,32 @@ def test_me_returns_user():
     assert body["pharmacy_id"] == str(PHARMACY_ID)
 
 
+def test_unknown_email_returns_same_401():
+    """Unknown email returns the same opaque 401 as a wrong password — no
+    account enumeration via status code, response body, or cookie state.
+    Implicitly exercises the constant-time bcrypt path (dummy hash)."""
+
+    class _NoPharmacist:
+        async def scalar(self, stmt):
+            entity = stmt.column_descriptions[0]["entity"]
+            if entity is Pharmacist:
+                return None
+            return _ROWS.get(entity)
+
+    async def _override():
+        yield _NoPharmacist()
+
+    app.dependency_overrides[get_session] = _override
+    try:
+        client = TestClient(app)
+        r = client.post("/auth/login", json={"email": "nobody@example.com", "password": PASSWORD})
+        assert r.status_code == 401, r.text
+        assert r.json() == {"detail": "Invalid credentials"}
+        assert "pharmassist_session" not in r.cookies
+    finally:
+        app.dependency_overrides[get_session] = _fake_get_session
+
+
 def test_logout_clears_cookie():
     client = TestClient(app)
     login = client.post("/auth/login", json={"email": EMAIL, "password": PASSWORD})
