@@ -22,7 +22,7 @@ Project layout:
   app/schemas/   — Pydantic API contracts (one module per domain)
   app/services/  — in-memory stores + business helpers (mock data, JWT,
                    Pharmapi client, PDF rendering, etc.)
-  app/deps.py    — shared FastAPI dependencies (get_current_user, oauth2_scheme)
+  app/deps.py    — shared FastAPI dependencies (get_current_user via session cookie)
   app/routers/   — one APIRouter per domain
   main.py        — create_app() factory; uvicorn entrypoint (this file)
 """

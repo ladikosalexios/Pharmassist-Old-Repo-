@@ -5,3 +5,6 @@
 # Pin exact ruff version: must match the rev in .pre-commit-config.yaml so
 # pre-commit, CI, and local installs all produce identical lint/format output.
 ruff==0.15.12
+
+# Test runner — smoke tests in tests/.
+pytest>=8.0
