@@ -52,6 +52,12 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id', name=op.f('pk_safety_rules')),
     sa.UniqueConstraint('rule_code', name=op.f('uq_safety_rules_rule_code'))
     )
+    for table in ("drug_catalog", "safety_rules"):
+        op.execute(
+            f"CREATE TRIGGER trg_{table}_set_updated_at "
+            f"BEFORE UPDATE ON {table} "
+            f"FOR EACH ROW EXECUTE FUNCTION set_updated_at_now();"
+        )
     # ### end Alembic commands ###
 
 
