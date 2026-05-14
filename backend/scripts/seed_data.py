@@ -589,3 +589,27 @@ SEED_ADR_REPORTS: list = [
         "onset": "First week of therapy",
     },
 ]
+
+PATIENT_CONDITION_DATA = [
+    {
+        "amka": "22071993789",  # P010 Sarah Johnson — RX-ENGINE-001 (Warfarin)
+        "condition_code": "PREGNANCY",
+        "name": "Pregnancy",
+        "severity": "N/A",
+        "notes": "18 weeks — triggers WARFARIN_PREGNANCY_CONTRAINDICATION",
+    },
+    {
+        "amka": "08111947033",  # P040 Nikos Papadopoulos — RX-ENGINE-002 (Aspirin)
+        "condition_code": "G6PD",
+        "name": "Glucose-6-phosphate dehydrogenase deficiency",
+        "severity": "MODERATE",
+        "notes": "Triggers G6PD_ASPIRIN_HAEMOLYSIS",
+    },
+    {
+        "amka": "12101948112",  # P020 Anna Kostas — RX-ENGINE-003 (Metformin)
+        "condition_code": "RENAL_SEVERE",
+        "name": "Severe renal impairment (CKD stage 3b–5)",
+        "severity": "SEVERE",
+        "notes": "eGFR < 45 — triggers METFORMIN_RENAL_CONTRAINDICATION",
+    },
+]
