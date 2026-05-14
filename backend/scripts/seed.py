@@ -21,6 +21,7 @@ Two distinct passwords are involved here, do not confuse them:
 import asyncio
 import os
 import sys
+import uuid
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
@@ -29,17 +30,20 @@ from datetime import datetime
 
 import bcrypt
 from sqlalchemy import text
+from sqlalchemy.dialects.postgresql import insert
 
 from app.config import get_settings
 from app.crypto import encrypt_credential
 from app.db.models.adr_report import AdrReport
+from app.db.models.drug_catalog import DrugCatalog
 from app.db.models.patient_condition import PatientCondition
 from app.db.models.pharmacist import Pharmacist
 from app.db.models.pharmacist_pharmacy import PharmacistPharmacy
 from app.db.models.pharmacy import Pharmacy
+from app.db.models.safety_rule import SafetyRule
 from app.db.session import AsyncSessionLocal
 from app.services.pharmapi import verify_pharmapi_credentials
-from scripts.seed_data import SEED_ADR_REPORTS
+from scripts.seed_data import DRUG_CATALOG_DATA, SAFETY_RULES_DATA, SEED_ADR_REPORTS
 
 settings = get_settings()
 
@@ -215,6 +219,35 @@ async def seed():
         print(f"  Local login: {p.pharmacist_email}  /  test1234   (PharmAssist /auth/login)")
         print(f"  EOF licence: {p.pharmacist_eof_licence_no}")
         print(f"  Condition:   G6PD MODERATE on AMKA {TEST_PATIENT_AMKA}")
+
+    await seed_drug_catalog()
+    await seed_safety_rules()
+
+
+async def seed_drug_catalog():
+    async with AsyncSessionLocal() as db:
+        for drug in DRUG_CATALOG_DATA:
+            stmt = (
+                insert(DrugCatalog)
+                .values(id=uuid.uuid4(), **drug)
+                .on_conflict_do_nothing(index_elements=["gns_code"])
+            )
+            await db.execute(stmt)
+        await db.commit()
+    print(f"✓ drug_catalog seeded ({len(DRUG_CATALOG_DATA)} rows attempted, duplicates skipped)")
+
+
+async def seed_safety_rules():
+    async with AsyncSessionLocal() as db:
+        for rule in SAFETY_RULES_DATA:
+            stmt = (
+                insert(SafetyRule)
+                .values(id=uuid.uuid4(), **rule)
+                .on_conflict_do_nothing(index_elements=["rule_code"])
+            )
+            await db.execute(stmt)
+        await db.commit()
+    print(f"✓ safety_rules seeded ({len(SAFETY_RULES_DATA)} rows attempted, duplicates skipped)")
 
 
 if __name__ == "__main__":
