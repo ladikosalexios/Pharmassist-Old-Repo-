@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..db.session import get_session
 from ..deps import get_current_user
-from ..schemas.safety import SafetyChecksPayload
+from ..schemas.safety import SafetyAlertPayload, SafetyChecksPayload
 from ..services.pharmacy import find_pharmacy_by_name
 from ..services.prescriptions import MOCK_PRESCRIPTIONS
 from ..services.safety_checks import MOCK_SAFETY_CHECKS
@@ -36,7 +36,11 @@ async def get_safety_checks(
     """
     mock_checks = MOCK_SAFETY_CHECKS.get(rx_id)
     if mock_checks is not None:
-        return SafetyChecksPayload(rx_id=rx_id, checks=[], source="mock", legacy_checks=mock_checks)
+        return SafetyChecksPayload(
+            rx_id=rx_id,
+            checks=[SafetyAlertPayload.model_validate(c) for c in mock_checks],
+            source="mock",
+        )
 
     rx = MOCK_PRESCRIPTIONS.get(rx_id)
     if rx is None:
