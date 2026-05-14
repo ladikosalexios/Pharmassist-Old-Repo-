@@ -43,7 +43,12 @@ from app.db.models.pharmacy import Pharmacy
 from app.db.models.safety_rule import SafetyRule
 from app.db.session import AsyncSessionLocal
 from app.services.pharmapi import verify_pharmapi_credentials
-from scripts.seed_data import DRUG_CATALOG_DATA, SAFETY_RULES_DATA, SEED_ADR_REPORTS
+from scripts.seed_data import (
+    DRUG_CATALOG_DATA,
+    PATIENT_CONDITION_DATA,
+    SAFETY_RULES_DATA,
+    SEED_ADR_REPORTS,
+)
 
 settings = get_settings()
 
@@ -189,29 +194,7 @@ async def seed():
 
         # Conditions for engine-test prescriptions (RX-ENGINE-001/002/003).
         # Each condition triggers a contraindication rule in safety_rules.
-        for condition in [
-            {
-                "amka": "22071993789",  # P010 Sarah Johnson — RX-ENGINE-001 (Warfarin)
-                "condition_code": "PREGNANCY",
-                "name": "Pregnancy",
-                "severity": "N/A",
-                "notes": "18 weeks — triggers WARFARIN_PREGNANCY_CONTRAINDICATION",
-            },
-            {
-                "amka": "08111947033",  # P040 Nikos Papadopoulos — RX-ENGINE-002 (Aspirin)
-                "condition_code": "G6PD",
-                "name": "Glucose-6-phosphate dehydrogenase deficiency",
-                "severity": "MODERATE",
-                "notes": "Triggers G6PD_ASPIRIN_HAEMOLYSIS",
-            },
-            {
-                "amka": "12101948112",  # P020 Anna Kostas — RX-ENGINE-003 (Metformin)
-                "condition_code": "RENAL_SEVERE",
-                "name": "Severe renal impairment (CKD stage 3b–5)",
-                "severity": "SEVERE",
-                "notes": "eGFR < 45 — triggers METFORMIN_RENAL_CONTRAINDICATION",
-            },
-        ]:
+        for condition in PATIENT_CONDITION_DATA:
             db.add(
                 PatientCondition(
                     **condition,
