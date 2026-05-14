@@ -37,3 +37,10 @@ class DeliveryMethod:
 class Setting:
     PRIVATE = "Private"
     HOSPITAL = "Hospital"
+
+
+class PrescriptionStatus:
+    PENDING = "PENDING"
+    COMPLETED = "COMPLETED"
+    FLAGGED = "FLAGGED"
+    UNKNOWN = "UNKNOWN"

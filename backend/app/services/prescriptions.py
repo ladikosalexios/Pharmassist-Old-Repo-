@@ -9,6 +9,7 @@ they share the same Python object and the mutations are visible everywhere.
 drift from the detail records. Adding a prescription is a one-place change.
 """
 
+from ..constants import PrescriptionStatus
 from .safety_checks import MOCK_SAFETY_CHECKS
 
 MOCK_PRESCRIPTIONS: dict = {
@@ -16,7 +17,7 @@ MOCK_PRESCRIPTIONS: dict = {
         "rxId": "RX2024-005",
         "code": "RX2024-005",
         "dateIssued": "2026-04-28",
-        "status": "PENDING",
+        "status": PrescriptionStatus.PENDING,
         "spcVersion": "SPC v2024.3",
         "patient": {
             "id": "P001",
@@ -72,7 +73,7 @@ MOCK_PRESCRIPTIONS: dict = {
         "rxId": "RX2024-001",
         "code": "RX2024-001",
         "dateIssued": "2026-03-11",
-        "status": "PENDING",
+        "status": PrescriptionStatus.PENDING,
         "spcVersion": "SPC v2024.3",
         "patient": {
             "id": "P010",
@@ -116,7 +117,7 @@ MOCK_PRESCRIPTIONS: dict = {
         "rxId": "RX2024-002",
         "code": "RX2024-002",
         "dateIssued": "2026-04-12",
-        "status": "FLAGGED",
+        "status": PrescriptionStatus.FLAGGED,
         "spcVersion": "SPC v2024.3",
         "patient": {
             "id": "P024",
@@ -166,7 +167,7 @@ MOCK_PRESCRIPTIONS: dict = {
         "rxId": "RX2024-003",
         "code": "RX2024-003",
         "dateIssued": "2026-03-22",
-        "status": "PENDING",
+        "status": PrescriptionStatus.PENDING,
         "spcVersion": "SPC v2024.3",
         "patient": {
             "id": "P033",
@@ -211,7 +212,7 @@ MOCK_PRESCRIPTIONS: dict = {
         "rxId": "RX2024-006",
         "code": "RX2024-006",
         "dateIssued": "2026-05-02",
-        "status": "PENDING",
+        "status": PrescriptionStatus.PENDING,
         "spcVersion": "SPC v2024.3",
         "patient": {
             "id": "P040",
@@ -262,7 +263,7 @@ MOCK_PRESCRIPTIONS: dict = {
         "rxId": "RX2024-007",
         "code": "RX2024-007",
         "dateIssued": "2026-04-19",
-        "status": "COMPLETED",
+        "status": PrescriptionStatus.COMPLETED,
         "completedAt": "2026-04-19T11:42:00+00:00",
         "spcVersion": "SPC v2024.3",
         "patient": {
@@ -310,7 +311,7 @@ MOCK_PRESCRIPTIONS: dict = {
         "rxId": "RX2024-008",
         "code": "RX2024-008",
         "dateIssued": "2026-05-03",
-        "status": "PENDING",
+        "status": PrescriptionStatus.PENDING,
         "spcVersion": "SPC v2024.3",
         "patient": {
             "id": "P062",
@@ -354,7 +355,7 @@ MOCK_PRESCRIPTIONS: dict = {
         "rxId": "RX2024-009",
         "code": "RX2024-009",
         "dateIssued": "2026-05-05",
-        "status": "PENDING",
+        "status": PrescriptionStatus.PENDING,
         "spcVersion": "SPC v2024.3",
         "patient": {
             "id": "P078",

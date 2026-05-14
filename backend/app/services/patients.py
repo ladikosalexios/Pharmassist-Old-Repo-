@@ -12,6 +12,7 @@ from app.db.models.patient_condition import PatientCondition
 from app.services.pharmapi import pharmapi_get_patient
 from app.utils.environment import is_mock_pharmapi
 
+from ..constants import PrescriptionStatus
 from .prescriptions import MOCK_PRESCRIPTIONS
 from .side_effects import MOCK_SIDE_EFFECTS
 
@@ -281,28 +282,28 @@ PATIENT_RX_HISTORY_BASE: dict = {
             "date": "2026-04-28",
             "drugName": "Warfarin 5 mg",
             "prescriberName": "Dr. Michael Chen",
-            "status": "PENDING",
+            "status": PrescriptionStatus.PENDING,
         },
         {
             "rxId": "RX2023-118",
             "date": "2025-11-12",
             "drugName": "Atorvastatin 20 mg",
             "prescriberName": "Dr. Michael Chen",
-            "status": "COMPLETED",
+            "status": PrescriptionStatus.COMPLETED,
         },
         {
             "rxId": "RX2023-077",
             "date": "2025-09-03",
             "drugName": "Metformin 1000 mg",
             "prescriberName": "Dr. Maria Lampraki",
-            "status": "COMPLETED",
+            "status": PrescriptionStatus.COMPLETED,
         },
         {
             "rxId": "RX2023-022",
             "date": "2025-04-19",
             "drugName": "Ramipril 5 mg",
             "prescriberName": "Dr. Maria Lampraki",
-            "status": "COMPLETED",
+            "status": PrescriptionStatus.COMPLETED,
         },
     ],
     "P004": [
@@ -311,14 +312,14 @@ PATIENT_RX_HISTORY_BASE: dict = {
             "date": "2026-03-11",
             "drugName": "Warfarin 7.5 mg",
             "prescriberName": "Dr. Emily Roberts",
-            "status": "FLAGGED",
+            "status": PrescriptionStatus.FLAGGED,
         },
         {
             "rxId": "RX2023-054",
             "date": "2025-08-20",
             "drugName": "Bisoprolol 5 mg",
             "prescriberName": "Dr. Emily Roberts",
-            "status": "COMPLETED",
+            "status": PrescriptionStatus.COMPLETED,
         },
     ],
     "P010": [
@@ -327,7 +328,7 @@ PATIENT_RX_HISTORY_BASE: dict = {
             "date": "2026-03-11",
             "drugName": "Amoxicillin 500 mg",
             "prescriberName": "Dr. Michael Chen",
-            "status": "PENDING",
+            "status": PrescriptionStatus.PENDING,
         },
     ],
     "P012": [
@@ -336,14 +337,14 @@ PATIENT_RX_HISTORY_BASE: dict = {
             "date": "2025-12-08",
             "drugName": "Atorvastatin 20 mg",
             "prescriberName": "Dr. David Lee",
-            "status": "COMPLETED",
+            "status": PrescriptionStatus.COMPLETED,
         },
         {
             "rxId": "RX2023-044",
             "date": "2025-06-14",
             "drugName": "Aspirin 100 mg",
             "prescriberName": "Dr. David Lee",
-            "status": "COMPLETED",
+            "status": PrescriptionStatus.COMPLETED,
         },
     ],
     "P020": [
@@ -352,7 +353,7 @@ PATIENT_RX_HISTORY_BASE: dict = {
             "date": "2025-09-30",
             "drugName": "Clopidogrel 75 mg",
             "prescriberName": "Dr. Sophia Roussou",
-            "status": "COMPLETED",
+            "status": PrescriptionStatus.COMPLETED,
         },
     ],
     "P031": [
@@ -361,7 +362,7 @@ PATIENT_RX_HISTORY_BASE: dict = {
             "date": "2025-05-18",
             "drugName": "Metformin 1000 mg",
             "prescriberName": "Dr. Niko Pateli",
-            "status": "COMPLETED",
+            "status": PrescriptionStatus.COMPLETED,
         },
     ],
     "P024": [
@@ -370,14 +371,14 @@ PATIENT_RX_HISTORY_BASE: dict = {
             "date": "2026-04-12",
             "drugName": "Warfarin 7.5 mg",
             "prescriberName": "Dr. Emily Roberts",
-            "status": "FLAGGED",
+            "status": PrescriptionStatus.FLAGGED,
         },
         {
             "rxId": "RX2023-041",
             "date": "2025-07-18",
             "drugName": "Bisoprolol 5 mg",
             "prescriberName": "Dr. Emily Roberts",
-            "status": "COMPLETED",
+            "status": PrescriptionStatus.COMPLETED,
         },
     ],
     "P033": [
@@ -386,14 +387,14 @@ PATIENT_RX_HISTORY_BASE: dict = {
             "date": "2026-03-22",
             "drugName": "Lisinopril 10 mg",
             "prescriberName": "Dr. David Lee",
-            "status": "PENDING",
+            "status": PrescriptionStatus.PENDING,
         },
         {
             "rxId": "RX2023-055",
             "date": "2025-09-10",
             "drugName": "Amlodipine 5 mg",
             "prescriberName": "Dr. David Lee",
-            "status": "COMPLETED",
+            "status": PrescriptionStatus.COMPLETED,
         },
     ],
     "P040": [
@@ -402,14 +403,14 @@ PATIENT_RX_HISTORY_BASE: dict = {
             "date": "2026-05-02",
             "drugName": "Metformin 850 mg",
             "prescriberName": "Dr. Anna Kostas",
-            "status": "PENDING",
+            "status": PrescriptionStatus.PENDING,
         },
         {
             "rxId": "RX2023-088",
             "date": "2025-11-04",
             "drugName": "Glipizide 5 mg",
             "prescriberName": "Dr. Anna Kostas",
-            "status": "COMPLETED",
+            "status": PrescriptionStatus.COMPLETED,
         },
     ],
     "P051": [
@@ -418,14 +419,14 @@ PATIENT_RX_HISTORY_BASE: dict = {
             "date": "2026-04-19",
             "drugName": "Atorvastatin 40 mg",
             "prescriberName": "Dr. Michael Chen",
-            "status": "COMPLETED",
+            "status": PrescriptionStatus.COMPLETED,
         },
         {
             "rxId": "RX2023-063",
             "date": "2025-10-08",
             "drugName": "Atorvastatin 20 mg",
             "prescriberName": "Dr. Michael Chen",
-            "status": "COMPLETED",
+            "status": PrescriptionStatus.COMPLETED,
         },
     ],
     "P062": [
@@ -434,14 +435,14 @@ PATIENT_RX_HISTORY_BASE: dict = {
             "date": "2026-05-03",
             "drugName": "Clopidogrel 75 mg",
             "prescriberName": "Dr. Emily Roberts",
-            "status": "PENDING",
+            "status": PrescriptionStatus.PENDING,
         },
         {
             "rxId": "RX2024-004",
             "date": "2026-02-08",
             "drugName": "Aspirin 100 mg",
             "prescriberName": "Dr. Emily Roberts",
-            "status": "COMPLETED",
+            "status": PrescriptionStatus.COMPLETED,
         },
     ],
     "P078": [
@@ -450,7 +451,7 @@ PATIENT_RX_HISTORY_BASE: dict = {
             "date": "2026-05-05",
             "drugName": "Amoxicillin 250 mg/5 mL",
             "prescriberName": "Dr. Kostas Manolas",
-            "status": "PENDING",
+            "status": PrescriptionStatus.PENDING,
         },
     ],
 }
