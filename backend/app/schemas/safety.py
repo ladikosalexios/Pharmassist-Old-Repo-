@@ -16,4 +16,3 @@ class SafetyChecksPayload(AppSchema):
     rx_id: str
     checks: list[SafetyAlertPayload]
     source: str
-    legacy_checks: list | None = None
