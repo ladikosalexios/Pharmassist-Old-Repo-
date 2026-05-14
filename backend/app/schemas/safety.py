@@ -1,12 +1,12 @@
 from .base import AppSchema
 
-SEVERITY_ORDER = {"SEVERE": 0, "MODERATE": 1, "MILD": 2}
+STATUS_ORDER = {"block": 0, "review": 1, "ok": 2}
 
 
 class SafetyAlertPayload(AppSchema):
-    type: str
-    severity: str
-    rule_code: str
+    id: str
+    name: str
+    status: str
     message: str
     details: str | None = None
     recommended_action: str | None = None
@@ -14,6 +14,6 @@ class SafetyAlertPayload(AppSchema):
 
 class SafetyChecksPayload(AppSchema):
     rx_id: str
-    alerts: list[SafetyAlertPayload]
+    checks: list[SafetyAlertPayload]
     source: str
     legacy_checks: list | None = None

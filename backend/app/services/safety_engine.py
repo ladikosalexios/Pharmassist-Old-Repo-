@@ -9,7 +9,7 @@ from sqlalchemy import and_, or_, select, true
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..db.models.safety_rule import SafetyRule
-from ..schemas.safety import SEVERITY_ORDER, SafetyAlertPayload, SafetyChecksPayload
+from ..schemas.safety import STATUS_ORDER, SafetyAlertPayload, SafetyChecksPayload
 from .patients import conditions, rx_history
 from .prescriptions import MOCK_PRESCRIPTIONS
 
@@ -25,11 +25,21 @@ MOCK_INTOLERANCES: dict = {
 }
 
 
-def _rule_to_alert(alert_type: str, rule: SafetyRule) -> SafetyAlertPayload:
+_SEVERITY_TO_STATUS = {"SEVERE": "block", "MODERATE": "review", "MILD": "ok"}
+
+_CHECK_TYPE_NAME = {
+    "interactions": "Drug-Drug Interactions",
+    "duplicate_therapy": "Duplicate Therapy Check",
+    "contraindications": "Contraindications",
+    "dose_validation": "Dose Validation",
+}
+
+
+def _rule_to_alert(rule: SafetyRule) -> SafetyAlertPayload:
     return SafetyAlertPayload(
-        type=alert_type,
-        severity=rule.severity,
-        rule_code=rule.rule_code,
+        id=rule.rule_code,
+        name=_CHECK_TYPE_NAME.get(rule.check_type, rule.check_type),
+        status=_SEVERITY_TO_STATUS.get(rule.severity, "review"),
         message=rule.message_en,
         details=rule.details_en,
         recommended_action=rule.recommended_action_en,
@@ -45,7 +55,7 @@ async def evaluate_safety(
     patient_id = rx["patient"]["id"]
     amka = rx["patient"]["amka"]
 
-    alerts: list[SafetyAlertPayload] = []
+    checks: list[SafetyAlertPayload] = []
     seen: set[str] = set()
 
     # --- 1. Drug-drug interactions & duplicate therapy ---
@@ -83,7 +93,7 @@ async def evaluate_safety(
         for rule in interaction_rules:
             if rule.rule_code not in seen:
                 seen.add(rule.rule_code)
-                alerts.append(_rule_to_alert("INTERACTION", rule))
+                checks.append(_rule_to_alert(rule))
 
     # --- 2. Intolerances / contraindications (Pharmapi) ---
     # Match on the first four characters of the ATC code (level-3 class) so
@@ -91,11 +101,11 @@ async def evaluate_safety(
     # exact molecule recorded.
     for intol in MOCK_INTOLERANCES.get(amka, []):
         if rx_atc[:4] == intol["atcCode"][:4]:
-            alerts.append(
+            checks.append(
                 SafetyAlertPayload(
-                    type="CONTRAINDICATION",
-                    rule_code="INTOLERANCE",
-                    severity=intol["severity"],
+                    id="INTOLERANCE",
+                    name="Contraindications",
+                    status=_SEVERITY_TO_STATUS.get(intol["severity"], "review"),
                     message=intol["name"],
                 )
             )
@@ -118,7 +128,7 @@ async def evaluate_safety(
         for rule in condition_rules:
             if rule.rule_code not in seen:
                 seen.add(rule.rule_code)
-                alerts.append(_rule_to_alert(rule.trigger_condition_code, rule))
+                checks.append(_rule_to_alert(rule))
 
-    alerts.sort(key=lambda a: SEVERITY_ORDER.get(a.severity, 99))
-    return SafetyChecksPayload(rx_id=rx["rxId"], alerts=alerts, source="engine")
+    checks.sort(key=lambda a: STATUS_ORDER.get(a.status, 99))
+    return SafetyChecksPayload(rx_id=rx["rxId"], checks=checks, source="engine")
