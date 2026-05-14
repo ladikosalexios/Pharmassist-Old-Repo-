@@ -19,6 +19,7 @@ from app.schemas.patients import PatientPayload
 from app.utils.dates import age_from_date
 
 from ..config import get_settings
+from ..constants import PrescriptionStatus
 
 # Module-level constants kept for backward compat — anything that imports
 # these by name keeps working. Sourced from settings at first import.
@@ -197,13 +198,13 @@ def _date(raw: str | None) -> str | None:
 
 
 _PHARMAPI_STATUS_MAP = {
-    "PENDING": "PENDING",
-    "ACTIVE": "PENDING",  # assume active = awaiting dispense
-    "COMPLETED": "COMPLETED",
-    "EXECUTED": "COMPLETED",
-    "CANCELLED": "FLAGGED",
-    "EXPIRED": "FLAGGED",
-    "PARTIAL": "PENDING",  # partially dispensed — still actionable
+    "PENDING": PrescriptionStatus.PENDING,
+    "ACTIVE": PrescriptionStatus.PENDING,  # assume active = awaiting dispense
+    "COMPLETED": PrescriptionStatus.COMPLETED,
+    "EXECUTED": PrescriptionStatus.COMPLETED,
+    "CANCELLED": PrescriptionStatus.FLAGGED,
+    "EXPIRED": PrescriptionStatus.FLAGGED,
+    "PARTIAL": PrescriptionStatus.PENDING,  # partially dispensed — still actionable
 }
 
 
@@ -217,11 +218,11 @@ def _map_pharmapi_status(pharmapi_status: str | None) -> str:
     new real-world values are observed.
     """
     if not pharmapi_status:
-        return "UNKNOWN"
+        return PrescriptionStatus.UNKNOWN
     s = pharmapi_status.upper().strip()
     if s not in _PHARMAPI_STATUS_MAP:
         print(f"[Pharmapi] WARNING: unmapped status '{pharmapi_status}' — defaulting to UNKNOWN")
-        return "UNKNOWN"
+        return PrescriptionStatus.UNKNOWN
     return _PHARMAPI_STATUS_MAP[s]
 
 
