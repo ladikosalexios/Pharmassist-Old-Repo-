@@ -396,6 +396,145 @@ MOCK_PRESCRIPTIONS: dict = {
         },
         "safetyChecks": MOCK_SAFETY_CHECKS["RX2024-009"],
     },
+    # Engine-test prescriptions: not in MOCK_SAFETY_CHECKS, so they are evaluated
+    # by the safety engine. Each is paired with a seeded PatientCondition that
+    # triggers a condition-based rule.
+    "RX-ENGINE-001": {
+        "rxId": "RX-ENGINE-001",
+        "code": "RX-ENGINE-001",
+        "dateIssued": "2026-05-14",
+        "status": PrescriptionStatus.PENDING,
+        "spcVersion": "SPC v2024.3",
+        "patient": {
+            "id": "P010",
+            "name": "Sarah Johnson",
+            "age": 32,
+            "dateOfBirth": "1993-07-22",
+            "amka": "22071993789",
+            "conditions": ["Pregnancy (18 weeks)", "Hypertension"],
+            "allergies": "None known",
+        },
+        "medication": {
+            "drugName": "Warfarin",
+            "atcCode": "B01AA03",
+            "dose": "5 mg",
+            "form": "Tablet",
+            "route": "Oral",
+            "frequency": "Once daily",
+            "treatmentDuration": "90 days",
+            "spcRecommendedDosage": (
+                "Initial: 5–10 mg daily for 1–2 days, then adjusted based on INR. "
+                "Maintenance: 2–10 mg daily."
+            ),
+        },
+        "prescriber": {
+            "name": "Dr. Michael Chen",
+            "licenceId": "MD-48291",
+            "specialty": "Cardiology",
+            "contact": "+30 210 123 4567",
+            "email": "m.chen@hospital.gr",
+        },
+        "spcQuickReference": {
+            "contraindications": [
+                "Pregnancy (except for mechanical heart valves)",
+                "Active bleeding or bleeding diathesis",
+                "Severe hepatic impairment",
+            ],
+            "majorInteractions": [
+                {"drug": "Aspirin", "effect": "High risk of bleeding when combined."},
+                {"drug": "Amiodarone", "effect": "Potentiates warfarin — reduce dose 30–50%."},
+            ],
+        },
+    },
+    "RX-ENGINE-002": {
+        "rxId": "RX-ENGINE-002",
+        "code": "RX-ENGINE-002",
+        "dateIssued": "2026-05-14",
+        "status": PrescriptionStatus.PENDING,
+        "spcVersion": "SPC v2024.3",
+        "patient": {
+            "id": "P040",
+            "name": "Nikos Papadopoulos",
+            "age": 78,
+            "dateOfBirth": "1947-11-08",
+            "amka": "08111947033",
+            "conditions": ["Type II Diabetes", "G6PD deficiency (moderate)"],
+            "allergies": "None known",
+        },
+        "medication": {
+            "drugName": "Aspirin",
+            "atcCode": "B01AC06",
+            "dose": "100 mg",
+            "form": "Tablet",
+            "route": "Oral",
+            "frequency": "Once daily",
+            "treatmentDuration": "Long-term",
+            "spcRecommendedDosage": "75–100 mg once daily for antiplatelet prophylaxis.",
+        },
+        "prescriber": {
+            "name": "Dr. Anna Kostas",
+            "licenceId": "MD-50220",
+            "specialty": "Endocrinology",
+            "contact": "+30 210 555 0212",
+            "email": "a.kostas@clinic.gr",
+        },
+        "spcQuickReference": {
+            "contraindications": [
+                "Active peptic ulcer",
+                "Bleeding disorders",
+            ],
+            "majorInteractions": [
+                {"drug": "Warfarin", "effect": "Increased bleeding risk."},
+                {"drug": "Clopidogrel", "effect": "DAPT — confirm indication."},
+            ],
+        },
+    },
+    "RX-ENGINE-003": {
+        "rxId": "RX-ENGINE-003",
+        "code": "RX-ENGINE-003",
+        "dateIssued": "2026-05-14",
+        "status": PrescriptionStatus.PENDING,
+        "spcVersion": "SPC v2024.3",
+        "patient": {
+            "id": "P020",
+            "name": "Anna Kostas",
+            "age": 77,
+            "dateOfBirth": "1948-10-12",
+            "amka": "12101948112",
+            "conditions": ["Hypertension", "Type II Diabetes", "Chronic Kidney Disease (stage 3b)"],
+            "allergies": "None known",
+        },
+        "medication": {
+            "drugName": "Metformin",
+            "atcCode": "A10BA02",
+            "dose": "500 mg",
+            "form": "Tablet",
+            "route": "Oral",
+            "frequency": "Twice daily",
+            "treatmentDuration": "Long-term",
+            "spcRecommendedDosage": "500–850 mg twice or three times daily; max 2,550 mg/day.",
+        },
+        "prescriber": {
+            "name": "Dr. Elena Stavros",
+            "licenceId": "MD-50418",
+            "specialty": "Endocrinology",
+            "contact": "+30 210 555 0418",
+            "email": "e.stavros@clinic.gr",
+        },
+        "spcQuickReference": {
+            "contraindications": [
+                "eGFR < 30 mL/min/1.73m²",
+                "Acute metabolic acidosis",
+                "Severe hepatic impairment",
+            ],
+            "majorInteractions": [
+                {
+                    "drug": "Iodinated contrast",
+                    "effect": "Risk of acute renal failure — pause metformin.",
+                },
+            ],
+        },
+    },
 }
 
 

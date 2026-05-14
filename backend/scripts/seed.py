@@ -187,18 +187,38 @@ async def seed():
         )
         db.add(link)
 
-        TEST_PATIENT_AMKA = "15031962456"  # TODO: replace with AMKA of patient in our test pharmacy
-        db.add(
-            PatientCondition(
-                amka=TEST_PATIENT_AMKA,
-                condition_code="G6PD",
-                name="Glucose-6-phosphate dehydrogenase deficiency",
-                severity="MODERATE",
-                notes="Seeded from Pharmapi /user/me — verify with patient on first visit",
-                recorded_by=pharmacist.id,
-                pharmacy_id=pharmacy.id,
+        # Conditions for engine-test prescriptions (RX-ENGINE-001/002/003).
+        # Each condition triggers a contraindication rule in safety_rules.
+        for condition in [
+            {
+                "amka": "22071993789",  # P010 Sarah Johnson — RX-ENGINE-001 (Warfarin)
+                "condition_code": "PREGNANCY",
+                "name": "Pregnancy",
+                "severity": "N/A",
+                "notes": "18 weeks — triggers WARFARIN_PREGNANCY_CONTRAINDICATION",
+            },
+            {
+                "amka": "08111947033",  # P040 Nikos Papadopoulos — RX-ENGINE-002 (Aspirin)
+                "condition_code": "G6PD",
+                "name": "Glucose-6-phosphate dehydrogenase deficiency",
+                "severity": "MODERATE",
+                "notes": "Triggers G6PD_ASPIRIN_HAEMOLYSIS",
+            },
+            {
+                "amka": "12101948112",  # P020 Anna Kostas — RX-ENGINE-003 (Metformin)
+                "condition_code": "RENAL_SEVERE",
+                "name": "Severe renal impairment (CKD stage 3b–5)",
+                "severity": "SEVERE",
+                "notes": "eGFR < 45 — triggers METFORMIN_RENAL_CONTRAINDICATION",
+            },
+        ]:
+            db.add(
+                PatientCondition(
+                    **condition,
+                    recorded_by=pharmacist.id,
+                    pharmacy_id=pharmacy.id,
+                )
             )
-        )
 
         # commit records with no foreign keys
         await db.commit()
@@ -218,7 +238,8 @@ async def seed():
         )
         print(f"  Local login: {p.pharmacist_email}  /  test1234   (PharmAssist /auth/login)")
         print(f"  EOF licence: {p.pharmacist_eof_licence_no}")
-        print(f"  Condition:   G6PD MODERATE on AMKA {TEST_PATIENT_AMKA}")
+        print("  Conditions:  PREGNANCY (22071993789), G6PD MODERATE (08111947033),")
+        print("               RENAL_SEVERE (12101948112)")
 
     await seed_drug_catalog()
     await seed_safety_rules()
