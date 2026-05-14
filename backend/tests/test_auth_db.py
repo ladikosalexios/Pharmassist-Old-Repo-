@@ -25,6 +25,7 @@ os.environ.setdefault(
 
 import bcrypt  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
+from sqlalchemy.sql.elements import BindParameter  # noqa: E402
 
 from app.crypto import encrypt_credential  # noqa: E402
 from app.db.models.pharmacist import Pharmacist  # noqa: E402
@@ -68,13 +69,38 @@ _ROWS = {
 }
 
 
+def _bind_value_for(stmt, column_key: str):
+    """Pull the bind-parameter value for `<entity>.<column_key> == ?` out of a
+    select's WHERE clause. Returns None if no such equality is present.
+
+    Needed so the fake session can answer Pharmacist-by-email lookups
+    realistically — without it, unknown-email tests can't be distinguished
+    from valid ones."""
+    where = stmt.whereclause
+    if where is None:
+        return None
+    clauses = list(where.clauses) if hasattr(where, "clauses") else [where]
+    for c in clauses:
+        left = getattr(c, "left", None)
+        right = getattr(c, "right", None)
+        if getattr(left, "key", None) == column_key and isinstance(right, BindParameter):
+            return right.value
+    return None
+
+
 class _FakeAsyncSession:
-    """Minimal stand-in for ``AsyncSession`` — looks up rows by the entity
-    in ``select(Entity).where(...)``. Sufficient for the login + /me + logout
+    """Stand-in for ``AsyncSession``. Resolves rows by entity, and for
+    Pharmacist queries also matches the email in the WHERE clause so wrong-
+    email tests get a real None back. Sufficient for the login + /me + logout
     smoke paths; not a general SQLAlchemy mock."""
 
     async def scalar(self, stmt):
-        return _ROWS.get(stmt.column_descriptions[0]["entity"])
+        entity = stmt.column_descriptions[0]["entity"]
+        if entity is Pharmacist:
+            queried_email = _bind_value_for(stmt, "email")
+            if queried_email is not None and queried_email != EMAIL:
+                return None
+        return _ROWS.get(entity)
 
 
 async def _fake_get_session():
@@ -113,27 +139,22 @@ def test_me_returns_user():
 def test_unknown_email_returns_same_401():
     """Unknown email returns the same opaque 401 as a wrong password — no
     account enumeration via status code, response body, or cookie state.
-    Implicitly exercises the constant-time bcrypt path (dummy hash)."""
+    Implicitly exercises the constant-time bcrypt path (dummy hash). The
+    fake session's WHERE-clause inspection makes the email mismatch real."""
+    client = TestClient(app)
+    r = client.post("/auth/login", json={"email": "nobody@example.com", "password": PASSWORD})
+    assert r.status_code == 401, r.text
+    assert r.json() == {"detail": "Invalid credentials"}
+    assert "pharmassist_session" not in r.cookies
 
-    class _NoPharmacist:
-        async def scalar(self, stmt):
-            entity = stmt.column_descriptions[0]["entity"]
-            if entity is Pharmacist:
-                return None
-            return _ROWS.get(entity)
 
-    async def _override():
-        yield _NoPharmacist()
-
-    app.dependency_overrides[get_session] = _override
-    try:
-        client = TestClient(app)
-        r = client.post("/auth/login", json={"email": "nobody@example.com", "password": PASSWORD})
-        assert r.status_code == 401, r.text
-        assert r.json() == {"detail": "Invalid credentials"}
-        assert "pharmassist_session" not in r.cookies
-    finally:
-        app.dependency_overrides[get_session] = _fake_get_session
+def test_wrong_password_returns_401():
+    """Right email + wrong password ⇒ the same 401 body as an unknown email."""
+    client = TestClient(app)
+    r = client.post("/auth/login", json={"email": EMAIL, "password": "not-the-password"})
+    assert r.status_code == 401, r.text
+    assert r.json() == {"detail": "Invalid credentials"}
+    assert "pharmassist_session" not in r.cookies
 
 
 def test_logout_clears_cookie():

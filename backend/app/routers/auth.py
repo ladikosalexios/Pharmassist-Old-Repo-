@@ -23,12 +23,16 @@ from ..services.pharmapi import (
     _start_pharmapi_session,
     verify_pharmapi_credentials_with_decrypted,
 )
-from ..services.security import create_jwt
+from ..services.security import TOKEN_EXPIRE_MIN, create_jwt
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 COOKIE_NAME = "pharmassist_session"
-COOKIE_MAX_AGE_SECONDS = 8 * 60 * 60  # 28800s == 8h pharmacist session
+# Keep the cookie's Max-Age aligned with the JWT's exp claim so the browser
+# drops the cookie at the same moment the server would reject the token.
+# Drift here means dead cookies sticking around, or live cookies whose tokens
+# already 401 — both confusing.
+COOKIE_MAX_AGE_SECONDS = TOKEN_EXPIRE_MIN * 60
 
 # Pinned to the same cost factor (rounds=12) as real password hashes (see
 # scripts/seed.py). Used to neutralise the timing side-channel when an email
@@ -79,9 +83,18 @@ async def login(
     if pharmacy is None:
         raise HTTPException(status_code=500, detail="Linked pharmacy missing")
 
+    # Refuse to log in if the link row exists but its ΗΔΥΚΑ creds are NULL/blank —
+    # the previous `or ""` fallback would have fed empty ciphertext into
+    # decrypt_credential and either thrown an opaque InvalidTag or, worse,
+    # silently decoded to empty plaintext that we'd then send upstream.
+    if not link.pharmapi_username or not link.pharmapi_password:
+        raise HTTPException(
+            status_code=500,
+            detail="Pharmacist's pharmacy link is missing ΗΔΥΚΑ credentials",
+        )
     # Decrypt ΗΔΥΚΑ credentials in-memory; never log or persist plaintext.
-    pharmapi_username = decrypt_credential(link.pharmapi_username or "")
-    pharmapi_password = decrypt_credential(link.pharmapi_password or "")
+    pharmapi_username = decrypt_credential(link.pharmapi_username)
+    pharmapi_password = decrypt_credential(link.pharmapi_password)
     profile = await verify_pharmapi_credentials_with_decrypted(pharmapi_username, pharmapi_password)
     _start_pharmapi_session(profile)
 
