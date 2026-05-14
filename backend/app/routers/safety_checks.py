@@ -36,7 +36,7 @@ async def get_safety_checks(
     """
     mock_checks = MOCK_SAFETY_CHECKS.get(rx_id)
     if mock_checks is not None:
-        return SafetyChecksPayload(rx_id=rx_id, alerts=[], source="mock", legacy_checks=mock_checks)
+        return SafetyChecksPayload(rx_id=rx_id, checks=[], source="mock", legacy_checks=mock_checks)
 
     rx = MOCK_PRESCRIPTIONS.get(rx_id)
     if rx is None:
