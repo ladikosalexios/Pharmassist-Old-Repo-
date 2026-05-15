@@ -104,14 +104,17 @@ async def evaluate_safety(
     # exact molecule recorded.
     for intol in MOCK_INTOLERANCES.get(amka, []):
         if rx_atc[:4] == intol["atcCode"][:4]:
-            checks.append(
-                SafetyAlertPayload(
-                    id="INTOLERANCE",
-                    name="Contraindications",
-                    status=_SEVERITY_TO_STATUS.get(intol["severity"], "review"),
-                    message=intol["name"],
+            key = f"INTOLERANCE_{intol['atcCode'][:4]}"
+            if key not in seen:
+                seen.add(key)
+                checks.append(
+                    SafetyAlertPayload(
+                        id="INTOLERANCE",
+                        name="Contraindications",
+                        status=_SEVERITY_TO_STATUS.get(intol["severity"], "review"),
+                        message=intol["name"],
+                    )
                 )
-            )
 
     # --- 3. Patient-specific conditions (DB) ---
     # Fetch conditions recorded by the pharmacy for this patient, then query
