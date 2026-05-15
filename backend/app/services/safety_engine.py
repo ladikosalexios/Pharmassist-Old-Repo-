@@ -5,6 +5,8 @@ of safety alerts. Replaces per-prescription MOCK_SAFETY_CHECKS for any rx_id
 not already covered by that mock.
 """
 
+from uuid import UUID
+
 from sqlalchemy import and_, or_, select, true
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -49,7 +51,7 @@ def _rule_to_alert(rule: SafetyRule) -> SafetyAlertPayload:
 async def evaluate_safety(
     session: AsyncSession,
     rx: dict,
-    pharmacy_id: str,
+    pharmacy_id: UUID,
 ) -> SafetyChecksPayload:
     rx_atc = rx["medication"]["atcCode"]
     patient_id = rx["patient"]["id"]
