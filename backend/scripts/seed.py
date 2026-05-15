@@ -43,7 +43,12 @@ from app.db.models.pharmacy import Pharmacy
 from app.db.models.safety_rule import SafetyRule
 from app.db.session import AsyncSessionLocal
 from app.services.pharmapi import verify_pharmapi_credentials
-from scripts.seed_data import DRUG_CATALOG_DATA, SAFETY_RULES_DATA, SEED_ADR_REPORTS
+from scripts.seed_data import (
+    DRUG_CATALOG_DATA,
+    PATIENT_CONDITION_DATA,
+    SAFETY_RULES_DATA,
+    SEED_ADR_REPORTS,
+)
 
 settings = get_settings()
 
@@ -187,18 +192,16 @@ async def seed():
         )
         db.add(link)
 
-        TEST_PATIENT_AMKA = "15031962456"  # TODO: replace with AMKA of patient in our test pharmacy
-        db.add(
-            PatientCondition(
-                amka=TEST_PATIENT_AMKA,
-                condition_code="G6PD",
-                name="Glucose-6-phosphate dehydrogenase deficiency",
-                severity="MODERATE",
-                notes="Seeded from Pharmapi /user/me — verify with patient on first visit",
-                recorded_by=pharmacist.id,
-                pharmacy_id=pharmacy.id,
+        # Conditions for engine-test prescriptions (RX-ENGINE-001/002/003).
+        # Each condition triggers a contraindication rule in safety_rules.
+        for condition in PATIENT_CONDITION_DATA:
+            db.add(
+                PatientCondition(
+                    **condition,
+                    recorded_by=pharmacist.id,
+                    pharmacy_id=pharmacy.id,
+                )
             )
-        )
 
         # commit records with no foreign keys
         await db.commit()
@@ -218,7 +221,8 @@ async def seed():
         )
         print(f"  Local login: {p.pharmacist_email}  /  test1234   (PharmAssist /auth/login)")
         print(f"  EOF licence: {p.pharmacist_eof_licence_no}")
-        print(f"  Condition:   G6PD MODERATE on AMKA {TEST_PATIENT_AMKA}")
+        print("  Conditions:  PREGNANCY (22071993789), G6PD MODERATE (08111947033),")
+        print("               RENAL_SEVERE (12101948112)")
 
     await seed_drug_catalog()
     await seed_safety_rules()

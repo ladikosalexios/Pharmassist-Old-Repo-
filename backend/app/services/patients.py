@@ -324,6 +324,13 @@ PATIENT_RX_HISTORY_BASE: dict = {
     ],
     "P010": [
         {
+            "rxId": "RX-ENGINE-001",
+            "date": "2026-05-14",
+            "drugName": "Warfarin 5 mg",
+            "prescriberName": "Dr. Michael Chen",
+            "status": PrescriptionStatus.PENDING,
+        },
+        {
             "rxId": "RX2024-001",
             "date": "2026-03-11",
             "drugName": "Amoxicillin 500 mg",
@@ -348,6 +355,13 @@ PATIENT_RX_HISTORY_BASE: dict = {
         },
     ],
     "P020": [
+        {
+            "rxId": "RX-ENGINE-003",
+            "date": "2026-05-14",
+            "drugName": "Metformin 500 mg",
+            "prescriberName": "Dr. Elena Stavros",
+            "status": PrescriptionStatus.PENDING,
+        },
         {
             "rxId": "RX2023-066",
             "date": "2025-09-30",
@@ -398,6 +412,13 @@ PATIENT_RX_HISTORY_BASE: dict = {
         },
     ],
     "P040": [
+        {
+            "rxId": "RX-ENGINE-002",
+            "date": "2026-05-14",
+            "drugName": "Aspirin 100 mg",
+            "prescriberName": "Dr. Anna Kostas",
+            "status": PrescriptionStatus.PENDING,
+        },
         {
             "rxId": "RX2024-006",
             "date": "2026-05-02",
@@ -473,11 +494,11 @@ def adr_history(patient_id: str) -> list:
     return rows
 
 
-async def conditions(session: AsyncSession, patient_id: str, pharmacy_id: str) -> list:
+async def conditions(session: AsyncSession, amka: str, pharmacy_id: str) -> list:
     return (
         await session.scalars(
             select(PatientCondition).where(
-                PatientCondition.amka == patient_id, PatientCondition.pharmacy_id == pharmacy_id
+                PatientCondition.amka == amka, PatientCondition.pharmacy_id == pharmacy_id
             )
         )
     ).all()
