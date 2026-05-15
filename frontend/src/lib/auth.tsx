@@ -36,7 +36,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       loading,
       async signIn(email, password) {
         const data = await apiLogin(email, password);
-        setUser({ name: data.pharmacist_name, pharmacy: data.pharmacy });
+        // The backend's LoginResponse doesn't carry `email`, so reuse the
+        // value the form submitted — keeps `user.email` populated immediately
+        // instead of waiting for a page reload to hydrate it from /auth/me.
+        setUser({ name: data.pharmacist_name, pharmacy: data.pharmacy, email });
       },
       async signOut() {
         // Swallow upstream failures — we still want to clear local state

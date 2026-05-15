@@ -60,7 +60,7 @@ export async function logout(): Promise<void> {
     method: "POST",
     credentials: "include",
   });
-  if (!r.ok) throw new ApiError(r.status, `HTTP ${r.status}`);
+  await handle(r);
 }
 
 export interface MeResponse {
@@ -388,7 +388,7 @@ export async function getPatientConditions(patientId: string): Promise<PatientCo
   });
   const data = (await handle(r)) as Promise<PatientCondition[]>;
   if (!Array.isArray(data)) {
-    throw new ApiError(0, `Unexpected response from /patients/${patientId}/side-effects.`);
+    throw new ApiError(0, `Unexpected response from /patients/${patientId}/conditions.`);
   }
   return data as PatientCondition[];
 }
