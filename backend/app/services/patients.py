@@ -494,11 +494,11 @@ def adr_history(patient_id: str) -> list:
     return rows
 
 
-async def conditions(session: AsyncSession, patient_id: str, pharmacy_id: str) -> list:
+async def conditions(session: AsyncSession, amka: str, pharmacy_id: str) -> list:
     return (
         await session.scalars(
             select(PatientCondition).where(
-                PatientCondition.amka == patient_id, PatientCondition.pharmacy_id == pharmacy_id
+                PatientCondition.amka == amka, PatientCondition.pharmacy_id == pharmacy_id
             )
         )
     ).all()
