@@ -5,7 +5,7 @@ reader looking at "what does PATCH /prescriptions/:id accept?" opens one file
 instead of grepping main.py.
 """
 
-from .auth import PharmacistMe, SessionStatus, TokenResponse
+from .auth import LoginRequest, LoginResponse, PharmacistMe, SessionStatus
 from .documentation import DocumentationCreate
 from .instructions import InstructionsGenerate, InstructionsSend
 from .messages import MessagePayload
@@ -18,12 +18,13 @@ __all__ = [
     "DocumentationCreate",
     "InstructionsGenerate",
     "InstructionsSend",
+    "LoginRequest",
+    "LoginResponse",
     "MessagePayload",
     "PharmacistMe",
     "PhysicianNotification",
     "PrescriptionPatch",
     "SessionStatus",
-    "TokenResponse",
     "PatientPayload",
     "PatientConditionPayload",
 ]

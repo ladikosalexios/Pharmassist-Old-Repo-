@@ -5,3 +5,12 @@
 # Pin exact ruff version: must match the rev in .pre-commit-config.yaml so
 # pre-commit, CI, and local installs all produce identical lint/format output.
 ruff==0.15.12
+
+# Test runner — smoke tests in tests/.
+pytest>=8.0
+
+# Async event-loop runtime for fastapi.testclient. Today it arrives transitively
+# via starlette/httpx, but the test suite is the only thing exercising the
+# async route handlers via the sync TestClient, so pin it directly — losing it
+# silently would break collection with a cryptic import error.
+anyio>=4.0

@@ -168,6 +168,25 @@ async def verify_pharmapi_credentials(username: str, password: str) -> dict:
     raise HTTPException(502, f"Pharmapi error {r.status_code}: {err}")
 
 
+async def verify_pharmapi_credentials_with_decrypted(username: str, password: str) -> dict:
+    """Login-flow wrapper around verify_pharmapi_credentials.
+
+    Defaults to LIVE — production must never silently fall into mock mode
+    because the env var was missing. Set PHARMAPI_MOCK=true explicitly to
+    bypass the upstream call (local dev, CI, smoke tests); both compose.yaml
+    and tests/test_auth_db.py already do this. `username` / `password` are
+    still required — bcrypt over the local password_hash must have already
+    passed, and we want the same call shape in mock and live mode.
+    """
+    if os.getenv("PHARMAPI_MOCK", "false").lower() not in ("false", "0", "no"):
+        return {
+            "email": f"{username}@pharmapi.local",
+            "name": {"firstname": "Mock", "lastname": "Pharmacist"},
+            "pharmacy": {"name": "Mock Pharmacy"},
+        }
+    return await verify_pharmapi_credentials(username, password)
+
+
 def _start_pharmapi_session(user_data: dict) -> None:
     """Pin the 24h connection window — shared by /auth/login and /pharmapi/connect."""
     now = time.time()

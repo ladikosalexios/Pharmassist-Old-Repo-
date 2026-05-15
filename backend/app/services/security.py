@@ -1,9 +1,7 @@
-"""Auth primitives: stdlib HS256 JWT + the runtime user cache.
+"""JWT primitives (HS256, stdlib only).
 
-The USERS dict is populated at login time from the Pharmapi
-/api/v1/user/me response; it's not a demo store any more.
-
-Reads SECRET_KEY / TOKEN_EXPIRE_MINUTES from the centralised settings.
+Reads SECRET_KEY / TOKEN_EXPIRE_MINUTES from the centralised settings. Token
+encoding/decoding here is intentionally minimal — no python-jose dependency.
 """
 
 import base64
@@ -16,20 +14,11 @@ from fastapi import HTTPException
 
 from ..config import get_settings
 
-# Module-level constants kept for backward compat with anything that imports
-# them by name. Sourced from settings at first import.
 _settings = get_settings()
 SECRET_KEY = _settings.secret_key
 TOKEN_EXPIRE_MIN = _settings.token_expire_minutes
 
 
-# Runtime cache: written by /auth/login on successful Pharmapi auth,
-# read by deps.get_current_user when a JWT comes in. Starts empty —
-# a server restart clears it and forces re-login.
-USERS: dict = {}
-
-
-# ── Minimal JWT (stdlib only — no python-jose needed) ───────────────────────
 def _b64url(data: bytes) -> str:
     return base64.urlsafe_b64encode(data).rstrip(b"=").decode()
 

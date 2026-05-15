@@ -1,19 +1,26 @@
-"""Auth + session schemas (login response, /auth/me, Pharmapi session status)."""
+"""Auth + session schemas (login request/response, /auth/me, Pharmapi session status)."""
 
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr
 
 
-class TokenResponse(BaseModel):
-    access_token: str
-    token_type: str = "bearer"
+class LoginRequest(BaseModel):
+    email: EmailStr
+    password: str
+
+
+class LoginResponse(BaseModel):
     pharmacist_name: str
     pharmacy: str
+    pharmacist_id: str
+    pharmacy_id: str
 
 
 class PharmacistMe(BaseModel):
     email: str
     name: str
     pharmacy: str
+    pharmacist_id: str
+    pharmacy_id: str
 
 
 class SessionStatus(BaseModel):
