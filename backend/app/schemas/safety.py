@@ -12,6 +12,7 @@ class SafetyAlertPayload(AppSchema):
     message: str
     details: str | None = None
     recommended_action: str | None = None
+    rx_id: str | None = None
 
 
 class SafetyChecksPayload(AppSchema):

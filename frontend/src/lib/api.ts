@@ -1,5 +1,6 @@
 import type {
   ActiveAlert,
+  AlertType,
   AdrSort,
   DeliveryMethod,
   DeliveryMethodFilter,
@@ -133,16 +134,32 @@ export async function getSafetyChecks(rxId: string): Promise<SafetyCheck[]> {
   return data.checks;
 }
 
+type RawAlert = { id: string; name: string; status: string; message: string; rxId?: string | null };
+
+function nameToAlertType(name: string): AlertType {
+  const n = name.toLowerCase();
+  if (n.includes("interaction") || n.includes("duplicate")) return "INTERACTION";
+  if (n.includes("g6pd")) return "G6PD";
+  if (n.includes("pregnan")) return "PREGNANCY";
+  return "CONTRAINDICATION";
+}
+
 export async function getActiveAlerts(): Promise<ActiveAlert[]> {
   const r = await fetch(`${API_BASE}/alerts/active`, { credentials: "include" });
-  const data = (await handle(r)) as { alerts?: ActiveAlert[] };
-  if (!Array.isArray(data?.alerts)) {
+  const data = await handle(r);
+  if (!Array.isArray(data)) {
     throw new ApiError(
       0,
-      "Unexpected response from /alerts/active (missing 'alerts' array). Is the API running and proxied?",
+      "Unexpected response from /alerts/active. Is the API running and proxied?",
     );
   }
-  return data.alerts;
+  return (data as RawAlert[]).map((a) => ({
+    id: a.id,
+    type: nameToAlertType(a.name),
+    description: a.message,
+    rxId: a.rxId ?? null,
+    createdAt: "",
+  }));
 }
 
 export async function approvePrescription(
