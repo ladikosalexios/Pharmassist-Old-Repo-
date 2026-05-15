@@ -68,7 +68,8 @@ async def evaluate_safety(
     history_atcs = [
         hist_rx["medication"]["atcCode"]
         for entry in rx_history(patient_id)
-        if (hist_rx := MOCK_PRESCRIPTIONS.get(entry["rxId"]))
+        if entry["rxId"] != rx["rxId"]
+        and (hist_rx := MOCK_PRESCRIPTIONS.get(entry["rxId"]))
     ]
 
     if history_atcs:
