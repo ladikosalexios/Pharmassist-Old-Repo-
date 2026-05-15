@@ -135,5 +135,7 @@ async def evaluate_safety(
                 seen.add(rule.rule_code)
                 checks.append(_rule_to_alert(rule))
 
+    for c in checks:
+        c.rx_id = rx["rxId"]
     checks.sort(key=lambda a: STATUS_ORDER.get(a.status, 99))
     return SafetyChecksPayload(rx_id=rx["rxId"], checks=checks, source="engine")
