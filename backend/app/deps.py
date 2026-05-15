@@ -9,7 +9,6 @@ cookie, never from an Authorization header.
 """
 
 from fastapi import Cookie, Depends, HTTPException
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .db.models.pharmacist import Pharmacist
@@ -31,16 +30,13 @@ async def get_current_user(
     if not pharmacist_id or not pharmacy_id:
         raise HTTPException(status_code=401, detail="Invalid session payload")
 
-    pharmacist = await db.scalar(
-        select(Pharmacist).where(
-            Pharmacist.id == pharmacist_id,
-            Pharmacist.active.is_(True),
-        )
-    )
-    if pharmacist is None:
+    # `Base.get_by_id` handles str→UUID coercion; the `active` predicate stays
+    # inline because `get_by_id` doesn't filter on it.
+    pharmacist = await Pharmacist.get_by_id(db, pharmacist_id)
+    if pharmacist is None or not pharmacist.active:
         raise HTTPException(status_code=401, detail="User not found")
 
-    pharmacy = await db.scalar(select(Pharmacy).where(Pharmacy.id == pharmacy_id))
+    pharmacy = await Pharmacy.get_by_id(db, pharmacy_id)
     if pharmacy is None:
         raise HTTPException(status_code=401, detail="Pharmacy not found")
 

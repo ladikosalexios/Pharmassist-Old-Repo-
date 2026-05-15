@@ -1,9 +1,10 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, String, text
+from sqlalchemy import Boolean, DateTime, String, select, text
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Mapped, mapped_column, relationship, selectinload
 
 from ..base import Base, TimestampMixin
 
@@ -28,3 +29,21 @@ class Pharmacist(Base, TimestampMixin):
     recorded_conditions: Mapped[list["PatientCondition"]] = relationship(
         back_populates="recorded_by_pharmacist"
     )
+
+    async def get_default_pharmacy_link(self, session: AsyncSession):
+        """Return the PharmacistPharmacy row marked ``is_default=True`` for
+        this pharmacist, with the Pharmacy eagerly loaded so callers can
+        reach ``link.pharmacy`` without a second round-trip. ``None`` if no
+        default link exists."""
+        # Lazy import to keep model module imports acyclic — pharmacist_pharmacy
+        # only forward-ref strings Pharmacist back to here.
+        from .pharmacist_pharmacy import PharmacistPharmacy
+
+        return await session.scalar(
+            select(PharmacistPharmacy)
+            .where(
+                PharmacistPharmacy.pharmacist_id == self.id,
+                PharmacistPharmacy.is_default.is_(True),
+            )
+            .options(selectinload(PharmacistPharmacy.pharmacy))
+        )

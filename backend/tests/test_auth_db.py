@@ -50,10 +50,18 @@ class _FakePharmacist:
     active = True
     last_login_at = None  # login handler writes to this; test_login asserts it.
 
+    async def get_default_pharmacy_link(self, session):
+        # Mirrors the real Pharmacist.get_default_pharmacy_link contract — the
+        # session arg is unused here because the fake link is canned.
+        return _ROWS[PharmacistPharmacy]
+
 
 class _FakePharmacy:
     id = PHARMACY_ID
     name = "Test Pharmacy"
+
+
+_PHARMACY = _FakePharmacy()
 
 
 class _FakeLink:
@@ -62,12 +70,15 @@ class _FakeLink:
     pharmapi_username = encrypt_credential("mockuser")
     pharmapi_password = encrypt_credential("mockpass")
     is_default = True
+    # Eager-loaded `.pharmacy` relationship that login now reads off the link
+    # directly (Pharmacist.get_default_pharmacy_link uses selectinload).
+    pharmacy = _PHARMACY
 
 
 _ROWS = {
     Pharmacist: _FakePharmacist(),
     PharmacistPharmacy: _FakeLink(),
-    Pharmacy: _FakePharmacy(),
+    Pharmacy: _PHARMACY,
 }
 
 
@@ -90,6 +101,17 @@ def _bind_value_for(stmt, column_key: str):
     return None
 
 
+class _FakeScalarResult:
+    """Minimal stand-in for SQLAlchemy's ``ScalarResult`` — only the methods
+    ``Base.get_by_id`` reaches for."""
+
+    def __init__(self, value):
+        self._value = value
+
+    def one_or_none(self):
+        return self._value
+
+
 class _FakeAsyncSession:
     """Stand-in for ``AsyncSession``. Resolves rows by entity, and for
     Pharmacist queries also matches the email in the WHERE clause so wrong-
@@ -97,13 +119,20 @@ class _FakeAsyncSession:
     handler calls it after stamping ``last_login_at``. Sufficient for the
     login + /me + logout smoke paths; not a general SQLAlchemy mock."""
 
-    async def scalar(self, stmt):
+    def _resolve(self, stmt):
         entity = stmt.column_descriptions[0]["entity"]
         if entity is Pharmacist:
             queried_email = _bind_value_for(stmt, "email")
             if queried_email is not None and queried_email != EMAIL:
                 return None
         return _ROWS.get(entity)
+
+    async def scalar(self, stmt):
+        return self._resolve(stmt)
+
+    async def scalars(self, stmt):
+        # `Base.get_by_id` uses `session.scalars(stmt).one_or_none()`; wrap.
+        return _FakeScalarResult(self._resolve(stmt))
 
     async def commit(self):
         pass

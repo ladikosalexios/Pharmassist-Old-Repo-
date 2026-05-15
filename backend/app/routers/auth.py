@@ -15,8 +15,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..crypto import decrypt_credential
 from ..db.models.pharmacist import Pharmacist
-from ..db.models.pharmacist_pharmacy import PharmacistPharmacy
-from ..db.models.pharmacy import Pharmacy
 from ..db.session import get_session
 from ..deps import get_current_user
 from ..schemas.auth import LoginRequest, LoginResponse, PharmacistMe
@@ -71,18 +69,11 @@ async def login(
     if pharmacist is None or not password_ok:
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
-    link = await db.scalar(
-        select(PharmacistPharmacy).where(
-            PharmacistPharmacy.pharmacist_id == pharmacist.id,
-            PharmacistPharmacy.is_default.is_(True),
-        )
-    )
+    link = await pharmacist.get_default_pharmacy_link(db)
     if link is None:
         raise HTTPException(status_code=500, detail="Pharmacist has no default pharmacy linked")
-
-    pharmacy = await db.scalar(select(Pharmacy).where(Pharmacy.id == link.pharmacy_id))
-    if pharmacy is None:
-        raise HTTPException(status_code=500, detail="Linked pharmacy missing")
+    # link.pharmacy is eager-loaded via selectinload + FK-guaranteed non-null.
+    pharmacy = link.pharmacy
 
     # Refuse to log in if the link row exists but its ΗΔΥΚΑ creds are NULL/blank —
     # the previous `or ""` fallback would have fed empty ciphertext into
