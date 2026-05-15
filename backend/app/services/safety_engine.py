@@ -27,7 +27,7 @@ MOCK_INTOLERANCES: dict = {
 }
 
 
-_SEVERITY_TO_STATUS = {"SEVERE": "block", "MODERATE": "review", "MILD": "ok"}
+_SEVERITY_TO_STATUS = {"SEVERE": "block", "MODERATE": "review", "MILD": "review"}
 
 _CHECK_TYPE_NAME = {
     "interactions": "Drug-Drug Interactions",
