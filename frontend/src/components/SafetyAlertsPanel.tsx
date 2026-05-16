@@ -23,7 +23,7 @@ interface AlertVisual {
 }
 
 const ALERT_VISUAL: Record<AlertType, AlertVisual> = {
-  INTERACTION: {
+  interactions: {
     Icon: PillIcon,
     severity: "Critical",
     border: "border-red-300",
@@ -31,22 +31,36 @@ const ALERT_VISUAL: Record<AlertType, AlertVisual> = {
     label: "text-red-700",
     pulse: true,
   },
-  G6PD: {
-    Icon: ShieldIcon,
+  contraindications: {
+    Icon: AlertTriangleIcon,
     severity: "High Priority",
     border: "border-orange-300",
     bg: "bg-orange-50",
     label: "text-orange-700",
   },
-  PREGNANCY: {
+  duplicate_therapy: {
+    Icon: ClockIcon,
+    severity: "High Priority",
+    border: "border-orange-300",
+    bg: "bg-orange-50",
+    label: "text-orange-700",
+  },
+  dose_validation: {
+    Icon: AlertTriangleIcon,
+    severity: "High Priority",
+    border: "border-orange-300",
+    bg: "bg-orange-50",
+    label: "text-orange-700",
+  },
+  pregnancy: {
     Icon: ClockIcon,
     severity: "Medium Priority",
     border: "border-yellow-300",
     bg: "bg-yellow-50",
     label: "text-yellow-700",
   },
-  CONTRAINDICATION: {
-    Icon: AlertTriangleIcon,
+  G6PD: {
+    Icon: ShieldIcon,
     severity: "High Priority",
     border: "border-orange-300",
     bg: "bg-orange-50",
@@ -156,7 +170,9 @@ function AlertCard({ alert, isNew }: { alert: ActiveAlert; isNew: boolean }) {
     >
       <div className="flex items-center gap-1.5">
         <v.Icon width={14} height={14} className={v.label} />
-        <span className={`text-xs font-bold tracking-wide ${v.label}`}>{alert.type}</span>
+        <span className={`text-xs font-bold tracking-wide ${v.label}`}>
+          {alert.type.toUpperCase()}
+        </span>
         <span className="ml-auto text-[11px] font-medium uppercase tracking-wide text-slate-500">
           {v.severity}
         </span>

@@ -85,14 +85,20 @@ export interface QueueItem {
   status: PrescriptionStatus;
 }
 
-export type AlertType = "INTERACTION" | "G6PD" | "PREGNANCY" | "CONTRAINDICATION";
+export type AlertType =
+  | "interactions"
+  | "contraindications"
+  | "duplicate_therapy"
+  | "dose_validation"
+  | "pregnancy"
+  | "G6PD";
 
 export interface ActiveAlert {
   id: string;
   type: AlertType;
   description: string;
   rxId?: string | null;
-  createdAt: string;
+  createdAt: string | null;
 }
 
 export type InstructionsLanguage = "el" | "en" | "other";

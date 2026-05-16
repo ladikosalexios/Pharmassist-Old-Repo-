@@ -134,15 +134,7 @@ export async function getSafetyChecks(rxId: string): Promise<SafetyCheck[]> {
   return data.checks;
 }
 
-type RawAlert = { id: string; name: string; status: string; message: string; rxId?: string | null };
-
-function nameToAlertType(name: string): AlertType {
-  const n = name.toLowerCase();
-  if (n.includes("interaction") || n.includes("duplicate")) return "INTERACTION";
-  if (n.includes("g6pd")) return "G6PD";
-  if (n.includes("pregnan")) return "PREGNANCY";
-  return "CONTRAINDICATION";
-}
+type RawAlert = { id: string; checkType: AlertType; status: string; message: string; rxId?: string | null; createdAt?: string | null };
 
 export async function getActiveAlerts(): Promise<ActiveAlert[]> {
   const r = await fetch(`${API_BASE}/alerts/active`, { credentials: "include" });
@@ -155,10 +147,10 @@ export async function getActiveAlerts(): Promise<ActiveAlert[]> {
   }
   return (data as RawAlert[]).map((a) => ({
     id: a.id,
-    type: nameToAlertType(a.name),
+    type: a.checkType,
     description: a.message,
     rxId: a.rxId ?? null,
-    createdAt: "",
+    createdAt: a.createdAt ?? null,
   }));
 }
 
