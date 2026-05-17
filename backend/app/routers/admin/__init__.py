@@ -1,4 +1,4 @@
-"""Company admin portal — /admin/* endpoints (staff auth + management).
+"""Company admin portal — /admin/* endpoints (staff auth, onboarding, pharmacy views).
 
 `main.py` includes `admin.router`; this package keeps that contract while
 splitting the surface into focused sub-routers.
@@ -6,9 +6,9 @@ splitting the surface into focused sub-routers.
 
 from fastapi import APIRouter
 
-from . import audit, auth, demo, invitations, pharmacies, pharmacists, reference, staff
+from . import auth, invitations, pharmacies
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
-for _sub in (auth, invitations, pharmacies, pharmacists, staff, reference, demo, audit):
+for _sub in (auth, invitations, pharmacies):
     router.include_router(_sub.router)

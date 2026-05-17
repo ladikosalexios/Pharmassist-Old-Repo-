@@ -27,6 +27,8 @@ import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 from sqlalchemy.sql.elements import BindParameter  # noqa: E402
 
+from app.db.models.invitation import Invitation  # noqa: E402
+from app.db.models.pharmacy import Pharmacy  # noqa: E402
 from app.db.models.staff_user import StaffUser  # noqa: E402
 from app.db.session import get_session  # noqa: E402
 from app.services.security import create_jwt  # noqa: E402
@@ -73,8 +75,12 @@ class _FakeScalarResult:
 
 
 class _FakeAsyncSession:
-    """Resolves StaffUser by email (login) or id (get_by_id); commit is a no-op.
-    Returns None for an unrecognised email/id so wrong-account tests are real."""
+    """Resolves StaffUser by email (login) or id (get_by_id); writes are captured
+    in-memory so the onboarding endpoint can run. Returns None for an
+    unrecognised email/id so wrong-account tests are real."""
+
+    def __init__(self):
+        self._pending: list = []
 
     def _resolve(self, stmt):
         if stmt.column_descriptions[0]["entity"] is not StaffUser:
@@ -91,6 +97,18 @@ class _FakeAsyncSession:
 
     async def scalars(self, stmt):
         return _FakeScalarResult(self._resolve(stmt))
+
+    def add(self, obj):
+        self._pending.append(obj)
+
+    async def flush(self):
+        # Mimic server-side id assignment so the endpoint can reference new rows.
+        for obj in self._pending:
+            if isinstance(obj, (Pharmacy, Invitation)) and getattr(obj, "id", None) is None:
+                obj.id = uuid.uuid4()
+
+    async def refresh(self, obj):
+        pass
 
     async def commit(self):
         pass
@@ -170,3 +188,33 @@ def test_staff_logout_clears_cookie():
     assert "pharmassist_admin_session" in client.cookies
     assert client.post("/admin/logout").status_code == 200
     assert "pharmassist_admin_session" not in client.cookies
+
+
+def test_onboard_requires_staff_cookie():
+    """POST /admin/invitations is staff-gated — no cookie, no onboarding."""
+    client = TestClient(app)
+    r = client.post(
+        "/admin/invitations",
+        json={
+            "pharmacist_email": "x@pharmassist.gr",
+            "pharmacy": {"name": "X", "pharmapi_unit_id": 1},
+        },
+    )
+    assert r.status_code == 401
+
+
+def test_onboard_creates_pharmacy_and_invitation():
+    """POST /admin/invitations onboards a new pharmacy + its first pharmacist."""
+    client = TestClient(app)
+    client.post("/admin/login", json={"email": EMAIL, "password": PASSWORD})
+    r = client.post(
+        "/admin/invitations",
+        json={
+            "pharmacist_email": "new-pharmacist@pharmassist.gr",
+            "pharmacy": {"name": "Onboarded Pharmacy", "pharmapi_unit_id": 4242},
+        },
+    )
+    assert r.status_code == 201, r.text
+    body = r.json()
+    assert body["email"] == "new-pharmacist@pharmassist.gr"
+    assert body["invite_url"].startswith("/accept-invite?token=")

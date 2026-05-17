@@ -10,14 +10,9 @@ import { PatientProfile } from "./pages/PatientProfile";
 import { Instructions } from "./pages/Instructions";
 import { AdminShell } from "./components/AdminShell";
 import { AdminLogin } from "./pages/admin/AdminLogin";
-import { AdminInvitations } from "./pages/admin/AdminInvitations";
 import { AdminPharmacies } from "./pages/admin/AdminPharmacies";
-import { AdminPharmacists } from "./pages/admin/AdminPharmacists";
-import { AdminStaff } from "./pages/admin/AdminStaff";
-import { AdminDrugs } from "./pages/admin/AdminDrugs";
-import { AdminSafetyRules } from "./pages/admin/AdminSafetyRules";
-import { AdminDemoData } from "./pages/admin/AdminDemoData";
-import { AdminAuditLog } from "./pages/admin/AdminAuditLog";
+import { AdminPharmacyDetail } from "./pages/admin/AdminPharmacyDetail";
+import { AdminOnboard } from "./pages/admin/AdminOnboard";
 
 export function App() {
   return (
@@ -35,15 +30,10 @@ export function App() {
 
       <Route path="/admin/login" element={<AdminLogin />} />
       <Route path="/admin" element={<AdminShell />}>
-        <Route index element={<Navigate to="/admin/invitations" replace />} />
-        <Route path="invitations" element={<AdminInvitations />} />
+        <Route index element={<Navigate to="/admin/pharmacies" replace />} />
         <Route path="pharmacies" element={<AdminPharmacies />} />
-        <Route path="pharmacists" element={<AdminPharmacists />} />
-        <Route path="staff" element={<AdminStaff />} />
-        <Route path="drugs" element={<AdminDrugs />} />
-        <Route path="safety-rules" element={<AdminSafetyRules />} />
-        <Route path="demo" element={<AdminDemoData />} />
-        <Route path="audit-logs" element={<AdminAuditLog />} />
+        <Route path="pharmacies/:id" element={<AdminPharmacyDetail />} />
+        <Route path="onboard" element={<AdminOnboard />} />
       </Route>
 
       <Route path="/" element={<Navigate to="/dashboard" replace />} />

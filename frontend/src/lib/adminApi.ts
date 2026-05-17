@@ -44,32 +44,7 @@ async function post(path: string, body?: unknown): Promise<unknown> {
   );
 }
 
-async function patch(path: string, body: unknown): Promise<unknown> {
-  return handle(
-    await fetch(`${API_BASE}${path}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify(body),
-    }),
-  );
-}
-
 // ── Types ──────────────────────────────────────────────────────────────────
-
-export interface ListResponse<T> {
-  items: T[];
-  total: number;
-}
-
-// `type` (not `interface`) so it carries an implicit index signature and can
-// be passed to qs()'s Record<string, QueryValue> parameter.
-export type ListParams = {
-  q?: string;
-  active?: boolean;
-  limit?: number;
-  offset?: number;
-};
 
 /** /admin/login and /admin/me both return this shape. */
 export interface AdminUser {
@@ -77,25 +52,6 @@ export interface AdminUser {
   name: string;
   email: string;
   role: string;
-}
-
-export interface Invitation {
-  id: string;
-  email: string;
-  pharmacy_id: string;
-  pharmacy_name: string;
-  status: "pending" | "accepted" | "expired";
-  invite_url: string;
-  invited_by_name: string | null;
-  expires_at: string;
-  accepted_at: string | null;
-  created_at: string;
-}
-
-export interface InviteResult {
-  invite_url: string;
-  expires_at: string;
-  email: string;
 }
 
 export interface Pharmacy {
@@ -119,6 +75,7 @@ export interface Pharmacy {
   created_at: string;
 }
 
+/** Fields collected when onboarding a brand-new pharmacy. */
 export interface PharmacyCreate {
   name: string;
   pharmapi_unit_id: number;
@@ -137,7 +94,18 @@ export interface PharmacyCreate {
   tax_id?: string | null;
 }
 
-export type PharmacyUpdate = Partial<PharmacyCreate> & { active?: boolean };
+export interface PharmacyListItem {
+  id: string;
+  name: string;
+  city: string | null;
+  pharmacist_count: number;
+  pending_invite_count: number;
+}
+
+export interface PharmacyListResponse {
+  items: PharmacyListItem[];
+  total: number;
+}
 
 export interface Pharmacist {
   id: string;
@@ -151,77 +119,14 @@ export interface Pharmacist {
   created_at: string;
 }
 
-export interface Staff {
+export interface Invitation {
   id: string;
   email: string;
-  full_name: string;
-  role: string;
-  active: boolean;
-  last_login_at: string | null;
+  status: "pending" | "accepted" | "expired";
+  invite_url: string;
+  expires_at: string;
+  accepted_at: string | null;
   created_at: string;
-}
-
-export interface StaffCreate {
-  email: string;
-  full_name: string;
-  password: string;
-}
-
-export interface Drug {
-  id: string;
-  gns_code: string;
-  atc_code: string;
-  atc_class: string;
-  name_gr: string;
-  name_en: string | null;
-  interaction_group: string | null;
-  active: boolean;
-}
-
-export interface DrugCreate {
-  gns_code: string;
-  atc_code: string;
-  atc_class: string;
-  name_gr: string;
-  name_en?: string | null;
-  interaction_group?: string | null;
-}
-
-export type DrugUpdate = Partial<DrugCreate> & { active?: boolean };
-
-export interface SafetyRule {
-  id: string;
-  rule_code: string;
-  check_type: string;
-  severity: string;
-  message_en: string;
-  trigger_atc: string | null;
-  trigger_condition_code: string | null;
-  conflicting_atc: string | null;
-  details_en: string | null;
-  recommended_action_en: string | null;
-  active: boolean;
-}
-
-export interface SafetyRuleCreate {
-  rule_code: string;
-  check_type: string;
-  severity: string;
-  message_en: string;
-  trigger_atc?: string | null;
-  trigger_condition_code?: string | null;
-  conflicting_atc?: string | null;
-  details_en?: string | null;
-  recommended_action_en?: string | null;
-}
-
-export type SafetyRuleUpdate = Partial<SafetyRuleCreate> & { active?: boolean };
-
-export interface DemoSeedResult {
-  pharmacy_id: string;
-  patient_conditions: number;
-  adr_reports: number;
-  documentation_logs: number;
 }
 
 export interface AuditLogEntry {
@@ -231,21 +136,21 @@ export interface AuditLogEntry {
   resource_id: string | null;
   actor_type: "staff" | "pharmacist" | "system";
   actor_name: string | null;
-  pharmacy_name: string | null;
-  response_code: string | null;
-  ip_address: string | null;
-  request_body: Record<string, unknown> | null;
   occurred_at: string;
 }
 
-export type AuditLogParams = {
-  action?: string;
-  resource_type?: string;
-  date_from?: string;
-  date_to?: string;
-  limit?: number;
-  offset?: number;
-};
+export interface PharmacyDetail {
+  pharmacy: Pharmacy;
+  pharmacists: Pharmacist[];
+  invitations: Invitation[];
+  audit: AuditLogEntry[];
+}
+
+export interface InviteResult {
+  invite_url: string;
+  expires_at: string;
+  email: string;
+}
 
 // ── Auth ───────────────────────────────────────────────────────────────────
 
@@ -261,113 +166,26 @@ export async function adminMe(): Promise<AdminUser> {
   return get("/admin/me") as Promise<AdminUser>;
 }
 
-// ── Invitations ────────────────────────────────────────────────────────────
-
-export async function listInvitations(
-  params: { status?: string; q?: string; limit?: number; offset?: number } = {},
-): Promise<ListResponse<Invitation>> {
-  return get(`/admin/invitations${qs(params)}`) as Promise<ListResponse<Invitation>>;
-}
-
-export async function createInvitation(email: string, pharmacyId: string): Promise<InviteResult> {
-  return post("/admin/invitations", {
-    email,
-    pharmacy_id: pharmacyId,
-  }) as Promise<InviteResult>;
-}
-
-export async function revokeInvitation(id: string): Promise<void> {
-  await post(`/admin/invitations/${id}/revoke`);
-}
-
 // ── Pharmacies ─────────────────────────────────────────────────────────────
 
-export async function listPharmacies(params: ListParams = {}): Promise<ListResponse<Pharmacy>> {
-  return get(`/admin/pharmacies${qs(params)}`) as Promise<ListResponse<Pharmacy>>;
+export async function listPharmacies(
+  params: { q?: string; limit?: number; offset?: number } = {},
+): Promise<PharmacyListResponse> {
+  return get(`/admin/pharmacies${qs(params)}`) as Promise<PharmacyListResponse>;
 }
 
-export async function getPharmacy(id: string): Promise<Pharmacy> {
-  return get(`/admin/pharmacies/${id}`) as Promise<Pharmacy>;
+export async function getPharmacy(id: string): Promise<PharmacyDetail> {
+  return get(`/admin/pharmacies/${id}`) as Promise<PharmacyDetail>;
 }
 
-export async function createPharmacy(body: PharmacyCreate): Promise<Pharmacy> {
-  return post("/admin/pharmacies", body) as Promise<Pharmacy>;
-}
+// ── Onboarding ─────────────────────────────────────────────────────────────
 
-export async function updatePharmacy(id: string, body: PharmacyUpdate): Promise<Pharmacy> {
-  return patch(`/admin/pharmacies/${id}`, body) as Promise<Pharmacy>;
-}
-
-// ── Pharmacists ────────────────────────────────────────────────────────────
-
-export async function listPharmacists(params: ListParams = {}): Promise<ListResponse<Pharmacist>> {
-  return get(`/admin/pharmacists${qs(params)}`) as Promise<ListResponse<Pharmacist>>;
-}
-
-export async function activatePharmacist(id: string): Promise<Pharmacist> {
-  return post(`/admin/pharmacists/${id}/activate`) as Promise<Pharmacist>;
-}
-
-export async function deactivatePharmacist(id: string): Promise<Pharmacist> {
-  return post(`/admin/pharmacists/${id}/deactivate`) as Promise<Pharmacist>;
-}
-
-// ── Staff ──────────────────────────────────────────────────────────────────
-
-export async function listStaff(params: ListParams = {}): Promise<ListResponse<Staff>> {
-  return get(`/admin/staff${qs(params)}`) as Promise<ListResponse<Staff>>;
-}
-
-export async function createStaff(body: StaffCreate): Promise<Staff> {
-  return post("/admin/staff", body) as Promise<Staff>;
-}
-
-export async function activateStaff(id: string): Promise<Staff> {
-  return post(`/admin/staff/${id}/activate`) as Promise<Staff>;
-}
-
-export async function deactivateStaff(id: string): Promise<Staff> {
-  return post(`/admin/staff/${id}/deactivate`) as Promise<Staff>;
-}
-
-// ── Drug catalog ───────────────────────────────────────────────────────────
-
-export async function listDrugs(params: ListParams = {}): Promise<ListResponse<Drug>> {
-  return get(`/admin/drugs${qs(params)}`) as Promise<ListResponse<Drug>>;
-}
-
-export async function createDrug(body: DrugCreate): Promise<Drug> {
-  return post("/admin/drugs", body) as Promise<Drug>;
-}
-
-export async function updateDrug(id: string, body: DrugUpdate): Promise<Drug> {
-  return patch(`/admin/drugs/${id}`, body) as Promise<Drug>;
-}
-
-// ── Safety rules ───────────────────────────────────────────────────────────
-
-export async function listSafetyRules(params: ListParams = {}): Promise<ListResponse<SafetyRule>> {
-  return get(`/admin/safety-rules${qs(params)}`) as Promise<ListResponse<SafetyRule>>;
-}
-
-export async function createSafetyRule(body: SafetyRuleCreate): Promise<SafetyRule> {
-  return post("/admin/safety-rules", body) as Promise<SafetyRule>;
-}
-
-export async function updateSafetyRule(id: string, body: SafetyRuleUpdate): Promise<SafetyRule> {
-  return patch(`/admin/safety-rules/${id}`, body) as Promise<SafetyRule>;
-}
-
-// ── Demo seeder ────────────────────────────────────────────────────────────
-
-export async function seedDemoData(pharmacyId: string): Promise<DemoSeedResult> {
-  return post("/admin/demo/seed", { pharmacy_id: pharmacyId }) as Promise<DemoSeedResult>;
-}
-
-// ── Audit log ──────────────────────────────────────────────────────────────
-
-export async function listAuditLogs(
-  params: AuditLogParams = {},
-): Promise<ListResponse<AuditLogEntry>> {
-  return get(`/admin/audit-logs${qs(params)}`) as Promise<ListResponse<AuditLogEntry>>;
+export async function onboardPharmacy(
+  pharmacistEmail: string,
+  pharmacy: PharmacyCreate,
+): Promise<InviteResult> {
+  return post("/admin/invitations", {
+    pharmacist_email: pharmacistEmail,
+    pharmacy,
+  }) as Promise<InviteResult>;
 }

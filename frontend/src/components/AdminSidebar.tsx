@@ -1,28 +1,8 @@
 import { NavLink } from "react-router-dom";
 import { useAdminAuth } from "../lib/adminAuth";
-import {
-  ShieldIcon,
-  MailIcon,
-  GridIcon,
-  UsersIcon,
-  SettingsIcon,
-  PillIcon,
-  AlertTriangleIcon,
-  FileTextIcon,
-  ClipboardIcon,
-  LogOutIcon,
-} from "./Icons";
+import { ShieldIcon, GridIcon, LogOutIcon } from "./Icons";
 
-const NAV = [
-  { to: "/admin/invitations", label: "Invitations", Icon: MailIcon },
-  { to: "/admin/pharmacies", label: "Pharmacies", Icon: GridIcon },
-  { to: "/admin/pharmacists", label: "Pharmacists", Icon: UsersIcon },
-  { to: "/admin/staff", label: "Staff", Icon: SettingsIcon },
-  { to: "/admin/drugs", label: "Drug Catalog", Icon: PillIcon },
-  { to: "/admin/safety-rules", label: "Safety Rules", Icon: AlertTriangleIcon },
-  { to: "/admin/demo", label: "Demo Data", Icon: FileTextIcon },
-  { to: "/admin/audit-logs", label: "Audit Log", Icon: ClipboardIcon },
-];
+const NAV = [{ to: "/admin/pharmacies", label: "Pharmacies", Icon: GridIcon }];
 
 export function AdminSidebar() {
   const { admin, signOut } = useAdminAuth();
