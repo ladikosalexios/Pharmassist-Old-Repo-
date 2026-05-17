@@ -40,6 +40,8 @@ _CHECK_TYPE_NAME = {
     CheckType.DUPLICATE_THERAPY: "Duplicate Therapy Check",
     CheckType.CONTRAINDICATIONS: "Contraindications",
     CheckType.DOSE_VALIDATION: "Dose Validation",
+    CheckType.PREGNANCY: "Pregnancy",
+    CheckType.G6PD: "G6PD Deficiency",
 }
 
 
