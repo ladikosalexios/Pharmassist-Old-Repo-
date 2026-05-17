@@ -142,7 +142,7 @@ export async function getActiveAlerts(): Promise<ActiveAlert[]> {
       "Unexpected response from /alerts/active. Is the API running and proxied?",
     );
   }
-  return (data).map((a) => ({
+  return data.map((a) => ({
     id: a.id,
     type: a.checkType,
     description: a.message,
