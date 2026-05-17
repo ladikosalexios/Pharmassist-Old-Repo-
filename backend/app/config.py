@@ -42,6 +42,22 @@ def _env_int(key: str, default: int) -> int:
     return int(raw)
 
 
+def _env_required(key: str) -> str:
+    """Required secret env var — fail loudly at startup if it is missing.
+
+    Secrets must never fall back to a baked-in default: a known default
+    would let anyone forge sessions or impersonate the app to ΗΔΥΚΑ.
+    """
+    value = os.getenv(key)
+    if not value:
+        raise RuntimeError(
+            f"Required environment variable {key!r} is not set. "
+            "Copy backend/.env.example to backend/.env (or set it in your "
+            "environment) — see the README."
+        )
+    return value
+
+
 class Settings(BaseModel):
     # ── App metadata ────────────────────────────────────────────────────────
     app_title: str
@@ -82,12 +98,12 @@ def get_settings() -> Settings:
         cors_allow_credentials=_env_bool("CORS_ALLOW_CREDENTIALS", True),
         cors_allow_methods=_env_list("CORS_ALLOW_METHODS", ["*"]),
         cors_allow_headers=_env_list("CORS_ALLOW_HEADERS", ["*"]),
-        secret_key=os.getenv("SECRET_KEY", "pharmassist-dev-secret-CHANGE-IN-PROD"),
+        secret_key=_env_required("SECRET_KEY"),
         token_expire_minutes=_env_int("TOKEN_EXPIRE_MINUTES", 480),  # 8h pharmacist session
         pharmapi_base=os.getenv("PHARMAPI_BASE", "https://testeps.e-prescription.gr/pharmapiv2"),
-        pharmapi_username=os.getenv("PHARMAPI_USERNAME", "medcare1pharmapi"),
-        pharmapi_password=os.getenv("PHARMAPI_PASSWORD", "Aa900990099009!!"),
-        pharmapi_api_key=os.getenv("PHARMAPI_API_KEY", "pi2jwygkd07yho3a4dw6jc55tg5ra3uc"),
+        pharmapi_username=_env_required("PHARMAPI_USERNAME"),
+        pharmapi_password=_env_required("PHARMAPI_PASSWORD"),
+        pharmapi_api_key=_env_required("PHARMAPI_API_KEY"),
         pharmapi_session_window_seconds=_env_int(
             "PHARMAPI_SESSION_WINDOW_SECONDS",
             23 * 3600,  # 23h (refresh before 24h hard limit)

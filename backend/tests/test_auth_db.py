@@ -19,6 +19,9 @@ os.environ["PHARMAPI_MOCK"] = "true"
 os.environ["COOKIE_SECURE"] = "false"
 os.environ["CREDENTIAL_ENCRYPTION_KEY"] = base64.b64encode(b"\x01" * 32).decode()
 os.environ.setdefault("SECRET_KEY", "test-secret-key-do-not-use-in-prod")
+os.environ.setdefault("PHARMAPI_USERNAME", "test-pharmapi-user")
+os.environ.setdefault("PHARMAPI_PASSWORD", "test-pharmapi-pass")
+os.environ.setdefault("PHARMAPI_API_KEY", "test-pharmapi-key")
 os.environ.setdefault(
     "DATABASE_URL",
     "postgresql+asyncpg://pharmassist:pharmassist_dev@localhost:5432/pharmassist_test",
