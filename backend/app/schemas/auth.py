@@ -1,5 +1,7 @@
 """Auth + session schemas (login request/response, /auth/me, Pharmapi session status)."""
 
+import uuid
+
 from pydantic import BaseModel, EmailStr, Field
 
 
@@ -33,7 +35,7 @@ class SessionStatus(BaseModel):
 
 class InviteRequest(BaseModel):
     email: EmailStr
-    pharmacy_id: str  # UUID as string
+    pharmacy_id: uuid.UUID  # Pydantic validates the format — malformed input → 422
 
 
 class InviteResponse(BaseModel):

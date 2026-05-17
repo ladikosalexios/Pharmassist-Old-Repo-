@@ -218,19 +218,30 @@ async def accept_invite(
     if now > invitation.expires_at or invitation.accepted_at is not None:
         raise HTTPException(410, "Invite has expired or already been used")
 
-    # 2. Duplicate email check
+    # 2. Duplicate checks — email and ΗΔΥΚΑ licence number each carry a
+    # UNIQUE constraint, so catch collisions here for a clean 409 rather
+    # than an IntegrityError 500 on commit.
     existing = await db.scalar(select(Pharmacist).where(Pharmacist.email == invitation.email))
     if existing:
         raise HTTPException(409, "Account already exists for this email")
+    licence_taken = await db.scalar(
+        select(Pharmacist).where(Pharmacist.eof_licence_no == body.eof_licence_no)
+    )
+    if licence_taken:
+        raise HTTPException(409, "A pharmacist with this licence number already exists")
 
     # 3. Validate ΗΔΥΚΑ credentials BEFORE any DB write — never create the
-    # account if Pharmapi rejects them.
+    # account if Pharmapi rejects them. Only a 401 means "bad credentials";
+    # infra failures (missing API key, expired session, upstream down) must
+    # surface as-is instead of masquerading as a credential rejection.
     try:
         profile = await verify_pharmapi_credentials_with_decrypted(
             body.pharmapi_username, body.pharmapi_password
         )
-    except Exception:
-        raise HTTPException(400, "ΗΔΥΚΑ credentials rejected by Pharmapi") from None
+    except HTTPException as exc:
+        if exc.status_code == 401:
+            raise HTTPException(400, "ΗΔΥΚΑ credentials rejected by Pharmapi") from None
+        raise
     if not profile:
         raise HTTPException(400, "ΗΔΥΚΑ credentials rejected by Pharmapi")
 

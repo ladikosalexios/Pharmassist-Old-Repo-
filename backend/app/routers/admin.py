@@ -29,7 +29,7 @@ async def create_invite(
         raise HTTPException(403, "Admin role required")
 
     # 2. Verify pharmacy exists
-    pharmacy = await db.get(Pharmacy, uuid.UUID(body.pharmacy_id))
+    pharmacy = await db.get(Pharmacy, body.pharmacy_id)
     if not pharmacy:
         raise HTTPException(404, "Pharmacy not found")
 
