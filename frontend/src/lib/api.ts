@@ -1,6 +1,5 @@
 import type {
   ActiveAlert,
-  AlertType,
   AdrSort,
   DeliveryMethod,
   DeliveryMethodFilter,
@@ -134,8 +133,6 @@ export async function getSafetyChecks(rxId: string): Promise<SafetyCheck[]> {
   return data.checks;
 }
 
-type RawAlert = { id: string; checkType: AlertType; status: string; message: string; rxId?: string | null; createdAt?: string | null };
-
 export async function getActiveAlerts(): Promise<ActiveAlert[]> {
   const r = await fetch(`${API_BASE}/alerts/active`, { credentials: "include" });
   const data = await handle(r);
@@ -145,7 +142,7 @@ export async function getActiveAlerts(): Promise<ActiveAlert[]> {
       "Unexpected response from /alerts/active. Is the API running and proxied?",
     );
   }
-  return (data as RawAlert[]).map((a) => ({
+  return (data).map((a) => ({
     id: a.id,
     type: a.checkType,
     description: a.message,
