@@ -27,16 +27,19 @@ Navigate to http://localhost:5173/login
 | username    | medcare1pharmapi |
 | Password | Aa900990099009!!                 |
 
-## Pharmapi credentials
+## Required secrets
 
-Set via environment variables (or edit main.py directly for POC):
+The backend **fails to start** if any of these is unset — there is no
+insecure in-code fallback. The Docker stack supplies them in `compose.yaml`;
+for any other setup, copy `backend/.env.example` to `backend/.env` and fill
+them in.
 
-```bash
-# Already defaulted in code — only set these if you want to override:
-export PHARMAPI_USERNAME=medcare1pharmapi
-export PHARMAPI_PASSWORD=Aa900990099009!!
-export PHARMAPI_API_KEY=pi2jwygkd07yho3a4dw6jc55tg5ra3uc
-```
+| Variable | Purpose |
+|----------|---------|
+| `SECRET_KEY` | JWT / session-cookie signing key |
+| `PHARMAPI_USERNAME` / `PHARMAPI_PASSWORD` | ΗΔΥΚΑ Pharmapi login |
+| `PHARMAPI_API_KEY` | per-app ΗΔΥΚΑ key from your registration email |
+| `CREDENTIAL_ENCRYPTION_KEY` | AES key for encrypting stored credentials |
 
 ## What works
 

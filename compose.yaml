@@ -23,6 +23,13 @@ services:
       # container itself; we want the `db` service on the compose network.
       DATABASE_URL: postgresql+asyncpg://pharmassist:pharmassist_dev@db:5432/pharmassist
       PHARMAPI_MOCK: "true"
+      # Required secrets — config.py has no in-code fallback, so the local
+      # dev stack supplies them here. Dev/test values only; production must
+      # provide real ones through its own environment.
+      SECRET_KEY: dev-secret-key-not-for-production
+      PHARMAPI_USERNAME: medcare1pharmapi
+      PHARMAPI_PASSWORD: "Aa900990099009!!"
+      PHARMAPI_API_KEY: pi2jwygkd07yho3a4dw6jc55tg5ra3uc
     depends_on:
       - db
   db:
