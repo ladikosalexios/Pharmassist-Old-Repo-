@@ -5,7 +5,7 @@ from the environment, then materialises:
   - 1 Pharmacy   (from profile.pharmacy: name, address, tax_id, pharmapi_unit_id;
                   structured address/contact fields are static demo values)
   - 1 Pharmacist (from profile: email, full_name, eof_licence_no, phone)
-  - 1 PharmacistPharmacy link (Pharmapi creds AES-256-GCM-encrypted)
+  - 1 PharmacistPharmacy link (Pharmapi username + password, AES-256-GCM-encrypted)
   - 1 PatientCondition (G6PD MODERATE, on the connected pharmacist's own AMKA)
 
 Idempotent: TRUNCATEs the four seeded tables before insert so re-running
