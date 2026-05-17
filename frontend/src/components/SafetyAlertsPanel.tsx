@@ -162,7 +162,7 @@ export function SafetyAlertsPanel({ maxHeightClass = "max-h-96" }: SafetyAlertsP
 }
 
 function AlertCard({ alert, isNew }: { alert: ActiveAlert; isNew: boolean }) {
-  const v = ALERT_VISUAL[alert.type];
+  const v = ALERT_VISUAL[alert.type] ?? ALERT_VISUAL["contraindications"];
   return (
     <article
       className={`rounded-xl border-2 ${v.border} ${v.bg} p-3.5 ${isNew ? "animate-alert-in" : ""} ${v.pulse ? "animate-pulse-red-border" : ""}`}
