@@ -25,7 +25,6 @@ class PharmacistPharmacy(Base, TimestampMixin):
     )
     pharmapi_username: Mapped[str | None] = mapped_column(String)
     pharmapi_password: Mapped[str | None] = mapped_column(String)
-    pharmapi_api_key: Mapped[str | None] = mapped_column(String)
     is_default: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     pharmacist: Mapped["Pharmacist"] = relationship(back_populates="pharmacy_links")
     pharmacy: Mapped["Pharmacy"] = relationship(back_populates="pharmacist_links")
