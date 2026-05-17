@@ -29,7 +29,7 @@ Navigate to http://localhost:5173/login
 
 ## Required secrets
 
-The backend **fails to start** if any of these is unset — there is no
+The backend **fails to start** if any of these four is unset — there is no
 insecure in-code fallback. The Docker stack supplies them in `compose.yaml`;
 for any other setup, copy `backend/.env.example` to `backend/.env` and fill
 them in.
@@ -39,7 +39,10 @@ them in.
 | `SECRET_KEY` | JWT / session-cookie signing key |
 | `PHARMAPI_USERNAME` / `PHARMAPI_PASSWORD` | ΗΔΥΚΑ Pharmapi login |
 | `PHARMAPI_API_KEY` | per-app ΗΔΥΚΑ key from your registration email |
-| `CREDENTIAL_ENCRYPTION_KEY` | AES key for encrypting stored credentials |
+
+`CREDENTIAL_ENCRYPTION_KEY` (AES key for encrypting stored credentials) is
+also required — it is checked the first time a credential is encrypted or
+decrypted, not at startup.
 
 ## What works
 
