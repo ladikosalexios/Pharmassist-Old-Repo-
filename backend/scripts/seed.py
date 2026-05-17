@@ -158,6 +158,19 @@ async def seed():
             address=p.pharmacy_address,
             tax_id=p.pharmacy_tax_id,
             pharmapi_unit_id=p.pharmacy_unit_id,
+            # Structured registration fields — static demo values; Pharmapi
+            # /user/me does not expose them, so they're hard-coded here.
+            street_name="ΛΕΩΦΟΡΟΣ ΠΕΝΤΕΛΗΣ",
+            street_number="138",
+            area="ΧΑΛΑΝΔΡΙ",
+            city="ΑΘΗΝΑ",
+            postal_code="15234",
+            phone="2106855263",
+            fax="2106855272",
+            email="mpempi24@otenet.gr",
+            geographic_region="ΧΑΛΑΝΔΡΙ ΑΤΤΙΚΗ",
+            accounting_category="B",
+            is_branch=False,
         )
         db.add(pharmacy)
         await db.flush()
