@@ -12,6 +12,7 @@ from app.db.models.adr_report import AdrReport  # noqa
 from app.db.models.audit_log import AuditLog  # noqa
 from app.db.models.documentation_log import DocumentationLog  # noqa
 from app.db.models.drug_catalog import DrugCatalog  # noqa
+from app.db.models.invitation import Invitation  # noqa
 from app.db.models.patient_condition import PatientCondition  # noqa
 from app.db.models.pharmacist import Pharmacist  # noqa
 from app.db.models.pharmacist_pharmacy import PharmacistPharmacy  # noqa
