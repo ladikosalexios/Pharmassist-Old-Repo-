@@ -197,7 +197,6 @@ async def seed():
             pharmacy_id=pharmacy.id,
             pharmapi_username=encrypt_credential(settings.pharmapi_username or ""),
             pharmapi_password=encrypt_credential(settings.pharmapi_password or ""),
-            pharmapi_api_key=encrypt_credential(settings.pharmapi_api_key or ""),
             is_default=True,
         )
         db.add(link)
