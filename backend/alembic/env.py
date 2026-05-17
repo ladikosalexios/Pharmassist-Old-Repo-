@@ -18,6 +18,7 @@ from app.db.models.pharmacist import Pharmacist  # noqa
 from app.db.models.pharmacist_pharmacy import PharmacistPharmacy  # noqa
 from app.db.models.pharmacy import Pharmacy  # noqa
 from app.db.models.safety_rule import SafetyRule  # noqa
+from app.db.models.staff_user import StaffUser  # noqa
 
 config = context.config
 settings = get_settings()

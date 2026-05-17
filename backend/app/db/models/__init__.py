@@ -9,6 +9,7 @@ from .pharmacist import Pharmacist
 from .pharmacist_pharmacy import PharmacistPharmacy
 from .pharmacy import Pharmacy
 from .safety_rule import SafetyRule
+from .staff_user import StaffUser
 
 __all__ = [
     "Pharmacist",
@@ -22,4 +23,5 @@ __all__ = [
     "AuditLog",
     "DrugCatalog",
     "SafetyRule",
+    "StaffUser",
 ]

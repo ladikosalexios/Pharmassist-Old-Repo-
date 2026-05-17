@@ -31,6 +31,7 @@ export default defineConfig({
       "/side-effects": spaProxy("http://backend:8000"),
       "/patients": spaProxy("http://backend:8000"),
       "/instructions": spaProxy("http://backend:8000"),
+      "/admin": spaProxy("http://backend:8000"),
     },
   },
 });

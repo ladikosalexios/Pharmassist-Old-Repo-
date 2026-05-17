@@ -14,6 +14,8 @@ class AuditLog(Base, TimestampMixin):
     pharmacist_id: Mapped[str | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("pharmacists.id")
     )
+    # Set when the actor is a company staff member; pharmacist_id is then NULL.
+    staff_id: Mapped[str | None] = mapped_column(UUID(as_uuid=True), ForeignKey("staff_users.id"))
     pharmacy_id: Mapped[str | None] = mapped_column(UUID(as_uuid=True), ForeignKey("pharmacies.id"))
     action: Mapped[str] = mapped_column(String, nullable=False)
     resource_type: Mapped[str | None] = mapped_column(String)

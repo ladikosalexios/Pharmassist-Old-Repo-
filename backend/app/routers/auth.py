@@ -5,7 +5,6 @@ returned in the response body. The response carries display fields
 (pharmacist_name, pharmacy, ids) the SPA needs to render its shell.
 """
 
-import os
 from datetime import UTC, datetime
 
 import bcrypt
@@ -27,20 +26,16 @@ from ..schemas.auth import (
     LoginResponse,
     PharmacistMe,
 )
+from ..services.cookies import COOKIE_MAX_AGE_SECONDS, cookie_secure
 from ..services.pharmapi import (
     _start_pharmapi_session,
     verify_pharmapi_credentials_with_decrypted,
 )
-from ..services.security import TOKEN_EXPIRE_MIN, create_jwt
+from ..services.security import create_jwt
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 COOKIE_NAME = "pharmassist_session"
-# Keep the cookie's Max-Age aligned with the JWT's exp claim so the browser
-# drops the cookie at the same moment the server would reject the token.
-# Drift here means dead cookies sticking around, or live cookies whose tokens
-# already 401 — both confusing.
-COOKIE_MAX_AGE_SECONDS = TOKEN_EXPIRE_MIN * 60
 
 # Pinned to the same cost factor (rounds=12) as real password hashes (see
 # scripts/seed.py). Used to neutralise the timing side-channel when an email
@@ -49,11 +44,6 @@ COOKIE_MAX_AGE_SECONDS = TOKEN_EXPIRE_MIN * 60
 _DUMMY_PASSWORD_HASH: str = bcrypt.hashpw(
     b"unused-dummy-for-constant-time-login", bcrypt.gensalt(rounds=12)
 ).decode()
-
-
-def _cookie_secure() -> bool:
-    """Secure cookie by default; opt out via COOKIE_SECURE=false for local HTTP."""
-    return os.getenv("COOKIE_SECURE", "true").lower() not in ("false", "0", "no")
 
 
 @router.post("/login", response_model=LoginResponse)
@@ -121,7 +111,7 @@ async def login(
         value=token,
         httponly=True,
         samesite="strict",
-        secure=_cookie_secure(),
+        secure=cookie_secure(),
         max_age=COOKIE_MAX_AGE_SECONDS,
         path="/",
     )
@@ -141,7 +131,7 @@ async def logout(response: Response) -> dict:
         key=COOKIE_NAME,
         httponly=True,
         samesite="strict",
-        secure=_cookie_secure(),
+        secure=cookie_secure(),
         path="/",
     )
     return {"ok": True}

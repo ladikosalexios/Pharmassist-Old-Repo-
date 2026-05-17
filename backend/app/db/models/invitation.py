@@ -26,13 +26,19 @@ class Invitation(Base, TimestampMixin):
     pharmacy_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("pharmacies.id"), nullable=False
     )
-    invited_by: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("pharmacists.id"), nullable=False
+    # Exactly one of invited_by / invited_by_staff_id is set — a pharmacist or
+    # a company staff member. Staff-created invites use the staff column.
+    invited_by: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("pharmacists.id")
+    )
+    invited_by_staff_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("staff_users.id")
     )
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     pharmacy: Mapped["Pharmacy"] = relationship()
-    inviter: Mapped["Pharmacist"] = relationship()
+    inviter: Mapped["Pharmacist | None"] = relationship()
+    inviter_staff: Mapped["StaffUser | None"] = relationship()
 
     @staticmethod
     def generate_token() -> str:
