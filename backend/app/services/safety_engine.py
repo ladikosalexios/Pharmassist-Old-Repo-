@@ -47,7 +47,7 @@ _CHECK_TYPE_NAME = {
 
 def _rule_to_alert(rule: SafetyRule, rx_id: str) -> SafetyAlertPayload:
     return SafetyAlertPayload(
-        id=rule.rule_code,
+        id=f"{rx_id}_rule.rule_code",
         name=_CHECK_TYPE_NAME.get(rule.check_type, rule.check_type),
         check_type=rule.check_type,
         status=_SEVERITY_TO_STATUS.get(rule.severity, AlertStatus.REVIEW),
