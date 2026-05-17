@@ -32,8 +32,11 @@ class Pharmacy(Base, TimestampMixin):
     geographic_region: Mapped[str | None] = mapped_column(String)
     # "B" or "C" (Β' or Γ' Κατηγορίας per Greek accounting law)
     accounting_category: Mapped[str | None] = mapped_column(String)
-    # True if this pharmacy is a branch of another; False = main pharmacy
-    is_branch: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    # True if this pharmacy is a branch of another; False = main pharmacy.
+    # server_default mirrors the migration so model and DB agree.
+    is_branch: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=text("false")
+    )
     tax_id: Mapped[str | None] = mapped_column(String)
     pharmapi_unit_id: Mapped[int] = mapped_column(Integer, nullable=False)
     active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
