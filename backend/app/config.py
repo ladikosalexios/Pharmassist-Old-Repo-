@@ -48,7 +48,7 @@ def _env_required(key: str) -> str:
     Secrets must never fall back to a baked-in default: a known default
     would let anyone forge sessions or impersonate the app to ΗΔΥΚΑ.
     """
-    value = os.getenv(key)
+    value = (os.getenv(key) or "").strip()
     if not value:
         raise RuntimeError(
             f"Required environment variable {key!r} is not set. "
