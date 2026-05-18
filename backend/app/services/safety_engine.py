@@ -5,11 +5,13 @@ of safety alerts. Replaces per-prescription MOCK_SAFETY_CHECKS for any rx_id
 not already covered by that mock.
 """
 
+from datetime import UTC, datetime
 from uuid import UUID
 
 from sqlalchemy import and_, or_, select, true
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ..constants import AdrSeverity, AlertStatus, CheckType
 from ..db.models.safety_rule import SafetyRule
 from ..schemas.safety import STATUS_ORDER, SafetyAlertPayload, SafetyChecksPayload
 from .patients import conditions, rx_history
@@ -27,24 +29,33 @@ MOCK_INTOLERANCES: dict = {
 }
 
 
-_SEVERITY_TO_STATUS = {"SEVERE": "block", "MODERATE": "review", "MILD": "review"}
+_SEVERITY_TO_STATUS = {
+    AdrSeverity.SEVERE: AlertStatus.BLOCK,
+    AdrSeverity.MODERATE: AlertStatus.REVIEW,
+    AdrSeverity.MILD: AlertStatus.REVIEW,
+}
 
 _CHECK_TYPE_NAME = {
-    "interactions": "Drug-Drug Interactions",
-    "duplicate_therapy": "Duplicate Therapy Check",
-    "contraindications": "Contraindications",
-    "dose_validation": "Dose Validation",
+    CheckType.INTERACTIONS: "Drug-Drug Interactions",
+    CheckType.DUPLICATE_THERAPY: "Duplicate Therapy Check",
+    CheckType.CONTRAINDICATIONS: "Contraindications",
+    CheckType.DOSE_VALIDATION: "Dose Validation",
+    CheckType.PREGNANCY: "Pregnancy",
+    CheckType.G6PD: "G6PD Deficiency",
 }
 
 
-def _rule_to_alert(rule: SafetyRule) -> SafetyAlertPayload:
+def _rule_to_alert(rule: SafetyRule, rx_id: str) -> SafetyAlertPayload:
     return SafetyAlertPayload(
-        id=rule.rule_code,
+        id=f"{rx_id}_rule.rule_code",
         name=_CHECK_TYPE_NAME.get(rule.check_type, rule.check_type),
-        status=_SEVERITY_TO_STATUS.get(rule.severity, "review"),
+        check_type=rule.check_type,
+        status=_SEVERITY_TO_STATUS.get(rule.severity, AlertStatus.REVIEW),
         message=rule.message_en,
         details=rule.details_en,
         recommended_action=rule.recommended_action_en,
+        rx_id=rx_id,
+        created_at=datetime.now(UTC),
     )
 
 
@@ -79,7 +90,7 @@ async def evaluate_safety(
         interaction_rules = await session.scalars(
             select(SafetyRule).where(
                 SafetyRule.active == true(),
-                SafetyRule.check_type.in_(["interactions", "duplicate_therapy"]),
+                SafetyRule.check_type.in_([CheckType.INTERACTIONS, CheckType.DUPLICATE_THERAPY]),
                 or_(
                     and_(
                         SafetyRule.trigger_atc == rx_atc,
@@ -95,7 +106,7 @@ async def evaluate_safety(
         for rule in interaction_rules:
             if rule.rule_code not in seen:
                 seen.add(rule.rule_code)
-                checks.append(_rule_to_alert(rule))
+                checks.append(_rule_to_alert(rule, rx["rxId"]))
 
     # --- 2. Intolerances / contraindications (Pharmapi) ---
     # Match on the first four characters of the ATC code (level-3 class) so
@@ -108,10 +119,13 @@ async def evaluate_safety(
                 seen.add(key)
                 checks.append(
                     SafetyAlertPayload(
-                        id="INTOLERANCE",
-                        name="Contraindications",
-                        status=_SEVERITY_TO_STATUS.get(intol["severity"], "review"),
+                        id=f"{rx['rxId']}_INTOLERANCE_{intol['atcCode'][:4]}",
+                        name=_CHECK_TYPE_NAME[CheckType.CONTRAINDICATIONS],
+                        check_type=CheckType.CONTRAINDICATIONS,
+                        status=_SEVERITY_TO_STATUS.get(intol["severity"], AlertStatus.REVIEW),
                         message=intol["name"],
+                        rx_id=rx["rxId"],
+                        created_at=datetime.now(UTC),
                     )
                 )
 
@@ -133,7 +147,7 @@ async def evaluate_safety(
         for rule in condition_rules:
             if rule.rule_code not in seen:
                 seen.add(rule.rule_code)
-                checks.append(_rule_to_alert(rule))
+                checks.append(_rule_to_alert(rule, rx["rxId"]))
 
     checks.sort(key=lambda a: STATUS_ORDER.get(a.status, 99))
     return SafetyChecksPayload(rx_id=rx["rxId"], checks=checks, source="engine")

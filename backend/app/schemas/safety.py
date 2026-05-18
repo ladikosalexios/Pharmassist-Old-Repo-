@@ -1,17 +1,22 @@
+from datetime import datetime
 from typing import Literal
 
+from ..constants import AlertStatus, CheckType
 from .base import AppSchema
 
-STATUS_ORDER = {"block": 0, "review": 1, "ok": 2}
+STATUS_ORDER = {AlertStatus.BLOCK: 0, AlertStatus.REVIEW: 1, AlertStatus.OK: 2}
 
 
 class SafetyAlertPayload(AppSchema):
     id: str
     name: str
-    status: Literal["ok", "review", "block"]
+    check_type: CheckType
+    status: AlertStatus
     message: str
     details: str | None = None
     recommended_action: str | None = None
+    rx_id: str | None = None
+    created_at: datetime | None = None
 
 
 class SafetyChecksPayload(AppSchema):

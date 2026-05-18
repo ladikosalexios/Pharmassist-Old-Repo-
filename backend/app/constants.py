@@ -5,6 +5,8 @@ literals that show up in more than one router/service live here so a rename
 propagates everywhere.
 """
 
+from enum import StrEnum
+
 
 class AdrStatus:
     PENDING_REVIEW = "PENDING_REVIEW"
@@ -44,3 +46,18 @@ class PrescriptionStatus:
     COMPLETED = "COMPLETED"
     FLAGGED = "FLAGGED"
     UNKNOWN = "UNKNOWN"
+
+
+class CheckType(StrEnum):
+    INTERACTIONS = "interactions"
+    DUPLICATE_THERAPY = "duplicate_therapy"
+    CONTRAINDICATIONS = "contraindications"
+    DOSE_VALIDATION = "dose_validation"
+    PREGNANCY = "pregnancy"
+    G6PD = "G6PD"
+
+
+class AlertStatus(StrEnum):
+    OK = "ok"
+    REVIEW = "review"
+    BLOCK = "block"
