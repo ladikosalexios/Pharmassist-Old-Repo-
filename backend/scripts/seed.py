@@ -2,7 +2,8 @@
 
 Authenticates with PHARMAPI_USERNAME/PHARMAPI_PASSWORD/PHARMAPI_API_KEY
 from the environment, then materialises:
-  - 1 Pharmacy   (from profile.pharmacy: name, address, tax_id, pharmapi_unit_id)
+  - 1 Pharmacy   (from profile.pharmacy: name, address, tax_id, pharmapi_unit_id;
+                  structured address/contact fields are static demo values)
   - 1 Pharmacist (from profile: email, full_name, eof_licence_no, phone)
   - 1 PharmacistPharmacy link (Pharmapi creds AES-256-GCM-encrypted)
   - 1 PatientCondition (G6PD MODERATE, on the connected pharmacist's own AMKA)
@@ -158,6 +159,20 @@ async def seed():
             address=p.pharmacy_address,
             tax_id=p.pharmacy_tax_id,
             pharmapi_unit_id=p.pharmacy_unit_id,
+            # Structured registration fields — Pharmapi /user/me does not
+            # expose them, so they're hard-coded from a known test pharmacy
+            # (sanctioned demo data, safe to commit).
+            street_name="ΛΕΩΦΟΡΟΣ ΠΕΝΤΕΛΗΣ",
+            street_number="138",
+            area="ΧΑΛΑΝΔΡΙ",
+            city="ΑΘΗΝΑ",
+            postal_code="15234",
+            phone="2106855263",
+            fax="2106855272",
+            email="mpempi24@otenet.gr",
+            geographic_region="ΧΑΛΑΝΔΡΙ ΑΤΤΙΚΗ",
+            accounting_category="B",
+            is_branch=False,
         )
         db.add(pharmacy)
         await db.flush()
