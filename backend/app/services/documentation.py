@@ -27,7 +27,7 @@ async def filter_records(session: AsyncSession, query: str | None, method: str |
     stmt = select(DocumentationLog).options(joinedload(DocumentationLog.pharmacist))
     if query:
         q = f"%{query.lower().strip()}%"
-        stmt = stmt.join(Pharmacist, Pharmacist.id == DocumentationLog.pharmacist_id).where(
+        stmt = stmt.where(
             or_(
                 func.lower(DocumentationLog.patient_name).like(q),
                 func.lower(DocumentationLog.prescription_barcode).like(q),
@@ -53,8 +53,8 @@ def get_documentation_log_dict(doc_log: DocumentationLog) -> dict:
         "pharmacistName": doc_log.pharmacist.full_name,
         "pharmacistLicense": doc_log.pharmacist.eof_licence_no,
         "signatureConfirmed": bool(doc_log.pharmacist_signature),
-        "dispensedAt": str(doc_log.dispensed_at),
-        "exportedAt": str(doc_log.exported_at) if doc_log.exported_at else None,
+        "dispensedAt": doc_log.dispensed_at.isoformat(),
+        "exportedAt": doc_log.exported_at.isoformat() if doc_log.exported_at else None,
     }
 
 
@@ -193,7 +193,7 @@ async def record_prescription_action(
     )
 
     dispensed_at = datetime.now(UTC)
-    row = DocumentationLog(
+    log = DocumentationLog(
         pharmacist_id=pharmacist_id,
         pharmacy_id=pharmacy_id,
         action_type=action_type,
@@ -212,7 +212,7 @@ async def record_prescription_action(
         ip_address=ip_address,
         user_agent=user_agent,
     )
-    session.add(row)
+    session.add(log)
     await session.commit()
-    await session.refresh(row)
-    return row
+    await session.refresh(log)
+    return log

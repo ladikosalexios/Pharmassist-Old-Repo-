@@ -45,6 +45,7 @@ async def get_current_user(
         "pharmacy_id": str(pharmacy.id),
         "email": pharmacist.email,
         "name": pharmacist.full_name,
+        "eof_licence_no": pharmacist.eof_licence_no,
         "pharmacy": pharmacy.name,
         "role": pharmacist.role,
     }

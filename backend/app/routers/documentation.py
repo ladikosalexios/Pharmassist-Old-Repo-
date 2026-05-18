@@ -5,7 +5,7 @@ the catch-all ``/{doc_id}`` so FastAPI matches them first. Keeping all five
 routes in this single file makes the ordering self-evident.
 """
 
-import time
+import uuid
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -14,7 +14,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.models.documentation_log import DocumentationLog
 from app.db.session import get_session
 
-from ..constants import Setting
 from ..deps import get_current_user
 from ..schemas.documentation import DocumentationCreate
 from ..services.documentation import (
@@ -22,6 +21,7 @@ from ..services.documentation import (
     filter_records,
     get_documentation_log_dict,
     mark_exported,
+    record_prescription_action,
     stats,
 )
 from ..services.pdf import (
@@ -50,13 +50,15 @@ async def export_documentation(
     today = datetime.now(UTC).date().isoformat()
     fmt = (format or "pdf").lower()
     if fmt == "pdf" and REPORTLAB_AVAILABLE:
-        return pdf_response(full_report(dicts, current), f"PharmAssist_DocumentationLog_{today}.pdf")
+        return pdf_response(
+            full_report(dicts, current), f"PharmAssist_DocumentationLog_{today}.pdf"
+        )
     return csv_response(dicts, f"PharmAssist_DocumentationLog_{today}.csv")
 
 
 @router.get("/{doc_id}/export")
 async def export_documentation_record(
-    doc_id: str,
+    doc_id: uuid.UUID,
     format: str = Query("pdf", description="pdf | csv (default pdf)"),
     current: dict = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
@@ -79,6 +81,7 @@ async def list_documentation(
     method: str | None = Query(None, description="PRINT | DIGITAL | BOTH | ALL"),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
+    current: dict = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ):
     rows = await filter_records(session, q, method)
@@ -89,7 +92,8 @@ async def list_documentation(
 
 @router.get("/{doc_id}")
 async def get_documentation_record(
-    doc_id: str,
+    doc_id: uuid.UUID,
+    current: dict = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ):
     row = await DocumentationLog.get_by_id(session, doc_id)
@@ -108,21 +112,19 @@ async def create_documentation_record(
     rx = MOCK_PRESCRIPTIONS.get(payload.rxId)
     if rx is None:
         raise HTTPException(status_code=404, detail=f"Prescription {payload.rxId} not found")
-    new_id = f"DOC-{int(time.time() * 1000)}"
-    record = DocumentationLog(
-        id=new_id,
-        rxId=payload.rxId,
-        patientName=rx["patient"]["name"],
-        drugName=f"{rx['medication']['drugName']} {rx['medication']['dose']}",
-        setting=payload.setting or Setting.PRIVATE,
-        deliveryMethod=payload.method.upper(),
-        language=payload.language,
-        informationProvided=payload.instructions,
-        pharmacistName=current.get("name", "Pharmacist"),
-        pharmacistLicense="PH-12345",
-        signatureConfirmed=True,
-        dispensedAt=datetime.now(UTC).isoformat(),
+    log = await record_prescription_action(
+        session,
+        action_type="APPROVE",
+        rx=rx,
+        safety_checks=[],
+        pharmacist_email=current["email"],
+        pharmapi_exec_ref=None,
+        discrepancy_type=None,
+        notes=None,
+        info_provided=payload.instructions,
+        delivery_method=payload.method.upper(),
+        ip_address=None,
+        user_agent=None,
     )
-    session.add(record)
-    await session.commit()
-    return record
+    record = await DocumentationLog.get_by_id(session, log.id)
+    return get_documentation_log_dict(record)
