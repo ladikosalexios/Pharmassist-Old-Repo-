@@ -51,7 +51,9 @@ async def create_invite(
     await db.commit()
     await db.refresh(invitation)
 
-    # 5. v1: log the URL to stdout (no email service yet)
+    # 5. v1: log the URL to stdout (no email service yet).
+    # TODO(security): the token is a secret — printing it to stdout leaks it
+    # into container/aggregated logs. Replace with an email service before prod.
     invite_url = f"/accept-invite?token={invitation.token}"
     print(f"[INVITE] {body.email} → {invite_url} (expires {invitation.expires_at})")
 

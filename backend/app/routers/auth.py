@@ -158,6 +158,8 @@ async def me(current: dict = Depends(get_current_user)) -> PharmacistMe:
     )
 
 
+# TODO(security): token in the URL path lands in access logs / browser history.
+# Move to a POST body or short-lived signed param once the SPA flow is finalized.
 @router.get("/invite/{token}", response_model=InviteInfo)
 async def get_invite_info(
     token: str,
@@ -179,14 +181,14 @@ async def get_invite_info(
 
     p = invitation.pharmacy
     parts = [
-        s
-        for s in [
+        part
+        for part in [
             (f"{p.street_name} {p.street_number}".strip() if p.street_name else p.address),
             p.area,
             p.city,
             p.postal_code,
         ]
-        if s
+        if part
     ]
     pharmacy_address = ", ".join(parts) if parts else ""
 
