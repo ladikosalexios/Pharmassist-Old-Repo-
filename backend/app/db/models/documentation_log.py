@@ -9,9 +9,10 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, String, Text, text
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, String, Text, select, text
 from sqlalchemy.dialects.postgresql import INET, JSONB, UUID
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Mapped, joinedload, mapped_column, relationship
 
 from ..base import Base, TimestampMixin
 
@@ -57,3 +58,20 @@ class DocumentationLog(Base, TimestampMixin):
     pharmacist_signature: Mapped[str] = mapped_column(String, nullable=False)
     ip_address: Mapped[str | None] = mapped_column(INET)
     user_agent: Mapped[str | None] = mapped_column(String)
+    pharmacist: Mapped["Pharmacist"] = relationship(
+        "Pharmacist", foreign_keys=[pharmacist_id], lazy="raise"
+    )
+
+    @classmethod
+    async def get_by_id(cls, session: AsyncSession, id) -> "DocumentationLog | None":
+        if isinstance(id, str):
+            id = uuid.UUID(id)
+        return (
+            (
+                await session.execute(
+                    select(cls).options(joinedload(cls.pharmacist)).where(cls.id == id)
+                )
+            )
+            .scalars()
+            .one_or_none()
+        )

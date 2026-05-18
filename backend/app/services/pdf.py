@@ -100,7 +100,7 @@ def full_report(rows: list, current: dict) -> bytes:
                 r["rxId"],
                 r["patientName"],
                 r["drugName"],
-                r["deliveryMethod"].title(),
+                (r["deliveryMethod"] or "").title(),
                 r["language"],
                 r["setting"],
             ]
@@ -198,7 +198,7 @@ def single_record(rec: dict, current: dict) -> bytes:
     elements.append(_RLParagraph("Counseling Provided", h2))
     elements.append(
         _RLParagraph(
-            rec["informationProvided"].replace("\n", "<br/>"),
+            (rec["informationProvided"] or "").replace("\n", "<br/>"),
             body,
         )
     )
@@ -208,7 +208,7 @@ def single_record(rec: dict, current: dict) -> bytes:
     elements.append(
         _RLParagraph(
             f"<b>Language:</b> {rec['language']}<br/>"
-            f"<b>Method:</b> {rec['deliveryMethod'].title()}<br/>"
+            f"<b>Method:</b> {(rec['deliveryMethod'] or '').title()}<br/>"
             f"<b>Dispensed at:</b> {rec['dispensedAt']}",
             body,
         )

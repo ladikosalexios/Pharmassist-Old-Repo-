@@ -1,4 +1,4 @@
-"""Documentation & Legal Log: mock store + filter / stats / CSV response helpers.
+"""Documentation & Legal Log: filter / stats / CSV response helpers.
 
 PDF rendering lives in ``services.pdf`` (separate so the optional reportlab
 dependency stays isolated).
@@ -12,148 +12,71 @@ from typing import Literal
 
 from fastapi import HTTPException
 from fastapi.responses import StreamingResponse
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import joinedload
 
-from ..constants import DeliveryMethod, Setting
+from ..constants import DeliveryMethod
 from ..db.models.documentation_log import DocumentationLog
 from ..db.models.pharmacist import Pharmacist
 from ..db.models.pharmacist_pharmacy import PharmacistPharmacy
 from .security import SECRET_KEY
 
-MOCK_DOCUMENTATION: list = [
-    {
-        "id": "DOC-2026-0007",
-        "rxId": "RX2024-005",
-        "patientName": "Maria Stavrou",
-        "drugName": "Warfarin 5 mg",
-        "setting": Setting.PRIVATE,
-        "deliveryMethod": DeliveryMethod.BOTH,
-        "language": "Greek",
-        "informationProvided": (
-            "Reviewed bleeding precautions, INR monitoring schedule, dietary "
-            "considerations (vitamin K), and signs of over-anticoagulation. Patient "
-            "received printed leaflet and digital copy via the patient portal."
-        ),
-        "pharmacistName": "Demo Pharmacist",
-        "pharmacistLicense": "PH-12345",
-        "signatureConfirmed": True,
-        "dispensedAt": "2026-04-29T10:30:00+00:00",
-    },
-    {
-        "id": "DOC-2026-0006",
-        "rxId": "RX2024-001",
-        "patientName": "Sarah Johnson",
-        "drugName": "Amoxicillin 500 mg",
-        "setting": Setting.PRIVATE,
-        "deliveryMethod": DeliveryMethod.PRINT,
-        "language": "English",
-        "informationProvided": (
-            "Counselled on full course completion, symptom-watch for hypersensitivity, "
-            "and gastrointestinal side effects. Provided printed leaflet."
-        ),
-        "pharmacistName": "Demo Pharmacist",
-        "pharmacistLicense": "PH-12345",
-        "signatureConfirmed": True,
-        "dispensedAt": "2026-04-15T16:02:00+00:00",
-    },
-    {
-        "id": "DOC-2026-0005",
-        "rxId": "RX2024-002",
-        "patientName": "James Martinez",
-        "drugName": "Warfarin 7.5 mg",
-        "setting": Setting.HOSPITAL,
-        "deliveryMethod": DeliveryMethod.DIGITAL,
-        "language": "English",
-        "informationProvided": (
-            "Reviewed inpatient protocol with the ward pharmacist and the patient. "
-            "Digital counselling pack pushed to the patient's hospital portal."
-        ),
-        "pharmacistName": "Demo Pharmacist",
-        "pharmacistLicense": "PH-12345",
-        "signatureConfirmed": True,
-        "dispensedAt": "2026-04-12T09:18:00+00:00",
-    },
-    {
-        "id": "DOC-2026-0004",
-        "rxId": "RX2024-003",
-        "patientName": "Maria Garcia",
-        "drugName": "Lisinopril 10 mg",
-        "setting": Setting.PRIVATE,
-        "deliveryMethod": DeliveryMethod.PRINT,
-        "language": "Greek",
-        "informationProvided": (
-            "Discussed renal function monitoring, dry-cough as a possible side effect, "
-            "and the need to avoid concurrent NSAIDs. Printed leaflet handed over."
-        ),
-        "pharmacistName": "Demo Pharmacist",
-        "pharmacistLicense": "PH-12345",
-        "signatureConfirmed": True,
-        "dispensedAt": "2026-03-22T11:44:00+00:00",
-    },
-    {
-        "id": "DOC-2026-0003",
-        "rxId": "RX2023-118",
-        "patientName": "Eleni Nikolaou",
-        "drugName": "Atorvastatin 20 mg",
-        "setting": Setting.PRIVATE,
-        "deliveryMethod": DeliveryMethod.BOTH,
-        "language": "Greek",
-        "informationProvided": (
-            "Reviewed muscle pain warnings and lipid panel follow-up timing. Both "
-            "printed leaflet and digital copy delivered."
-        ),
-        "pharmacistName": "Demo Pharmacist",
-        "pharmacistLicense": "PH-12345",
-        "signatureConfirmed": True,
-        "dispensedAt": "2026-03-10T15:05:00+00:00",
-    },
-    {
-        "id": "DOC-2026-0002",
-        "rxId": "RX2023-091",
-        "patientName": "Dimitrios Konstantinou",
-        "drugName": "Metformin 1000 mg",
-        "setting": Setting.HOSPITAL,
-        "deliveryMethod": DeliveryMethod.DIGITAL,
-        "language": "Greek",
-        "informationProvided": (
-            "Discussed lactic-acidosis red-flag symptoms and renal function checks. "
-            "Digital counselling sent to the inpatient app."
-        ),
-        "pharmacistName": "Demo Pharmacist",
-        "pharmacistLicense": "PH-12345",
-        "signatureConfirmed": True,
-        "dispensedAt": "2026-02-27T08:51:00+00:00",
-    },
-]
 
-
-def stats() -> dict:
-    s = {"total": len(MOCK_DOCUMENTATION), "print": 0, "digital": 0, "both": 0}
-    for d in MOCK_DOCUMENTATION:
-        m = d["deliveryMethod"]
-        if m == DeliveryMethod.PRINT:
-            s["print"] += 1
-        elif m == DeliveryMethod.DIGITAL:
-            s["digital"] += 1
-        elif m == DeliveryMethod.BOTH:
-            s["both"] += 1
-    return s
-
-
-def filter_records(query: str | None, method: str | None) -> list:
-    items = list(MOCK_DOCUMENTATION)
+async def filter_records(session: AsyncSession, query: str | None, method: str | None) -> list:
+    stmt = select(DocumentationLog).options(joinedload(DocumentationLog.pharmacist))
     if query:
-        q = query.lower().strip()
-        items = [
-            d
-            for d in items
-            if q in d["patientName"].lower() or q in d["rxId"].lower() or q in d["drugName"].lower()
-        ]
+        q = f"%{query.lower().strip()}%"
+        stmt = stmt.join(Pharmacist, Pharmacist.id == DocumentationLog.pharmacist_id).where(
+            or_(
+                func.lower(DocumentationLog.patient_name).like(q),
+                func.lower(DocumentationLog.prescription_barcode).like(q),
+                func.lower(DocumentationLog.medicine_name).like(q),
+            )
+        )
     if method and method.upper() != "ALL":
-        items = [d for d in items if d["deliveryMethod"] == method.upper()]
-    items.sort(key=lambda d: d["dispensedAt"], reverse=True)
-    return items
+        stmt = stmt.where(DocumentationLog.delivery_method == method.upper())
+    stmt = stmt.order_by(DocumentationLog.dispensed_at.desc())
+    return list((await session.execute(stmt)).scalars().all())
+
+
+def get_documentation_log_dict(doc_log: DocumentationLog) -> dict:
+    return {
+        "id": doc_log.id,
+        "rxId": doc_log.prescription_barcode,
+        "patientName": doc_log.patient_name,
+        "drugName": doc_log.medicine_name,
+        "setting": None,
+        "deliveryMethod": doc_log.delivery_method,
+        "language": doc_log.language,
+        "informationProvided": doc_log.info_provided,
+        "pharmacistName": doc_log.pharmacist.full_name,
+        "pharmacistLicense": doc_log.pharmacist.eof_licence_no,
+        "signatureConfirmed": bool(doc_log.pharmacist_signature),
+        "dispensedAt": str(doc_log.dispensed_at),
+        "exportedAt": str(doc_log.exported_at) if doc_log.exported_at else None,
+    }
+
+
+async def stats(session: AsyncSession) -> dict:
+    rows = (
+        await session.execute(
+            select(DocumentationLog.delivery_method, func.count().label("n")).group_by(
+                DocumentationLog.delivery_method
+            )
+        )
+    ).all()
+    total = sum(r.n for r in rows)
+    s = {"total": total, "print": 0, "digital": 0, "both": 0}
+    for r in rows:
+        m = (r.delivery_method or "").upper()
+        if m == DeliveryMethod.PRINT:
+            s["print"] = r.n
+        elif m == DeliveryMethod.DIGITAL:
+            s["digital"] = r.n
+        elif m == DeliveryMethod.BOTH:
+            s["both"] = r.n
+    return s
 
 
 def csv_response(rows: list, filename: str) -> StreamingResponse:
@@ -200,13 +123,14 @@ def csv_response(rows: list, filename: str) -> StreamingResponse:
     )
 
 
-def mark_exported(records: list) -> str:
-    """Stamp an exportedAt on each record (immutability marker) and return the timestamp."""
-    ts = datetime.now(UTC).isoformat()
-    for r in records:
-        r.setdefault("exportedAt", ts)
-        # Once exported, records are considered immutable. We don't update further.
-    return ts
+async def mark_exported(session: AsyncSession, rows: list) -> str:
+    """Stamp exported_at on each record (immutability marker) and commit."""
+    ts = datetime.now(UTC)
+    for row in rows:
+        if row.exported_at is None:
+            row.exported_at = ts
+    await session.commit()
+    return ts.isoformat()
 
 
 # ── Prescription action audit (DB-backed) ─────────────────────────────────────
