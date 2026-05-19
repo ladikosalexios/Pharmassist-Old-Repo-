@@ -17,6 +17,7 @@ from app.db.session import get_session
 from ..deps import get_current_user
 from ..schemas.documentation import DocumentationCreate
 from ..services.documentation import (
+    count_records,
     csv_response,
     filter_records,
     get_documentation_log_dict,
@@ -84,9 +85,9 @@ async def list_documentation(
     current: dict = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ):
-    rows = await filter_records(session, q, method)
-    total = len(rows)
-    page = [get_documentation_log_dict(r) for r in rows[offset : offset + limit]]
+    total = await count_records(session, q, method)
+    rows = await filter_records(session, q, method, limit=limit, offset=offset)
+    page = [get_documentation_log_dict(r) for r in rows]
     return {"items": page, "total": total, "stats": await stats(session)}
 
 

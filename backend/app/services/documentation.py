@@ -23,7 +23,13 @@ from ..db.models.pharmacist_pharmacy import PharmacistPharmacy
 from .security import SECRET_KEY
 
 
-async def filter_records(session: AsyncSession, query: str | None, method: str | None) -> list:
+async def filter_records(
+    session: AsyncSession,
+    query: str | None,
+    method: str | None,
+    limit: int | None = None,
+    offset: int | None = None,
+) -> list:
     stmt = select(DocumentationLog).options(joinedload(DocumentationLog.pharmacist))
     if query:
         q = f"%{query.lower().strip()}%"
@@ -37,7 +43,27 @@ async def filter_records(session: AsyncSession, query: str | None, method: str |
     if method and method.upper() != "ALL":
         stmt = stmt.where(DocumentationLog.delivery_method == method.upper())
     stmt = stmt.order_by(DocumentationLog.dispensed_at.desc())
+    if offset is not None:
+        stmt = stmt.offset(offset)
+    if limit is not None:
+        stmt = stmt.limit(limit)
     return list((await session.execute(stmt)).scalars().all())
+
+
+async def count_records(session: AsyncSession, query: str | None, method: str | None) -> int:
+    stmt = select(func.count()).select_from(DocumentationLog)
+    if query:
+        q = f"%{query.lower().strip()}%"
+        stmt = stmt.where(
+            or_(
+                func.lower(DocumentationLog.patient_name).like(q),
+                func.lower(DocumentationLog.prescription_barcode).like(q),
+                func.lower(DocumentationLog.medicine_name).like(q),
+            )
+        )
+    if method and method.upper() != "ALL":
+        stmt = stmt.where(DocumentationLog.delivery_method == method.upper())
+    return (await session.execute(stmt)).scalar_one()
 
 
 def get_documentation_log_dict(doc_log: DocumentationLog) -> dict:
