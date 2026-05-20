@@ -23,17 +23,11 @@ from ..db.models.pharmacist_pharmacy import PharmacistPharmacy
 from .security import SECRET_KEY
 
 
-async def filter_records(
-    session: AsyncSession,
-    query: str | None,
-    method: str | None,
-    limit: int | None = None,
-    offset: int | None = None,
-) -> list:
-    stmt = select(DocumentationLog).options(joinedload(DocumentationLog.pharmacist))
+def _build_filters(query: str | None, method: str | None) -> list:
+    clauses = []
     if query:
         q = f"%{query.lower().strip()}%"
-        stmt = stmt.where(
+        clauses.append(
             or_(
                 func.lower(DocumentationLog.patient_name).like(q),
                 func.lower(DocumentationLog.prescription_barcode).like(q),
@@ -41,8 +35,23 @@ async def filter_records(
             )
         )
     if method and method.upper() != "ALL":
-        stmt = stmt.where(DocumentationLog.delivery_method == method.upper())
-    stmt = stmt.order_by(DocumentationLog.dispensed_at.desc())
+        clauses.append(DocumentationLog.delivery_method == method.upper())
+    return clauses
+
+
+async def filter_records(
+    session: AsyncSession,
+    query: str | None,
+    method: str | None,
+    limit: int | None = None,
+    offset: int | None = None,
+) -> list:
+    stmt = (
+        select(DocumentationLog)
+        .options(joinedload(DocumentationLog.pharmacist))
+        .where(*_build_filters(query, method))
+        .order_by(DocumentationLog.dispensed_at.desc())
+    )
     if offset is not None:
         stmt = stmt.offset(offset)
     if limit is not None:
@@ -51,18 +60,7 @@ async def filter_records(
 
 
 async def count_records(session: AsyncSession, query: str | None, method: str | None) -> int:
-    stmt = select(func.count()).select_from(DocumentationLog)
-    if query:
-        q = f"%{query.lower().strip()}%"
-        stmt = stmt.where(
-            or_(
-                func.lower(DocumentationLog.patient_name).like(q),
-                func.lower(DocumentationLog.prescription_barcode).like(q),
-                func.lower(DocumentationLog.medicine_name).like(q),
-            )
-        )
-    if method and method.upper() != "ALL":
-        stmt = stmt.where(DocumentationLog.delivery_method == method.upper())
+    stmt = select(func.count()).select_from(DocumentationLog).where(*_build_filters(query, method))
     return (await session.execute(stmt)).scalar_one()
 
 
