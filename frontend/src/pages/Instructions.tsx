@@ -192,7 +192,6 @@ export function Instructions() {
         language: LANGUAGE_OPTIONS.find((o) => o.value === language)?.label ?? language,
         method,
         setting,
-        notes: notes || undefined,
       });
       toast(`Saved to documentation log (${created.id}).`, "success");
     } catch (e) {

@@ -80,6 +80,7 @@ def get_documentation_log_dict(doc_log: DocumentationLog) -> dict:
         "signatureConfirmed": bool(doc_log.pharmacist_signature),
         "dispensedAt": doc_log.dispensed_at.isoformat(),
         "exportedAt": doc_log.exported_at.isoformat() if doc_log.exported_at else None,
+        # ip_address and user_agent are stored for audit purposes only and are not exposed here.
     }
 
 
@@ -204,7 +205,7 @@ async def record_prescription_action(
     notes: str | None,
     info_provided: str | None,
     delivery_method: str | None,
-    language: str | None = None,
+    language: str = "el",
     setting: str | None = None,
     ip_address: str | None = None,
     user_agent: str | None = None,

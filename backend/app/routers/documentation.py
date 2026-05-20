@@ -122,7 +122,7 @@ async def create_documentation_record(
         pharmacist_email=current["email"],
         pharmapi_exec_ref=None,
         discrepancy_type=None,
-        notes=payload.notes,
+        notes=None,  # FLAG only — not populated for APPROVE actions
         info_provided=payload.instructions,
         delivery_method=payload.method.upper(),
         language=payload.language,

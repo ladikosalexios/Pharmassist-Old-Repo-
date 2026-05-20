@@ -1,5 +1,7 @@
 """Documentation & Legal Log schemas."""
 
+from typing import Literal
+
 from pydantic import BaseModel
 
 from ..constants import Setting
@@ -10,5 +12,4 @@ class DocumentationCreate(BaseModel):
     instructions: str
     language: str
     method: str
-    setting: str | None = Setting.PRIVATE
-    notes: str | None = None
+    setting: Literal["Private", "Hospital"] | None = Setting.PRIVATE
