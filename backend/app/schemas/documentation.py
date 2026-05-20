@@ -11,3 +11,4 @@ class DocumentationCreate(BaseModel):
     language: str
     method: str
     setting: str | None = Setting.PRIVATE
+    notes: str | None = None

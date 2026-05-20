@@ -8,7 +8,7 @@ routes in this single file makes the ordering self-evident.
 import uuid
 from datetime import UTC, datetime
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.documentation_log import DocumentationLog
@@ -106,6 +106,7 @@ async def get_documentation_record(
 @router.post("", status_code=201)
 async def create_documentation_record(
     payload: DocumentationCreate,
+    request: Request,
     current: dict = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ):
@@ -121,11 +122,13 @@ async def create_documentation_record(
         pharmacist_email=current["email"],
         pharmapi_exec_ref=None,
         discrepancy_type=None,
-        notes=None,
+        notes=payload.notes,
         info_provided=payload.instructions,
         delivery_method=payload.method.upper(),
-        ip_address=None,
-        user_agent=None,
+        language=payload.language,
+        setting=payload.setting,
+        ip_address=request.client.host if request.client else None,
+        user_agent=request.headers.get("user-agent"),
     )
     record = await DocumentationLog.get_by_id(session, log.id)
     return get_documentation_log_dict(record)

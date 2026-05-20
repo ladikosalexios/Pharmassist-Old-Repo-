@@ -434,6 +434,7 @@ export async function createDocumentationEntry(payload: {
   language: string;
   method: DeliveryMethod;
   setting?: "Private" | "Hospital";
+  notes?: string;
 }): Promise<DocumentationRecord> {
   const r = await fetch(`${API_BASE}/documentation`, {
     method: "POST",

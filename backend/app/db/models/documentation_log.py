@@ -47,6 +47,7 @@ class DocumentationLog(Base, TimestampMixin):
     delivery_method: Mapped[str | None] = mapped_column(
         String
     )  # APPROVE only: PRINT | DIGITAL | BOTH
+    setting: Mapped[str | None] = mapped_column(String)  # APPROVE only: Private | Hospital
     discrepancy_type: Mapped[str | None] = mapped_column(String)  # FLAG only
     notes: Mapped[str | None] = mapped_column(Text)  # FLAG only
     safety_check_snapshot: Mapped[list] = mapped_column(JSONB, nullable=False)
