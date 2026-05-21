@@ -5,19 +5,24 @@ the catch-all ``/{doc_id}`` so FastAPI matches them first. Keeping all five
 routes in this single file makes the ordering self-evident.
 """
 
-import time
+import uuid
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..constants import Setting
+from app.db.models.documentation_log import DocumentationLog
+from app.db.session import get_session
+
 from ..deps import get_current_user
 from ..schemas.documentation import DocumentationCreate
 from ..services.documentation import (
-    MOCK_DOCUMENTATION,
+    count_records,
     csv_response,
     filter_records,
+    get_documentation_log_dict,
     mark_exported,
+    record_prescription_action,
     stats,
 )
 from ..services.pdf import (
@@ -38,26 +43,32 @@ async def export_documentation(
     method: str | None = Query(None, description="PRINT | DIGITAL | BOTH | ALL"),
     format: str = Query("pdf", description="pdf | csv (default pdf)"),
     current: dict = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
 ):
-    rows = filter_records(q, method)
-    mark_exported(rows)
+    rows = await filter_records(session, q, method)
+    await mark_exported(session, rows)
+    dicts = [get_documentation_log_dict(r) for r in rows]
     today = datetime.now(UTC).date().isoformat()
     fmt = (format or "pdf").lower()
     if fmt == "pdf" and REPORTLAB_AVAILABLE:
-        return pdf_response(full_report(rows, current), f"PharmAssist_DocumentationLog_{today}.pdf")
-    return csv_response(rows, f"PharmAssist_DocumentationLog_{today}.csv")
+        return pdf_response(
+            full_report(dicts, current), f"PharmAssist_DocumentationLog_{today}.pdf"
+        )
+    return csv_response(dicts, f"PharmAssist_DocumentationLog_{today}.csv")
 
 
 @router.get("/{doc_id}/export")
 async def export_documentation_record(
-    doc_id: str,
+    doc_id: uuid.UUID,
     format: str = Query("pdf", description="pdf | csv (default pdf)"),
     current: dict = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
 ):
-    rec = next((d for d in MOCK_DOCUMENTATION if d["id"] == doc_id), None)
-    if rec is None:
+    row = await DocumentationLog.get_by_id(session, doc_id)
+    if row is None:
         raise HTTPException(status_code=404, detail=f"Documentation record {doc_id} not found")
-    mark_exported([rec])
+    await mark_exported(session, [row])
+    rec = get_documentation_log_dict(row)
     fname_base = f"PharmAssist_Record_{safe_filename_part(rec['rxId'])}_{safe_filename_part(rec['patientName'])}"
     fmt = (format or "pdf").lower()
     if fmt == "pdf" and REPORTLAB_AVAILABLE:
@@ -72,44 +83,49 @@ async def list_documentation(
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
     current: dict = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
 ):
-    items = filter_records(q, method)
-    total = len(items)
-    page = items[offset : offset + limit]
-    return {"items": page, "total": total, "stats": stats()}
+    total = await count_records(session, q, method)
+    rows = await filter_records(session, q, method, limit=limit, offset=offset)
+    page = [get_documentation_log_dict(r) for r in rows]
+    return {"items": page, "total": total, "stats": await stats(session)}
 
 
 @router.get("/{doc_id}")
-async def get_documentation_record(doc_id: str, current: dict = Depends(get_current_user)):
-    rec = next((d for d in MOCK_DOCUMENTATION if d["id"] == doc_id), None)
-    if rec is None:
+async def get_documentation_record(
+    doc_id: uuid.UUID,
+    current: dict = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    row = await DocumentationLog.get_by_id(session, doc_id)
+    if row is None:
         raise HTTPException(status_code=404, detail=f"Documentation record {doc_id} not found")
-    return rec
+    return get_documentation_log_dict(row)
 
 
 @router.post("", status_code=201)
 async def create_documentation_record(
     payload: DocumentationCreate,
     current: dict = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
 ):
     """Create a new documentation log entry, e.g. when patient instructions are saved."""
     rx = MOCK_PRESCRIPTIONS.get(payload.rxId)
     if rx is None:
         raise HTTPException(status_code=404, detail=f"Prescription {payload.rxId} not found")
-    new_id = f"DOC-{int(time.time() * 1000)}"
-    record = {
-        "id": new_id,
-        "rxId": payload.rxId,
-        "patientName": rx["patient"]["name"],
-        "drugName": f"{rx['medication']['drugName']} {rx['medication']['dose']}",
-        "setting": payload.setting or Setting.PRIVATE,
-        "deliveryMethod": payload.method.upper(),
-        "language": payload.language,
-        "informationProvided": payload.instructions,
-        "pharmacistName": current.get("name", "Pharmacist"),
-        "pharmacistLicense": "PH-12345",
-        "signatureConfirmed": True,
-        "dispensedAt": datetime.now(UTC).isoformat(),
-    }
-    MOCK_DOCUMENTATION.insert(0, record)
-    return record
+    log = await record_prescription_action(
+        session,
+        action_type="APPROVE",
+        rx=rx,
+        safety_checks=[],
+        pharmacist_email=current["email"],
+        pharmapi_exec_ref=None,
+        discrepancy_type=None,
+        notes=None,
+        info_provided=payload.instructions,
+        delivery_method=payload.method.upper(),
+        ip_address=None,
+        user_agent=None,
+    )
+    record = await DocumentationLog.get_by_id(session, log.id)
+    return get_documentation_log_dict(record)
