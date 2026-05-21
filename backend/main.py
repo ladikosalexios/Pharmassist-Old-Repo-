@@ -33,6 +33,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import app.db.models  # noqa — registers all SQLAlchemy models at startup
 from app.config import Settings, get_settings
 from app.routers import (
+    admin,
     alerts,
     auth,
     documentation,
@@ -54,6 +55,7 @@ from app.routers import (
 _ROUTER_MODULES = (
     health,
     auth,
+    admin,
     pharmapi,
     prescriptions,
     safety_checks,

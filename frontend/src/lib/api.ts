@@ -443,3 +443,40 @@ export async function createDocumentationEntry(payload: {
   });
   return handle(r) as Promise<DocumentationRecord>;
 }
+
+export async function apiGetInviteInfo(token: string): Promise<{
+  pharmacy_name: string;
+  pharmacy_address: string;
+  email: string;
+  expires_at: string;
+}> {
+  const res = await fetch(`${API_BASE}/auth/invite/${token}`, { credentials: "include" });
+  if (res.status === 404) throw new Error("Invite not found");
+  if (res.status === 410) throw new Error("Invite has expired or already been used");
+  if (!res.ok) throw new Error("Failed to load invite");
+  return res.json();
+}
+
+export async function apiAcceptInvite(data: {
+  token: string;
+  full_name: string;
+  password: string;
+  eof_licence_no: string;
+  phone?: string;
+  pharmapi_username: string;
+  pharmapi_password: string;
+}): Promise<void> {
+  const res = await fetch(`${API_BASE}/auth/accept-invite`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify(data),
+  });
+  if (res.status === 400) {
+    const err = await res.json();
+    throw new Error(err.detail || "ΗΔΥΚΑ credentials rejected");
+  }
+  if (res.status === 409) throw new Error("An account already exists for this email");
+  if (res.status === 410) throw new Error("Invite has expired or already been used");
+  if (!res.ok) throw new Error("Failed to create account");
+}

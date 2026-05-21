@@ -189,7 +189,7 @@ async def seed():
             full_name=p.pharmacist_full_name,
             eof_licence_no=p.pharmacist_eof_licence_no,
             phone=p.pharmacist_phone,
-            role="pharmacist",
+            role="admin",
         )
         db.add(pharmacist)
         await db.flush()

@@ -12,12 +12,21 @@ import bcrypt
 from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
-from ..crypto import decrypt_credential
+from ..crypto import decrypt_credential, encrypt_credential
+from ..db.models.invitation import Invitation
 from ..db.models.pharmacist import Pharmacist
+from ..db.models.pharmacist_pharmacy import PharmacistPharmacy
 from ..db.session import get_session
 from ..deps import get_current_user
-from ..schemas.auth import LoginRequest, LoginResponse, PharmacistMe
+from ..schemas.auth import (
+    AcceptInviteRequest,
+    InviteInfo,
+    LoginRequest,
+    LoginResponse,
+    PharmacistMe,
+)
 from ..services.pharmapi import (
     _start_pharmapi_session,
     verify_pharmapi_credentials_with_decrypted,
@@ -147,3 +156,120 @@ async def me(current: dict = Depends(get_current_user)) -> PharmacistMe:
         pharmacist_id=current["pharmacist_id"],
         pharmacy_id=current["pharmacy_id"],
     )
+
+
+# TODO(security): token in the URL path lands in access logs / browser history.
+# Move to a POST body or short-lived signed param once the SPA flow is finalized.
+@router.get("/invite/{token}", response_model=InviteInfo)
+async def get_invite_info(
+    token: str,
+    db: AsyncSession = Depends(get_session),
+) -> InviteInfo:
+    """Public: look up a pending invitation so the SPA can render the
+    accept-invite form (pharmacy name + address, invited email)."""
+    invitation = await db.scalar(
+        select(Invitation)
+        .where(Invitation.token == token)
+        .options(selectinload(Invitation.pharmacy))
+    )
+    if not invitation:
+        raise HTTPException(404, "Invite not found")
+
+    now = datetime.now(UTC)
+    if now > invitation.expires_at or invitation.accepted_at is not None:
+        raise HTTPException(410, "Invite has expired or already been used")
+
+    p = invitation.pharmacy
+    parts = [
+        part
+        for part in [
+            (f"{p.street_name} {p.street_number}".strip() if p.street_name else p.address),
+            p.area,
+            p.city,
+            p.postal_code,
+        ]
+        if part
+    ]
+    pharmacy_address = ", ".join(parts) if parts else ""
+
+    return InviteInfo(
+        pharmacy_name=p.name,
+        pharmacy_address=pharmacy_address,
+        email=invitation.email,
+        expires_at=invitation.expires_at.isoformat(),
+    )
+
+
+@router.post("/accept-invite")
+async def accept_invite(
+    body: AcceptInviteRequest,
+    db: AsyncSession = Depends(get_session),
+) -> dict:
+    """Public: redeem an invitation — validate ΗΔΥΚΑ credentials, then create
+    the pharmacist account + pharmacy link and burn the token."""
+    # 1. Validate token
+    invitation = await db.scalar(
+        select(Invitation)
+        .where(Invitation.token == body.token)
+        .options(selectinload(Invitation.pharmacy))
+    )
+    if not invitation:
+        raise HTTPException(404, "Invite not found")
+
+    now = datetime.now(UTC)
+    if now > invitation.expires_at or invitation.accepted_at is not None:
+        raise HTTPException(410, "Invite has expired or already been used")
+
+    # 2. Duplicate checks — email and ΗΔΥΚΑ licence number each carry a
+    # UNIQUE constraint, so catch collisions here for a clean 409 rather
+    # than an IntegrityError 500 on commit.
+    existing = await db.scalar(select(Pharmacist).where(Pharmacist.email == invitation.email))
+    if existing:
+        raise HTTPException(409, "Account already exists for this email")
+    licence_taken = await db.scalar(
+        select(Pharmacist).where(Pharmacist.eof_licence_no == body.eof_licence_no)
+    )
+    if licence_taken:
+        raise HTTPException(409, "A pharmacist with this licence number already exists")
+
+    # 3. Validate ΗΔΥΚΑ credentials BEFORE any DB write — never create the
+    # account if Pharmapi rejects them. Only a 401 means "bad credentials";
+    # infra failures (missing API key, expired session, upstream down) must
+    # surface as-is instead of masquerading as a credential rejection.
+    try:
+        profile = await verify_pharmapi_credentials_with_decrypted(
+            body.pharmapi_username, body.pharmapi_password
+        )
+    except HTTPException as exc:
+        if exc.status_code == 401:
+            raise HTTPException(400, "ΗΔΥΚΑ credentials rejected by Pharmapi") from None
+        raise
+    if not profile:
+        raise HTTPException(400, "ΗΔΥΚΑ credentials rejected by Pharmapi")
+
+    # 4. Create pharmacist + link + burn the token in one transaction.
+    hashed = bcrypt.hashpw(body.password.encode(), bcrypt.gensalt(rounds=12)).decode()
+    pharmacist = Pharmacist(
+        email=invitation.email,
+        password_hash=hashed,
+        full_name=body.full_name,
+        eof_licence_no=body.eof_licence_no,
+        phone=body.phone,
+        role="pharmacist",
+        active=True,
+    )
+    db.add(pharmacist)
+    await db.flush()  # assign pharmacist.id without committing
+
+    link = PharmacistPharmacy(
+        pharmacist_id=pharmacist.id,
+        pharmacy_id=invitation.pharmacy_id,
+        pharmapi_username=encrypt_credential(body.pharmapi_username),
+        pharmapi_password=encrypt_credential(body.pharmapi_password),
+        is_default=True,
+    )
+    db.add(link)
+    invitation.accepted_at = now  # invalidate the token
+    await db.commit()
+
+    return {"ok": True}
