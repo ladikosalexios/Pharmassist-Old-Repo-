@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { useNavigate, Navigate } from "react-router-dom";
+import { useNavigate, Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "../lib/auth";
 import { ApiError } from "../lib/api";
 import { ShieldIcon, EyeIcon, EyeOffIcon, AlertCircleIcon } from "../components/Icons";
@@ -7,6 +7,8 @@ import { ShieldIcon, EyeIcon, EyeOffIcon, AlertCircleIcon } from "../components/
 export function Login() {
   const { user, signIn } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const notice = (location.state as { notice?: string } | null)?.notice ?? null;
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPw, setShowPw] = useState(false);
@@ -49,6 +51,11 @@ export function Login() {
         </p>
 
         <form onSubmit={onSubmit} noValidate className="mt-7">
+          {notice && (
+            <div className="mb-3 rounded-lg border border-green-200 bg-green-50 px-3.5 py-2.5 text-[13px] text-green-800">
+              {notice}
+            </div>
+          )}
           {err && (
             <div className="mb-3 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3.5 py-2.5 text-[13px] text-red-800">
               <AlertCircleIcon width={14} height={14} className="mt-0.5 shrink-0" />
