@@ -1,8 +1,10 @@
+from datetime import date
+
 from pydantic import BaseModel
 
 
 class SyncDrugCatalogRequest(BaseModel):
-    since: str | None = None  # YYYY-MM-DD; omit for full sync
+    since: date | None = None  # omit for full sync; Pydantic enforces YYYY-MM-DD
 
 
 class SyncDrugCatalogResponse(BaseModel):

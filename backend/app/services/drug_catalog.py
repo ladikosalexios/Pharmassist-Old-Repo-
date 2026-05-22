@@ -1,12 +1,11 @@
 """Sync the drug_catalog table from Pharmapi masterdata."""
 
-import uuid
-
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.drug_catalog import DrugCatalog
 from app.services.pharmapi import pharmapi_get_masterdata_medicines
+
 
 def _inn_name(item: dict) -> str | None:
     """Extract the main active substance INN description."""
@@ -26,7 +25,6 @@ def _to_row(item: dict) -> dict | None:
     strength = item.get("content") or ""
     name_gr = f"{brand} {strength}".strip() if strength else brand
     return {
-        "id": uuid.uuid4(),
         "gns_code": str(barcode),
         "atc_code": item.get("atcCode") or "",
         "atc_class": "",  # not supplied by Pharmapi masterdata
@@ -44,9 +42,9 @@ async def sync_drug_catalog(
 ) -> dict:
     """Paginate Pharmapi medicines and upsert into drug_catalog.
 
-    Existing rows matched on gns_code are updated; interaction_group is
-    intentionally excluded from the update set so manually assigned values
-    are preserved.
+    Existing rows matched on gns_code are updated; interaction_group and
+    atc_class are intentionally excluded from the update set so manually
+    assigned values are preserved.
 
     Returns {"fetched": N, "upserted": N, "skipped": N}.
     """
@@ -55,33 +53,24 @@ async def sync_drug_catalog(
 
     while True:
         data = await pharmapi_get_masterdata_medicines(page=page, size=page_size, since=since)
-        items = data.get("contents") if isinstance(data, dict) else data
+        items = (data or {}).get("contents")
         if not items:
             break
 
-        for item in items:
-            row = _to_row(item)
-            if row is None:
-                skipped += 1
-                continue
-            fetched += 1
-            stmt = (
-                insert(DrugCatalog)
-                .values(**row)
-                .on_conflict_do_update(
-                    index_elements=["gns_code"],
-                    set_={
-                        "atc_code": row["atc_code"],
-                        "atc_class": row["atc_class"],
-                        "name_gr": row["name_gr"],
-                        "name_en": row["name_en"],
-                        "active": row["active"],
-                    },
-                )
+        rows = [r for item in items if (r := _to_row(item)) is not None]
+        skipped += len(items) - len(rows)
+        fetched += len(rows)
+        if rows:
+            stmt = insert(DrugCatalog).values(rows)
+            stmt = stmt.on_conflict_do_update(
+                index_elements=["gns_code"],
+                set_={
+                    k: getattr(stmt.excluded, k)
+                    for k in ("atc_code", "name_gr", "name_en", "active")
+                },
             )
             await db.execute(stmt)
-            upserted += 1
-
+            upserted += len(rows)
         await db.commit()
 
         if data.get("lastPage", True):

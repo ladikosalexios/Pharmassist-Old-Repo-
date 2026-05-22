@@ -72,8 +72,12 @@ async def trigger_drug_catalog_sync(
     current: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_session),
 ) -> SyncDrugCatalogResponse:
-    """Trigger a drug catalogue sync from Pharmapi masterdata. Admin only."""
+    """Trigger a drug catalogue sync from Pharmapi masterdata. Admin only.
+
+    Runs synchronously — a full sync of ~11K rows takes several seconds.
+    Keep client timeout above 30s; use since for incremental updates.
+    """
     if current.get("role") != "admin":
         raise HTTPException(403, "Admin role required")
-    result = await sync_drug_catalog(db, since=body.since)
+    result = await sync_drug_catalog(db, since=body.since.isoformat() if body.since else None)
     return SyncDrugCatalogResponse(**result)
