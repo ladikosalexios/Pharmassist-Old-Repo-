@@ -398,3 +398,27 @@ async def pharmapi_get_patient(amka: str) -> PatientPayload:
     params: dict = {"amka": amka}
     patient_json = await pharmapi_get("/api/v1/common/getpatient", params=params)
     return clean_pharmapi_patient_data(patient_json)
+
+
+async def pharmapi_get_masterdata_medicines(
+    page: int = 0,
+    size: int = 500,
+    since: str | None = None,
+) -> dict:
+    """Fetch one page of the national medicine catalogue from Pharmapi.
+
+    Uses /updates?since=YYYY-MM-DD when `since` is supplied — intended for
+    nightly incremental refresh rather than a full re-download every session.
+    Returns the raw paginated JSON: {"contents": [...], "lastPage": bool, ...}.
+    """
+    if os.getenv("PHARMAPI_MOCK", "false").lower() not in ("false", "0", "no"):
+        return {"contents": [], "lastPage": True}
+
+    if since:
+        path = "/api/v1/masterdata/medicines/updates"
+        params: dict = {"page": page, "size": size, "since": since}
+    else:
+        path = "/api/v1/masterdata/medicines"
+        params = {"page": page, "size": size}
+
+    return await pharmapi_get(path, params=params)

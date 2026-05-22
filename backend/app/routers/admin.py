@@ -1,4 +1,4 @@
-"""Admin-only endpoints — pharmacist invitations."""
+"""Admin-only endpoints — pharmacist invitations and catalogue management."""
 
 import uuid
 from datetime import UTC, datetime, timedelta
@@ -12,7 +12,9 @@ from ..db.models.pharmacist import Pharmacist
 from ..db.models.pharmacy import Pharmacy
 from ..db.session import get_session
 from ..deps import get_current_user
+from ..schemas.admin import SyncDrugCatalogRequest, SyncDrugCatalogResponse
 from ..schemas.auth import InviteRequest, InviteResponse
+from ..services.drug_catalog import sync_drug_catalog
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -62,3 +64,16 @@ async def create_invite(
         expires_at=invitation.expires_at.isoformat(),
         email=invitation.email,
     )
+
+
+@router.post("/sync-drug-catalog", response_model=SyncDrugCatalogResponse)
+async def trigger_drug_catalog_sync(
+    body: SyncDrugCatalogRequest,
+    current: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_session),
+) -> SyncDrugCatalogResponse:
+    """Trigger a drug catalogue sync from Pharmapi masterdata. Admin only."""
+    if current.get("role") != "admin":
+        raise HTTPException(403, "Admin role required")
+    result = await sync_drug_catalog(db, since=body.since)
+    return SyncDrugCatalogResponse(**result)
