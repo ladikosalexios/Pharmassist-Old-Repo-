@@ -59,6 +59,7 @@ async def sync_drug_catalog(
 
         rows = [r for item in items if (r := _to_row(item)) is not None]
         skipped += len(items) - len(rows)
+        rows = list({r["gns_code"]: r for r in rows}.values())
         fetched += len(rows)
         if rows:
             stmt = insert(DrugCatalog).values(rows)

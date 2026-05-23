@@ -75,7 +75,7 @@ async def trigger_drug_catalog_sync(
     """Trigger a drug catalogue sync from Pharmapi masterdata. Admin only.
 
     Runs synchronously — a full sync of ~11K rows takes several seconds.
-    Keep client timeout above 30s; use since for incremental updates.
+    Keep client timeout above 30s; use 'since' param for incremental updates.
     """
     if current.get("role") != "admin":
         raise HTTPException(403, "Admin role required")

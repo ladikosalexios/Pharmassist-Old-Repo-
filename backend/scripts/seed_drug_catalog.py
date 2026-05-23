@@ -5,8 +5,8 @@ Usage (from backend/):
     python -m scripts.seed_drug_catalog --since 2026-05-01   # incremental
 """
 
-import asyncio
 import argparse
+import asyncio
 import os
 import sys
 
@@ -23,12 +23,15 @@ async def main(since: str | None) -> None:
         summary = await sync_drug_catalog(db, since=since)
     print(
         f"[seed_drug_catalog] Done — "
-        f"fetched={summary['fetched']}  upserted={summary['upserted']}  skipped={summary['skipped']}"
+        f"fetched={summary['fetched']}  upserted={summary['upserted']}  "
+        f"skipped={summary['skipped']}"
     )
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Sync Pharmapi medicine catalogue into drug_catalog.")
+    parser = argparse.ArgumentParser(
+        description="Sync Pharmapi medicine catalogue into drug_catalog."
+    )
     parser.add_argument("--since", default=None, help="ISO date YYYY-MM-DD for incremental update")
     args = parser.parse_args()
     asyncio.run(main(args.since))
