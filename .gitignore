@@ -4,3 +4,4 @@ backend/.env
 .claude
 CLAUDE.MD
 .vscode
+*.code-workspace
