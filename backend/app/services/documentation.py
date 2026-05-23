@@ -70,15 +70,17 @@ def get_documentation_log_dict(doc_log: DocumentationLog) -> dict:
         "rxId": doc_log.prescription_barcode,
         "patientName": doc_log.patient_name,
         "drugName": doc_log.medicine_name,
-        "setting": None,
+        "setting": doc_log.setting,
         "deliveryMethod": doc_log.delivery_method,
         "language": doc_log.language,
         "informationProvided": doc_log.info_provided,
+        "notes": doc_log.notes,
         "pharmacistName": doc_log.pharmacist.full_name,
         "pharmacistLicense": doc_log.pharmacist.eof_licence_no,
         "signatureConfirmed": bool(doc_log.pharmacist_signature),
         "dispensedAt": doc_log.dispensed_at.isoformat(),
         "exportedAt": doc_log.exported_at.isoformat() if doc_log.exported_at else None,
+        # ip_address and user_agent are stored for audit purposes only and are not exposed here.
     }
 
 
@@ -203,8 +205,10 @@ async def record_prescription_action(
     notes: str | None,
     info_provided: str | None,
     delivery_method: str | None,
-    ip_address: str | None,
-    user_agent: str | None,
+    language: str = "el",
+    setting: str | None = None,
+    ip_address: str | None = None,
+    user_agent: str | None = None,
 ) -> DocumentationLog:
     """Persist a documentation_logs row for an approve/flag action.
 
@@ -227,6 +231,8 @@ async def record_prescription_action(
         medicine_name=rx["medication"]["drugName"],
         info_provided=info_provided,
         delivery_method=delivery_method,
+        language=language,
+        setting=setting,
         discrepancy_type=discrepancy_type,
         notes=notes,
         safety_check_snapshot=safety_checks,
