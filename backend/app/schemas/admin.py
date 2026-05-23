@@ -8,6 +8,4 @@ class SyncDrugCatalogRequest(BaseModel):
 
 
 class SyncDrugCatalogResponse(BaseModel):
-    fetched: int
-    upserted: int
-    skipped: int
+    message: str

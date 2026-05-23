@@ -6,6 +6,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.models.drug_catalog import DrugCatalog
 from app.services.pharmapi import pharmapi_get_masterdata_medicines
 
+from ..db.session import AsyncSessionLocal
+
 
 def _inn_name(item: dict) -> str | None:
     """Extract the main active substance INN description."""
@@ -35,7 +37,20 @@ def _to_row(item: dict) -> dict | None:
     }
 
 
-async def sync_drug_catalog(
+async def run_sync(since: str | None) -> None:
+    async with AsyncSessionLocal() as db:
+        try:
+            result = await _sync_drug_catalog(db, since=since)
+            print(
+                f"[sync-drug-catalog] Complete — "
+                f"fetched={result['fetched']} upserted={result['upserted']} "
+                f"skipped={result['skipped']}"
+            )
+        except Exception as exc:
+            print(f"[sync-drug-catalog] Failed — {exc}")
+
+
+async def _sync_drug_catalog(
     db: AsyncSession,
     since: str | None = None,
     page_size: int = 500,
