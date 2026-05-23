@@ -25,6 +25,7 @@ def _to_row(item: dict) -> dict | None:
         return None
     brand = item.get("commercialNameOnly") or ""
     strength = item.get("content") or ""
+    # TODO: Replace with data from provided PDF
     name_gr = f"{brand} {strength}".strip() if strength else brand
     return {
         "gns_code": str(barcode),
