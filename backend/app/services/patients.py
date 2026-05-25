@@ -510,7 +510,10 @@ async def resolve(patient_key: str) -> dict | None:
     Currently, the only service is pharmapi.
     """
     if not is_mock_pharmapi():
-        return await pharmapi_get_patient(patient_key)
+        # AMKA: exactly 11 digits. Anything else (e.g. 16-char European EKAA) routes to ekaa param.
+        if patient_key.isdigit() and len(patient_key) == 11:
+            return await pharmapi_get_patient(amka=patient_key)
+        return await pharmapi_get_patient(ekaa=patient_key)
     else:
         direct = PATIENT_PROFILES.get(patient_key)
         if direct:

@@ -463,11 +463,16 @@ async def pharmapi_search_prescriptions(
 
 def clean_pharmapi_patient_data(data: dict) -> PatientPayload:
     birthdate = datetime.strptime(data["dateOfBirth"], "%Y-%m-%d")
+    # AMKA is the canonical id; EKAA is the European fallback for non-Greek patients.
+    identifier = data.get("amka") or data.get("ekaa")
+    if not identifier:
+        raise HTTPException(502, "Pharmapi returned patient with no AMKA or EKAA")
     return PatientPayload(
-        id=data["amka"],
-        amka=data["amka"],
-        first_name=data["first_name"],
-        last_name=data["last_name"],
+        id=identifier,
+        amka=data.get("amka") or None,
+        ekaa=data.get("ekaa"),
+        first_name=data["firstName"],
+        last_name=data["lastName"],
         date_of_birth=data["dateOfBirth"],
         age=age_from_date(birthdate),
         sex=data["sex"],
@@ -479,15 +484,26 @@ def clean_pharmapi_patient_data(data: dict) -> PatientPayload:
     )
 
 
-async def pharmapi_get_patient(amka: str) -> PatientPayload:
+async def pharmapi_get_patient(
+    amka: str | None = None,
+    ekaa: str | None = None,
+) -> PatientPayload:
     """
-    Fetch the patient's data from Pharmapi using their AMKA. Two endpoints must be accessed:
-    1. General patient data at common/getpatient
-    2. Patient drug intolerances at patients/{amkaOrEkaa}/medicinehistory/{pharmacyId}/intolerances
-
-    Sometimes, patients have an EKAA instead of AMKA, in which case we retry with that.
+    Fetch the patient's data from Pharmapi /api/v1/common/getpatient.
+    Pass `amka` for Greek patients or `ekaa` for European-card patients;
+    at least one must be provided.
     """
-    params: dict = {"amka": amka}
+    if amka:
+        params: dict = {"amka": amka}
+    elif ekaa:
+        params = {"ekaa": ekaa}
+    else:
+        # HTTPException here matches the rest of this service module
+        # (pharmapi_get, verify_pharmapi_credentials, pharmapi_headers all
+        # raise HTTPException directly). Migrating to ValueError + router
+        # translation is a file-wide convention change, not scoped here
+        # (PR #67 review #4).
+        raise HTTPException(400, "pharmapi_get_patient requires amka or ekaa")
     patient_json = await pharmapi_get("/api/v1/common/getpatient", params=params)
     return clean_pharmapi_patient_data(patient_json)
 
