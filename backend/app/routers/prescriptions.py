@@ -112,7 +112,7 @@ async def next_pending_prescription(current: dict = Depends(get_current_user)):
         raise HTTPException(status_code=404, detail="No pending prescriptions in the queue")
 
     # Live mode: fetch queue from ΗΔΥΚΑ, return first PENDING item
-    items = await pharmapi_search_prescriptions(prescribed=False, size=10)
+    items = await pharmapi_search_prescriptions(size=10)
     pending = [i for i in items if i.get("status") == PrescriptionStatus.PENDING]
     if not pending:
         raise HTTPException(status_code=404, detail="No pending prescriptions in the queue")
@@ -137,7 +137,7 @@ async def list_prescriptions(current: dict = Depends(get_current_user)):
         return {"items": items}
 
     # Live mode: fetch pending queue from ΗΔΥΚΑ
-    items = await pharmapi_search_prescriptions(prescribed=False)
+    items = await pharmapi_search_prescriptions()
     return {"items": items}
 
 
