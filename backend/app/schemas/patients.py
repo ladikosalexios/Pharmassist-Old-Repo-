@@ -3,7 +3,7 @@ from pydantic import BaseModel
 
 class PatientPayload(BaseModel):
     id: str
-    amka: str
+    amka: str | None = None
     ekaa: str | None = None
     first_name: str
     last_name: str

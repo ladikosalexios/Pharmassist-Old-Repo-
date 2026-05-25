@@ -441,18 +441,13 @@ async def pharmapi_search_prescriptions(
 
 def clean_pharmapi_patient_data(data: dict) -> PatientPayload:
     birthdate = datetime.strptime(data["dateOfBirth"], "%Y-%m-%d")
-    # AMKA is the canonical patient id; EKAA is the European replacement used
-    # when AMKA is missing/empty. Fall back so non-Greek patients still resolve.
-    # Known trade-off (PR #67 review #3): when only EKAA is present we stuff
-    # it into PatientPayload.amka so downstream callers keep their single-
-    # identifier contract. Widening amka to str | None would cascade through
-    # every consumer — deferred to a follow-up ticket.
+    # AMKA is the canonical id; EKAA is the European fallback for non-Greek patients.
     identifier = data.get("amka") or data.get("ekaa")
     if not identifier:
         raise HTTPException(502, "Pharmapi returned patient with no AMKA or EKAA")
     return PatientPayload(
         id=identifier,
-        amka=identifier,
+        amka=data.get("amka") or None,
         ekaa=data.get("ekaa"),
         first_name=data["firstName"],
         last_name=data["lastName"],
@@ -476,10 +471,6 @@ async def pharmapi_get_patient(
     Pass `amka` for Greek patients or `ekaa` for European-card patients;
     at least one must be provided.
     """
-    # NOTE (PR #67 review #2): `ekaa` is groundwork — the only current caller
-    # (services/patients.py resolve()) passes positionally as `amka`. Wiring
-    # AMKA-vs-EKAA detection at the call site needs a spec-confirmed
-    # discriminator (length / regex) and is a follow-up ticket.
     if amka:
         params: dict = {"amka": amka}
     elif ekaa:
