@@ -9,7 +9,11 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.patient_condition import PatientCondition
-from app.services.pharmapi import pharmapi_get_patient
+from app.services.pharmapi import (
+    pharmapi_get_patient,
+    pharmapi_get_patient_intolerances,
+    pharmapi_get_patient_medicine_history,
+)
 from app.utils.environment import is_mock_pharmapi
 
 from ..constants import PrescriptionStatus
@@ -478,7 +482,22 @@ PATIENT_RX_HISTORY_BASE: dict = {
 }
 
 
-def rx_history(patient_id: str) -> list:
+async def rx_history(patient_id: str) -> list:
+    if not is_mock_pharmapi():
+        items = await pharmapi_get_patient_medicine_history(patient_id)
+        return [
+            {
+                "rxId": item.get("prescriptionBarcode"),
+                "date": (item.get("prescriptionExecutionDate") or "")[:10] or None,
+                "drugName": item.get("medicineCommercialName"),
+                "prescriberName": None,
+                "status": item.get("prescriptionStatusDesc"),
+                "quantityPrescribed": item.get("quantityPrescribed"),
+                "quantityOutstanding": item.get("quantityOutstanding"),
+                "euDispensed": item.get("euDispensed") == "true",
+            }
+            for item in items
+        ]
     rows = list(PATIENT_RX_HISTORY_BASE.get(patient_id, []))
     for row in rows:
         live = MOCK_PRESCRIPTIONS.get(row["rxId"])
@@ -510,7 +529,18 @@ async def resolve(patient_key: str) -> dict | None:
     Currently, the only service is pharmapi.
     """
     if not is_mock_pharmapi():
-        return await pharmapi_get_patient(patient_key)
+        patient = await pharmapi_get_patient(patient_key)
+        raw_intolerances = await pharmapi_get_patient_intolerances(patient_key)
+        patient_dict = patient.model_dump() if hasattr(patient, "model_dump") else dict(patient)
+        patient_dict["intolerances"] = [
+            {
+                "activeSubstance": item.get("activeSubstance"),
+                "intolerance": item.get("intolerance"),
+                "remarks": item.get("remarks"),
+            }
+            for item in raw_intolerances
+        ]
+        return patient_dict
     else:
         direct = PATIENT_PROFILES.get(patient_key)
         if direct:
