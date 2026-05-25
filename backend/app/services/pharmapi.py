@@ -25,6 +25,7 @@ from ..constants import PrescriptionStatus
 # these by name keeps working. Sourced from settings at first import.
 _settings = get_settings()
 PHARMAPI_BASE = _settings.pharmapi_base
+print(f"[Pharmapi] Base URL: {PHARMAPI_BASE}")
 PHARMAPI_USER = _settings.pharmapi_username
 PHARMAPI_PASS = _settings.pharmapi_password
 PHARMAPI_API_KEY = _settings.pharmapi_api_key
