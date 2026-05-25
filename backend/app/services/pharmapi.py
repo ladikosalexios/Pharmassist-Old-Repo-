@@ -192,7 +192,8 @@ async def verify_pharmapi_credentials_with_decrypted(username: str, password: st
         return {
             "email": f"{username}@pharmapi.local",
             "name": {"firstname": "Mock", "lastname": "Pharmacist"},
-            "pharmacy": {"name": "Mock Pharmacy"},
+            "pharmacy": {"name": "Mock Pharmacy", "id": 0},
+            "units": [{"id": 0, "name": "Mock Pharmacy"}],
         }
     return await verify_pharmapi_credentials(username, password)
 
@@ -201,7 +202,7 @@ def _start_pharmapi_session(user_data: dict) -> None:
     """Pin the 24h connection window — shared by /auth/login and /pharmapi/connect."""
     units = user_data.get("units", [])
     pharmapi_session["pharmacy_id"] = (
-        units[0]["id"] if units else user_data.get("pharmacy", {}).get("id")
+        units[0].get("id") if units else user_data.get("pharmacy", {}).get("id")
     )
     now = time.time()
     pharmapi_session.update(
@@ -214,13 +215,18 @@ def _start_pharmapi_session(user_data: dict) -> None:
     )
 
 
-def get_pharmacy_id() -> int:
-    """Return the active pharmacy unit id or raise if no session exists."""
-    pid = pharmapi_session.get("pharmacy_id")
-    if pid is None:
+def get_pharmacy_id() -> int | str:
+    """Return the active pharmacy unit id or raise if no valid session exists."""
+    if not session_is_valid():
         raise HTTPException(
             status_code=403,
             detail="No active Pharmapi session — call POST /pharmapi/connect first",
+        )
+    pid = pharmapi_session.get("pharmacy_id")
+    if pid is None:
+        raise HTTPException(
+            status_code=500,
+            detail="Session active but pharmacy_id not set — this is a bug",
         )
     return pid
 
