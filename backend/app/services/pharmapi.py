@@ -78,6 +78,7 @@ async def pharmapi_get(
     path: str,
     accept_xml: bool = False,
     params: dict | None = None,
+    _retrying: bool = False,
 ) -> dict | list:
     """Authenticated GET to Pharmapi. Raises HTTPException on failure.
 
@@ -89,6 +90,10 @@ async def pharmapi_get(
     upstream returns — most endpoints return a paginated object, but
     `/api/v1/version` returns a top-level array. Callers are expected to
     narrow.
+
+    `_retrying` is an internal flag — on a G14 (session expired) it auto-
+    refreshes once via /user/me + _start_pharmapi_session and re-issues
+    the original call. A second G14 raises 401 instead of looping.
     """
     url = f"{PHARMAPI_BASE}{path}"
     headers = pharmapi_headers()
@@ -128,10 +133,14 @@ async def pharmapi_get(
             502, "Pharmapi: no active connection — call POST /pharmapi/connect first"
         )
     if "G14" in err or "914" in err or "Connection time limit" in err:
-        raise HTTPException(
-            502,
-            "Pharmapi: 24h session expired — log into https://test.e-prescription.gr/epregen2/ first, then retry",
-        )
+        if _retrying:
+            raise HTTPException(401, "Pharmapi session expired — please re-login (G14)")
+        try:
+            user_data = await pharmapi_get("/api/v1/user/me", _retrying=True)
+            _start_pharmapi_session(user_data)
+        except Exception as exc:
+            raise HTTPException(401, "Pharmapi session expired — please re-login (G14)") from exc
+        return await pharmapi_get(path, accept_xml=accept_xml, params=params, _retrying=True)
     if "G15" in err:
         raise HTTPException(500, "Pharmapi: Api-Key missing — set PHARMAPI_API_KEY env var")
     if "G11" in err:
