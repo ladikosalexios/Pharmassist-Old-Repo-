@@ -309,6 +309,22 @@ def parse_prescription_search_xml(xml_text: str) -> list[dict]:
     return items
 
 
+async def pharmapi_check_version() -> None:
+    """Call GET /api/v1/version and warn if the API version has changed."""
+    try:
+        data = await pharmapi_get("/api/v1/version")
+        versions = data if isinstance(data, list) else data.get("content", [])
+        if versions:
+            latest = versions[0]
+            print(
+                f"[Pharmapi] API version: {latest.get('version')} "
+                f"(released {latest.get('releaseDate')})"
+            )
+            print(f"[Pharmapi] Changelog: {latest.get('changelog', 'none')}")
+    except Exception as exc:
+        print(f"[Pharmapi] WARNING: version check failed — {exc}")
+
+
 async def pharmapi_execute_prescription(
     barcode: str,
     eof_licence_no: str,
