@@ -10,7 +10,7 @@ from ..db.session import AsyncSessionLocal
 
 
 def _inn_name(item: dict) -> str | None:
-    """Extract the main active substance INN description."""
+    """Extract the main active substance INN (International Nonproprietary Name) description."""
     for entry in item.get("activeSubstances") or []:
         if entry.get("mainActiveSubstance"):
             return (entry.get("activeSubstance") or {}).get("description")
@@ -25,7 +25,6 @@ def _to_row(item: dict) -> dict | None:
         return None
     brand = item.get("commercialNameOnly") or ""
     strength = item.get("content") or ""
-    # TODO: Replace with data from provided PDF
     name_gr = f"{brand} {strength}".strip() if strength else brand
     return {
         "gns_code": str(barcode),
