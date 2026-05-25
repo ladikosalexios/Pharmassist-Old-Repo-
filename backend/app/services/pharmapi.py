@@ -139,6 +139,7 @@ async def pharmapi_get(
             user_data = await pharmapi_get("/api/v1/user/me", _retrying=True)
             _start_pharmapi_session(user_data)
         except Exception as exc:
+            logger.warning("G14 auto-refresh failed: %s", exc)
             raise HTTPException(401, "Pharmapi session expired — please re-login (G14)") from exc
         return await pharmapi_get(path, accept_xml=accept_xml, params=params, _retrying=True)
     if "G15" in err:
