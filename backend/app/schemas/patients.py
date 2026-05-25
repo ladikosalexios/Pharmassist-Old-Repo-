@@ -11,7 +11,7 @@ class PatientPayload(BaseModel):
     age: int
     sex: str
     phone: str
-    conditions: list
-    allergies: list
-    intolerances: list
-    safety_flags: dict
+    conditions: list | None = None
+    allergies: list | None = None
+    intolerances: list | None = None
+    safety_flags: dict | None = None
