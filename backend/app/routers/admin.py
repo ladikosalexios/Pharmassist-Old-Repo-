@@ -1,9 +1,9 @@
-"""Admin-only endpoints — pharmacist invitations."""
+"""Admin-only endpoints — pharmacist invitations and catalogue management."""
 
 import uuid
 from datetime import UTC, datetime, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -12,7 +12,9 @@ from ..db.models.pharmacist import Pharmacist
 from ..db.models.pharmacy import Pharmacy
 from ..db.session import get_session
 from ..deps import get_current_user
+from ..schemas.admin import SyncDrugCatalogRequest, SyncDrugCatalogResponse
 from ..schemas.auth import InviteRequest, InviteResponse
+from ..services.drug_catalog import run_sync
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -62,3 +64,21 @@ async def create_invite(
         expires_at=invitation.expires_at.isoformat(),
         email=invitation.email,
     )
+
+
+@router.post("/sync-drug-catalog", response_model=SyncDrugCatalogResponse, status_code=202)
+async def trigger_drug_catalog_sync(
+    body: SyncDrugCatalogRequest,
+    background_tasks: BackgroundTasks,
+    current: dict = Depends(get_current_user),
+) -> SyncDrugCatalogResponse:
+    """Trigger a drug catalogue sync from Pharmapi masterdata. Admin only.
+
+    Returns 202 immediately; the sync runs in the background.
+    Check container logs for fetched/upserted/skipped counts and any errors.
+    Use 'since' for incremental updates (omit for a full re-sync).
+    """
+    if current.get("role") != "admin":
+        raise HTTPException(403, "Admin role required")
+    background_tasks.add_task(run_sync, body.since.isoformat() if body.since else None)
+    return SyncDrugCatalogResponse(message="Sync started — check container logs for results.")
