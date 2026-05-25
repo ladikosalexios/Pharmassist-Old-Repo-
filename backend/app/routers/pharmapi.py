@@ -101,7 +101,6 @@ async def get_prescription_queue(
     a prescription for verification.
     """
     items = await pharmapi_search_prescriptions(
-        prescribed=False,
         page=page,
         size=size,
         from_date=from_date,
@@ -125,8 +124,10 @@ async def get_prescription_history(
     Fetch already-dispensed prescriptions from ΗΔΥΚΑ (prescribed=true).
     Useful for patient history lookup and dispensing audit.
     """
+    # NOTE: `prescribed=True` filter dropped — Pharmapi v2 has no equivalent
+    # boolean. History filtering needs a follow-up: pass a prescription_status
+    # like "EXECUTED" once the spec-correct value is confirmed.
     items = await pharmapi_search_prescriptions(
-        prescribed=True,
         page=page,
         size=size,
         from_date=from_date,
