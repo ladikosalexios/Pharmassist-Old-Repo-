@@ -441,11 +441,15 @@ async def pharmapi_search_prescriptions(
 
 def clean_pharmapi_patient_data(data: dict) -> PatientPayload:
     birthdate = datetime.strptime(data["dateOfBirth"], "%Y-%m-%d")
+    # AMKA is the canonical patient id; EKAA is the European replacement used
+    # when AMKA is missing/empty. Fall back so non-Greek patients still resolve.
+    identifier = data.get("amka") or data.get("ekaa")
     return PatientPayload(
-        id=data["amka"],
-        amka=data["amka"],
-        first_name=data["first_name"],
-        last_name=data["last_name"],
+        id=identifier,
+        amka=identifier,
+        ekaa=data.get("ekaa"),
+        first_name=data["firstName"],
+        last_name=data["lastName"],
         date_of_birth=data["dateOfBirth"],
         age=age_from_date(birthdate),
         sex=data["sex"],
@@ -457,15 +461,24 @@ def clean_pharmapi_patient_data(data: dict) -> PatientPayload:
     )
 
 
-async def pharmapi_get_patient(amka: str) -> PatientPayload:
+async def pharmapi_get_patient(
+    amka: str | None = None,
+    ekaa: str | None = None,
+) -> PatientPayload:
     """
-    Fetch the patient's data from Pharmapi using their AMKA. Two endpoints must be accessed:
+    Fetch the patient's data from Pharmapi. Pass `amka` for Greek patients or
+    `ekaa` for European-card patients; at least one must be provided.
+
+    Two endpoints must be accessed:
     1. General patient data at common/getpatient
     2. Patient drug intolerances at patients/{amkaOrEkaa}/medicinehistory/{pharmacyId}/intolerances
-
-    Sometimes, patients have an EKAA instead of AMKA, in which case we retry with that.
     """
-    params: dict = {"amka": amka}
+    if amka:
+        params: dict = {"amka": amka}
+    elif ekaa:
+        params = {"ekaa": ekaa}
+    else:
+        raise HTTPException(400, "pharmapi_get_patient requires amka or ekaa")
     patient_json = await pharmapi_get("/api/v1/common/getpatient", params=params)
     return clean_pharmapi_patient_data(patient_json)
 

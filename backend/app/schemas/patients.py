@@ -4,6 +4,7 @@ from pydantic import BaseModel
 class PatientPayload(BaseModel):
     id: str
     amka: str
+    ekaa: str | None = None
     first_name: str
     last_name: str
     date_of_birth: str
