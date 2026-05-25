@@ -443,7 +443,13 @@ def clean_pharmapi_patient_data(data: dict) -> PatientPayload:
     birthdate = datetime.strptime(data["dateOfBirth"], "%Y-%m-%d")
     # AMKA is the canonical patient id; EKAA is the European replacement used
     # when AMKA is missing/empty. Fall back so non-Greek patients still resolve.
+    # Known trade-off (PR #67 review #3): when only EKAA is present we stuff
+    # it into PatientPayload.amka so downstream callers keep their single-
+    # identifier contract. Widening amka to str | None would cascade through
+    # every consumer — deferred to a follow-up ticket.
     identifier = data.get("amka") or data.get("ekaa")
+    if not identifier:
+        raise HTTPException(502, "Pharmapi returned patient with no AMKA or EKAA")
     return PatientPayload(
         id=identifier,
         amka=identifier,
@@ -466,18 +472,24 @@ async def pharmapi_get_patient(
     ekaa: str | None = None,
 ) -> PatientPayload:
     """
-    Fetch the patient's data from Pharmapi. Pass `amka` for Greek patients or
-    `ekaa` for European-card patients; at least one must be provided.
-
-    Two endpoints must be accessed:
-    1. General patient data at common/getpatient
-    2. Patient drug intolerances at patients/{amkaOrEkaa}/medicinehistory/{pharmacyId}/intolerances
+    Fetch the patient's data from Pharmapi /api/v1/common/getpatient.
+    Pass `amka` for Greek patients or `ekaa` for European-card patients;
+    at least one must be provided.
     """
+    # NOTE (PR #67 review #2): `ekaa` is groundwork — the only current caller
+    # (services/patients.py resolve()) passes positionally as `amka`. Wiring
+    # AMKA-vs-EKAA detection at the call site needs a spec-confirmed
+    # discriminator (length / regex) and is a follow-up ticket.
     if amka:
         params: dict = {"amka": amka}
     elif ekaa:
         params = {"ekaa": ekaa}
     else:
+        # HTTPException here matches the rest of this service module
+        # (pharmapi_get, verify_pharmapi_credentials, pharmapi_headers all
+        # raise HTTPException directly). Migrating to ValueError + router
+        # translation is a file-wide convention change, not scoped here
+        # (PR #67 review #4).
         raise HTTPException(400, "pharmapi_get_patient requires amka or ekaa")
     patient_json = await pharmapi_get("/api/v1/common/getpatient", params=params)
     return clean_pharmapi_patient_data(patient_json)
