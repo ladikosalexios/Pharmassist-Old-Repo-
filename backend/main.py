@@ -27,6 +27,8 @@ Project layout:
   main.py        — create_app() factory; uvicorn entrypoint (this file)
 """
 
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -48,6 +50,16 @@ from app.routers import (
     side_effects,
     spc,
 )
+from app.services.pharmapi import pharmapi_check_version
+from app.utils.environment import is_mock_pharmapi
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    if not is_mock_pharmapi():
+        await pharmapi_check_version()
+    yield
+
 
 # Order doesn't affect routing (each router has its own prefix), but include
 # order is what /docs and /openapi.json render in. Group public → auth → core
@@ -84,6 +96,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         title=settings.app_title,
         description=settings.app_description,
         version=settings.app_version,
+        lifespan=lifespan,
     )
 
     app.add_middleware(

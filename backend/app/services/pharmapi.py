@@ -78,12 +78,17 @@ async def pharmapi_get(
     path: str,
     accept_xml: bool = False,
     params: dict | None = None,
-) -> dict:
+) -> dict | list:
     """Authenticated GET to Pharmapi. Raises HTTPException on failure.
 
     `params` is passed through to httpx so query-string values are properly
     URL-encoded. Callers MUST NOT pre-build a query string in `path` from
     untrusted input — pass them via `params` instead.
+
+    Return type is `dict | list` because `r.json()` mirrors whatever the
+    upstream returns — most endpoints return a paginated object, but
+    `/api/v1/version` returns a top-level array. Callers are expected to
+    narrow.
     """
     url = f"{PHARMAPI_BASE}{path}"
     headers = pharmapi_headers()
@@ -323,6 +328,28 @@ def parse_prescription_search_xml(xml_text: str) -> list[dict]:
         )
 
     return items
+
+
+async def pharmapi_check_version() -> None:
+    """Call GET /api/v1/version and log the current API version at startup."""
+    try:
+        data = await pharmapi_get("/api/v1/version")
+        versions = data if isinstance(data, list) else data.get("content", [])
+        if versions:
+            latest = versions[0]
+            logger.info(
+                "Pharmapi API version: %s (released %s)",
+                latest.get("version"),
+                latest.get("releaseDate"),
+            )
+            logger.info("Pharmapi changelog: %s", latest.get("changelog", "none"))
+        else:
+            logger.warning(
+                "Pharmapi version endpoint returned empty or unexpected response: %r",
+                data,
+            )
+    except Exception as exc:
+        logger.warning("Pharmapi version check failed — %s", exc)
 
 
 async def pharmapi_execute_prescription(
