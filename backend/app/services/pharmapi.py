@@ -6,6 +6,7 @@ just a per-process dict so a `uvicorn --reload` reset clears it.
 Pharmapi credentials are sourced from the centralised settings.
 """
 
+import logging
 import os
 import time
 import uuid
@@ -21,11 +22,13 @@ from app.utils.dates import age_from_date
 from ..config import get_settings
 from ..constants import PrescriptionStatus
 
+logger = logging.getLogger(__name__)
+
 # Module-level constants kept for backward compat — anything that imports
 # these by name keeps working. Sourced from settings at first import.
 _settings = get_settings()
 PHARMAPI_BASE = _settings.pharmapi_base
-print(f"[Pharmapi] Base URL: {PHARMAPI_BASE}")
+logger.info("Pharmapi base URL: %s", PHARMAPI_BASE)
 PHARMAPI_USER = _settings.pharmapi_username
 PHARMAPI_PASS = _settings.pharmapi_password
 PHARMAPI_API_KEY = _settings.pharmapi_api_key
@@ -334,28 +337,33 @@ async def pharmapi_execute_prescription(
 def _parse_prescription_search_json(items: list) -> list[dict]:
     """Map Pharmapi v2 JSON search items to our internal queue shape."""
     out: list[dict] = []
-    for item in items:
-        medicines = item.get("medicines") or []
-        social_insurance = item.get("socialInsurance") or {}
-        pharmapi_status = item["status"]
-        out.append(
-            {
-                "rxId": item["barcode"],
-                "patientName": item["patientName"],
-                "patientAmka": item["amka"],
-                "medication": medicines[0]["name"] if medicines else None,
-                "physician": item.get("doctorName"),
-                "date": item["issueDate"],
-                "expiryDate": item.get("expiryDate"),
-                "status": _map_pharmapi_status(pharmapi_status),
-                "socialInsurance": social_insurance.get("name") if social_insurance else None,
-                "pharmApiStatus": pharmapi_status,
-                "repeatNo": item.get("repeatNo"),
-                "totalRepeats": item.get("totalRepeats"),
-                "executions": None,
-                "medicineDrug": False,
-            }
-        )
+    try:
+        for item in items:
+            medicines = item.get("medicines") or []
+            social_insurance = item.get("socialInsurance") or {}
+            pharmapi_status = item.get("status")
+            out.append(
+                {
+                    "rxId": item.get("barcode"),
+                    "patientName": item.get("patientName") or "Άγνωστος",
+                    "patientAmka": item.get("amka"),
+                    "medication": medicines[0]["name"] if medicines else None,
+                    "physician": item.get("doctorName"),
+                    "date": item.get("issueDate"),
+                    "expiryDate": item.get("expiryDate"),
+                    "status": _map_pharmapi_status(pharmapi_status),
+                    "socialInsurance": social_insurance.get("name"),
+                    "pharmApiStatus": pharmapi_status,
+                    "repeatNo": item.get("repeatNo"),
+                    "totalRepeats": item.get("totalRepeats"),
+                    # medicineDrug hardcoded False per T1 spec — XML parser derived
+                    # it from upstream; revisit if the v2 JSON exposes an equivalent.
+                    "medicineDrug": False,
+                    "executions": None,
+                }
+            )
+    except (KeyError, TypeError, AttributeError) as exc:
+        raise HTTPException(502, f"Pharmapi: could not parse prescription JSON — {exc}") from exc
     return out
 
 
@@ -393,7 +401,12 @@ async def pharmapi_search_prescriptions(
         params["amka"] = amka
 
     raw = await pharmapi_get("/api/v1/prescriptions/search", params=params)
-    return _parse_prescription_search_json(raw.get("content", []))
+    if not isinstance(raw, dict) or "content" not in raw:
+        logger.warning(
+            "Pharmapi search response missing 'content' key; got keys=%s",
+            list(raw.keys()) if isinstance(raw, dict) else type(raw).__name__,
+        )
+    return _parse_prescription_search_json(raw.get("content", []) if isinstance(raw, dict) else [])
 
 
 # ── Patient search ──────────────────────────────────────────
