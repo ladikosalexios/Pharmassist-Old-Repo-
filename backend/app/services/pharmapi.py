@@ -428,12 +428,12 @@ async def pharmapi_search_prescriptions(
         params["amka"] = amka
 
     raw = await pharmapi_get("/api/v1/prescriptions/search", params=params)
-    if not isinstance(raw, dict) or "content" not in raw:
+    if not isinstance(raw, dict) or "contents" not in raw:
         logger.warning(
-            "Pharmapi search response missing 'content' key; got keys=%s",
+            "Pharmapi search response missing 'contents' key; got keys=%s",
             list(raw.keys()) if isinstance(raw, dict) else type(raw).__name__,
         )
-    return _parse_prescription_search_json(raw.get("content", []) if isinstance(raw, dict) else [])
+    return _parse_prescription_search_json(raw.get("contents", []) if isinstance(raw, dict) else [])
 
 
 # ── Patient search ──────────────────────────────────────────
