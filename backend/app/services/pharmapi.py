@@ -78,12 +78,17 @@ async def pharmapi_get(
     path: str,
     accept_xml: bool = False,
     params: dict | None = None,
-) -> dict:
+) -> dict | list:
     """Authenticated GET to Pharmapi. Raises HTTPException on failure.
 
     `params` is passed through to httpx so query-string values are properly
     URL-encoded. Callers MUST NOT pre-build a query string in `path` from
     untrusted input — pass them via `params` instead.
+
+    Return type is `dict | list` because `r.json()` mirrors whatever the
+    upstream returns — most endpoints return a paginated object, but
+    `/api/v1/version` returns a top-level array. Callers are expected to
+    narrow.
     """
     url = f"{PHARMAPI_BASE}{path}"
     headers = pharmapi_headers()
@@ -187,7 +192,8 @@ async def verify_pharmapi_credentials_with_decrypted(username: str, password: st
         return {
             "email": f"{username}@pharmapi.local",
             "name": {"firstname": "Mock", "lastname": "Pharmacist"},
-            "pharmacy": {"name": "Mock Pharmacy"},
+            "pharmacy": {"name": "Mock Pharmacy", "id": 0},
+            "units": [{"id": 0, "name": "Mock Pharmacy"}],
         }
     return await verify_pharmapi_credentials(username, password)
 
@@ -196,7 +202,7 @@ def _start_pharmapi_session(user_data: dict) -> None:
     """Pin the 24h connection window — shared by /auth/login and /pharmapi/connect."""
     units = user_data.get("units", [])
     pharmapi_session["pharmacy_id"] = (
-        units[0]["id"] if units else user_data.get("pharmacy", {}).get("id")
+        units[0].get("id") if units else user_data.get("pharmacy", {}).get("id")
     )
     now = time.time()
     pharmapi_session.update(
@@ -209,13 +215,18 @@ def _start_pharmapi_session(user_data: dict) -> None:
     )
 
 
-def get_pharmacy_id() -> int:
-    """Return the active pharmacy unit id or raise if no session exists."""
-    pid = pharmapi_session.get("pharmacy_id")
-    if pid is None:
+def get_pharmacy_id() -> int | str:
+    """Return the active pharmacy unit id or raise if no valid session exists."""
+    if not session_is_valid():
         raise HTTPException(
             status_code=403,
             detail="No active Pharmapi session — call POST /pharmapi/connect first",
+        )
+    pid = pharmapi_session.get("pharmacy_id")
+    if pid is None:
+        raise HTTPException(
+            status_code=500,
+            detail="Session active but pharmacy_id not set — this is a bug",
         )
     return pid
 
@@ -325,6 +336,28 @@ def parse_prescription_search_xml(xml_text: str) -> list[dict]:
     return items
 
 
+async def pharmapi_check_version() -> None:
+    """Call GET /api/v1/version and log the current API version at startup."""
+    try:
+        data = await pharmapi_get("/api/v1/version")
+        versions = data if isinstance(data, list) else data.get("content", [])
+        if versions:
+            latest = versions[0]
+            logger.info(
+                "Pharmapi API version: %s (released %s)",
+                latest.get("version"),
+                latest.get("releaseDate"),
+            )
+            logger.info("Pharmapi changelog: %s", latest.get("changelog", "none"))
+        else:
+            logger.warning(
+                "Pharmapi version endpoint returned empty or unexpected response: %r",
+                data,
+            )
+    except Exception as exc:
+        logger.warning("Pharmapi version check failed — %s", exc)
+
+
 async def pharmapi_execute_prescription(
     barcode: str,
     eof_licence_no: str,
@@ -417,12 +450,12 @@ async def pharmapi_search_prescriptions(
         params["amka"] = amka
 
     raw = await pharmapi_get("/api/v1/prescriptions/search", params=params)
-    if not isinstance(raw, dict) or "content" not in raw:
+    if not isinstance(raw, dict) or "contents" not in raw:
         logger.warning(
-            "Pharmapi search response missing 'content' key; got keys=%s",
+            "Pharmapi search response missing 'contents' key; got keys=%s",
             list(raw.keys()) if isinstance(raw, dict) else type(raw).__name__,
         )
-    return _parse_prescription_search_json(raw.get("content", []) if isinstance(raw, dict) else [])
+    return _parse_prescription_search_json(raw.get("contents", []) if isinstance(raw, dict) else [])
 
 
 # ── Patient search ──────────────────────────────────────────
@@ -430,11 +463,16 @@ async def pharmapi_search_prescriptions(
 
 def clean_pharmapi_patient_data(data: dict) -> PatientPayload:
     birthdate = datetime.strptime(data["dateOfBirth"], "%Y-%m-%d")
+    # AMKA is the canonical id; EKAA is the European fallback for non-Greek patients.
+    identifier = data.get("amka") or data.get("ekaa")
+    if not identifier:
+        raise HTTPException(502, "Pharmapi returned patient with no AMKA or EKAA")
     return PatientPayload(
-        id=data["amka"],
-        amka=data["amka"],
-        first_name=data["first_name"],
-        last_name=data["last_name"],
+        id=identifier,
+        amka=data.get("amka") or None,
+        ekaa=data.get("ekaa"),
+        first_name=data["firstName"],
+        last_name=data["lastName"],
         date_of_birth=data["dateOfBirth"],
         age=age_from_date(birthdate),
         sex=data["sex"],
@@ -446,15 +484,26 @@ def clean_pharmapi_patient_data(data: dict) -> PatientPayload:
     )
 
 
-async def pharmapi_get_patient(amka: str) -> PatientPayload:
+async def pharmapi_get_patient(
+    amka: str | None = None,
+    ekaa: str | None = None,
+) -> PatientPayload:
     """
-    Fetch the patient's data from Pharmapi using their AMKA. Two endpoints must be accessed:
-    1. General patient data at common/getpatient
-    2. Patient drug intolerances at patients/{amkaOrEkaa}/medicinehistory/{pharmacyId}/intolerances
-
-    Sometimes, patients have an EKAA instead of AMKA, in which case we retry with that.
+    Fetch the patient's data from Pharmapi /api/v1/common/getpatient.
+    Pass `amka` for Greek patients or `ekaa` for European-card patients;
+    at least one must be provided.
     """
-    params: dict = {"amka": amka}
+    if amka:
+        params: dict = {"amka": amka}
+    elif ekaa:
+        params = {"ekaa": ekaa}
+    else:
+        # HTTPException here matches the rest of this service module
+        # (pharmapi_get, verify_pharmapi_credentials, pharmapi_headers all
+        # raise HTTPException directly). Migrating to ValueError + router
+        # translation is a file-wide convention change, not scoped here
+        # (PR #67 review #4).
+        raise HTTPException(400, "pharmapi_get_patient requires amka or ekaa")
     patient_json = await pharmapi_get("/api/v1/common/getpatient", params=params)
     return clean_pharmapi_patient_data(patient_json)
 

@@ -536,8 +536,14 @@ async def resolve(patient_key: str) -> dict | None:
     Currently, the only service is pharmapi.
     """
     if not is_mock_pharmapi():
+        # AMKA: exactly 11 digits. Anything else (e.g. 16-char European EKAA) routes to ekaa param.
+        get_patient = (
+            pharmapi_get_patient(amka=patient_key)
+            if patient_key.isdigit() and len(patient_key) == 11
+            else pharmapi_get_patient(ekaa=patient_key)
+        )
         patient, raw_intolerances = await asyncio.gather(
-            pharmapi_get_patient(patient_key),
+            get_patient,
             pharmapi_get_patient_intolerances(patient_key),
             return_exceptions=True,
         )
