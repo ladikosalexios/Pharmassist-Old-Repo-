@@ -5,11 +5,16 @@ record there, so flag/approve actions on the verification page show up
 immediately in a patient's history.
 """
 
+import asyncio
+import logging
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.patient_condition import PatientCondition
 from app.services.pharmapi import (
+    _date,
+    _map_pharmapi_status,
     pharmapi_get_patient,
     pharmapi_get_patient_intolerances,
     pharmapi_get_patient_medicine_history,
@@ -19,6 +24,8 @@ from app.utils.environment import is_mock_pharmapi
 from ..constants import PrescriptionStatus
 from .prescriptions import MOCK_PRESCRIPTIONS
 from .side_effects import MOCK_SIDE_EFFECTS
+
+logger = logging.getLogger(__name__)
 
 PATIENT_PROFILES: dict = {
     "P001": {
@@ -488,13 +495,13 @@ async def rx_history(patient_id: str) -> list:
         return [
             {
                 "rxId": item.get("prescriptionBarcode"),
-                "date": (item.get("prescriptionExecutionDate") or "")[:10] or None,
+                "date": _date(item.get("prescriptionExecutionDate")),
                 "drugName": item.get("medicineCommercialName"),
                 "prescriberName": None,
-                "status": item.get("prescriptionStatusDesc"),
+                "status": _map_pharmapi_status(item.get("prescriptionStatusDesc")),
                 "quantityPrescribed": item.get("quantityPrescribed"),
                 "quantityOutstanding": item.get("quantityOutstanding"),
-                "euDispensed": item.get("euDispensed") == "true",
+                "euDispensed": str(item.get("euDispensed", "")).lower() == "true",
             }
             for item in items
         ]
@@ -529,17 +536,26 @@ async def resolve(patient_key: str) -> dict | None:
     Currently, the only service is pharmapi.
     """
     if not is_mock_pharmapi():
-        patient = await pharmapi_get_patient(patient_key)
-        raw_intolerances = await pharmapi_get_patient_intolerances(patient_key)
-        patient_dict = patient.model_dump() if hasattr(patient, "model_dump") else dict(patient)
-        patient_dict["intolerances"] = [
-            {
-                "activeSubstance": item.get("activeSubstance"),
-                "intolerance": item.get("intolerance"),
-                "remarks": item.get("remarks"),
-            }
-            for item in raw_intolerances
-        ]
+        patient, raw_intolerances = await asyncio.gather(
+            pharmapi_get_patient(patient_key),
+            pharmapi_get_patient_intolerances(patient_key),
+            return_exceptions=True,
+        )
+        if isinstance(patient, Exception):
+            raise patient
+        patient_dict = patient.model_dump()
+        if isinstance(raw_intolerances, Exception):
+            logger.warning("Failed to fetch intolerances for %s: %s", patient_key, raw_intolerances)
+            patient_dict["intolerances"] = []
+        else:
+            patient_dict["intolerances"] = [
+                {
+                    "activeSubstance": item.get("activeSubstance"),
+                    "intolerance": item.get("intolerance"),
+                    "remarks": item.get("remarks"),
+                }
+                for item in raw_intolerances
+            ]
         return patient_dict
     else:
         direct = PATIENT_PROFILES.get(patient_key)

@@ -459,6 +459,31 @@ async def pharmapi_get_patient(amka: str) -> PatientPayload:
     return clean_pharmapi_patient_data(patient_json)
 
 
+def _parse_page_xml_items(raw_xml: str) -> list[dict]:
+    if not raw_xml:
+        return []
+    root = ET.fromstring(raw_xml)
+    return [{child.tag: child.text for child in item} for item in root.findall("./contents/item")]
+
+
+async def pharmapi_get_patient_intolerances(amka_or_ekaa: str) -> list[dict]:
+    pharmacy_id = get_pharmacy_id()
+    raw = await pharmapi_get(
+        f"/api/v1/patients/{amka_or_ekaa}/medicinehistory/{pharmacy_id}/intolerances",
+        accept_xml=True,
+    )
+    return _parse_page_xml_items(raw.get("raw_xml", ""))
+
+
+async def pharmapi_get_patient_medicine_history(amka_or_ekaa: str) -> list[dict]:
+    pharmacy_id = get_pharmacy_id()
+    raw = await pharmapi_get(
+        f"/api/v1/patients/{amka_or_ekaa}/medicinehistory/full/{pharmacy_id}/prescription",
+        accept_xml=True,
+    )
+    return _parse_page_xml_items(raw.get("raw_xml", ""))
+
+
 async def pharmapi_get_masterdata_medicines(
     page: int = 0,
     size: int = 500,
