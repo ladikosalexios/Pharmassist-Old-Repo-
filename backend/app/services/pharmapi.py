@@ -271,7 +271,7 @@ def _map_pharmapi_status(pharmapi_status: str | None) -> str:
         return PrescriptionStatus.UNKNOWN
     s = pharmapi_status.upper().strip()
     if s not in _PHARMAPI_STATUS_MAP:
-        print(f"[Pharmapi] WARNING: unmapped status '{pharmapi_status}' — defaulting to UNKNOWN")
+        logger.warning("Pharmapi unmapped status '%s' — defaulting to UNKNOWN", pharmapi_status)
         return PrescriptionStatus.UNKNOWN
     return _PHARMAPI_STATUS_MAP[s]
 
@@ -517,7 +517,10 @@ async def pharmapi_get_patient(
 def _parse_page_xml_items(raw_xml: str) -> list[dict]:
     if not raw_xml:
         return []
-    root = ET.fromstring(raw_xml)
+    try:
+        root = ET.fromstring(raw_xml)
+    except ET.ParseError as exc:
+        raise HTTPException(502, f"Pharmapi: could not parse XML page response — {exc}") from exc
     return [{child.tag: child.text for child in item} for item in root.findall("./contents/item")]
 
 
