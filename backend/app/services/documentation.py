@@ -4,6 +4,7 @@ PDF rendering lives in ``services.pdf`` (separate so the optional reportlab
 dependency stays isolated).
 """
 
+import asyncio
 import csv
 import hashlib
 import io
@@ -20,6 +21,7 @@ from ..constants import DeliveryMethod
 from ..db.models.documentation_log import DocumentationLog
 from ..db.models.pharmacist import Pharmacist
 from ..db.models.pharmacist_pharmacy import PharmacistPharmacy
+from .audit import log_documentation_action
 from .security import SECRET_KEY
 
 
@@ -239,4 +241,12 @@ async def record_prescription_action(
     session.add(log)
     await session.commit()
     await session.refresh(log)
+    asyncio.create_task(
+        log_documentation_action(
+            pharmacist_id=pharmacist_id,
+            pharmacy_id=pharmacy_id,
+            action="PRESCRIPTION_DOCUMENTED",
+            resource_id=rx["rxId"],
+        )
+    )
     return log
