@@ -47,6 +47,16 @@ async def get_patient_conditions(
     return await conditions(session, profile["amka"], pharmacy.id)
 
 
+@router.get("/{patient_id}/insurances")
+async def get_patient_insurances(patient_id: str, current: dict = Depends(get_current_user)):
+    from app.services.pharmapi import pharmapi_get_patient_insurances
+    from app.utils.environment import is_mock_pharmapi
+
+    if is_mock_pharmapi():
+        return []
+    return await pharmapi_get_patient_insurances(patient_id)
+
+
 @router.get("/{patient_id}")
 async def get_patient(patient_id: str, current: dict = Depends(get_current_user)):
     profile = await resolve(patient_id)

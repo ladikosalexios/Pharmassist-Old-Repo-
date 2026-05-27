@@ -508,6 +508,11 @@ async def pharmapi_get_patient(
     return clean_pharmapi_patient_data(patient_json)
 
 
+async def pharmapi_get_patient_insurances(amka: str) -> list[dict]:
+    result = await pharmapi_get("/api/v1/common/getpatient/insurances", params={"amka": amka})
+    return result if isinstance(result, list) else []
+
+
 async def pharmapi_get_masterdata_medicines(
     page: int = 0,
     size: int = 500,
