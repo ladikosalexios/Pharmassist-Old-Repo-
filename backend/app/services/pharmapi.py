@@ -416,7 +416,7 @@ def _parse_prescription_search_json(items: list) -> list[dict]:
 
 
 async def pharmapi_search_prescriptions(
-    prescription_status: str | None = None,
+    prescribed: bool | None = None,
     page: int = 0,
     size: int = 50,
     from_date: str | None = None,
@@ -427,8 +427,10 @@ async def pharmapi_search_prescriptions(
     """
     Fetch the prescription queue (or a specific prescription) from Pharmapi.
 
-    prescription_status=<value> → filter by Pharmapi prescriptionStatus (e.g. "ACTIVE", "EXECUTED")
-    barcode=<code>              → find one specific prescription by barcode
+    prescribed=False → pending (not-yet-dispensed) prescriptions
+    prescribed=True  → already-dispensed prescriptions (NOTE: ΗΔΥΚΑ requires
+                       `amka` alongside, else returns code 606)
+    barcode=<code>   → find one specific prescription by barcode
 
     Returns a list of normalised queue items (same shape as MOCK_QUEUE_BASE).
     Raises HTTPException on Pharmapi errors.
@@ -437,8 +439,8 @@ async def pharmapi_search_prescriptions(
         "page": page,
         "size": size,
     }
-    if prescription_status:
-        params["prescriptionStatus"] = prescription_status
+    if prescribed is not None:
+        params["prescribed"] = str(prescribed).lower()
     if from_date:
         params["from"] = from_date
     if to_date:
