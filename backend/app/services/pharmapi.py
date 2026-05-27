@@ -94,7 +94,7 @@ async def pharmapi_get(
     headers = pharmapi_headers()
     if accept_xml:
         headers["Accept"] = "application/xml"
-    print(f"[Pharmapi] GET {url} params={params}")
+    logger.debug("[Pharmapi] GET %s params=%s", url, params)
     async with httpx.AsyncClient(timeout=15.0) as client:
         r = await client.get(
             url,
@@ -102,7 +102,7 @@ async def pharmapi_get(
             headers=headers,
             params=params,
         )
-    print(f"[Pharmapi] {r.status_code} — {r.text[:500]}")
+    logger.debug("[Pharmapi] %s — %s", r.status_code, r.text[:500])
 
     if r.status_code == 200:
         # API returns XML for some endpoints, JSON for others
@@ -152,10 +152,10 @@ async def verify_pharmapi_credentials(username: str, password: str) -> dict:
     """
     url = f"{PHARMAPI_BASE}/api/v1/user/me"
     headers = pharmapi_headers()  # already defaults Accept: application/json
-    print(f"[Pharmapi] AUTH {url} as {username}")
+    logger.debug("[Pharmapi] AUTH %s as %s", url, username)
     async with httpx.AsyncClient(timeout=15.0) as client:
         r = await client.get(url, auth=(username, password), headers=headers)
-    print(f"[Pharmapi] {r.status_code} — {r.text[:300]}")
+    logger.debug("[Pharmapi] %s — %s", r.status_code, r.text[:300])
 
     if r.status_code == 200:
         try:
@@ -462,21 +462,26 @@ async def pharmapi_search_prescriptions(
 
 
 def clean_pharmapi_patient_data(data: dict) -> PatientPayload:
-    birthdate = datetime.strptime(data["dateOfBirth"], "%Y-%m-%d")
+    # Pharmapi v2 uses "birthDate" (spec-confirmed). The old PDF reference doc
+    # incorrectly listed "dateOfBirth" — do not revert.
+    birth_date_str = data["birthDate"]
+    birthdate = datetime.strptime(birth_date_str, "%Y-%m-%d")
     # AMKA is the canonical id; EKAA is the European fallback for non-Greek patients.
-    identifier = data.get("amka") or data.get("ekaa")
+    identifier = data.get("amka") or data.get("identificationNo")
     if not identifier:
         raise HTTPException(502, "Pharmapi returned patient with no AMKA or EKAA")
     return PatientPayload(
         id=identifier,
         amka=data.get("amka") or None,
-        ekaa=data.get("ekaa"),
+        ekaa=data.get("identificationNo"),  # European patients use identificationNo
         first_name=data["firstName"],
         last_name=data["lastName"],
-        date_of_birth=data["dateOfBirth"],
+        date_of_birth=birth_date_str,
         age=age_from_date(birthdate),
-        sex=data["sex"],
-        phone=data["mobile"],
+        sex=data.get("sex", {}).get("name", "")
+        if isinstance(data.get("sex"), dict)
+        else data.get("sex") or "",
+        phone=data.get("telephone") or "",
         conditions=None,
         allergies=None,
         intolerances=None,
@@ -494,9 +499,9 @@ async def pharmapi_get_patient(
     at least one must be provided.
     """
     if amka:
-        params: dict = {"amka": amka}
+        params: dict = {"patientamka": amka}
     elif ekaa:
-        params = {"ekaa": ekaa}
+        params: dict = {"patientekaa": ekaa}
     else:
         # HTTPException here matches the rest of this service module
         # (pharmapi_get, verify_pharmapi_credentials, pharmapi_headers all
@@ -506,6 +511,31 @@ async def pharmapi_get_patient(
         raise HTTPException(400, "pharmapi_get_patient requires amka or ekaa")
     patient_json = await pharmapi_get("/api/v1/common/getpatient", params=params)
     return clean_pharmapi_patient_data(patient_json)
+
+
+def _parse_page_xml_items(raw_xml: str) -> list[dict]:
+    if not raw_xml:
+        return []
+    root = ET.fromstring(raw_xml)
+    return [{child.tag: child.text for child in item} for item in root.findall("./contents/item")]
+
+
+async def pharmapi_get_patient_intolerances(amka_or_ekaa: str) -> list[dict]:
+    pharmacy_id = get_pharmacy_id()
+    raw = await pharmapi_get(
+        f"/api/v1/patients/{amka_or_ekaa}/medicinehistory/{pharmacy_id}/intolerances",
+        accept_xml=True,
+    )
+    return _parse_page_xml_items(raw.get("raw_xml", ""))
+
+
+async def pharmapi_get_patient_medicine_history(amka_or_ekaa: str) -> list[dict]:
+    pharmacy_id = get_pharmacy_id()
+    raw = await pharmapi_get(
+        f"/api/v1/patients/{amka_or_ekaa}/medicinehistory/full/{pharmacy_id}/prescription",
+        accept_xml=True,
+    )
+    return _parse_page_xml_items(raw.get("raw_xml", ""))
 
 
 async def pharmapi_get_masterdata_medicines(

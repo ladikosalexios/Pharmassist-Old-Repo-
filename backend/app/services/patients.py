@@ -5,16 +5,27 @@ record there, so flag/approve actions on the verification page show up
 immediately in a patient's history.
 """
 
+import asyncio
+import logging
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.patient_condition import PatientCondition
-from app.services.pharmapi import pharmapi_get_patient
+from app.services.pharmapi import (
+    _date,
+    _map_pharmapi_status,
+    pharmapi_get_patient,
+    pharmapi_get_patient_intolerances,
+    pharmapi_get_patient_medicine_history,
+)
 from app.utils.environment import is_mock_pharmapi
 
 from ..constants import PrescriptionStatus
 from .prescriptions import MOCK_PRESCRIPTIONS
 from .side_effects import MOCK_SIDE_EFFECTS
+
+logger = logging.getLogger(__name__)
 
 PATIENT_PROFILES: dict = {
     "P001": {
@@ -478,7 +489,22 @@ PATIENT_RX_HISTORY_BASE: dict = {
 }
 
 
-def rx_history(patient_id: str) -> list:
+async def rx_history(patient_id: str) -> list:
+    if not is_mock_pharmapi():
+        items = await pharmapi_get_patient_medicine_history(patient_id)
+        return [
+            {
+                "rxId": item.get("prescriptionBarcode"),
+                "date": _date(item.get("prescriptionExecutionDate")),
+                "drugName": item.get("medicineCommercialName"),
+                "prescriberName": None,
+                "status": _map_pharmapi_status(item.get("prescriptionStatusDesc")),
+                "quantityPrescribed": item.get("quantityPrescribed"),
+                "quantityOutstanding": item.get("quantityOutstanding"),
+                "euDispensed": str(item.get("euDispensed", "")).lower() == "true",
+            }
+            for item in items
+        ]
     rows = list(PATIENT_RX_HISTORY_BASE.get(patient_id, []))
     for row in rows:
         live = MOCK_PRESCRIPTIONS.get(row["rxId"])
@@ -511,9 +537,33 @@ async def resolve(patient_key: str) -> dict | None:
     """
     if not is_mock_pharmapi():
         # AMKA: exactly 11 digits. Anything else (e.g. 16-char European EKAA) routes to ekaa param.
-        if patient_key.isdigit() and len(patient_key) == 11:
-            return await pharmapi_get_patient(amka=patient_key)
-        return await pharmapi_get_patient(ekaa=patient_key)
+        patient_key = patient_key.strip()
+        get_patient = (
+            pharmapi_get_patient(amka=patient_key)
+            if patient_key.isdigit() and len(patient_key) == 11
+            else pharmapi_get_patient(ekaa=patient_key)
+        )
+        patient, raw_intolerances = await asyncio.gather(
+            get_patient,
+            pharmapi_get_patient_intolerances(patient_key),
+            return_exceptions=True,
+        )
+        if isinstance(patient, Exception):
+            raise patient
+        patient_dict = patient.model_dump()
+        if isinstance(raw_intolerances, Exception):
+            logger.warning("Failed to fetch intolerances for %s: %s", patient_key, raw_intolerances)
+            patient_dict["intolerances"] = []
+        else:
+            patient_dict["intolerances"] = [
+                {
+                    "activeSubstance": item.get("activeSubstance"),
+                    "intolerance": item.get("intolerance"),
+                    "remarks": item.get("remarks"),
+                }
+                for item in raw_intolerances
+            ]
+        return patient_dict
     else:
         direct = PATIENT_PROFILES.get(patient_key)
         if direct:
