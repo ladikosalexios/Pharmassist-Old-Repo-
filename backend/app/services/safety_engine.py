@@ -76,9 +76,6 @@ async def evaluate_safety(
     # Only history entries whose rx_id exists in MOCK_PRESCRIPTIONS yield an
     # ATC code; older entries without a full record are silently skipped.
     # TODO: replace MOCK_PRESCRIPTIONS lookup with Pharmapi medicine history.
-    # rx_history is async — the missing `await` here would TypeError on the
-    # comprehension (coroutine isn't iterable) and 500 every /alerts/active
-    # request. Pre-existing bug on main, surfaced by the mock-mode smoke.
     history = await rx_history(patient_id)
     history_atcs = [
         hist_rx["medication"]["atcCode"]
