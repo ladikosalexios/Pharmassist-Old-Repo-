@@ -539,6 +539,17 @@ async def pharmapi_get_patient_intolerances(amka_or_ekaa: str) -> list[dict]:
     return _parse_page_xml_items(raw.get("raw_xml", ""))
 
 
+async def pharmapi_get_prescription_detail(barcode: str) -> dict:
+    """Fetch the v2 detail for a single prescription by barcode.
+
+    Single source for the per-rx enrichment path used by /alerts/active.
+    Response shape is upstream-defined and not yet fully documented in our
+    code; callers should treat fields beyond `barcode` and `medicines[*]`
+    as best-effort.
+    """
+    return await pharmapi_get(f"/api/v1/prescriptions/{barcode}")
+
+
 async def pharmapi_get_patient_medicine_history(amka_or_ekaa: str) -> list[dict]:
     pharmacy_id = get_pharmacy_id()
     # See note on pharmapi_get_patient_intolerances re: patientsConsent.
