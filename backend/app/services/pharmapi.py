@@ -480,8 +480,8 @@ def clean_pharmapi_patient_data(data: dict) -> PatientPayload:
         age=age_from_date(birthdate),
         sex=data.get("sex", {}).get("name", "")
         if isinstance(data.get("sex"), dict)
-        else data.get("sex", ""),
-        phone=data.get("telephone"),
+        else data.get("sex") or "",
+        phone=data.get("telephone") or "",
         conditions=None,
         allergies=None,
         intolerances=None,
