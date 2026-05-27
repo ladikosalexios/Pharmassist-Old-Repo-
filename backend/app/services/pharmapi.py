@@ -396,6 +396,8 @@ def _parse_prescription_search_json(items: list) -> list[dict]:
                     "patientName": item.get("patientName") or "Άγνωστος",
                     "patientAmka": item.get("amka"),
                     "medication": medicines[0]["name"] if medicines else None,
+                    # Surfaced for ATC lookup against drug_catalog (alerts dashboard).
+                    "medicineBarcode": medicines[0].get("barcode") if medicines else None,
                     "physician": item.get("doctorName"),
                     "date": item.get("issueDate"),
                     "expiryDate": item.get("expiryDate"),
@@ -537,17 +539,6 @@ async def pharmapi_get_patient_intolerances(amka_or_ekaa: str) -> list[dict]:
         params={"patientsConsent": "true"},
     )
     return _parse_page_xml_items(raw.get("raw_xml", ""))
-
-
-async def pharmapi_get_prescription_detail(barcode: str) -> dict:
-    """Fetch the v2 detail for a single prescription by barcode.
-
-    Single source for the per-rx enrichment path used by /alerts/active.
-    Response shape is upstream-defined and not yet fully documented in our
-    code; callers should treat fields beyond `barcode` and `medicines[*]`
-    as best-effort.
-    """
-    return await pharmapi_get(f"/api/v1/prescriptions/{barcode}")
 
 
 async def pharmapi_get_patient_medicine_history(amka_or_ekaa: str) -> list[dict]:

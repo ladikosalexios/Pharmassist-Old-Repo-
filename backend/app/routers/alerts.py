@@ -1,15 +1,14 @@
 """Active safety alerts for the dashboard."""
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.db.models.drug_catalog import DrugCatalog
 from app.db.session import get_session
 from app.schemas.safety import SafetyAlertPayload
 from app.services.pharmacy import find_pharmacy_by_name
-from app.services.pharmapi import (
-    pharmapi_get_prescription_detail,
-    pharmapi_search_prescriptions,
-)
+from app.services.pharmapi import pharmapi_search_prescriptions
 from app.utils.environment import is_mock_pharmapi
 
 from ..constants import AlertStatus, PrescriptionStatus
@@ -20,38 +19,31 @@ from ..services.safety_engine import evaluate_safety, load_active_safety_rules
 router = APIRouter(prefix="/alerts", tags=["alerts"])
 
 
-def _extract_atc(detail: dict) -> str | None:
-    """Best-effort ATC extraction from the /prescriptions/{barcode} response.
+async def _resolve_atc_by_barcode(session: AsyncSession, barcodes: list[str]) -> dict[str, str]:
+    """One query that maps medicine barcode → ATC via the local drug_catalog.
 
-    The v2 detail shape is not fully documented in-repo, so we probe the
-    handful of likely paths and return None if none match — evaluate_safety
-    is now tolerant of missing ATC.
+    v2 search doesn't carry ATC and there's no per-rx detail endpoint in the
+    spec; the catalogue we already sync from /masterdata/medicines is the
+    canonical source. Returns an empty dict if no barcodes resolve.
     """
-    if not isinstance(detail, dict):
-        return None
-    medicines = detail.get("medicines") or []
-    if medicines and isinstance(medicines[0], dict):
-        first = medicines[0]
-        for key in ("atcCode", "atc", "atcCode4", "atcL3"):
-            if first.get(key):
-                return first[key]
-    for key in ("atcCode", "atc"):
-        if detail.get(key):
-            return detail[key]
-    return None
+    barcodes = [b for b in barcodes if b]
+    if not barcodes:
+        return {}
+    rows = await session.scalars(select(DrugCatalog).where(DrugCatalog.gns_code.in_(barcodes)))
+    return {row.gns_code: row.atc_code for row in rows}
 
 
-def _live_rx_to_engine_shape(rx: dict, detail: dict) -> dict:
-    """Reshape a v2 search item + detail into what evaluate_safety expects.
+def _live_rx_to_engine_shape(rx: dict, atc: str | None) -> dict:
+    """Reshape a v2 search item into what evaluate_safety expects.
 
-    `patient.id` is set to the AMKA — rx_history's live path takes an
-    AMKA-or-EKAA so the two collapse to one identifier for live mode.
+    `patient.id` collapses to AMKA — rx_history's live path takes an AMKA
+    or EKAA, so a single identifier suffices.
     """
     amka = rx.get("patientAmka")
     return {
         "rxId": rx["rxId"],
         "patient": {"id": amka, "amka": amka},
-        "medication": {"atcCode": _extract_atc(detail)},
+        "medication": {"atcCode": atc},
     }
 
 
@@ -76,17 +68,24 @@ async def get_active_alerts(
             alerts.extend(c for c in payload.checks if c.status != AlertStatus.OK)
         return alerts
 
-    # Live path. Search → enrich each pending with a detail call (no ATC in the
-    # search response) → batch-evaluate against pre-loaded rules.
-    prescriptions = await pharmapi_search_prescriptions(prescription_status="ACTIVE", size=100)
+    # Live path. Search pending (prescribed=False) → resolve each medicine's
+    # ATC from drug_catalog in one query → batch-evaluate against pre-loaded
+    # rules. There is no /prescriptions/{barcode} detail endpoint in v2, so
+    # the catalogue we already sync from /masterdata/medicines is the only
+    # path to ATC. Drugs missing from the catalogue resolve to None and
+    # evaluate_safety silently skips their ATC-keyed checks.
+    prescriptions = await pharmapi_search_prescriptions(prescribed=False, size=100)
     pending = [p for p in prescriptions if p["status"] == PrescriptionStatus.PENDING]
 
+    barcode_to_atc = await _resolve_atc_by_barcode(
+        session, [p.get("medicineBarcode") for p in pending]
+    )
     rules = await load_active_safety_rules(session)
 
     alerts = []
     for rx in pending:
-        detail = await pharmapi_get_prescription_detail(rx["rxId"])
-        shaped = _live_rx_to_engine_shape(rx, detail)
+        atc = barcode_to_atc.get(rx.get("medicineBarcode") or "")
+        shaped = _live_rx_to_engine_shape(rx, atc)
         payload = await evaluate_safety(session, shaped, pharmacy.id, rules=rules)
         alerts.extend(c for c in payload.checks if c.status != AlertStatus.OK)
     return alerts

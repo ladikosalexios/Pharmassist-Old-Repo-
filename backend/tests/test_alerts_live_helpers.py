@@ -24,39 +24,15 @@ os.environ.setdefault(
 
 import uuid  # noqa: E402
 
-from app.routers.alerts import _extract_atc, _live_rx_to_engine_shape  # noqa: E402
+from app.routers.alerts import _live_rx_to_engine_shape  # noqa: E402
 from app.services.safety_engine import evaluate_safety  # noqa: E402
-
-# ── _extract_atc ─────────────────────────────────────────────────────────────
-
-
-def test_extract_atc_from_medicines_atc_code():
-    assert _extract_atc({"medicines": [{"atcCode": "B01AA03"}]}) == "B01AA03"
-
-
-def test_extract_atc_from_medicines_atc_short_key():
-    assert _extract_atc({"medicines": [{"atc": "J01CA04"}]}) == "J01CA04"
-
-
-def test_extract_atc_from_top_level_atc_code():
-    assert _extract_atc({"atcCode": "N02BE01"}) == "N02BE01"
-
-
-def test_extract_atc_returns_none_for_unknown_shape():
-    assert _extract_atc({"foo": "bar"}) is None
-    assert _extract_atc({"medicines": []}) is None
-    assert _extract_atc({"medicines": [{"name": "Foo"}]}) is None
-    assert _extract_atc(None) is None
-    assert _extract_atc([1, 2, 3]) is None  # not a dict
-
 
 # ── _live_rx_to_engine_shape ─────────────────────────────────────────────────
 
 
 def test_live_rx_reshape_collapses_amka_into_patient_id():
     rx = {"rxId": "1234567890123456", "patientAmka": "15031962456"}
-    detail = {"medicines": [{"atcCode": "B01AA03"}]}
-    shaped = _live_rx_to_engine_shape(rx, detail)
+    shaped = _live_rx_to_engine_shape(rx, "B01AA03")
     assert shaped == {
         "rxId": "1234567890123456",
         "patient": {"id": "15031962456", "amka": "15031962456"},
@@ -64,10 +40,9 @@ def test_live_rx_reshape_collapses_amka_into_patient_id():
     }
 
 
-def test_live_rx_reshape_with_no_atc_in_detail():
+def test_live_rx_reshape_with_no_atc():
     rx = {"rxId": "1234567890123456", "patientAmka": "15031962456"}
-    detail = {"medicines": [{"name": "Foo"}]}  # no ATC anywhere
-    shaped = _live_rx_to_engine_shape(rx, detail)
+    shaped = _live_rx_to_engine_shape(rx, None)
     assert shaped["medication"] == {"atcCode": None}
 
 
