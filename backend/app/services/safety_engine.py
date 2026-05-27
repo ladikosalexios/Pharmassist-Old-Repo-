@@ -97,11 +97,13 @@ async def evaluate_safety(
     seen: set[str] = set()
 
     # --- 1. Drug-drug interactions & duplicate therapy ---
-    # Build the list of ATC codes from the patient's prescription history.
-    # Only history entries whose rx_id exists in MOCK_PRESCRIPTIONS yield an
-    # ATC code; older entries without a full record are silently skipped.
+    # Pre-filter rules so we don't make the rx_history call (Pharmapi round-trip
+    # in live mode) when no interaction/duplicate rules can possibly match.
     # TODO: replace MOCK_PRESCRIPTIONS lookup with Pharmapi medicine history.
-    if rx_atc and patient_id:
+    interaction_rules = [
+        r for r in rules if r.check_type in (CheckType.INTERACTIONS, CheckType.DUPLICATE_THERAPY)
+    ]
+    if rx_atc and patient_id and interaction_rules:
         history = await rx_history(patient_id)
         history_atcs = {
             hist_rx["medication"]["atcCode"]
@@ -112,12 +114,7 @@ async def evaluate_safety(
         if history_atcs:
             # Bidirectional ATC match: WARFARIN_ASPIRIN_BLEED fires whether
             # warfarin is the new or the historical drug.
-            for rule in rules:
-                if rule.check_type not in (
-                    CheckType.INTERACTIONS,
-                    CheckType.DUPLICATE_THERAPY,
-                ):
-                    continue
+            for rule in interaction_rules:
                 matches = (rule.trigger_atc == rx_atc and rule.conflicting_atc in history_atcs) or (
                     rule.conflicting_atc == rx_atc and rule.trigger_atc in history_atcs
                 )
@@ -148,17 +145,18 @@ async def evaluate_safety(
                     )
 
     # --- 3. Patient-specific conditions (DB) ---
-    if rx_atc and amka:
+    # Skip the DB call entirely when no rule could possibly match this rx's
+    # ATC — saves a query per evaluated prescription on the alerts dashboard.
+    condition_rule_candidates = [
+        r for r in rules if r.trigger_atc == rx_atc and r.trigger_condition_code is not None
+    ]
+    if rx_atc and amka and condition_rule_candidates:
         pt_conditions = await conditions(session, amka, pharmacy_id)
         condition_codes = {c.condition_code for c in pt_conditions}
 
         if condition_codes:
-            for rule in rules:
-                if (
-                    rule.trigger_atc == rx_atc
-                    and rule.trigger_condition_code in condition_codes
-                    and rule.rule_code not in seen
-                ):
+            for rule in condition_rule_candidates:
+                if rule.trigger_condition_code in condition_codes and rule.rule_code not in seen:
                     seen.add(rule.rule_code)
                     checks.append(_rule_to_alert(rule, rx["rxId"]))
 
