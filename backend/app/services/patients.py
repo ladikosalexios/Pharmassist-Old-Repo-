@@ -537,6 +537,7 @@ async def resolve(patient_key: str) -> dict | None:
     """
     if not is_mock_pharmapi():
         # AMKA: exactly 11 digits. Anything else (e.g. 16-char European EKAA) routes to ekaa param.
+        patient_key = patient_key.strip()
         get_patient = (
             pharmapi_get_patient(amka=patient_key)
             if patient_key.isdigit() and len(patient_key) == 11

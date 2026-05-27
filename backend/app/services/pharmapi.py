@@ -94,7 +94,7 @@ async def pharmapi_get(
     headers = pharmapi_headers()
     if accept_xml:
         headers["Accept"] = "application/xml"
-    print(f"[Pharmapi] GET {url} params={params}")
+    logger.debug("[Pharmapi] GET %s params=%s", url, params)
     async with httpx.AsyncClient(timeout=15.0) as client:
         r = await client.get(
             url,
@@ -102,7 +102,7 @@ async def pharmapi_get(
             headers=headers,
             params=params,
         )
-    print(f"[Pharmapi] {r.status_code} — {r.text[:500]}")
+    logger.debug("[Pharmapi] %s — %s", r.status_code, r.text[:500])
 
     if r.status_code == 200:
         # API returns XML for some endpoints, JSON for others
@@ -152,10 +152,10 @@ async def verify_pharmapi_credentials(username: str, password: str) -> dict:
     """
     url = f"{PHARMAPI_BASE}/api/v1/user/me"
     headers = pharmapi_headers()  # already defaults Accept: application/json
-    print(f"[Pharmapi] AUTH {url} as {username}")
+    logger.debug("[Pharmapi] AUTH %s as %s", url, username)
     async with httpx.AsyncClient(timeout=15.0) as client:
         r = await client.get(url, auth=(username, password), headers=headers)
-    print(f"[Pharmapi] {r.status_code} — {r.text[:300]}")
+    logger.debug("[Pharmapi] %s — %s", r.status_code, r.text[:300])
 
     if r.status_code == 200:
         try:
@@ -462,21 +462,26 @@ async def pharmapi_search_prescriptions(
 
 
 def clean_pharmapi_patient_data(data: dict) -> PatientPayload:
-    birthdate = datetime.strptime(data["dateOfBirth"], "%Y-%m-%d")
+    # Pharmapi v2 uses "birthDate" (spec-confirmed). The old PDF reference doc
+    # incorrectly listed "dateOfBirth" — do not revert.
+    birth_date_str = data["birthDate"]
+    birthdate = datetime.strptime(birth_date_str, "%Y-%m-%d")
     # AMKA is the canonical id; EKAA is the European fallback for non-Greek patients.
-    identifier = data.get("amka") or data.get("ekaa")
+    identifier = data.get("amka") or data.get("identificationNo")
     if not identifier:
         raise HTTPException(502, "Pharmapi returned patient with no AMKA or EKAA")
     return PatientPayload(
         id=identifier,
         amka=data.get("amka") or None,
-        ekaa=data.get("ekaa"),
+        ekaa=data.get("identificationNo"),  # European patients use identificationNo
         first_name=data["firstName"],
         last_name=data["lastName"],
-        date_of_birth=data["dateOfBirth"],
+        date_of_birth=birth_date_str,
         age=age_from_date(birthdate),
-        sex=data["sex"],
-        phone=data["mobile"],
+        sex=data.get("sex", {}).get("name", "")
+        if isinstance(data.get("sex"), dict)
+        else data.get("sex", ""),
+        phone=data.get("telephone"),
         conditions=None,
         allergies=None,
         intolerances=None,
@@ -494,9 +499,9 @@ async def pharmapi_get_patient(
     at least one must be provided.
     """
     if amka:
-        params: dict = {"amka": amka}
+        params: dict = {"patientamka": amka}
     elif ekaa:
-        params = {"ekaa": ekaa}
+        params: dict = {"patientekaa": ekaa}
     else:
         # HTTPException here matches the rest of this service module
         # (pharmapi_get, verify_pharmapi_credentials, pharmapi_headers all
