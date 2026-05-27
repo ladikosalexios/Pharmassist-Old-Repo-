@@ -5,7 +5,6 @@ returned in the response body. The response carries display fields
 (pharmacist_name, pharmacy, ids) the SPA needs to render its shell.
 """
 
-import os
 from datetime import UTC, datetime
 
 import bcrypt
@@ -14,6 +13,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from ..config import get_settings
 from ..crypto import decrypt_credential, encrypt_credential
 from ..db.models.invitation import Invitation
 from ..db.models.pharmacist import Pharmacist
@@ -49,11 +49,6 @@ COOKIE_MAX_AGE_SECONDS = TOKEN_EXPIRE_MIN * 60
 _DUMMY_PASSWORD_HASH: str = bcrypt.hashpw(
     b"unused-dummy-for-constant-time-login", bcrypt.gensalt(rounds=12)
 ).decode()
-
-
-def _cookie_secure() -> bool:
-    """Secure cookie by default; opt out via COOKIE_SECURE=false for local HTTP."""
-    return os.getenv("COOKIE_SECURE", "true").lower() not in ("false", "0", "no")
 
 
 @router.post("/login", response_model=LoginResponse)
@@ -113,15 +108,16 @@ async def login(
             "email": pharmacist.email,
         }
     )
+    settings = get_settings()
     # path="/" is the Starlette default today, but pin it on both set_cookie
     # and delete_cookie so a future default change can't leave a deletion
     # request scoped to a different path than the original set.
     response.set_cookie(
         key=COOKIE_NAME,
         value=token,
-        httponly=True,
-        samesite="strict",
-        secure=_cookie_secure(),
+        httponly=settings.cookie_httponly,
+        samesite=settings.cookie_samesite,
+        secure=settings.cookie_secure,
         max_age=COOKIE_MAX_AGE_SECONDS,
         path="/",
     )
@@ -137,11 +133,12 @@ async def login(
 @router.post("/logout")
 async def logout(response: Response) -> dict:
     """Clear the session cookie. Idempotent — safe to call without a cookie."""
+    settings = get_settings()
     response.delete_cookie(
         key=COOKIE_NAME,
-        httponly=True,
-        samesite="strict",
-        secure=_cookie_secure(),
+        httponly=settings.cookie_httponly,
+        samesite=settings.cookie_samesite,
+        secure=settings.cookie_secure,
         path="/",
     )
     return {"ok": True}

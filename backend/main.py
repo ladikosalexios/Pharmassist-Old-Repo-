@@ -27,6 +27,7 @@ Project layout:
   main.py        — create_app() factory; uvicorn entrypoint (this file)
 """
 
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -91,6 +92,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     """
     if settings is None:
         settings = get_settings()
+
+    if os.getenv("ENV", "production") == "production":
+        if not settings.cookie_secure:
+            raise RuntimeError(
+                "COOKIE_SECURE must be True in production. "
+                "Set COOKIE_SECURE=false only in local dev .env."
+            )
 
     app = FastAPI(
         title=settings.app_title,
