@@ -78,6 +78,7 @@ async def pharmapi_get(
     path: str,
     accept_xml: bool = False,
     params: dict | None = None,
+    _retrying: bool = False,
 ) -> dict | list:
     """Authenticated GET to Pharmapi. Raises HTTPException on failure.
 
@@ -89,12 +90,16 @@ async def pharmapi_get(
     upstream returns — most endpoints return a paginated object, but
     `/api/v1/version` returns a top-level array. Callers are expected to
     narrow.
+
+    `_retrying` is an internal flag — on a G14 (session expired) it auto-
+    refreshes once via /user/me + _start_pharmapi_session and re-issues
+    the original call. A second G14 raises 401 instead of looping.
     """
     url = f"{PHARMAPI_BASE}{path}"
     headers = pharmapi_headers()
     if accept_xml:
         headers["Accept"] = "application/xml"
-    print(f"[Pharmapi] GET {url} params={params}")
+    logger.debug("[Pharmapi] GET %s params=%s", url, params)
     async with httpx.AsyncClient(timeout=15.0) as client:
         r = await client.get(
             url,
@@ -102,7 +107,7 @@ async def pharmapi_get(
             headers=headers,
             params=params,
         )
-    print(f"[Pharmapi] {r.status_code} — {r.text[:500]}")
+    logger.debug("[Pharmapi] %s — %s", r.status_code, r.text[:500])
 
     if r.status_code == 200:
         # API returns XML for some endpoints, JSON for others
@@ -128,10 +133,15 @@ async def pharmapi_get(
             502, "Pharmapi: no active connection — call POST /pharmapi/connect first"
         )
     if "G14" in err or "914" in err or "Connection time limit" in err:
-        raise HTTPException(
-            502,
-            "Pharmapi: 24h session expired — log into https://test.e-prescription.gr/epregen2/ first, then retry",
-        )
+        if _retrying:
+            raise HTTPException(401, "Pharmapi session expired — please re-login (G14)")
+        try:
+            user_data = await pharmapi_get("/api/v1/user/me", _retrying=True)
+            _start_pharmapi_session(user_data)
+        except Exception as exc:
+            logger.warning("G14 auto-refresh failed: %s", exc)
+            raise HTTPException(401, "Pharmapi session expired — please re-login (G14)") from exc
+        return await pharmapi_get(path, accept_xml=accept_xml, params=params, _retrying=True)
     if "G15" in err:
         raise HTTPException(500, "Pharmapi: Api-Key missing — set PHARMAPI_API_KEY env var")
     if "G11" in err:
@@ -152,10 +162,10 @@ async def verify_pharmapi_credentials(username: str, password: str) -> dict:
     """
     url = f"{PHARMAPI_BASE}/api/v1/user/me"
     headers = pharmapi_headers()  # already defaults Accept: application/json
-    print(f"[Pharmapi] AUTH {url} as {username}")
+    logger.debug("[Pharmapi] AUTH %s as %s", url, username)
     async with httpx.AsyncClient(timeout=15.0) as client:
         r = await client.get(url, auth=(username, password), headers=headers)
-    print(f"[Pharmapi] {r.status_code} — {r.text[:300]}")
+    logger.debug("[Pharmapi] %s — %s", r.status_code, r.text[:300])
 
     if r.status_code == 200:
         try:
@@ -271,7 +281,7 @@ def _map_pharmapi_status(pharmapi_status: str | None) -> str:
         return PrescriptionStatus.UNKNOWN
     s = pharmapi_status.upper().strip()
     if s not in _PHARMAPI_STATUS_MAP:
-        print(f"[Pharmapi] WARNING: unmapped status '{pharmapi_status}' — defaulting to UNKNOWN")
+        logger.warning("Pharmapi unmapped status '%s' — defaulting to UNKNOWN", pharmapi_status)
         return PrescriptionStatus.UNKNOWN
     return _PHARMAPI_STATUS_MAP[s]
 
@@ -337,23 +347,22 @@ def parse_prescription_search_xml(xml_text: str) -> list[dict]:
 
 
 async def pharmapi_check_version() -> None:
-    """Call GET /api/v1/version and log the current API version at startup."""
+    """Call GET /api/v1/version and log the current API version at startup.
+
+    Per the v2 OpenAPI spec /version returns a plain string (application/text
+    or application/xml) — not the paginated JSON shape we originally assumed.
+    We ask for XML and pull the version line out of the body.
+    """
     try:
-        data = await pharmapi_get("/api/v1/version")
-        versions = data if isinstance(data, list) else data.get("content", [])
-        if versions:
-            latest = versions[0]
-            logger.info(
-                "Pharmapi API version: %s (released %s)",
-                latest.get("version"),
-                latest.get("releaseDate"),
-            )
-            logger.info("Pharmapi changelog: %s", latest.get("changelog", "none"))
+        data = await pharmapi_get("/api/v1/version", accept_xml=True)
+        body = data.get("raw_xml", "") if isinstance(data, dict) else str(data)
+        if body:
+            # Body looks like: "## Πληροφορίες Εκδόσεων\n\n1.0.0\n\nRelease Gen2 PharmApi"
+            # Just log the whole thing on one line — it's short and changes rarely.
+            one_line = " | ".join(s.strip() for s in body.splitlines() if s.strip())
+            logger.info("Pharmapi version: %s", one_line)
         else:
-            logger.warning(
-                "Pharmapi version endpoint returned empty or unexpected response: %r",
-                data,
-            )
+            logger.warning("Pharmapi /version returned empty body")
     except Exception as exc:
         logger.warning("Pharmapi version check failed — %s", exc)
 
@@ -397,6 +406,8 @@ def _parse_prescription_search_json(items: list) -> list[dict]:
                     "patientName": item.get("patientName") or "Άγνωστος",
                     "patientAmka": item.get("amka"),
                     "medication": medicines[0]["name"] if medicines else None,
+                    # Surfaced for ATC lookup against drug_catalog (alerts dashboard).
+                    "medicineBarcode": medicines[0].get("barcode") if medicines else None,
                     "physician": item.get("doctorName"),
                     "date": item.get("issueDate"),
                     "expiryDate": item.get("expiryDate"),
@@ -417,7 +428,7 @@ def _parse_prescription_search_json(items: list) -> list[dict]:
 
 
 async def pharmapi_search_prescriptions(
-    prescription_status: str | None = None,
+    prescribed: bool | None = None,
     page: int = 0,
     size: int = 50,
     from_date: str | None = None,
@@ -428,8 +439,10 @@ async def pharmapi_search_prescriptions(
     """
     Fetch the prescription queue (or a specific prescription) from Pharmapi.
 
-    prescription_status=<value> → filter by Pharmapi prescriptionStatus (e.g. "ACTIVE", "EXECUTED")
-    barcode=<code>              → find one specific prescription by barcode
+    prescribed=False → pending (not-yet-dispensed) prescriptions
+    prescribed=True  → already-dispensed prescriptions (NOTE: ΗΔΥΚΑ requires
+                       `amka` alongside, else returns code 606)
+    barcode=<code>   → find one specific prescription by barcode
 
     Returns a list of normalised queue items (same shape as MOCK_QUEUE_BASE).
     Raises HTTPException on Pharmapi errors.
@@ -438,8 +451,8 @@ async def pharmapi_search_prescriptions(
         "page": page,
         "size": size,
     }
-    if prescription_status:
-        params["prescriptionStatus"] = prescription_status
+    if prescribed is not None:
+        params["prescribed"] = str(prescribed).lower()
     if from_date:
         params["from"] = from_date
     if to_date:
@@ -462,21 +475,26 @@ async def pharmapi_search_prescriptions(
 
 
 def clean_pharmapi_patient_data(data: dict) -> PatientPayload:
-    birthdate = datetime.strptime(data["dateOfBirth"], "%Y-%m-%d")
+    # Pharmapi v2 uses "birthDate" (spec-confirmed). The old PDF reference doc
+    # incorrectly listed "dateOfBirth" — do not revert.
+    birth_date_str = data["birthDate"]
+    birthdate = datetime.strptime(birth_date_str, "%Y-%m-%d")
     # AMKA is the canonical id; EKAA is the European fallback for non-Greek patients.
-    identifier = data.get("amka") or data.get("ekaa")
+    identifier = data.get("amka") or data.get("identificationNo")
     if not identifier:
         raise HTTPException(502, "Pharmapi returned patient with no AMKA or EKAA")
     return PatientPayload(
         id=identifier,
         amka=data.get("amka") or None,
-        ekaa=data.get("ekaa"),
+        ekaa=data.get("identificationNo"),  # European patients use identificationNo
         first_name=data["firstName"],
         last_name=data["lastName"],
-        date_of_birth=data["dateOfBirth"],
+        date_of_birth=birth_date_str,
         age=age_from_date(birthdate),
-        sex=data["sex"],
-        phone=data["mobile"],
+        sex=data.get("sex", {}).get("name", "")
+        if isinstance(data.get("sex"), dict)
+        else data.get("sex") or "",
+        phone=data.get("telephone") or "",
         conditions=None,
         allergies=None,
         intolerances=None,
@@ -494,9 +512,9 @@ async def pharmapi_get_patient(
     at least one must be provided.
     """
     if amka:
-        params: dict = {"amka": amka}
+        params: dict = {"patientamka": amka}
     elif ekaa:
-        params = {"ekaa": ekaa}
+        params: dict = {"patientekaa": ekaa}
     else:
         # HTTPException here matches the rest of this service module
         # (pharmapi_get, verify_pharmapi_credentials, pharmapi_headers all
@@ -506,6 +524,42 @@ async def pharmapi_get_patient(
         raise HTTPException(400, "pharmapi_get_patient requires amka or ekaa")
     patient_json = await pharmapi_get("/api/v1/common/getpatient", params=params)
     return clean_pharmapi_patient_data(patient_json)
+
+
+def _parse_page_xml_items(raw_xml: str) -> list[dict]:
+    if not raw_xml:
+        return []
+    try:
+        root = ET.fromstring(raw_xml)
+    except ET.ParseError as exc:
+        raise HTTPException(502, f"Pharmapi: could not parse XML page response — {exc}") from exc
+    return [{child.tag: child.text for child in item} for item in root.findall("./contents/item")]
+
+
+async def pharmapi_get_patient_intolerances(amka_or_ekaa: str) -> list[dict]:
+    pharmacy_id = get_pharmacy_id()
+    # Spec ref: GET /patients/{amkaOrEkaa}/medicinehistory/{pharmacyId}/intolerances
+    # exposes `patientsConsent` as an optional query flag. Without it, ΗΔΥΚΑ
+    # blocks every call with code 608 "Patient's consent is required for full
+    # history." Asserting consent here matches our UX assumption that the
+    # pharmacist already obtained consent at the counter.
+    raw = await pharmapi_get(
+        f"/api/v1/patients/{amka_or_ekaa}/medicinehistory/{pharmacy_id}/intolerances",
+        accept_xml=True,
+        params={"patientsConsent": "true"},
+    )
+    return _parse_page_xml_items(raw.get("raw_xml", ""))
+
+
+async def pharmapi_get_patient_medicine_history(amka_or_ekaa: str) -> list[dict]:
+    pharmacy_id = get_pharmacy_id()
+    # See note on pharmapi_get_patient_intolerances re: patientsConsent.
+    raw = await pharmapi_get(
+        f"/api/v1/patients/{amka_or_ekaa}/medicinehistory/full/{pharmacy_id}/prescription",
+        accept_xml=True,
+        params={"patientsConsent": "true"},
+    )
+    return _parse_page_xml_items(raw.get("raw_xml", ""))
 
 
 async def pharmapi_get_masterdata_medicines(
