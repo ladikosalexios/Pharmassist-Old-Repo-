@@ -13,7 +13,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from ..config import get_settings
+from ..config import Settings, get_settings
 from ..crypto import decrypt_credential, encrypt_credential
 from ..db.models.invitation import Invitation
 from ..db.models.pharmacist import Pharmacist
@@ -56,6 +56,7 @@ async def login(
     body: LoginRequest,
     response: Response,
     db: AsyncSession = Depends(get_session),
+    settings: Settings = Depends(get_settings),
 ) -> LoginResponse:
     """Authenticate against the pharmacists table + ΗΔΥΚΑ, issue a session cookie."""
     pharmacist = await db.scalar(
@@ -108,7 +109,6 @@ async def login(
             "email": pharmacist.email,
         }
     )
-    settings = get_settings()
     # path="/" is the Starlette default today, but pin it on both set_cookie
     # and delete_cookie so a future default change can't leave a deletion
     # request scoped to a different path than the original set.
@@ -131,9 +131,11 @@ async def login(
 
 
 @router.post("/logout")
-async def logout(response: Response) -> dict:
+async def logout(
+    response: Response,
+    settings: Settings = Depends(get_settings),
+) -> dict:
     """Clear the session cookie. Idempotent — safe to call without a cookie."""
-    settings = get_settings()
     response.delete_cookie(
         key=COOKIE_NAME,
         httponly=settings.cookie_httponly,

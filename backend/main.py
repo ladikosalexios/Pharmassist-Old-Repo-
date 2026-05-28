@@ -93,6 +93,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     if settings is None:
         settings = get_settings()
 
+    # Treat a missing ENV as production (secure-by-default).
     if os.getenv("ENV", "production") == "production":
         if not settings.cookie_secure:
             raise RuntimeError(

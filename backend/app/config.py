@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import os
 from functools import lru_cache
+from typing import Literal
 
 from dotenv import load_dotenv
 from pydantic import BaseModel
@@ -84,7 +85,7 @@ class Settings(BaseModel):
     # ── Cookie security ─────────────────────────────────────────────────────
     cookie_secure: bool
     cookie_httponly: bool
-    cookie_samesite: str
+    cookie_samesite: Literal["strict", "lax", "none"]
 
     # ── Database ────────────────────────────────────────────────────────────
     database_url: str
