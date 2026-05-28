@@ -8,6 +8,7 @@ not already covered by that mock.
 from datetime import UTC, datetime
 from uuid import UUID
 
+from fastapi import HTTPException
 from sqlalchemy import select, true
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -16,6 +17,7 @@ from ..db.models.safety_rule import SafetyRule
 from ..schemas.safety import STATUS_ORDER, SafetyAlertPayload, SafetyChecksPayload
 from .patients import conditions, rx_history
 from .prescriptions import MOCK_PRESCRIPTIONS
+from .safety_checks import MOCK_SAFETY_CHECKS
 
 # Intolerances are not yet available from Pharmapi, so a minimal mock is used.
 # Each entry mirrors the shape the Pharmapi endpoint will eventually return.
@@ -68,6 +70,40 @@ async def load_active_safety_rules(session: AsyncSession) -> list[SafetyRule]:
     """
     result = await session.scalars(select(SafetyRule).where(SafetyRule.active == true()))
     return list(result.all())
+
+
+async def checks_for_prescription(
+    session: AsyncSession,
+    rx_id: str,
+    rx: dict | None,
+    pharmacy_id: UUID,
+    rules: list[SafetyRule] | None = None,
+) -> SafetyChecksPayload:
+    """Single source of truth for a prescription's safety checks.
+
+    Demo prescriptions (rx_id in MOCK_SAFETY_CHECKS) are served from their
+    curated, clinically-authored checklist; everything else is evaluated by
+    the rule engine. BOTH the dashboard (/alerts/active) and the per-rx
+    verification view (/safety-checks/{rx}) call this, so the two views can
+    never disagree about a prescription — a block on one is a block on the
+    other by construction.
+    """
+    mock_checks = MOCK_SAFETY_CHECKS.get(rx_id)
+    if mock_checks is not None:
+        checks = []
+        for c in mock_checks:
+            payload = SafetyAlertPayload.model_validate(c)
+            # The curated dicts don't carry rx_id, and their `id` is generic
+            # ("interactions", …). Stamp both so dashboard cards link back to
+            # the right prescription and React keys stay unique across the
+            # queue — matching what the engine path emits.
+            payload.rx_id = rx_id
+            payload.id = f"{rx_id}_{c['id']}"
+            checks.append(payload)
+        return SafetyChecksPayload(rx_id=rx_id, checks=checks, source="mock")
+    if rx is None:
+        raise HTTPException(status_code=404, detail=f"Prescription {rx_id} not found")
+    return await evaluate_safety(session, rx, pharmacy_id, rules=rules)
 
 
 async def evaluate_safety(
