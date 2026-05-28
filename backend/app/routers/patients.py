@@ -52,11 +52,11 @@ async def get_patient_conditions(
 
 @router.get("/{patient_id}/insurances", response_model=list[PatientInsurancePayload])
 async def get_patient_insurances(patient_id: str, current: dict = Depends(get_current_user)):
-    if is_mock_pharmapi():
-        return []
     profile = await resolve(patient_id)
     if profile is None:
         raise HTTPException(status_code=404, detail=f"Patient {patient_id} not found")
+    if is_mock_pharmapi():
+        return []
     return await pharmapi_get_patient_insurances(
         amka=profile.get("amka"),
         ekaa=profile.get("ekaa"),
