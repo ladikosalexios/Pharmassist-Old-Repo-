@@ -9,12 +9,11 @@ import {
   PillIcon,
 } from "./Icons";
 import { ApiError, getActiveAlerts } from "../lib/api";
-import type { ActiveAlert, AlertType } from "../types";
+import type { ActiveAlert, AlertType, CheckStatus } from "../types";
 
-type Severity = "Critical" | "High Priority" | "Medium Priority";
+type Severity = "Critical" | "Review";
 
-interface AlertVisual {
-  Icon: typeof PillIcon;
+interface StatusVisual {
   severity: Severity;
   border: string; // border + accent color
   bg: string; // soft background tint
@@ -22,56 +21,45 @@ interface AlertVisual {
   pulse?: boolean;
 }
 
-const ALERT_VISUAL: Record<AlertType, AlertVisual> = {
-  interactions: {
-    Icon: PillIcon,
+// Severity styling is driven by the check's STATUS (block vs review), not its
+// type — a review-level interaction must not look like a hard block. The check
+// type only selects the icon.
+const STATUS_VISUAL: Record<CheckStatus, StatusVisual> = {
+  block: {
     severity: "Critical",
     border: "border-red-300",
     bg: "bg-red-50",
     label: "text-red-700",
     pulse: true,
   },
-  contraindications: {
-    Icon: AlertTriangleIcon,
-    severity: "High Priority",
-    border: "border-orange-300",
-    bg: "bg-orange-50",
-    label: "text-orange-700",
+  review: {
+    severity: "Review",
+    border: "border-amber-300",
+    bg: "bg-amber-50",
+    label: "text-amber-700",
   },
-  duplicate_therapy: {
-    Icon: ClockIcon,
-    severity: "High Priority",
-    border: "border-orange-300",
-    bg: "bg-orange-50",
-    label: "text-orange-700",
+  // Never rendered (the dashboard only surfaces non-OK alerts) — defined for
+  // exhaustiveness so the map is total over CheckStatus.
+  ok: {
+    severity: "Review",
+    border: "border-slate-200",
+    bg: "bg-slate-50",
+    label: "text-slate-600",
   },
-  dose_validation: {
-    Icon: AlertTriangleIcon,
-    severity: "High Priority",
-    border: "border-orange-300",
-    bg: "bg-orange-50",
-    label: "text-orange-700",
-  },
-  pregnancy: {
-    Icon: ClockIcon,
-    severity: "Medium Priority",
-    border: "border-yellow-300",
-    bg: "bg-yellow-50",
-    label: "text-yellow-700",
-  },
-  G6PD: {
-    Icon: ShieldIcon,
-    severity: "High Priority",
-    border: "border-orange-300",
-    bg: "bg-orange-50",
-    label: "text-orange-700",
-  },
+};
+
+const TYPE_ICON: Record<AlertType, typeof PillIcon> = {
+  interactions: PillIcon,
+  contraindications: AlertTriangleIcon,
+  duplicate_therapy: ClockIcon,
+  dose_validation: AlertTriangleIcon,
+  pregnancy: ClockIcon,
+  G6PD: ShieldIcon,
 };
 
 const SEVERITY_COLOR: Record<Severity, string> = {
   Critical: "text-red-600",
-  "High Priority": "text-orange-600",
-  "Medium Priority": "text-amber-600",
+  Review: "text-amber-600",
 };
 
 interface SafetyAlertsPanelProps {
@@ -145,16 +133,7 @@ export function SafetyAlertsPanel({ maxHeightClass = "max-h-96" }: SafetyAlertsP
         </div>
         <ul className="space-y-1 text-xs">
           <SummaryRow label="Critical" count={counts.Critical} color={SEVERITY_COLOR.Critical} />
-          <SummaryRow
-            label="High Priority"
-            count={counts["High Priority"]}
-            color={SEVERITY_COLOR["High Priority"]}
-          />
-          <SummaryRow
-            label="Medium Priority"
-            count={counts["Medium Priority"]}
-            color={SEVERITY_COLOR["Medium Priority"]}
-          />
+          <SummaryRow label="Review" count={counts.Review} color={SEVERITY_COLOR.Review} />
         </ul>
       </footer>
     </section>
@@ -162,14 +141,15 @@ export function SafetyAlertsPanel({ maxHeightClass = "max-h-96" }: SafetyAlertsP
 }
 
 function AlertCard({ alert, isNew }: { alert: ActiveAlert; isNew: boolean }) {
-  const v = ALERT_VISUAL[alert.type] ?? ALERT_VISUAL["contraindications"];
+  const v = STATUS_VISUAL[alert.status] ?? STATUS_VISUAL.review;
+  const Icon = TYPE_ICON[alert.type] ?? AlertTriangleIcon;
   return (
     <article
       className={`rounded-xl border-2 ${v.border} ${v.bg} p-3.5 ${isNew ? "animate-alert-in" : ""} ${v.pulse ? "animate-pulse-red-border" : ""}`}
       role="listitem"
     >
       <div className="flex items-center gap-1.5">
-        <v.Icon width={14} height={14} className={v.label} />
+        <Icon width={14} height={14} className={v.label} />
         <span className={`text-xs font-bold tracking-wide ${v.label}`}>
           {alert.type.toUpperCase()}
         </span>
@@ -200,9 +180,9 @@ function SummaryRow({ label, count, color }: { label: string; count: number; col
 }
 
 function countSeverities(alerts: ActiveAlert[]): Record<Severity, number> {
-  const out: Record<Severity, number> = { Critical: 0, "High Priority": 0, "Medium Priority": 0 };
+  const out: Record<Severity, number> = { Critical: 0, Review: 0 };
   for (const a of alerts) {
-    const sev = ALERT_VISUAL[a.type]?.severity;
+    const sev = STATUS_VISUAL[a.status]?.severity;
     if (sev) out[sev]++;
   }
   return out;

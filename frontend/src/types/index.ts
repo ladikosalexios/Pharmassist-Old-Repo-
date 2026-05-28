@@ -96,6 +96,7 @@ export type AlertType =
 export interface ActiveAlert {
   id: string;
   type: AlertType;
+  status: CheckStatus;
   description: string;
   rxId?: string | null;
   createdAt: string | null;
