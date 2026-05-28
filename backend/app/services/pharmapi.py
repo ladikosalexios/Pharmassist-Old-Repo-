@@ -8,6 +8,7 @@ Pharmapi credentials are sourced from the centralised settings.
 
 import logging
 import os
+import re
 import time
 import uuid
 import xml.etree.ElementTree as ET
@@ -33,6 +34,16 @@ PHARMAPI_USER = _settings.pharmapi_username
 PHARMAPI_PASS = _settings.pharmapi_password
 PHARMAPI_API_KEY = _settings.pharmapi_api_key
 SESSION_WINDOW_SECONDS = _settings.pharmapi_session_window_seconds
+
+_PHARMAPI_RX_ERRORS: dict[str, tuple[int, str]] = {
+    "G01": (404, "Prescription not found — verify barcode or AMKA"),
+    "G02": (409, "Prescription already executed"),
+    "G03": (409, "Prescription is cancelled — cannot execute"),
+    "G04": (410, "Prescription is expired — check validity dates"),
+    "G05": (422, "Patient insurance is invalid — verify coverage"),
+    "G06": (422, "Partial execution not allowed for this prescription"),
+    "G07": (404, "Medicine not found — verify barcode"),
+}
 
 
 # In-memory 24h session tracker. Mutated by the /pharmapi/connect handler.
@@ -146,6 +157,9 @@ async def pharmapi_get(
         raise HTTPException(500, "Pharmapi: Api-Key missing — set PHARMAPI_API_KEY env var")
     if "G11" in err:
         raise HTTPException(500, "Pharmapi: Api-Key invalid — check PHARMAPI_API_KEY value")
+    for code, (status, message) in _PHARMAPI_RX_ERRORS.items():
+        if re.search(rf"\b{re.escape(code)}\b", err):
+            raise HTTPException(status, f"Pharmapi: {message} ({code})")
     if r.status_code == 401:
         raise HTTPException(502, f"Pharmapi: bad credentials — {err}")
     raise HTTPException(502, f"Pharmapi error {r.status_code}: {err}")
@@ -584,3 +598,26 @@ async def pharmapi_get_masterdata_medicines(
         params = {"page": page, "size": size}
 
     return await pharmapi_get(path, params=params)
+
+
+async def pharmapi_get_error_codes() -> list[dict]:
+    try:
+        result = await pharmapi_get("/api/v1/errorslist")
+    except HTTPException:
+        logger.info("pharmapi_get_error_codes: upstream unavailable — returning local error codes")
+        return [{"code": k, "status": s, "message": m} for k, (s, m) in _PHARMAPI_RX_ERRORS.items()]
+
+    if isinstance(result, list):
+        return result
+    if isinstance(result, dict):
+        content = result.get("contents")
+        if content is None:
+            logger.warning(
+                "pharmapi_get_error_codes: unexpected response shape — keys: %s",
+                list(result.keys()),
+            )
+            raise HTTPException(502, "Pharmapi: /api/v1/errorslist returned unexpected shape")
+        return content
+    raise HTTPException(
+        502, f"Pharmapi: /api/v1/errorslist returned unexpected type {type(result).__name__}"
+    )

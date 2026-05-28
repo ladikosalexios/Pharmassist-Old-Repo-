@@ -11,6 +11,7 @@ from ..services.pharmapi import (
     SESSION_WINDOW_SECONDS,
     _start_pharmapi_session,
     pharmapi_get,
+    pharmapi_get_error_codes,
     pharmapi_search_prescriptions,
     pharmapi_session,
     session_is_valid,
@@ -77,6 +78,12 @@ async def get_my_pharmacy(current: dict = Depends(get_current_user)):
     Requires active Pharmapi session (call /pharmapi/connect first).
     """
     return await pharmapi_get("/pharmacies/myPharmacy")
+
+
+@router.get("/errors")
+async def get_error_codes(current: dict = Depends(get_current_user)):
+    """Fetch the full Pharmapi error code list from ΗΔΥΚΑ."""
+    return await pharmapi_get_error_codes()
 
 
 @router.get("/prescriptions/queue")
