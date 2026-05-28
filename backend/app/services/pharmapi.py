@@ -526,9 +526,27 @@ async def pharmapi_get_patient(
     return clean_pharmapi_patient_data(patient_json)
 
 
-async def pharmapi_get_patient_insurances(amka: str) -> list[dict]:
-    result = await pharmapi_get("/api/v1/common/getpatient/insurances", params={"amka": amka})
-    return result if isinstance(result, list) else []
+async def pharmapi_get_patient_insurances(
+    amka: str | None = None,
+    ekaa: str | None = None,
+) -> list[dict]:
+    if amka:
+        params: dict = {"patientamka": amka}
+    elif ekaa:
+        params: dict = {"patientekaa": ekaa}
+    else:
+        raise HTTPException(400, "pharmapi_get_patient_insurances requires amka or ekaa")
+    result = await pharmapi_get("/api/v1/common/getpatient/insurances", params=params)
+    if isinstance(result, list):
+        return result
+    if isinstance(result, dict):
+        contents = result.get("contents")
+        if isinstance(contents, list):
+            return contents
+    print(
+        f"[Pharmapi] /getpatient/insurances returned unexpected shape: {type(result)} — {result!r:.200}"
+    )
+    return []
 
 
 def _parse_page_xml_items(raw_xml: str) -> list[dict]:

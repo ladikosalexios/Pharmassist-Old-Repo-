@@ -9,7 +9,10 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.schemas.patient_conditions import PatientConditionPayload
+from app.schemas.patient_insurances import PatientInsurancePayload
 from app.services.pharmacy import find_pharmacy_by_name
+from app.services.pharmapi import pharmapi_get_patient_insurances
+from app.utils.environment import is_mock_pharmapi
 
 from ..db.session import get_session
 from ..deps import get_current_user
@@ -47,14 +50,17 @@ async def get_patient_conditions(
     return await conditions(session, profile["amka"], pharmacy.id)
 
 
-@router.get("/{patient_id}/insurances")
+@router.get("/{patient_id}/insurances", response_model=list[PatientInsurancePayload])
 async def get_patient_insurances(patient_id: str, current: dict = Depends(get_current_user)):
-    from app.services.pharmapi import pharmapi_get_patient_insurances
-    from app.utils.environment import is_mock_pharmapi
-
     if is_mock_pharmapi():
         return []
-    return await pharmapi_get_patient_insurances(patient_id)
+    profile = await resolve(patient_id)
+    if profile is None:
+        raise HTTPException(status_code=404, detail=f"Patient {patient_id} not found")
+    return await pharmapi_get_patient_insurances(
+        amka=profile.get("amka"),
+        ekaa=profile.get("ekaa"),
+    )
 
 
 @router.get("/{patient_id}")
