@@ -295,6 +295,22 @@ PATIENT_RX_HISTORY_BASE: dict = {
             "prescriberName": "Dr. Michael Chen",
             "status": PrescriptionStatus.PENDING,
         },
+        # RX-HIST-001/002 trigger WARFARIN_ASPIRIN_BLEED + WARFARIN_AMIODARONE_INTERACTION
+        # against Maria's pending Warfarin (RX2024-005).
+        {
+            "rxId": "RX-HIST-001",
+            "date": "2025-12-04",
+            "drugName": "Aspirin 100 mg",
+            "prescriberName": "Dr. Michael Chen",
+            "status": PrescriptionStatus.COMPLETED,
+        },
+        {
+            "rxId": "RX-HIST-002",
+            "date": "2025-10-21",
+            "drugName": "Amiodarone 200 mg",
+            "prescriberName": "Dr. Michael Chen",
+            "status": PrescriptionStatus.COMPLETED,
+        },
         {
             "rxId": "RX2023-118",
             "date": "2025-11-12",
@@ -347,6 +363,14 @@ PATIENT_RX_HISTORY_BASE: dict = {
             "drugName": "Amoxicillin 500 mg",
             "prescriberName": "Dr. Michael Chen",
             "status": PrescriptionStatus.PENDING,
+        },
+        # RX-HIST-003 triggers WARFARIN_ASPIRIN_BLEED against Sarah's pending Warfarin.
+        {
+            "rxId": "RX-HIST-003",
+            "date": "2026-02-18",
+            "drugName": "Aspirin 75 mg",
+            "prescriberName": "Dr. Michael Chen",
+            "status": PrescriptionStatus.COMPLETED,
         },
     ],
     "P012": [
@@ -441,6 +465,15 @@ PATIENT_RX_HISTORY_BASE: dict = {
             "rxId": "RX2023-088",
             "date": "2025-11-04",
             "drugName": "Glipizide 5 mg",
+            "prescriberName": "Dr. Anna Kostas",
+            "status": PrescriptionStatus.COMPLETED,
+        },
+        # RX-HIST-004 triggers CLOPIDOGREL_ASPIRIN_DUPLICATE against Nikos's
+        # pending Aspirin (RX-ENGINE-002).
+        {
+            "rxId": "RX-HIST-004",
+            "date": "2025-08-09",
+            "drugName": "Clopidogrel 75 mg",
             "prescriberName": "Dr. Anna Kostas",
             "status": PrescriptionStatus.COMPLETED,
         },
