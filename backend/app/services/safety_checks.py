@@ -15,6 +15,23 @@ MOCK_SAFETY_CHECKS: dict = {
             "recommendedAction": None,
         },
         {
+            "id": "interactions-amiodarone",
+            "checkType": "interactions",
+            "name": "Drug-Drug Interactions",
+            "status": "block",
+            "message": "Active Amiodarone — over-anticoagulation risk. Do not dispense without prescriber confirmation.",
+            "details": (
+                "Amiodarone is a potent CYP2C9 inhibitor; co-administered with Warfarin it "
+                "markedly raises INR and bleeding risk. Active Amiodarone 200 mg on file "
+                "(filled 2025-10-21). Dispensing the current Warfarin dose unchanged risks "
+                "serious over-anticoagulation."
+            ),
+            "recommendedAction": (
+                "Hold and contact the prescriber. Warfarin dose typically needs a 30–50% "
+                "reduction with weekly INR monitoring until stable."
+            ),
+        },
+        {
             "id": "interactions",
             "checkType": "interactions",
             "name": "Drug-Drug Interactions",
@@ -218,10 +235,18 @@ MOCK_SAFETY_CHECKS: dict = {
             "id": "contraindications",
             "checkType": "contraindications",
             "name": "Contraindications",
-            "status": "review",
-            "message": "Age 78 — verify renal function before dispensing.",
-            "details": "SPC contraindicates metformin if eGFR < 30 mL/min/1.73m². No eGFR result on file from the last 12 months.",
-            "recommendedAction": "Request a recent eGFR reading from the prescriber or schedule one before dispensing.",
+            "status": "block",
+            "message": "eGFR 24 mL/min/1.73m² — metformin contraindicated. Do not dispense.",
+            "details": (
+                "Most recent eGFR on file is 24 mL/min/1.73m² (2026-05-01). The SPC "
+                "contraindicates metformin below 30 mL/min/1.73m² due to lactic-acidosis "
+                "risk, which is elevated further at age 78."
+            ),
+            "recommendedAction": (
+                "Hold the dispense and contact the prescriber — metformin should be stopped "
+                "or switched at this renal function. Do not dispense without explicit "
+                "prescriber direction."
+            ),
         },
         {
             "id": "dose-validation",
