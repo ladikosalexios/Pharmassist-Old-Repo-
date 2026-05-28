@@ -145,6 +145,7 @@ export async function getActiveAlerts(): Promise<ActiveAlert[]> {
   return data.map((a) => ({
     id: a.id,
     type: a.checkType,
+    status: a.status,
     description: a.message,
     rxId: a.rxId ?? null,
     createdAt: a.createdAt ?? null,
