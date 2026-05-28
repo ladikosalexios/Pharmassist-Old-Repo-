@@ -610,7 +610,7 @@ async def pharmapi_get_error_codes() -> list[dict]:
     if isinstance(result, list):
         return result
     if isinstance(result, dict):
-        content = result.get("content")
+        content = result.get("contents")
         if content is None:
             logger.warning(
                 "pharmapi_get_error_codes: unexpected response shape — keys: %s",
