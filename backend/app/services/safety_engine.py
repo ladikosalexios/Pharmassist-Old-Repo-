@@ -8,7 +8,7 @@ not already covered by that mock.
 from datetime import UTC, datetime
 from uuid import UUID
 
-from sqlalchemy import and_, or_, select, true
+from sqlalchemy import select, true
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..constants import AdrSeverity, AlertStatus, CheckType
@@ -59,96 +59,106 @@ def _rule_to_alert(rule: SafetyRule, rx_id: str) -> SafetyAlertPayload:
     )
 
 
+async def load_active_safety_rules(session: AsyncSession) -> list[SafetyRule]:
+    """One-shot load of every active safety rule.
+
+    Intended for callers that batch many evaluate_safety calls per request
+    (e.g. the alerts dashboard) so the per-rx WHERE-filtering moves to
+    Python and the DB sees a single query instead of N.
+    """
+    result = await session.scalars(select(SafetyRule).where(SafetyRule.active == true()))
+    return list(result.all())
+
+
 async def evaluate_safety(
     session: AsyncSession,
     rx: dict,
     pharmacy_id: UUID,
+    rules: list[SafetyRule] | None = None,
 ) -> SafetyChecksPayload:
-    rx_atc = rx["medication"]["atcCode"]
-    patient_id = rx["patient"]["id"]
-    amka = rx["patient"]["amka"]
+    """Evaluate a single prescription against the safety-rule catalogue.
+
+    Pass `rules` from a prior `load_active_safety_rules(session)` to skip
+    the per-call DB round-trip. When `rx["medication"]["atcCode"]` is
+    missing (e.g. live Pharmapi search hasn't been enriched yet), all
+    ATC-keyed checks are skipped — DB-condition checks that don't need
+    ATC still run when relevant rule shape supports it.
+    """
+    if rules is None:
+        rules = await load_active_safety_rules(session)
+
+    medication = rx.get("medication") or {}
+    rx_atc = medication.get("atcCode") if isinstance(medication, dict) else None
+    patient = rx.get("patient") or {}
+    patient_id = patient.get("id")
+    amka = patient.get("amka")
 
     checks: list[SafetyAlertPayload] = []
     seen: set[str] = set()
 
     # --- 1. Drug-drug interactions & duplicate therapy ---
-    # Build the list of ATC codes from the patient's prescription history.
-    # Only history entries whose rx_id exists in MOCK_PRESCRIPTIONS yield an
-    # ATC code; older entries without a full record are silently skipped.
+    # Pre-filter rules so we don't make the rx_history call (Pharmapi round-trip
+    # in live mode) when no interaction/duplicate rules can possibly match.
     # TODO: replace MOCK_PRESCRIPTIONS lookup with Pharmapi medicine history.
-    history = await rx_history(patient_id)
-    history_atcs = [
-        hist_rx["medication"]["atcCode"]
-        for entry in history
-        if entry["rxId"] != rx["rxId"] and (hist_rx := MOCK_PRESCRIPTIONS.get(entry["rxId"]))
+    interaction_rules = [
+        r for r in rules if r.check_type in (CheckType.INTERACTIONS, CheckType.DUPLICATE_THERAPY)
     ]
+    if rx_atc and patient_id and interaction_rules:
+        history = await rx_history(patient_id)
+        history_atcs = {
+            hist_rx["medication"]["atcCode"]
+            for entry in history
+            if entry["rxId"] != rx["rxId"] and (hist_rx := MOCK_PRESCRIPTIONS.get(entry["rxId"]))
+        }
 
-    if history_atcs:
-        # Fetch every active interaction/duplicate rule where one ATC matches
-        # the current prescription and the other matches any history drug.
-        # The OR across both column directions gives bidirectional matching:
-        # WARFARIN_ASPIRIN_BLEED fires whether Warfarin is new or historical.
-        interaction_rules = await session.scalars(
-            select(SafetyRule).where(
-                SafetyRule.active == true(),
-                SafetyRule.check_type.in_([CheckType.INTERACTIONS, CheckType.DUPLICATE_THERAPY]),
-                or_(
-                    and_(
-                        SafetyRule.trigger_atc == rx_atc,
-                        SafetyRule.conflicting_atc.in_(history_atcs),
-                    ),
-                    and_(
-                        SafetyRule.conflicting_atc == rx_atc,
-                        SafetyRule.trigger_atc.in_(history_atcs),
-                    ),
-                ),
-            )
-        )
-        for rule in interaction_rules:
-            if rule.rule_code not in seen:
-                seen.add(rule.rule_code)
-                checks.append(_rule_to_alert(rule, rx["rxId"]))
+        if history_atcs:
+            # Bidirectional ATC match: WARFARIN_ASPIRIN_BLEED fires whether
+            # warfarin is the new or the historical drug.
+            for rule in interaction_rules:
+                matches = (rule.trigger_atc == rx_atc and rule.conflicting_atc in history_atcs) or (
+                    rule.conflicting_atc == rx_atc and rule.trigger_atc in history_atcs
+                )
+                if matches and rule.rule_code not in seen:
+                    seen.add(rule.rule_code)
+                    checks.append(_rule_to_alert(rule, rx["rxId"]))
 
     # --- 2. Intolerances / contraindications (Pharmapi) ---
     # Match on the first four characters of the ATC code (level-3 class) so
     # that a penicillin intolerance catches all J01CA-* drugs, not just the
     # exact molecule recorded.
-    for intol in MOCK_INTOLERANCES.get(amka, []):
-        if rx_atc[:4] == intol["atcCode"][:4]:
-            key = f"INTOLERANCE_{intol['atcCode'][:4]}"
-            if key not in seen:
-                seen.add(key)
-                checks.append(
-                    SafetyAlertPayload(
-                        id=f"{rx['rxId']}_INTOLERANCE_{intol['atcCode'][:4]}",
-                        name=_CHECK_TYPE_NAME[CheckType.CONTRAINDICATIONS],
-                        check_type=CheckType.CONTRAINDICATIONS,
-                        status=_SEVERITY_TO_STATUS.get(intol["severity"], AlertStatus.REVIEW),
-                        message=intol["name"],
-                        rx_id=rx["rxId"],
-                        created_at=datetime.now(UTC),
+    if rx_atc and amka:
+        for intol in MOCK_INTOLERANCES.get(amka, []):
+            if rx_atc[:4] == intol["atcCode"][:4]:
+                key = f"INTOLERANCE_{intol['atcCode'][:4]}"
+                if key not in seen:
+                    seen.add(key)
+                    checks.append(
+                        SafetyAlertPayload(
+                            id=f"{rx['rxId']}_INTOLERANCE_{intol['atcCode'][:4]}",
+                            name=_CHECK_TYPE_NAME[CheckType.CONTRAINDICATIONS],
+                            check_type=CheckType.CONTRAINDICATIONS,
+                            status=_SEVERITY_TO_STATUS.get(intol["severity"], AlertStatus.REVIEW),
+                            message=intol["name"],
+                            rx_id=rx["rxId"],
+                            created_at=datetime.now(UTC),
+                        )
                     )
-                )
 
     # --- 3. Patient-specific conditions (DB) ---
-    # Fetch conditions recorded by the pharmacy for this patient, then query
-    # for any active rules whose trigger_atc matches the prescription and whose
-    # trigger_condition_code matches one of those recorded conditions.
-    pt_conditions = await conditions(session, amka, pharmacy_id)
-    condition_codes = [c.condition_code for c in pt_conditions]
+    # Skip the DB call entirely when no rule could possibly match this rx's
+    # ATC — saves a query per evaluated prescription on the alerts dashboard.
+    condition_rule_candidates = [
+        r for r in rules if r.trigger_atc == rx_atc and r.trigger_condition_code is not None
+    ]
+    if rx_atc and amka and condition_rule_candidates:
+        pt_conditions = await conditions(session, amka, pharmacy_id)
+        condition_codes = {c.condition_code for c in pt_conditions}
 
-    if condition_codes:
-        condition_rules = await session.scalars(
-            select(SafetyRule).where(
-                SafetyRule.active == true(),
-                SafetyRule.trigger_atc == rx_atc,
-                SafetyRule.trigger_condition_code.in_(condition_codes),
-            )
-        )
-        for rule in condition_rules:
-            if rule.rule_code not in seen:
-                seen.add(rule.rule_code)
-                checks.append(_rule_to_alert(rule, rx["rxId"]))
+        if condition_codes:
+            for rule in condition_rule_candidates:
+                if rule.trigger_condition_code in condition_codes and rule.rule_code not in seen:
+                    seen.add(rule.rule_code)
+                    checks.append(_rule_to_alert(rule, rx["rxId"]))
 
     checks.sort(key=lambda a: STATUS_ORDER.get(a.status, 99))
     return SafetyChecksPayload(rx_id=rx["rxId"], checks=checks, source="engine")
