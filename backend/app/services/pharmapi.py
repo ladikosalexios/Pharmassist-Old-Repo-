@@ -603,20 +603,21 @@ async def pharmapi_get_masterdata_medicines(
 async def pharmapi_get_error_codes() -> list[dict]:
     try:
         result = await pharmapi_get("/api/v1/errorslist")
-        if isinstance(result, list):
-            return result
-        if isinstance(result, dict):
-            content = result.get("content")
-            if content is None:
-                logger.warning(
-                    "pharmapi_get_error_codes: unexpected response shape — keys: %s",
-                    list(result.keys()),
-                )
-                raise HTTPException(502, "Pharmapi: /api/v1/errorslist returned unexpected shape")
-            return content
-        raise HTTPException(
-            502, f"Pharmapi: /api/v1/errorslist returned unexpected type {type(result).__name__}"
-        )
     except HTTPException:
         logger.info("pharmapi_get_error_codes: upstream unavailable — returning local error codes")
         return [{"code": k, "status": s, "message": m} for k, (s, m) in _PHARMAPI_RX_ERRORS.items()]
+
+    if isinstance(result, list):
+        return result
+    if isinstance(result, dict):
+        content = result.get("content")
+        if content is None:
+            logger.warning(
+                "pharmapi_get_error_codes: unexpected response shape — keys: %s",
+                list(result.keys()),
+            )
+            raise HTTPException(502, "Pharmapi: /api/v1/errorslist returned unexpected shape")
+        return content
+    raise HTTPException(
+        502, f"Pharmapi: /api/v1/errorslist returned unexpected type {type(result).__name__}"
+    )
