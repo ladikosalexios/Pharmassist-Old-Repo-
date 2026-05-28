@@ -88,7 +88,7 @@ export function Dashboard() {
       tone: "bg-red-100 text-red-700",
     },
     {
-      label: "Completed Today",
+      label: "Completed",
       value: counts.COMPLETED,
       ready: queue !== null,
       Icon: CheckIcon,
