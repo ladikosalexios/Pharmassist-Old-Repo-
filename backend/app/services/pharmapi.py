@@ -8,6 +8,7 @@ Pharmapi credentials are sourced from the centralised settings.
 
 import logging
 import os
+import re
 import time
 import uuid
 import xml.etree.ElementTree as ET
@@ -157,7 +158,7 @@ async def pharmapi_get(
     if "G11" in err:
         raise HTTPException(500, "Pharmapi: Api-Key invalid — check PHARMAPI_API_KEY value")
     for code, (status, message) in _PHARMAPI_RX_ERRORS.items():
-        if code in err:
+        if re.search(rf"\b{re.escape(code)}\b", err):
             raise HTTPException(status, f"Pharmapi: {message} ({code})")
     if r.status_code == 401:
         raise HTTPException(502, f"Pharmapi: bad credentials — {err}")
@@ -600,5 +601,22 @@ async def pharmapi_get_masterdata_medicines(
 
 
 async def pharmapi_get_error_codes() -> list[dict]:
-    result = await pharmapi_get("/api/v1/errorslist")
-    return result if isinstance(result, list) else result.get("content", [])
+    try:
+        result = await pharmapi_get("/api/v1/errorslist")
+        if isinstance(result, list):
+            return result
+        if isinstance(result, dict):
+            content = result.get("content")
+            if content is None:
+                logger.warning(
+                    "pharmapi_get_error_codes: unexpected response shape — keys: %s",
+                    list(result.keys()),
+                )
+                raise HTTPException(502, "Pharmapi: /api/v1/errorslist returned unexpected shape")
+            return content
+        raise HTTPException(
+            502, f"Pharmapi: /api/v1/errorslist returned unexpected type {type(result).__name__}"
+        )
+    except HTTPException:
+        logger.info("pharmapi_get_error_codes: upstream unavailable — returning local error codes")
+        return [{"code": k, "status": s, "message": m} for k, (s, m) in _PHARMAPI_RX_ERRORS.items()]
