@@ -406,8 +406,6 @@ def _parse_prescription_search_json(items: list) -> list[dict]:
                     "patientName": item.get("patientName") or "Άγνωστος",
                     "patientAmka": item.get("amka"),
                     "medication": medicines[0]["name"] if medicines else None,
-                    # Surfaced for ATC lookup against drug_catalog (alerts dashboard).
-                    "medicineBarcode": medicines[0].get("barcode") if medicines else None,
                     "physician": item.get("doctorName"),
                     "date": item.get("issueDate"),
                     "expiryDate": item.get("expiryDate"),
