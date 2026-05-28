@@ -538,7 +538,9 @@ async def rx_history(patient_id: str) -> list:
             }
             for item in items
         ]
-    rows = list(PATIENT_RX_HISTORY_BASE.get(patient_id, []))
+    # Deep-copy the dicts so the per-call status overlay below doesn't mutate
+    # the module-level fixture (shallow list() left the inner dicts shared).
+    rows = [dict(r) for r in PATIENT_RX_HISTORY_BASE.get(patient_id, [])]
     for row in rows:
         live = MOCK_PRESCRIPTIONS.get(row["rxId"])
         if live and live.get("status"):
