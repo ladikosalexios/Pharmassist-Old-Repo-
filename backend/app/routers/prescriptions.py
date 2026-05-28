@@ -31,12 +31,14 @@ from ..db.session import get_session
 from ..deps import get_current_user
 from ..schemas.prescriptions import ApproveResponse, PatchResponse, PrescriptionPatch
 from ..services.documentation import record_prescription_action
+from ..services.pharmacy import find_pharmacy_by_name
 from ..services.pharmapi import (
     pharmapi_execute_prescription,
     pharmapi_get,
     pharmapi_search_prescriptions,
 )
 from ..services.prescriptions import MOCK_PRESCRIPTIONS, MOCK_QUEUE_BASE
+from ..services.safety_engine import checks_for_prescription
 
 router = APIRouter(prefix="/prescriptions", tags=["prescriptions"])
 
@@ -145,16 +147,28 @@ async def list_prescriptions(current: dict = Depends(get_current_user)):
 
 
 @router.get("/{rx_id}")
-async def get_prescription_for_verification(rx_id: str, current: dict = Depends(get_current_user)):
+async def get_prescription_for_verification(
+    rx_id: str,
+    current: dict = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
     """
     Return full prescription data for the verification UI.
     In live mode, rx_id is the ΗΔΥΚΑ barcode.
+
+    `safetyChecks` is populated from checks_for_prescription — the same source
+    the dashboard's /alerts/active uses — so the verification view can never
+    show a different set of checks than the dashboard flagged.
     """
     if is_mock_pharmapi():
         rx = MOCK_PRESCRIPTIONS.get(rx_id)
         if not rx:
             raise HTTPException(status_code=404, detail=f"Prescription {rx_id} not found")
-        return rx
+        pharmacy = await find_pharmacy_by_name(session, current["pharmacy"])
+        if pharmacy is None:
+            raise HTTPException(status_code=400, detail="Pharmacy not found for current user")
+        payload = await checks_for_prescription(session, rx_id, rx, pharmacy.id)
+        return {**rx, "safetyChecks": [c.model_dump(by_alias=True) for c in payload.checks]}
 
     # Live mode: fetch detail by barcode from ΗΔΥΚΑ
     raw = await pharmapi_get(f"/prescriptions/{rx_id}")
