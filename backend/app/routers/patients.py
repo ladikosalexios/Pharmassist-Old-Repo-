@@ -23,7 +23,7 @@ async def get_patient_prescriptions(patient_id: str, current: dict = Depends(get
     profile = await resolve(patient_id)
     if profile is None:
         raise HTTPException(status_code=404, detail=f"Patient {patient_id} not found")
-    return {"items": rx_history(profile["id"])}
+    return {"items": await rx_history(profile["id"])}
 
 
 @router.get("/{patient_id}/side-effects")

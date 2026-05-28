@@ -535,6 +535,153 @@ MOCK_PRESCRIPTIONS: dict = {
             ],
         },
     },
+    # ── Historical prescriptions designed to trigger interaction alerts ─────
+    # Referenced from PATIENT_RX_HISTORY_BASE (see app/services/patients.py).
+    # Each `medication.atcCode` here pairs with a seeded safety_rule so that
+    # evaluate_safety produces visible output on /alerts/active in mock mode.
+    # Patient-condition rules (PREGNANCY/G6PD/RENAL_SEVERE) fire via DB rows
+    # seeded by scripts/seed.py — re-run that script to exercise them.
+    "RX-HIST-001": {
+        "rxId": "RX-HIST-001",
+        "code": "RX-HIST-001",
+        "dateIssued": "2025-12-04",
+        "status": PrescriptionStatus.COMPLETED,
+        "spcVersion": "SPC v2024.3",
+        "patient": {
+            "id": "P001",
+            "name": "Maria Stavrou",
+            "age": 64,
+            "dateOfBirth": "1962-03-15",
+            "amka": "15031962456",
+            "conditions": ["Type II Diabetes", "Hypertension", "Hyperlipidemia"],
+            "allergies": "Penicillin (anaphylaxis), sulfa drugs",
+        },
+        "medication": {
+            # B01AC06 + Maria's pending Warfarin (B01AA03) → WARFARIN_ASPIRIN_BLEED
+            "drugName": "Aspirin",
+            "atcCode": "B01AC06",
+            "dose": "100 mg",
+            "form": "Tablet",
+            "route": "Oral",
+            "frequency": "Once daily",
+            "treatmentDuration": "Long-term",
+            "spcRecommendedDosage": "75–100 mg once daily for antiplatelet prophylaxis.",
+        },
+        "prescriber": {
+            "name": "Dr. Michael Chen",
+            "licenceId": "MD-48291",
+            "specialty": "Cardiology",
+            "contact": "+30 210 123 4567",
+            "email": "m.chen@hospital.gr",
+        },
+        "spcQuickReference": {"contraindications": [], "majorInteractions": []},
+    },
+    "RX-HIST-002": {
+        "rxId": "RX-HIST-002",
+        "code": "RX-HIST-002",
+        "dateIssued": "2025-10-21",
+        "status": PrescriptionStatus.COMPLETED,
+        "spcVersion": "SPC v2024.3",
+        "patient": {
+            "id": "P001",
+            "name": "Maria Stavrou",
+            "age": 64,
+            "dateOfBirth": "1962-03-15",
+            "amka": "15031962456",
+            "conditions": ["Type II Diabetes", "Hypertension", "Hyperlipidemia"],
+            "allergies": "Penicillin (anaphylaxis), sulfa drugs",
+        },
+        "medication": {
+            # C01BD01 + Maria's pending Warfarin → WARFARIN_AMIODARONE_INTERACTION (SEVERE)
+            "drugName": "Amiodarone",
+            "atcCode": "C01BD01",
+            "dose": "200 mg",
+            "form": "Tablet",
+            "route": "Oral",
+            "frequency": "Once daily",
+            "treatmentDuration": "Long-term",
+            "spcRecommendedDosage": "Loading 600–1200 mg/day, maintenance 200–400 mg/day.",
+        },
+        "prescriber": {
+            "name": "Dr. Michael Chen",
+            "licenceId": "MD-48291",
+            "specialty": "Cardiology",
+            "contact": "+30 210 123 4567",
+            "email": "m.chen@hospital.gr",
+        },
+        "spcQuickReference": {"contraindications": [], "majorInteractions": []},
+    },
+    "RX-HIST-003": {
+        "rxId": "RX-HIST-003",
+        "code": "RX-HIST-003",
+        "dateIssued": "2026-02-18",
+        "status": PrescriptionStatus.COMPLETED,
+        "spcVersion": "SPC v2024.3",
+        "patient": {
+            "id": "P010",
+            "name": "Sarah Johnson",
+            "age": 32,
+            "dateOfBirth": "1993-07-22",
+            "amka": "22071993789",
+            "conditions": ["Pregnancy (18 weeks)", "Hypertension"],
+            "allergies": "None known",
+        },
+        "medication": {
+            # B01AC06 + Sarah's pending Warfarin (RX-ENGINE-001) → WARFARIN_ASPIRIN_BLEED
+            "drugName": "Aspirin",
+            "atcCode": "B01AC06",
+            "dose": "75 mg",
+            "form": "Tablet",
+            "route": "Oral",
+            "frequency": "Once daily",
+            "treatmentDuration": "Long-term",
+            "spcRecommendedDosage": "75–100 mg once daily for antiplatelet prophylaxis.",
+        },
+        "prescriber": {
+            "name": "Dr. Michael Chen",
+            "licenceId": "MD-48291",
+            "specialty": "Cardiology",
+            "contact": "+30 210 123 4567",
+            "email": "m.chen@hospital.gr",
+        },
+        "spcQuickReference": {"contraindications": [], "majorInteractions": []},
+    },
+    "RX-HIST-004": {
+        "rxId": "RX-HIST-004",
+        "code": "RX-HIST-004",
+        "dateIssued": "2025-08-09",
+        "status": PrescriptionStatus.COMPLETED,
+        "spcVersion": "SPC v2024.3",
+        "patient": {
+            "id": "P040",
+            "name": "Nikos Papadopoulos",
+            "age": 78,
+            "dateOfBirth": "1947-11-08",
+            "amka": "08111947033",
+            "conditions": ["Type II Diabetes", "G6PD deficiency (moderate)"],
+            "allergies": "None known",
+        },
+        "medication": {
+            # B01AC04 + Nikos's pending Aspirin (RX-ENGINE-002, B01AC06)
+            # → CLOPIDOGREL_ASPIRIN_DUPLICATE
+            "drugName": "Clopidogrel",
+            "atcCode": "B01AC04",
+            "dose": "75 mg",
+            "form": "Tablet",
+            "route": "Oral",
+            "frequency": "Once daily",
+            "treatmentDuration": "Long-term",
+            "spcRecommendedDosage": "75 mg once daily after ACS or stenting.",
+        },
+        "prescriber": {
+            "name": "Dr. Anna Kostas",
+            "licenceId": "MD-50220",
+            "specialty": "Endocrinology",
+            "contact": "+30 210 555 0212",
+            "email": "a.kostas@clinic.gr",
+        },
+        "spcQuickReference": {"contraindications": [], "majorInteractions": []},
+    },
 }
 
 
