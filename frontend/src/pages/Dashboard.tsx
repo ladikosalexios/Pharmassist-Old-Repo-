@@ -10,8 +10,8 @@ import {
 } from "../components/Icons";
 import { SafetyAlertsPanel } from "../components/SafetyAlertsPanel";
 import { KeyboardShortcutsCard } from "../components/KeyboardShortcutsCard";
-import { ApiError, listPrescriptions } from "../lib/api";
-import type { QueueItem } from "../types";
+import { ApiError, getActiveAlerts, listPrescriptions } from "../lib/api";
+import type { ActiveAlert, QueueItem } from "../types";
 
 const STATUS_CHIP: Record<QueueItem["status"], string> = {
   PENDING: "bg-amber-100 text-amber-800",
@@ -34,6 +34,7 @@ export function Dashboard() {
   });
   const [queue, setQueue] = useState<QueueItem[] | null>(null);
   const [queueError, setQueueError] = useState<string | null>(null);
+  const [alerts, setAlerts] = useState<ActiveAlert[] | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -44,6 +45,16 @@ export function Dashboard() {
       .catch((e: unknown) => {
         if (!active) return;
         setQueueError(e instanceof ApiError ? e.message : "Could not load the prescription queue.");
+      });
+    // Critical Alerts mirrors the block-severity count in SafetyAlertsPanel.
+    // Both fetch /alerts/active independently for now — fine until a shared
+    // store lands; the call is cached server-side and cheap.
+    getActiveAlerts()
+      .then((data) => {
+        if (active) setAlerts(data);
+      })
+      .catch(() => {
+        /* SafetyAlertsPanel surfaces the error; the stat just stays at — */
       });
     return () => {
       active = false;
@@ -56,28 +67,40 @@ export function Dashboard() {
     return c;
   }, [queue]);
 
+  const criticalCount = useMemo(
+    () => (alerts ?? []).filter((a) => a.status === "block").length,
+    [alerts],
+  );
+
   const stats = [
     {
       label: "Pending Verification",
       value: counts.PENDING,
+      ready: queue !== null,
       Icon: ClockIcon,
       tone: "bg-amber-100 text-amber-700",
     },
     {
       label: "Flagged Issues",
       value: counts.FLAGGED,
+      ready: queue !== null,
       Icon: FlagIcon,
       tone: "bg-red-100 text-red-700",
     },
     {
-      label: "Completed Today",
+      label: "Completed",
       value: counts.COMPLETED,
+      ready: queue !== null,
       Icon: CheckIcon,
       tone: "bg-emerald-100 text-emerald-700",
     },
-    // Critical Alerts is sourced from /alerts/active in SafetyAlertsPanel; we keep
-    // a placeholder here until we lift that into a shared store.
-    { label: "Critical Alerts", value: 1, Icon: AlertCircleIcon, tone: "bg-red-100 text-red-700" },
+    {
+      label: "Critical Alerts",
+      value: criticalCount,
+      ready: alerts !== null,
+      Icon: AlertCircleIcon,
+      tone: "bg-red-100 text-red-700",
+    },
   ];
 
   return (
@@ -88,14 +111,12 @@ export function Dashboard() {
       </div>
 
       <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {stats.map(({ label, value, Icon, tone }) => (
+        {stats.map(({ label, value, ready, Icon, tone }) => (
           <div key={label} className="card p-5">
             <div className="flex items-start justify-between">
               <div>
                 <div className="text-sm font-medium text-slate-500">{label}</div>
-                <div className="mt-1 text-3xl font-bold text-slate-900">
-                  {queue || label === "Critical Alerts" ? value : "—"}
-                </div>
+                <div className="mt-1 text-3xl font-bold text-slate-900">{ready ? value : "—"}</div>
               </div>
               <div className={`flex h-9 w-9 items-center justify-center rounded-lg ${tone}`}>
                 <Icon width={18} height={18} />

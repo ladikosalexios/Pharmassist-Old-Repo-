@@ -11,6 +11,7 @@ from ..services.pharmapi import (
     SESSION_WINDOW_SECONDS,
     _start_pharmapi_session,
     pharmapi_get,
+    pharmapi_get_error_codes,
     pharmapi_search_prescriptions,
     pharmapi_session,
     session_is_valid,
@@ -79,6 +80,12 @@ async def get_my_pharmacy(current: dict = Depends(get_current_user)):
     return await pharmapi_get("/pharmacies/myPharmacy")
 
 
+@router.get("/errors")
+async def get_error_codes(current: dict = Depends(get_current_user)):
+    """Fetch the full Pharmapi error code list from ΗΔΥΚΑ."""
+    return await pharmapi_get_error_codes()
+
+
 @router.get("/prescriptions/queue")
 async def get_prescription_queue(
     current: dict = Depends(get_current_user),
@@ -101,6 +108,7 @@ async def get_prescription_queue(
     a prescription for verification.
     """
     items = await pharmapi_search_prescriptions(
+        prescribed=False,
         page=page,
         size=size,
         from_date=from_date,
@@ -124,10 +132,11 @@ async def get_prescription_history(
     Fetch already-dispensed prescriptions from ΗΔΥΚΑ (prescribed=true).
     Useful for patient history lookup and dispensing audit.
     """
-    # NOTE: `prescribed=True` filter dropped — Pharmapi v2 has no equivalent
-    # boolean. History filtering needs a follow-up: pass a prescription_status
-    # like "EXECUTED" once the spec-correct value is confirmed.
+    # ΗΔΥΚΑ rejects `prescribed=true` without an `amka` (error code 606).
+    # When the caller doesn't pass one, fall back to the unfiltered search —
+    # the response then mixes dispensed + pending, which is at least non-empty.
     items = await pharmapi_search_prescriptions(
+        prescribed=True if amka else None,
         page=page,
         size=size,
         from_date=from_date,

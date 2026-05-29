@@ -7,6 +7,7 @@ MOCK_SAFETY_CHECKS: dict = {
     "RX2024-005": [
         {
             "id": "duplicate-therapy",
+            "checkType": "duplicate_therapy",
             "name": "Duplicate Therapy Check",
             "status": "ok",
             "message": "No duplicate therapy detected.",
@@ -14,7 +15,25 @@ MOCK_SAFETY_CHECKS: dict = {
             "recommendedAction": None,
         },
         {
+            "id": "interactions-amiodarone",
+            "checkType": "interactions",
+            "name": "Drug-Drug Interactions",
+            "status": "block",
+            "message": "Active Amiodarone — over-anticoagulation risk. Do not dispense without prescriber confirmation.",
+            "details": (
+                "Amiodarone is a potent CYP2C9 inhibitor; co-administered with Warfarin it "
+                "markedly raises INR and bleeding risk. Active Amiodarone 200 mg on file "
+                "(filled 2025-10-21). Dispensing the current Warfarin dose unchanged risks "
+                "serious over-anticoagulation."
+            ),
+            "recommendedAction": (
+                "Hold and contact the prescriber. Warfarin dose typically needs a 30–50% "
+                "reduction with weekly INR monitoring until stable."
+            ),
+        },
+        {
             "id": "interactions",
+            "checkType": "interactions",
             "name": "Drug-Drug Interactions",
             "status": "review",
             "message": "Patient is on Aspirin 100 mg — review bleeding risk.",
@@ -31,6 +50,7 @@ MOCK_SAFETY_CHECKS: dict = {
         },
         {
             "id": "contraindications",
+            "checkType": "contraindications",
             "name": "Contraindications",
             "status": "ok",
             "message": "No contraindications identified.",
@@ -39,6 +59,7 @@ MOCK_SAFETY_CHECKS: dict = {
         },
         {
             "id": "dose-validation",
+            "checkType": "dose_validation",
             "name": "Dose Validation",
             "status": "ok",
             "message": "Dose within SPC recommended range.",
@@ -47,6 +68,7 @@ MOCK_SAFETY_CHECKS: dict = {
         },
         {
             "id": "spc-alignment",
+            "checkType": "spc_alignment",
             "name": "SPC Alignment",
             "status": "review",
             "message": "Confirm INR monitoring schedule is in place.",
@@ -61,6 +83,7 @@ MOCK_SAFETY_CHECKS: dict = {
     "RX2024-001": [
         {
             "id": "duplicate-therapy",
+            "checkType": "duplicate_therapy",
             "name": "Duplicate Therapy Check",
             "status": "ok",
             "message": "No duplicate therapy detected.",
@@ -69,6 +92,7 @@ MOCK_SAFETY_CHECKS: dict = {
         },
         {
             "id": "interactions",
+            "checkType": "interactions",
             "name": "Drug-Drug Interactions",
             "status": "ok",
             "message": "No major interactions detected.",
@@ -77,6 +101,7 @@ MOCK_SAFETY_CHECKS: dict = {
         },
         {
             "id": "contraindications",
+            "checkType": "contraindications",
             "name": "Contraindications",
             "status": "ok",
             "message": "No contraindications identified.",
@@ -85,6 +110,7 @@ MOCK_SAFETY_CHECKS: dict = {
         },
         {
             "id": "dose-validation",
+            "checkType": "dose_validation",
             "name": "Dose Validation",
             "status": "ok",
             "message": "Dose within SPC recommended range.",
@@ -93,6 +119,7 @@ MOCK_SAFETY_CHECKS: dict = {
         },
         {
             "id": "spc-alignment",
+            "checkType": "spc_alignment",
             "name": "SPC Alignment",
             "status": "ok",
             "message": "Aligned with current SPC.",
@@ -103,6 +130,7 @@ MOCK_SAFETY_CHECKS: dict = {
     "RX2024-002": [
         {
             "id": "duplicate-therapy",
+            "checkType": "duplicate_therapy",
             "name": "Duplicate Therapy Check",
             "status": "review",
             "message": "Patient has an active prescription for Acenocoumarol — overlapping anticoagulants.",
@@ -111,6 +139,7 @@ MOCK_SAFETY_CHECKS: dict = {
         },
         {
             "id": "interactions",
+            "checkType": "interactions",
             "name": "Drug-Drug Interactions",
             "status": "ok",
             "message": "No additional major interactions detected.",
@@ -119,6 +148,7 @@ MOCK_SAFETY_CHECKS: dict = {
         },
         {
             "id": "contraindications",
+            "checkType": "contraindications",
             "name": "Contraindications",
             "status": "ok",
             "message": "No contraindications identified.",
@@ -127,6 +157,7 @@ MOCK_SAFETY_CHECKS: dict = {
         },
         {
             "id": "dose-validation",
+            "checkType": "dose_validation",
             "name": "Dose Validation",
             "status": "ok",
             "message": "Dose within SPC recommended range.",
@@ -137,6 +168,7 @@ MOCK_SAFETY_CHECKS: dict = {
     "RX2024-003": [
         {
             "id": "duplicate-therapy",
+            "checkType": "duplicate_therapy",
             "name": "Duplicate Therapy Check",
             "status": "ok",
             "message": "No duplicate ACE inhibitor on file.",
@@ -145,6 +177,7 @@ MOCK_SAFETY_CHECKS: dict = {
         },
         {
             "id": "interactions",
+            "checkType": "interactions",
             "name": "Drug-Drug Interactions",
             "status": "ok",
             "message": "No major interactions detected.",
@@ -153,6 +186,7 @@ MOCK_SAFETY_CHECKS: dict = {
         },
         {
             "id": "contraindications",
+            "checkType": "contraindications",
             "name": "Contraindications",
             "status": "ok",
             "message": "No contraindications identified.",
@@ -161,6 +195,7 @@ MOCK_SAFETY_CHECKS: dict = {
         },
         {
             "id": "dose-validation",
+            "checkType": "dose_validation",
             "name": "Dose Validation",
             "status": "ok",
             "message": "Dose within SPC recommended range.",
@@ -169,6 +204,7 @@ MOCK_SAFETY_CHECKS: dict = {
         },
         {
             "id": "spc-alignment",
+            "checkType": "spc_alignment",
             "name": "SPC Alignment",
             "status": "ok",
             "message": "Aligned with current SPC.",
@@ -179,6 +215,7 @@ MOCK_SAFETY_CHECKS: dict = {
     "RX2024-006": [
         {
             "id": "duplicate-therapy",
+            "checkType": "duplicate_therapy",
             "name": "Duplicate Therapy Check",
             "status": "ok",
             "message": "No duplicate biguanide on file.",
@@ -187,6 +224,7 @@ MOCK_SAFETY_CHECKS: dict = {
         },
         {
             "id": "interactions",
+            "checkType": "interactions",
             "name": "Drug-Drug Interactions",
             "status": "ok",
             "message": "No major interactions detected.",
@@ -195,14 +233,24 @@ MOCK_SAFETY_CHECKS: dict = {
         },
         {
             "id": "contraindications",
+            "checkType": "contraindications",
             "name": "Contraindications",
-            "status": "review",
-            "message": "Age 78 — verify renal function before dispensing.",
-            "details": "SPC contraindicates metformin if eGFR < 30 mL/min/1.73m². No eGFR result on file from the last 12 months.",
-            "recommendedAction": "Request a recent eGFR reading from the prescriber or schedule one before dispensing.",
+            "status": "block",
+            "message": "eGFR 24 mL/min/1.73m² — metformin contraindicated. Do not dispense.",
+            "details": (
+                "Most recent eGFR on file is 24 mL/min/1.73m² (2026-05-01). The SPC "
+                "contraindicates metformin below 30 mL/min/1.73m² due to lactic-acidosis "
+                "risk, which is elevated further at age 78."
+            ),
+            "recommendedAction": (
+                "Hold the dispense and contact the prescriber — metformin should be stopped "
+                "or switched at this renal function. Do not dispense without explicit "
+                "prescriber direction."
+            ),
         },
         {
             "id": "dose-validation",
+            "checkType": "dose_validation",
             "name": "Dose Validation",
             "status": "ok",
             "message": "Dose within SPC recommended range.",
@@ -211,6 +259,7 @@ MOCK_SAFETY_CHECKS: dict = {
         },
         {
             "id": "spc-alignment",
+            "checkType": "spc_alignment",
             "name": "SPC Alignment",
             "status": "ok",
             "message": "Aligned with current SPC.",
@@ -221,6 +270,7 @@ MOCK_SAFETY_CHECKS: dict = {
     "RX2024-007": [
         {
             "id": "duplicate-therapy",
+            "checkType": "duplicate_therapy",
             "name": "Duplicate Therapy Check",
             "status": "ok",
             "message": "No duplicate statin on file.",
@@ -229,6 +279,7 @@ MOCK_SAFETY_CHECKS: dict = {
         },
         {
             "id": "interactions",
+            "checkType": "interactions",
             "name": "Drug-Drug Interactions",
             "status": "ok",
             "message": "No major interactions detected.",
@@ -237,6 +288,7 @@ MOCK_SAFETY_CHECKS: dict = {
         },
         {
             "id": "contraindications",
+            "checkType": "contraindications",
             "name": "Contraindications",
             "status": "ok",
             "message": "No contraindications identified.",
@@ -245,6 +297,7 @@ MOCK_SAFETY_CHECKS: dict = {
         },
         {
             "id": "dose-validation",
+            "checkType": "dose_validation",
             "name": "Dose Validation",
             "status": "ok",
             "message": "Dose within SPC recommended range.",
@@ -253,6 +306,7 @@ MOCK_SAFETY_CHECKS: dict = {
         },
         {
             "id": "spc-alignment",
+            "checkType": "spc_alignment",
             "name": "SPC Alignment",
             "status": "ok",
             "message": "Aligned with current SPC.",
@@ -263,6 +317,7 @@ MOCK_SAFETY_CHECKS: dict = {
     "RX2024-008": [
         {
             "id": "duplicate-therapy",
+            "checkType": "duplicate_therapy",
             "name": "Duplicate Therapy Check",
             "status": "review",
             "message": "Patient is already on Aspirin 100 mg — overlapping antiplatelets.",
@@ -271,6 +326,7 @@ MOCK_SAFETY_CHECKS: dict = {
         },
         {
             "id": "interactions",
+            "checkType": "interactions",
             "name": "Drug-Drug Interactions",
             "status": "review",
             "message": "PPI on file — clopidogrel efficacy may be reduced.",
@@ -279,6 +335,7 @@ MOCK_SAFETY_CHECKS: dict = {
         },
         {
             "id": "contraindications",
+            "checkType": "contraindications",
             "name": "Contraindications",
             "status": "ok",
             "message": "No contraindications identified.",
@@ -287,6 +344,7 @@ MOCK_SAFETY_CHECKS: dict = {
         },
         {
             "id": "dose-validation",
+            "checkType": "dose_validation",
             "name": "Dose Validation",
             "status": "ok",
             "message": "Dose within SPC recommended range.",
@@ -297,6 +355,7 @@ MOCK_SAFETY_CHECKS: dict = {
     "RX2024-009": [
         {
             "id": "duplicate-therapy",
+            "checkType": "duplicate_therapy",
             "name": "Duplicate Therapy Check",
             "status": "ok",
             "message": "No duplicate antibiotic on file.",
@@ -305,6 +364,7 @@ MOCK_SAFETY_CHECKS: dict = {
         },
         {
             "id": "interactions",
+            "checkType": "interactions",
             "name": "Drug-Drug Interactions",
             "status": "ok",
             "message": "No major interactions detected.",
@@ -313,6 +373,7 @@ MOCK_SAFETY_CHECKS: dict = {
         },
         {
             "id": "contraindications",
+            "checkType": "contraindications",
             "name": "Contraindications",
             "status": "ok",
             "message": "No contraindications identified.",
@@ -321,6 +382,7 @@ MOCK_SAFETY_CHECKS: dict = {
         },
         {
             "id": "dose-validation",
+            "checkType": "dose_validation",
             "name": "Dose Validation",
             "status": "review",
             "message": "Paediatric weight-based dose — verify weight before dispensing.",
@@ -329,6 +391,7 @@ MOCK_SAFETY_CHECKS: dict = {
         },
         {
             "id": "spc-alignment",
+            "checkType": "spc_alignment",
             "name": "SPC Alignment",
             "status": "ok",
             "message": "Aligned with current paediatric SPC.",

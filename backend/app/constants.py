@@ -53,6 +53,7 @@ class CheckType(StrEnum):
     DUPLICATE_THERAPY = "duplicate_therapy"
     CONTRAINDICATIONS = "contraindications"
     DOSE_VALIDATION = "dose_validation"
+    SPC_ALIGNMENT = "spc_alignment"
     PREGNANCY = "pregnancy"
     G6PD = "G6PD"
 

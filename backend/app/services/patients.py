@@ -5,16 +5,27 @@ record there, so flag/approve actions on the verification page show up
 immediately in a patient's history.
 """
 
+import asyncio
+import logging
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.patient_condition import PatientCondition
-from app.services.pharmapi import pharmapi_get_patient
+from app.services.pharmapi import (
+    _date,
+    _map_pharmapi_status,
+    pharmapi_get_patient,
+    pharmapi_get_patient_intolerances,
+    pharmapi_get_patient_medicine_history,
+)
 from app.utils.environment import is_mock_pharmapi
 
 from ..constants import PrescriptionStatus
 from .prescriptions import MOCK_PRESCRIPTIONS
 from .side_effects import MOCK_SIDE_EFFECTS
+
+logger = logging.getLogger(__name__)
 
 PATIENT_PROFILES: dict = {
     "P001": {
@@ -284,6 +295,22 @@ PATIENT_RX_HISTORY_BASE: dict = {
             "prescriberName": "Dr. Michael Chen",
             "status": PrescriptionStatus.PENDING,
         },
+        # RX-HIST-001/002 trigger WARFARIN_ASPIRIN_BLEED + WARFARIN_AMIODARONE_INTERACTION
+        # against Maria's pending Warfarin (RX2024-005).
+        {
+            "rxId": "RX-HIST-001",
+            "date": "2025-12-04",
+            "drugName": "Aspirin 100 mg",
+            "prescriberName": "Dr. Michael Chen",
+            "status": PrescriptionStatus.COMPLETED,
+        },
+        {
+            "rxId": "RX-HIST-002",
+            "date": "2025-10-21",
+            "drugName": "Amiodarone 200 mg",
+            "prescriberName": "Dr. Michael Chen",
+            "status": PrescriptionStatus.COMPLETED,
+        },
         {
             "rxId": "RX2023-118",
             "date": "2025-11-12",
@@ -336,6 +363,14 @@ PATIENT_RX_HISTORY_BASE: dict = {
             "drugName": "Amoxicillin 500 mg",
             "prescriberName": "Dr. Michael Chen",
             "status": PrescriptionStatus.PENDING,
+        },
+        # RX-HIST-003 triggers WARFARIN_ASPIRIN_BLEED against Sarah's pending Warfarin.
+        {
+            "rxId": "RX-HIST-003",
+            "date": "2026-02-18",
+            "drugName": "Aspirin 75 mg",
+            "prescriberName": "Dr. Michael Chen",
+            "status": PrescriptionStatus.COMPLETED,
         },
     ],
     "P012": [
@@ -433,6 +468,15 @@ PATIENT_RX_HISTORY_BASE: dict = {
             "prescriberName": "Dr. Anna Kostas",
             "status": PrescriptionStatus.COMPLETED,
         },
+        # RX-HIST-004 triggers CLOPIDOGREL_ASPIRIN_DUPLICATE against Nikos's
+        # pending Aspirin (RX-ENGINE-002).
+        {
+            "rxId": "RX-HIST-004",
+            "date": "2025-08-09",
+            "drugName": "Clopidogrel 75 mg",
+            "prescriberName": "Dr. Anna Kostas",
+            "status": PrescriptionStatus.COMPLETED,
+        },
     ],
     "P051": [
         {
@@ -478,8 +522,25 @@ PATIENT_RX_HISTORY_BASE: dict = {
 }
 
 
-def rx_history(patient_id: str) -> list:
-    rows = list(PATIENT_RX_HISTORY_BASE.get(patient_id, []))
+async def rx_history(patient_id: str) -> list:
+    if not is_mock_pharmapi():
+        items = await pharmapi_get_patient_medicine_history(patient_id)
+        return [
+            {
+                "rxId": item.get("prescriptionBarcode"),
+                "date": _date(item.get("prescriptionExecutionDate")),
+                "drugName": item.get("medicineCommercialName"),
+                "prescriberName": None,
+                "status": _map_pharmapi_status(item.get("prescriptionStatusDesc")),
+                "quantityPrescribed": item.get("quantityPrescribed"),
+                "quantityOutstanding": item.get("quantityOutstanding"),
+                "euDispensed": str(item.get("euDispensed", "")).lower() == "true",
+            }
+            for item in items
+        ]
+    # Deep-copy the dicts so the per-call status overlay below doesn't mutate
+    # the module-level fixture (shallow list() left the inner dicts shared).
+    rows = [dict(r) for r in PATIENT_RX_HISTORY_BASE.get(patient_id, [])]
     for row in rows:
         live = MOCK_PRESCRIPTIONS.get(row["rxId"])
         if live and live.get("status"):
@@ -511,9 +572,33 @@ async def resolve(patient_key: str) -> dict | None:
     """
     if not is_mock_pharmapi():
         # AMKA: exactly 11 digits. Anything else (e.g. 16-char European EKAA) routes to ekaa param.
-        if patient_key.isdigit() and len(patient_key) == 11:
-            return await pharmapi_get_patient(amka=patient_key)
-        return await pharmapi_get_patient(ekaa=patient_key)
+        patient_key = patient_key.strip()
+        get_patient = (
+            pharmapi_get_patient(amka=patient_key)
+            if patient_key.isdigit() and len(patient_key) == 11
+            else pharmapi_get_patient(ekaa=patient_key)
+        )
+        patient, raw_intolerances = await asyncio.gather(
+            get_patient,
+            pharmapi_get_patient_intolerances(patient_key),
+            return_exceptions=True,
+        )
+        if isinstance(patient, Exception):
+            raise patient
+        patient_dict = patient.model_dump()
+        if isinstance(raw_intolerances, Exception):
+            logger.warning("Failed to fetch intolerances for %s: %s", patient_key, raw_intolerances)
+            patient_dict["intolerances"] = []
+        else:
+            patient_dict["intolerances"] = [
+                {
+                    "activeSubstance": item.get("activeSubstance"),
+                    "intolerance": item.get("intolerance"),
+                    "remarks": item.get("remarks"),
+                }
+                for item in raw_intolerances
+            ]
+        return patient_dict
     else:
         direct = PATIENT_PROFILES.get(patient_key)
         if direct:
