@@ -1,0 +1,95 @@
+"""Integration tests (PHARMAPI_MOCK=true) for read endpoints.
+
+Builds an isolated app via create_app() with get_current_user overridden so
+auth is bypassed, then drives the real routers. Session-backed endpoints
+(/documentation, /alerts/active) hit the live seeded dev DB the backend
+container is wired to; /patients/{id} resolves from the in-memory mock.
+
+These run against the running compose stack (seeded DB + PHARMAPI_MOCK=true).
+pytest is not part of CI, so DB availability here is expected.
+"""
+
+import base64
+import os
+
+os.environ.setdefault("PHARMAPI_MOCK", "true")
+os.environ.setdefault("COOKIE_SECURE", "false")
+os.environ.setdefault("CREDENTIAL_ENCRYPTION_KEY", base64.b64encode(b"\x01" * 32).decode())
+os.environ.setdefault("SECRET_KEY", "test-secret-key")
+os.environ.setdefault("PHARMAPI_USERNAME", "u")
+os.environ.setdefault("PHARMAPI_PASSWORD", "p")
+os.environ.setdefault("PHARMAPI_API_KEY", "k")
+os.environ.setdefault(
+    "DATABASE_URL",
+    "postgresql+asyncpg://pharmassist:pharmassist_dev@localhost:5432/pharmassist",
+)
+
+import pytest  # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
+
+from app.deps import get_current_user  # noqa: E402
+from main import create_app  # noqa: E402
+
+# Matches a seeded pharmacy so find_pharmacy_by_name resolves for /alerts.
+SEEDED_PHARMACY = "ΦΑΡΜΑΚΕΙΟ Fedra"
+# A seeded mock patient AMKA (Maria Stavrou) for the /patients lookup.
+MOCK_PATIENT_AMKA = "15031962456"
+
+
+def _fake_current() -> dict:
+    return {
+        "pharmacist_id": "00000000-0000-0000-0000-000000000000",
+        "pharmacy_id": "00000000-0000-0000-0000-000000000000",
+        "pharmacy": SEEDED_PHARMACY,
+        "email": "test@example.com",
+        "name": "Test Pharmacist",
+    }
+
+
+# Fresh app instance so we don't inherit the fake-session override that
+# tests/test_auth_db.py installs on the shared `main.app` singleton.
+app = create_app()
+app.dependency_overrides[get_current_user] = _fake_current
+
+
+@pytest.fixture(scope="module")
+def client():
+    # Context-managed so a single anyio portal / event loop serves every
+    # request in the module — the async DB engine's pool binds connections to
+    # one loop, avoiding the "Event loop is closed" teardown you get when each
+    # bare TestClient call spins (and discards) its own loop.
+    with TestClient(app) as c:
+        yield c
+
+
+def test_documentation_returns_items_total_stats(client):
+    r = client.get("/documentation")
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert isinstance(body["items"], list)
+    assert isinstance(body["total"], int)
+    assert isinstance(body["stats"], dict)
+
+
+def test_alerts_active_returns_list(client):
+    r = client.get("/alerts/active")
+    assert r.status_code == 200, r.text
+    assert isinstance(r.json(), list)
+
+
+def test_get_patient_returns_profile(client):
+    r = client.get(f"/patients/{MOCK_PATIENT_AMKA}")
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert isinstance(body, dict)
+    assert body.get("amka") == MOCK_PATIENT_AMKA
+
+
+@pytest.mark.skip(
+    reason="GET /pharmapi/errors ships with T8 (PR #73); not on main yet — "
+    "add this assertion when that branch merges."
+)
+def test_pharmapi_errors_returns_list(client):
+    r = client.get("/pharmapi/errors")
+    assert r.status_code == 200, r.text
+    assert isinstance(r.json(), list)

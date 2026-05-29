@@ -49,6 +49,7 @@ class _FakePharmacist:
     email = EMAIL
     full_name = "Alex Pharmacist"
     role = "pharmacist"
+    eof_licence_no = "EOF-12345"  # deps.get_current_user reads this for /auth/me
     password_hash = bcrypt.hashpw(PASSWORD.encode(), bcrypt.gensalt(rounds=4)).decode()
     active = True
     last_login_at = None  # login handler writes to this; test_login asserts it.

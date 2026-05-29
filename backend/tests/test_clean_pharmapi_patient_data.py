@@ -1,7 +1,8 @@
-"""Unit tests for clean_pharmapi_patient_data.
+"""Unit tests for clean_pharmapi_patient_data — no DB, no network.
 
-Covers the AMKA branch, EKAA-fallback branch, and the both-absent error case.
-The function has no I/O — it is pure data transformation — so no mocking is needed.
+Exercises the v2 camelCase /common/getpatient normaliser, including the
+EKAA fallback (ΗΔΥΚΑ returns the European id under `identificationNo`) and
+the both-identifiers-absent guard.
 """
 
 import base64
@@ -24,40 +25,48 @@ from fastapi import HTTPException  # noqa: E402
 
 from app.services.pharmapi import clean_pharmapi_patient_data  # noqa: E402
 
-_BASE = {
-    "dateOfBirth": "1990-06-15",
-    "firstName": "Test",
-    "lastName": "Patient",
-    "sex": "M",
-    "mobile": "6900000000",
+# Real-shaped camelCase response from GET /api/v1/common/getpatient.
+_AMKA_PATIENT = {
+    "firstName": "ONOMA-A",
+    "lastName": "EPONYMO-A",
+    "amka": "01010003430",
+    "sex": {"id": 2, "name": "Θήλυ"},
+    "birthDate": "2018-01-01",
+    "telephone": "2109823392",
+    "email": "test@test.gr",
 }
 
 
-def test_amka_branch():
-    data = {**_BASE, "amka": "15031962456"}
-    result = clean_pharmapi_patient_data(data)
-    assert result.id == "15031962456"
-    assert result.amka == "15031962456"
-    assert result.ekaa is None
+def test_amka_patient_maps_correctly():
+    p = clean_pharmapi_patient_data(_AMKA_PATIENT)
+    assert p.id == "01010003430"
+    assert p.amka == "01010003430"
+    assert p.ekaa is None
+    assert p.first_name == "ONOMA-A"
+    assert p.last_name == "EPONYMO-A"
+    assert p.date_of_birth == "2018-01-01"
+    assert p.sex == "Θήλυ"  # flattened from the {id, name} object
+    assert p.phone == "2109823392"
+    assert isinstance(p.age, int)
 
 
-def test_ekaa_fallback_branch():
-    data = {**_BASE, "ekaa": "GR1234567890123456"}
-    result = clean_pharmapi_patient_data(data)
-    assert result.id == "GR1234567890123456"
-    assert result.amka is None
-    assert result.ekaa == "GR1234567890123456"
+def test_ekaa_fallback_when_amka_absent():
+    # ΗΔΥΚΑ exposes the European identifier under `identificationNo`.
+    data = {
+        **_AMKA_PATIENT,
+        "amka": None,
+        "identificationNo": "GR-EKAA-001",
+        "sex": {"id": 1, "name": "Άρρεν"},
+    }
+    p = clean_pharmapi_patient_data(data)
+    assert p.amka is None
+    assert p.ekaa == "GR-EKAA-001"
+    assert p.id == "GR-EKAA-001"  # id falls back to the EKAA
+    assert p.sex == "Άρρεν"
 
 
-def test_amka_takes_priority_when_both_present():
-    data = {**_BASE, "amka": "15031962456", "ekaa": "GR1234567890123456"}
-    result = clean_pharmapi_patient_data(data)
-    assert result.id == "15031962456"
-    assert result.amka == "15031962456"
-    assert result.ekaa == "GR1234567890123456"
-
-
-def test_raises_502_when_both_absent():
-    with pytest.raises(HTTPException) as exc_info:
-        clean_pharmapi_patient_data(_BASE)
-    assert exc_info.value.status_code == 502
+def test_raises_502_when_no_identifier():
+    data = {k: v for k, v in _AMKA_PATIENT.items() if k != "amka"}
+    with pytest.raises(HTTPException) as exc:
+        clean_pharmapi_patient_data(data)
+    assert exc.value.status_code == 502
