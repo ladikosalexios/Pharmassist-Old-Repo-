@@ -43,6 +43,8 @@ def _fake_current() -> dict:
         "pharmacy": SEEDED_PHARMACY,
         "email": "test@example.com",
         "name": "Test Pharmacist",
+        "eof_licence_no": "EOF-00000",
+        "role": "pharmacist",
     }
 
 
