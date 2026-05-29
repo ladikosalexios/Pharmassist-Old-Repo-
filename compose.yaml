@@ -23,6 +23,9 @@ services:
       # container itself; we want the `db` service on the compose network.
       DATABASE_URL: postgresql+asyncpg://pharmassist:pharmassist_dev@db:5432/pharmassist
       PHARMAPI_MOCK: "true"
+      # Tells the production guard in main.py not to fire when COOKIE_SECURE=false.
+      # Production deployments must NOT set this (missing ENV defaults to "production").
+      ENV: development
       # Required secrets — config.py has no in-code fallback, so the local
       # dev stack supplies them here. Dev/test values only; production must
       # provide real ones through its own environment.
