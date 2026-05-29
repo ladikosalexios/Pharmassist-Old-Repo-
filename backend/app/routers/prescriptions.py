@@ -9,10 +9,6 @@ log) is identical in both modes.
   PHARMAPI_MOCK=true  (default)  → MOCK_PRESCRIPTIONS + MOCK_QUEUE_BASE
   PHARMAPI_MOCK=false            → pharmapi_search_prescriptions()
 
-Important: GET /prescriptions/{rx_id} in live mode calls GET /pharmapi/prescriptions/{barcode}.
-That endpoint's response shape is TBD until the first real barcode is fetched.
-Update _normalize_pharmapi_detail() once the shape is confirmed.
-
 Order matters: ``/next`` is declared *before* ``/{rx_id}`` so FastAPI matches
 the fixed path before the catch-all. Same reason ``/{rx_id}/approve`` comes
 before the bare ``/{rx_id}``.
