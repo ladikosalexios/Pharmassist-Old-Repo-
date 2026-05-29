@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import os
 from functools import lru_cache
+from typing import Literal
 
 from dotenv import load_dotenv
 from pydantic import BaseModel
@@ -81,6 +82,11 @@ class Settings(BaseModel):
     pharmapi_api_key: str
     pharmapi_session_window_seconds: int
 
+    # ── Cookie security ─────────────────────────────────────────────────────
+    cookie_secure: bool
+    cookie_httponly: bool
+    cookie_samesite: Literal["strict", "lax", "none"]
+
     # ── Database ────────────────────────────────────────────────────────────
     database_url: str
 
@@ -108,6 +114,9 @@ def get_settings() -> Settings:
             "PHARMAPI_SESSION_WINDOW_SECONDS",
             23 * 3600,  # 23h (refresh before 24h hard limit)
         ),
+        cookie_secure=_env_bool("COOKIE_SECURE", True),
+        cookie_httponly=_env_bool("COOKIE_HTTPONLY", True),
+        cookie_samesite=os.getenv("COOKIE_SAMESITE", "strict"),
         database_url=os.getenv(
             "DATABASE_URL",
             "postgresql+asyncpg://pharmassist:pharmassist_dev@localhost:5432/pharmassist",

@@ -15,6 +15,7 @@ import uuid
 from datetime import UTC, datetime
 
 # Must be set before any `from app.*` / `from main import` line below.
+os.environ["ENV"] = "test"
 os.environ["PHARMAPI_MOCK"] = "true"
 os.environ["COOKIE_SECURE"] = "false"
 os.environ["CREDENTIAL_ENCRYPTION_KEY"] = base64.b64encode(b"\x01" * 32).decode()

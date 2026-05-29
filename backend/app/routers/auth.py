@@ -5,7 +5,6 @@ returned in the response body. The response carries display fields
 (pharmacist_name, pharmacy, ids) the SPA needs to render its shell.
 """
 
-import os
 from datetime import UTC, datetime
 
 import bcrypt
@@ -14,6 +13,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from ..config import Settings, get_settings
 from ..crypto import decrypt_credential, encrypt_credential
 from ..db.models.invitation import Invitation
 from ..db.models.pharmacist import Pharmacist
@@ -51,16 +51,12 @@ _DUMMY_PASSWORD_HASH: str = bcrypt.hashpw(
 ).decode()
 
 
-def _cookie_secure() -> bool:
-    """Secure cookie by default; opt out via COOKIE_SECURE=false for local HTTP."""
-    return os.getenv("COOKIE_SECURE", "true").lower() not in ("false", "0", "no")
-
-
 @router.post("/login", response_model=LoginResponse)
 async def login(
     body: LoginRequest,
     response: Response,
     db: AsyncSession = Depends(get_session),
+    settings: Settings = Depends(get_settings),
 ) -> LoginResponse:
     """Authenticate against the pharmacists table + ΗΔΥΚΑ, issue a session cookie."""
     pharmacist = await db.scalar(
@@ -119,9 +115,9 @@ async def login(
     response.set_cookie(
         key=COOKIE_NAME,
         value=token,
-        httponly=True,
-        samesite="strict",
-        secure=_cookie_secure(),
+        httponly=settings.cookie_httponly,
+        samesite=settings.cookie_samesite,
+        secure=settings.cookie_secure,
         max_age=COOKIE_MAX_AGE_SECONDS,
         path="/",
     )
@@ -135,13 +131,16 @@ async def login(
 
 
 @router.post("/logout")
-async def logout(response: Response) -> dict:
+async def logout(
+    response: Response,
+    settings: Settings = Depends(get_settings),
+) -> dict:
     """Clear the session cookie. Idempotent — safe to call without a cookie."""
     response.delete_cookie(
         key=COOKIE_NAME,
-        httponly=True,
-        samesite="strict",
-        secure=_cookie_secure(),
+        httponly=settings.cookie_httponly,
+        samesite=settings.cookie_samesite,
+        secure=settings.cookie_secure,
         path="/",
     )
     return {"ok": True}
