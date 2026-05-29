@@ -7,7 +7,7 @@ Set PHARMAPI_MOCK=false (env var) to switch from mock in-memory data to live
 log) is identical in both modes.
 
   PHARMAPI_MOCK=true  (default)  → MOCK_PRESCRIPTIONS + MOCK_QUEUE_BASE
-  PHARMAPI_MOCK=false            → pharmapi_search_prescriptions() + pharmapi_get()
+  PHARMAPI_MOCK=false            → pharmapi_search_prescriptions()
 
 Important: GET /prescriptions/{rx_id} in live mode calls GET /pharmapi/prescriptions/{barcode}.
 That endpoint's response shape is TBD until the first real barcode is fetched.
@@ -34,7 +34,6 @@ from ..services.documentation import record_prescription_action
 from ..services.pharmacy import find_pharmacy_by_name
 from ..services.pharmapi import (
     pharmapi_execute_prescription,
-    pharmapi_get,
     pharmapi_search_prescriptions,
 )
 from ..services.prescriptions import MOCK_PRESCRIPTIONS, MOCK_QUEUE_BASE
@@ -59,44 +58,6 @@ def _client_meta(request: Request) -> tuple:
         except ValueError:
             ip = None
     return ip, request.headers.get("user-agent")
-
-
-def _normalize_pharmapi_detail(raw: dict, barcode: str) -> dict:
-    """
-    Convert a live Pharmapi prescription detail response to our internal shape.
-
-    ⚠️  The exact field names from Pharmapi are UNKNOWN until the first real
-    barcode is fetched. This function contains best-guess mappings based on the
-    search endpoint XML structure. Update immediately on first real call.
-    """
-    patient_info = raw.get("patientInfo") or {}
-    return {
-        "rxId": barcode,
-        "code": barcode,
-        "status": PrescriptionStatus.PENDING,
-        "source": "pharmapi",
-        "_raw": raw,  # ← Remove once real shape is confirmed and mapped
-        "patient": {
-            "amka": patient_info.get("amka"),
-            "name": " ".join(
-                filter(
-                    None,
-                    [
-                        patient_info.get("firstName"),
-                        patient_info.get("lastName"),
-                    ],
-                )
-            ),
-        },
-        "medication": {
-            # TBD — update when real detail endpoint response shape is confirmed
-            "drugName": (raw.get("medication") or raw.get("drug") or {}).get("name"),
-        },
-        "prescriber": {
-            # TBD — update when real detail endpoint response shape is confirmed
-            "name": (raw.get("prescriber") or raw.get("doctor") or {}).get("name"),
-        },
-    }
 
 
 # ── Queue + list ─────────────────────────────────────────────────────────────
@@ -170,9 +131,13 @@ async def get_prescription_for_verification(
         payload = await checks_for_prescription(session, rx_id, rx, pharmacy.id)
         return {**rx, "safetyChecks": [c.model_dump(by_alias=True) for c in payload.checks]}
 
-    # Live mode: fetch detail by barcode from ΗΔΥΚΑ
-    raw = await pharmapi_get(f"/prescriptions/{rx_id}")
-    return _normalize_pharmapi_detail(raw, rx_id)
+    # Live mode: Pharmapi has no per-prescription detail endpoint.
+    # Use the search endpoint filtered by barcode — returns the same shape
+    # as the list view, already normalised by _parse_prescription_search_json.
+    results = await pharmapi_search_prescriptions(barcode=rx_id)
+    if not results:
+        raise HTTPException(status_code=404, detail=f"Prescription {rx_id} not found")
+    return results[0]
 
 
 # ── Actions (approve / flag / patch) ────────────────────────────────────────
