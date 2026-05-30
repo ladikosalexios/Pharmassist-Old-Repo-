@@ -83,9 +83,8 @@ async def list_prescriptions(current: dict = Depends(get_current_user)):
     """
     Return the prescription queue for the dashboard, with up-to-date statuses.
 
-    In live mode: medication and physician will be None — those fields are not
-    in the ΗΔΥΚΑ search response. The frontend should populate them lazily from
-    the detail call when a pharmacist opens a prescription for verification.
+    In live mode: drug name (medication) and prescriber are mapped from the
+    Pharmapi search response (medicines[0].name and doctorName respectively).
     """
     if is_mock_pharmapi():
         items = []
