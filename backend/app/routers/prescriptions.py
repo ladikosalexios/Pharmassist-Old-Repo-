@@ -113,9 +113,10 @@ async def get_prescription_for_verification(
     Return full prescription data for the verification UI.
     In live mode, rx_id is the ΗΔΥΚΑ barcode.
 
-    `safetyChecks` is populated from checks_for_prescription — the same source
-    the dashboard's /alerts/active uses — so the verification view can never
-    show a different set of checks than the dashboard flagged.
+    Mock mode: `safetyChecks` is populated from checks_for_prescription.
+    Live mode: safety checks are not yet wired (same status as approve/flag);
+    `safetyChecks` is returned as an empty list so the frontend never sees a
+    missing key.
     """
     if is_mock_pharmapi():
         rx = MOCK_PRESCRIPTIONS.get(rx_id)
@@ -133,7 +134,7 @@ async def get_prescription_for_verification(
     results = await pharmapi_search_prescriptions(barcode=rx_id)
     if not results:
         raise HTTPException(status_code=404, detail=f"Prescription {rx_id} not found")
-    return results[0]
+    return {**results[0], "safetyChecks": []}
 
 
 # ── Actions (approve / flag / patch) ────────────────────────────────────────
