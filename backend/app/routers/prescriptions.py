@@ -34,7 +34,7 @@ from ..services.pharmapi import (
     pharmapi_search_prescriptions,
 )
 from ..services.prescriptions import MOCK_PRESCRIPTIONS, MOCK_QUEUE_BASE
-from ..services.safety_engine import checks_for_prescription
+from ..services.safety_engine import checks_for_prescription, live_rx_to_engine_shape
 
 router = APIRouter(prefix="/prescriptions", tags=["prescriptions"])
 
@@ -84,9 +84,8 @@ async def list_prescriptions(current: dict = Depends(get_current_user)):
     """
     Return the prescription queue for the dashboard, with up-to-date statuses.
 
-    In live mode: medication and physician will be None — those fields are not
-    in the ΗΔΥΚΑ search response. The frontend should populate them lazily from
-    the detail call when a pharmacist opens a prescription for verification.
+    In live mode: drug name (medication) and prescriber are mapped from the
+    Pharmapi search response (medicines[0].name and doctorName respectively).
     """
     if is_mock_pharmapi():
         items = []
@@ -114,10 +113,10 @@ async def get_prescription_for_verification(
     Return full prescription data for the verification UI.
     In live mode, rx_id is the ΗΔΥΚΑ barcode.
 
-    Mock mode: `safetyChecks` is populated from checks_for_prescription.
-    Live mode: safety checks are not yet wired (same status as approve/flag);
-    `safetyChecks` is returned as an empty list so the frontend never sees a
-    missing key.
+    Both modes run checks_for_prescription and attach safetyChecks. In live
+    mode the incoming drug's ATC is resolved from drug_catalog; interaction
+    checks (section 1) don't fire because Pharmapi history lacks medicine
+    barcodes — see safety_engine.py for the full gap description.
     """
     if is_mock_pharmapi():
         rx = MOCK_PRESCRIPTIONS.get(rx_id)
@@ -144,12 +143,7 @@ async def get_prescription_for_verification(
     atc_map = await atc_codes_for_barcodes(session, [medicine_barcode] if medicine_barcode else [])
     atc = atc_map.get(medicine_barcode) if medicine_barcode else None
 
-    amka = rx.get("patientAmka")
-    shaped_rx = {
-        "rxId": rx_id,
-        "patient": {"id": amka, "amka": amka},
-        "medication": {"atcCode": atc},
-    }
+    shaped_rx = live_rx_to_engine_shape(rx, atc)
     payload = await checks_for_prescription(session, rx_id, shaped_rx, pharmacy.id)
     return {**rx, "safetyChecks": [c.model_dump(by_alias=True) for c in payload.checks]}
 

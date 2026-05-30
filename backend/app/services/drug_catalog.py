@@ -42,12 +42,18 @@ async def atc_codes_for_barcodes(
     session: AsyncSession,
     barcodes: list[str],
 ) -> dict[str, str]:
-    """Return {gns_code: atc_code} for every barcode that exists in drug_catalog."""
+    """Return {gns_code: atc_code} for every barcode that exists in drug_catalog.
+
+    Rows where atc_code is blank (stored as "" by _to_row when Pharmapi omits
+    it) are excluded — callers get None from .get() for those, which is the
+    same signal as "not in catalog" and correctly causes ATC-keyed checks to
+    skip rather than match against an empty string.
+    """
     barcodes = [b for b in barcodes if b]
     if not barcodes:
         return {}
     rows = await session.scalars(select(DrugCatalog).where(DrugCatalog.gns_code.in_(barcodes)))
-    return {row.gns_code: row.atc_code for row in rows}
+    return {row.gns_code: row.atc_code for row in rows if row.atc_code}
 
 
 async def run_sync(since: str | None) -> None:

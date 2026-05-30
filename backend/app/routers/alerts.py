@@ -13,23 +13,13 @@ from app.utils.environment import is_mock_pharmapi
 from ..constants import AlertStatus, PrescriptionStatus
 from ..deps import get_current_user
 from ..services.prescriptions import MOCK_PRESCRIPTIONS, MOCK_QUEUE_BASE
-from ..services.safety_engine import checks_for_prescription, load_active_safety_rules
+from ..services.safety_engine import (
+    checks_for_prescription,
+    live_rx_to_engine_shape,
+    load_active_safety_rules,
+)
 
 router = APIRouter(prefix="/alerts", tags=["alerts"])
-
-
-def _live_rx_to_engine_shape(rx: dict, atc: str | None) -> dict:
-    """Reshape a v2 search item into what evaluate_safety expects.
-
-    `patient.id` collapses to AMKA — rx_history's live path takes an AMKA
-    or EKAA, so a single identifier suffices.
-    """
-    amka = rx.get("patientAmka")
-    return {
-        "rxId": rx["rxId"],
-        "patient": {"id": amka, "amka": amka},
-        "medication": {"atcCode": atc},
-    }
 
 
 @router.get("/active", response_model=list[SafetyAlertPayload])
@@ -75,7 +65,7 @@ async def get_active_alerts(
     alerts = []
     for rx in pending:
         atc = barcode_to_atc.get(rx.get("medicineBarcode") or "")
-        shaped = _live_rx_to_engine_shape(rx, atc)
+        shaped = live_rx_to_engine_shape(rx, atc)
         payload = await checks_for_prescription(
             session, shaped["rxId"], shaped, pharmacy.id, rules=rules
         )

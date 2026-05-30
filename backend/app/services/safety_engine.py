@@ -62,6 +62,23 @@ def _rule_to_alert(rule: SafetyRule, rx_id: str) -> SafetyAlertPayload:
     )
 
 
+def live_rx_to_engine_shape(rx: dict, atc: str | None) -> dict:
+    """Reshape a Pharmapi v2 search item into the dict shape evaluate_safety expects.
+
+    `patientAmka` drives both `patient.id` and `patient.amka` — both are required
+    by the engine for intolerance and condition lookups. If AMKA is absent from
+    the Pharmapi response, all ATC-keyed patient checks will silently skip.
+    The v2 search schema includes `amka` on every result, but callers should be
+    aware of this dependency when handling edge cases.
+    """
+    amka = rx.get("patientAmka")
+    return {
+        "rxId": rx["rxId"],
+        "patient": {"id": amka, "amka": amka},
+        "medication": {"atcCode": atc},
+    }
+
+
 async def load_active_safety_rules(session: AsyncSession) -> list[SafetyRule]:
     """One-shot load of every active safety rule.
 
