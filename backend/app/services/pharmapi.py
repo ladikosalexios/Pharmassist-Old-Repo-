@@ -563,16 +563,6 @@ async def pharmapi_get_patient_insurances(
     return []
 
 
-def _parse_page_xml_items(raw_xml: str) -> list[dict]:
-    if not raw_xml:
-        return []
-    try:
-        root = ET.fromstring(raw_xml)
-    except ET.ParseError as exc:
-        raise HTTPException(502, f"Pharmapi: could not parse XML page response — {exc}") from exc
-    return [{child.tag: child.text for child in item} for item in root.findall("./contents/item")]
-
-
 def _parse_page_xml(raw_xml: str) -> dict:
     """Parse a paginated XML response, returning items and page metadata.
 
@@ -607,6 +597,10 @@ def _parse_page_xml(raw_xml: str) -> dict:
         "lastPage": (_root_text("lastPage") or "true").lower() == "true",
         "totalEntries": total_entries,
     }
+
+
+def _parse_page_xml_items(raw_xml: str) -> list[dict]:
+    return _parse_page_xml(raw_xml)["items"]
 
 
 async def pharmapi_get_patient_intolerances(amka_or_ekaa: str) -> list[dict]:
@@ -650,7 +644,7 @@ async def pharmapi_get_patient_medicine_history(
         if "609" in str(exc.detail):
             return {
                 "items": [],
-                "totalPages": 0,
+                "totalPages": 1,
                 "lastPage": True,
                 "totalEntries": 0,
                 "blocked": True,

@@ -573,7 +573,7 @@ async def rx_history_page(patient_id: str, page: int = 0, size: int = 50) -> dic
     rows = _mock_rx_rows(patient_id)
     return {
         "items": rows,
-        "page": 0,
+        "page": page,
         "totalPages": 1,
         "lastPage": True,
         "totalEntries": len(rows),

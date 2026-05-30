@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.schemas.patient_conditions import PatientConditionPayload
 from app.schemas.patient_insurances import PatientInsurancePayload
+from app.schemas.patients import RxHistoryPage
 from app.services.pharmacy import find_pharmacy_by_name
 from app.services.pharmapi import pharmapi_get_patient_insurances
 from app.utils.environment import is_mock_pharmapi
@@ -21,7 +22,7 @@ from ..services.patients import adr_history, conditions, resolve, rx_history_pag
 router = APIRouter(prefix="/patients", tags=["patients"])
 
 
-@router.get("/{patient_id}/prescriptions")
+@router.get("/{patient_id}/prescriptions", response_model=RxHistoryPage)
 async def get_patient_prescriptions(
     patient_id: str,
     page: int = Query(0, ge=0, description="Page number (0-indexed)"),
