@@ -522,24 +522,20 @@ PATIENT_RX_HISTORY_BASE: dict = {
 }
 
 
-async def rx_history(patient_id: str) -> list:
-    if not is_mock_pharmapi():
-        items = await pharmapi_get_patient_medicine_history(patient_id)
-        return [
-            {
-                "rxId": item.get("prescriptionBarcode"),
-                "date": _date(item.get("prescriptionExecutionDate")),
-                "drugName": item.get("medicineCommercialName"),
-                "prescriberName": None,
-                "status": _map_pharmapi_status(item.get("prescriptionStatusDesc")),
-                "quantityPrescribed": item.get("quantityPrescribed"),
-                "quantityOutstanding": item.get("quantityOutstanding"),
-                "euDispensed": str(item.get("euDispensed", "")).lower() == "true",
-            }
-            for item in items
-        ]
-    # Deep-copy the dicts so the per-call status overlay below doesn't mutate
-    # the module-level fixture (shallow list() left the inner dicts shared).
+def _map_history_item(item: dict) -> dict:
+    return {
+        "rxId": item.get("prescriptionBarcode"),
+        "date": _date(item.get("prescriptionExecutionDate")),
+        "drugName": item.get("medicineCommercialName"),
+        "prescriberName": None,
+        "status": _map_pharmapi_status(item.get("prescriptionStatusDesc")),
+        "quantityPrescribed": item.get("quantityPrescribed"),
+        "quantityOutstanding": item.get("quantityOutstanding"),
+        "euDispensed": str(item.get("euDispensed", "")).lower() == "true",
+    }
+
+
+def _mock_rx_rows(patient_id: str) -> list:
     rows = [dict(r) for r in PATIENT_RX_HISTORY_BASE.get(patient_id, [])]
     for row in rows:
         live = MOCK_PRESCRIPTIONS.get(row["rxId"])
@@ -547,6 +543,42 @@ async def rx_history(patient_id: str) -> list:
             row["status"] = live["status"]
     rows.sort(key=lambda r: r["date"], reverse=True)
     return rows
+
+
+async def rx_history(patient_id: str) -> list:
+    """Flat list of history items — used by the safety engine for ATC lookups."""
+    if not is_mock_pharmapi():
+        data = await pharmapi_get_patient_medicine_history(patient_id)
+        return [_map_history_item(item) for item in data.get("items", [])]
+    return _mock_rx_rows(patient_id)
+
+
+async def rx_history_page(patient_id: str, page: int = 0, size: int = 50) -> dict:
+    """Paginated prescription history for the patient profile tab.
+
+    Returns the Pharmapi pagination envelope plus a `blocked` flag that is
+    True when error 609 prevents access (pharmacy not yet permissioned).
+    Mock mode returns the full fixture wrapped in a single-page envelope.
+    """
+    if not is_mock_pharmapi():
+        data = await pharmapi_get_patient_medicine_history(patient_id, page=page, size=size)
+        return {
+            "items": [_map_history_item(i) for i in data.get("items", [])],
+            "page": page,
+            "totalPages": data.get("totalPages", 1),
+            "lastPage": data.get("lastPage", True),
+            "totalEntries": data.get("totalEntries", 0),
+            "blocked": data.get("blocked", False),
+        }
+    rows = _mock_rx_rows(patient_id)
+    return {
+        "items": rows,
+        "page": 0,
+        "totalPages": 1,
+        "lastPage": True,
+        "totalEntries": len(rows),
+        "blocked": False,
+    }
 
 
 def adr_history(patient_id: str) -> list:
