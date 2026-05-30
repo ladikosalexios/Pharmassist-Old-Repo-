@@ -1,5 +1,6 @@
 """Sync the drug_catalog table from Pharmapi masterdata."""
 
+from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -35,6 +36,18 @@ def _to_row(item: dict) -> dict | None:
         "interaction_group": None,  # not supplied by Pharmapi
         "active": item["inCirculation"] if item.get("inCirculation") is not None else True,
     }
+
+
+async def atc_codes_for_barcodes(
+    session: AsyncSession,
+    barcodes: list[str],
+) -> dict[str, str]:
+    """Return {gns_code: atc_code} for every barcode that exists in drug_catalog."""
+    barcodes = [b for b in barcodes if b]
+    if not barcodes:
+        return {}
+    rows = await session.scalars(select(DrugCatalog).where(DrugCatalog.gns_code.in_(barcodes)))
+    return {row.gns_code: row.atc_code for row in rows}
 
 
 async def run_sync(since: str | None) -> None:

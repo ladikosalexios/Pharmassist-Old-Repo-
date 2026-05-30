@@ -27,6 +27,7 @@ from ..db.session import get_session
 from ..deps import get_current_user
 from ..schemas.prescriptions import ApproveResponse, PatchResponse, PrescriptionPatch
 from ..services.documentation import record_prescription_action
+from ..services.drug_catalog import atc_codes_for_barcodes
 from ..services.pharmacy import find_pharmacy_by_name
 from ..services.pharmapi import (
     pharmapi_execute_prescription,
@@ -129,12 +130,28 @@ async def get_prescription_for_verification(
         return {**rx, "safetyChecks": [c.model_dump(by_alias=True) for c in payload.checks]}
 
     # Live mode: Pharmapi has no per-prescription detail endpoint.
-    # Use the search endpoint filtered by barcode — returns the same shape
-    # as the list view, already normalised by _parse_prescription_search_json.
+    # Use the search endpoint filtered by barcode, then enrich with safety checks.
     results = await pharmapi_search_prescriptions(barcode=rx_id)
     if not results:
         raise HTTPException(status_code=404, detail=f"Prescription {rx_id} not found")
-    return {**results[0], "safetyChecks": []}
+    rx = results[0]
+
+    pharmacy = await find_pharmacy_by_name(session, current["pharmacy"])
+    if pharmacy is None:
+        raise HTTPException(status_code=400, detail="Pharmacy not found for current user")
+
+    medicine_barcode = rx.get("medicineBarcode")
+    atc_map = await atc_codes_for_barcodes(session, [medicine_barcode] if medicine_barcode else [])
+    atc = atc_map.get(medicine_barcode) if medicine_barcode else None
+
+    amka = rx.get("patientAmka")
+    shaped_rx = {
+        "rxId": rx_id,
+        "patient": {"id": amka, "amka": amka},
+        "medication": {"atcCode": atc},
+    }
+    payload = await checks_for_prescription(session, rx_id, shaped_rx, pharmacy.id)
+    return {**rx, "safetyChecks": [c.model_dump(by_alias=True) for c in payload.checks]}
 
 
 # ── Actions (approve / flag / patch) ────────────────────────────────────────
