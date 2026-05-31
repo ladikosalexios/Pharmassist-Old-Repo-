@@ -186,15 +186,69 @@ is missing them): `BarcodeIcon`, `KeyIcon`, `RefreshIcon`, `InfoIcon`,
    `frontend/redesign-reference/` (and add that path to `.gitignore`).
    The prompts below assume mockups live at
    `frontend/redesign-reference/NN-name.html`.
-2. **Guardrails baked into every prompt** (so I don't repeat them each
-   time): work only under `frontend/src`; mirror the *visual layout* of
-   the referenced mockup but **do not** copy its mock data, Greek
-   placeholder strings, or the dev-only `StateSwitcher` component; keep
-   all real data wiring (the `lib/api.ts` calls, `types/index.ts`,
-   react-router); use only existing Tailwind tokens (no new hex); keep
-   semantic colors for safety state only; keep TypeScript strict;
-   finish by running `npm run typecheck && npm run lint && npm run format`
-   and fixing everything.
+2. **Guardrails baked into every prompt** (so they're not repeated each
+   time):
+   - **Scope:** work only under `frontend/src`. **Do not touch `backend/`**.
+   - **Data wiring:** keep every existing `lib/api.ts` call, every
+     `types/index.ts` type, every react-router route, and every event
+     handler / state-machine in the existing pages **verbatim**. The
+     redesign is JSX + Tailwind + layout structure only. If a handler's
+     shape needs to change, call that out explicitly in the prompt — never
+     silently rewrite one.
+   - **Mockup hygiene:** mirror the *visual layout* of the referenced
+     mockup but **do not** copy its mock data, Greek placeholder strings,
+     or the dev-only `StateSwitcher` component. Mockups are visual ground
+     truth, not data ground truth.
+   - **Mockup-vs-design-rule conflicts:** if the mockup uses a semantic
+     color (red / amber / emerald) for a non-safety purpose, substitute a
+     `slate-*` or `brand-*` variant and leave a one-line code comment
+     explaining the substitution. Semantic colors are reserved for safety
+     state (block / review / ok) and never decorate.
+   - **Tokens:** use only existing Tailwind tokens. **No new hex literals.**
+   - **TypeScript:** keep strict.
+   - **Component extraction:** any sub-section of a page that's >80 lines
+     of JSX should be extracted into its own component under
+     `frontend/src/components/`. Don't leave 600-line pages.
+   - **Branching + PR:** each phase ships as its own PR — branch
+     `feat/redesign-phase-<N>-<slug>` off `main`, commit incrementally,
+     open the PR at the end with the prompt body as the description.
+
+### Per-phase template (every Phase prompt below assumes this scaffold)
+
+Each Phase prompt below carries a small **Inputs** block before the
+prompt body that fills in:
+
+- **Branch** — explicit branch name to create first.
+- **First read** — the files Claude should load *before* writing anything.
+  Without this Claude burns a turn on discovery; with it the first
+  response is implementation.
+- **Stubs** — if the phase needs `lib/api.ts` stubs for endpoints that
+  don't exist yet, the **exact signature and rejection shape** is
+  specified — not just "stub it." (Otherwise the UI's error-handling
+  is incompatible with whatever Claude picks.)
+- **Preservation** — anything in the touched files that must NOT change
+  (handlers, state machines, types, route definitions). The default
+  guardrail above says "preserve everything"; this section spells out
+  the specific contract for the touched files.
+
+And every phase ends with the same **Finalize** block (don't repeat it
+in each prompt — it applies to all):
+
+```
+Finalize (run after the phase's work is done):
+1. `cd frontend && npm run typecheck && npm run lint && npm run format`
+   — fix anything that fails.
+2. `docker compose exec -T backend python -m pytest`
+   — backend should be untouched, so this must stay green. If it fails,
+   something in this phase regressed the backend (shouldn't happen) and
+   needs reverting.
+3. Write the phase's Playwright smoke test per the matrix above,
+   under `frontend/tests/phase-<N>-<slug>.spec.ts`. Local-only for now;
+   don't add to CI.
+4. `git add -A && git commit -m "feat(redesign): Phase <N> — <name>"`
+   `git push -u origin feat/redesign-phase-<N>-<slug>`
+5. `gh pr create --base main --title "feat(redesign): Phase <N> — <name>" --body "<paste the Inputs + prompt body for traceability>"`
+```
 
 ### PR / branch strategy
 
@@ -242,6 +296,21 @@ tracked under **Follow-ups** below.
 
 ## Phase 0 — Foundation
 
+**Inputs**
+- **Branch:** `feat/redesign-phase-0-foundation`
+- **First read:** `frontend/tailwind.config.js`, `frontend/src/index.css`,
+  `frontend/src/components/Icons.tsx`, `frontend/src/components/Sidebar.tsx`,
+  `frontend/src/pages/PrescriptionVerification.tsx` (for the
+  `.btn-success` Approve usage), `frontend/src/lib/auth.tsx` (for the
+  `useAuth` shape the sidebar uses), and
+  `frontend/redesign-reference/00-design-system.html`.
+- **Stubs:** none.
+- **Preservation:** the existing user/sign-out footer wiring in
+  `Sidebar.tsx` (the `useAuth` hook call and its consumer). Don't
+  refactor the Approve button's *handler* — only its visual styling.
+- **Routes:** **do not** add new routes in this phase. Later phases add
+  `/patients`, `/history`, `/settings`.
+
 > **Prompt:**
 > In `frontend/`, apply the PharmAssist design-system foundation.
 > Reference `frontend/redesign-reference/00-design-system.html`.
@@ -278,6 +347,14 @@ tracked under **Follow-ups** below.
 
 ## Phase 0.5 — Live-mode UI awareness
 
+**Inputs**
+- **Branch:** `feat/redesign-phase-0-5-live-mode-awareness`
+- **First read:** `frontend/vite.config.ts`, `frontend/.env.example` (if
+  it exists; create if not), `frontend/src/components/Sidebar.tsx`.
+- **Stubs:** none — this phase is plumbing only.
+- **Preservation:** Sidebar's footer (auth/sign-out) untouched; only add
+  the `DevModeBadge` above it.
+
 > **Why this phase exists:** the production-readiness doc calls out that
 > some demo affordances should be hidden when `PHARMAPI_MOCK=false`
 > (notably the seeded mock prescriptions in the queue and the "Generate
@@ -304,6 +381,32 @@ tracked under **Follow-ups** below.
 > Then run `npm run typecheck && npm run lint && npm run format`.
 
 ## Phase 1 — Counter (Dashboard)
+
+**Inputs**
+- **Branch:** `feat/redesign-phase-1-counter`
+- **First read:** `frontend/src/pages/Dashboard.tsx` (current), the
+  keyboard library (search: `find frontend/src/lib -name 'keyboard*'`;
+  also check `frontend/src/hooks/` and `frontend/src/pages/PrescriptionVerification.tsx`
+  for the `c`/`f` shortcut wiring to confirm the API), `frontend/src/components/SafetyAlertsPanel.tsx`,
+  `frontend/src/lib/api.ts` (functions `listPrescriptions`, `getActiveAlerts`,
+  and the existing `ApiError` class), `frontend/src/types/index.ts` for
+  `QueueItem`, `ActiveAlert`, `CheckStatus`, `frontend/src/lib/auth.tsx`
+  for `useAuth`, `frontend/src/lib/env.ts` (from Phase 0.5) for
+  `IS_MOCK_MODE`, and `frontend/redesign-reference/03-counter.html`.
+- **Stubs:**
+  - `paperlessLookup(amka: string, pin: string): Promise<never>` in
+    `lib/api.ts`. Always rejects with
+    `new ApiError(501, 'Paperless lookup not yet implemented')`. UI shows
+    that message as a small disabled-button tooltip.
+- **Preservation:** all existing imports/types that aren't being deleted
+  must remain pointing at the same modules. The `c`/`f` shortcuts are
+  registered elsewhere and untouched.
+- **Dead code to delete (don't leave orphan imports):** the
+  4-stat-card grid and its derived state — `criticalCount`, the
+  `alerts` state in `Dashboard.tsx`, the `getActiveAlerts` *page-level*
+  import (the Safety panel still uses it internally), `STATUS_CHIP` /
+  `STATUS_LABEL` if the new layout doesn't reuse them. Run `grep` after
+  to verify no unused imports remain.
 
 > **Pre-flight (do this before running the prompt):**
 > Check what `frontend/src/lib/keyboard.ts` (or wherever the keyboard
@@ -367,9 +470,28 @@ tracked under **Follow-ups** below.
 > Instructions" block — keep a link to `/instructions` as described
 > above. **Delete the now-dead `criticalCount` / `alerts` state and
 > their imports** — don't leave them as orphans.
-> Then run typecheck/lint/format and fix everything.
+> Then run the **Finalize** block (see "Per-phase template" at the top of this doc): frontend checks, backend pytest, Playwright smoke, branch + commit + PR.
 
 ## Phase 2 — Review (Prescription Verification)
+
+**Inputs**
+- **Branch:** `feat/redesign-phase-2-review`
+- **First read:** `frontend/src/pages/PrescriptionVerification.tsx`
+  (current — long file, read the whole thing), the three modals/drawer
+  it uses (`frontend/src/components/ApproveConfirmModal.tsx`,
+  `FlagDiscrepancyModal.tsx`, `ContactPrescriberDrawer.tsx`), the
+  `SafetyChecksPanel` it composes, `frontend/src/types/index.ts` for
+  `SafetyCheck`, `Prescription`, `PatientCondition`,
+  `frontend/src/lib/api.ts` for `getPrescription`, `approvePrescription`,
+  `getPatientConditions`, and `frontend/redesign-reference/04-review.html`.
+- **Stubs:** none. All data flows are already wired.
+- **Preservation (verbatim):** every event handler
+  (`onClickApprove`, `onConfirmApprove`, the flag and contact handlers),
+  the blocker logic (`blockers = (rx.safetyChecks ?? []).filter(c => c.status === 'block')`),
+  the `c` / `f` keyboard shortcut registration, the modal/drawer open
+  state machines, every `useEffect`, every API call. Restyle = JSX +
+  Tailwind + layout only. If you find yourself editing logic outside
+  the render tree, stop and ask.
 
 > **Prompt:**
 > Restyle `frontend/src/pages/PrescriptionVerification.tsx` to match
@@ -389,9 +511,42 @@ tracked under **Follow-ups** below.
 > Add **skeleton loading** using the `.sk animate-shimmer` classes
 > while `loading` is true (mirror the mockup's skeleton cards).
 > Preserve the "Resolve all critical safety alerts before approving"
-> blocked state. Then run typecheck/lint/format and fix everything.
+> blocked state. Then run the **Finalize** block (see "Per-phase template" at the top of this doc): frontend checks, backend pytest, Playwright smoke, branch + commit + PR.
 
 ## Phase 3 — Dispense wizard
+
+**Inputs**
+- **Branch:** `feat/redesign-phase-3-dispense-wizard`
+- **First read:** `frontend/src/components/ApproveConfirmModal.tsx`
+  (the thing being replaced), `frontend/src/pages/PrescriptionVerification.tsx`
+  (to see how the modal is currently mounted),
+  `frontend/src/lib/api.ts` for `approvePrescription` + the existing
+  `ApiError` shape, `frontend/src/lib/env.ts` for `IS_MOCK_MODE`,
+  and `frontend/redesign-reference/05-dispense-wizard.html`.
+- **Stubs (add to `lib/api.ts` with TODO comments):**
+  - `verifyPack(packCode: string, scheme: 'GS1' | 'PPN', batch?: string, expiry?: string): Promise<never>` — always rejects with `new ApiError(501, 'HMVS pack verification not yet implemented')`.
+  - `decommissionPack(packCode: string): Promise<never>` — always rejects with `new ApiError(501, 'HMVS pack decommission not yet implemented')`.
+- **Preservation:** the `approvePrescription(rxId)` call signature and
+  the existing success → `toast` → `navigate('/dashboard')` flow.
+- **State machine (explicit — don't invent these transitions):**
+  ```
+  step1: idle → verifying → (success → goto step2) | (failed → idle with retry)
+                          → skip-manual → step2 (with a banner that pack-verify was skipped)
+  step2: idle → submitting → (success → success-view) | (failed → idle with retry)
+  success-view: terminal — single CTA "Back to counter" closes the modal
+                + optional secondary CTA "Generate counseling instructions"
+                (mock-mode-only via IS_MOCK_MODE)
+  ```
+  Any failed verify in step1 is **not** a hard block; the user can click
+  "Skip — manual entry" to proceed to step2 with a clear notice.
+  Cancel / Esc / scrim-click closes the modal at any step *except* during
+  an in-flight submit (block close until the request resolves).
+- **Backend-gap behavior:** because verify + decommission both reject
+  today, the practical flow in mock mode is: step1 always shows the
+  failed state on submit → user clicks "Skip — manual entry" → step2
+  → `approvePrescription` succeeds → success view. Make sure that
+  user journey is smooth and the "skipped pack verification" banner in
+  step2 is clear, not alarming.
 
 > **Prompt:**
 > Create a new `frontend/src/components/DispenseWizard.tsx` matching
@@ -413,9 +568,34 @@ tracked under **Follow-ups** below.
 > **Success screen wiring:** include a "Generate counseling
 > instructions" CTA on the success view, behind `IS_MOCK_MODE` for now
 > (live HL7 dispense + counseling generation lives in a later track).
-> Then run typecheck/lint/format and fix everything.
+> Then run the **Finalize** block (see "Per-phase template" at the top of this doc): frontend checks, backend pytest, Playwright smoke, branch + commit + PR.
 
 ## Phase 4 — Patients (list + profile)
+
+**Inputs**
+- **Branch:** `feat/redesign-phase-4-patients`
+- **First read:** `frontend/src/App.tsx` (to see where `/patients/:id`
+  is registered), `frontend/src/pages/PatientProfile.tsx` (current),
+  `frontend/src/lib/api.ts` (`getPatient`, `getPatientConditions`,
+  `getPatientPrescriptions`, `getPatientSideEffects`),
+  `frontend/src/types/index.ts` for `Patient` / `PatientCondition`,
+  `frontend/vite.config.ts` to confirm the `/patients` SPA-proxy
+  bypass exists, and the two mockups
+  `frontend/redesign-reference/06-patients.html` +
+  `07-patient-profile.html`.
+- **Stubs (add to `lib/api.ts`):**
+  - `searchPatients(query: string): Promise<never>` — always rejects
+    with `new ApiError(501, 'Patient search not yet implemented')`.
+- **Preservation (verbatim):** every API call signature in
+  `PatientProfile.tsx`; the existing "Add condition" modal logic
+  (restyle the JSX, don't replace the component); the `/patients/:id`
+  route registration (don't accidentally remove it when adding the
+  index route above it).
+- **Critical wiring detail:** **do not** iterate `getPatient` over a
+  guessed list of AMKAs to fake a name search. For non-AMKA inputs,
+  surface the "search not yet available" empty state instead. (The
+  existing prompt body already specifies the dual-path; this note
+  exists to make sure Claude doesn't get clever.)
 
 > **Prompt:**
 > (a) Create a new page `frontend/src/pages/Patients.tsx` matching
@@ -439,6 +619,55 @@ tracked under **Follow-ups** below.
 > and fix everything.
 
 ## Phase 5 — History, Reports, Settings
+
+**Inputs (apply per-sub-PR; the three sub-phases are independent)**
+
+**5a — Reports**
+- **Branch:** `feat/redesign-phase-5a-reports`
+- **First read:** `frontend/src/pages/SideEffects.tsx` (current),
+  `frontend/src/lib/api.ts` (`listSideEffects`, `flagSideEffect`),
+  `frontend/src/types/index.ts` for `SideEffect`,
+  `frontend/redesign-reference/09-reports.html`.
+- **Stubs:** none.
+- **Preservation:** every API call signature; the route remains
+  `/side-effects`; the page filename stays `SideEffects.tsx` (only
+  the heading text and styling change).
+
+**5b — History**
+- **Branch:** `feat/redesign-phase-5b-history`
+- **First read:** `frontend/src/pages/Documentation.tsx` (current — to
+  see what's being folded in), `frontend/src/App.tsx` (to add the new
+  route + the redirect), `frontend/src/components/Sidebar.tsx` (to
+  remove the old "Documentation Log" item if still present),
+  `frontend/src/lib/api.ts` (`listDocumentation`, `exportDocumentation`,
+  any per-row export call), `frontend/src/types/index.ts` for
+  `DocumentationLog`, and `frontend/redesign-reference/08-history.html`.
+- **Stubs:** none — wire the History page entirely to the existing
+  documentation endpoints.
+- **Preservation (parity checklist — see the section above this phase):**
+  every filter (`q`, `method`, `limit`, `offset`); both export endpoints
+  (`GET /documentation/export` and per-row `GET /documentation/{id}/export`);
+  the `<Navigate to="/history" replace />` redirect from `/documentation`
+  must work for old bookmarks.
+
+**5c — Settings**
+- **Branch:** `feat/redesign-phase-5c-settings`
+- **First read:** `frontend/src/App.tsx` (to add the new route),
+  `frontend/src/lib/api.ts` for `me` / current-user endpoints,
+  `frontend/src/lib/auth.tsx` for `useAuth`,
+  `frontend/redesign-reference/10-settings.html`.
+- **Stubs (add to `lib/api.ts`, all reject with 501):**
+  - `updatePharmapiPassword(currentPw: string, newPw: string): Promise<never>`
+    — `new ApiError(501, 'Credential rotation not yet implemented')`.
+  - `inviteTeamMember(email: string, role: 'pharmacist' | 'admin'): Promise<never>`
+    — `new ApiError(501, 'Team management not yet implemented')`.
+  - `removeTeamMember(pharmacistId: string): Promise<never>` — same.
+  - `getAuditLog(page: number, pageSize: number): Promise<never>` —
+    `new ApiError(501, 'Audit log read not yet implemented')`.
+  - `signOutEverywhere(): Promise<never>` —
+    `new ApiError(501, 'Sign-out-everywhere not yet implemented')`.
+- **Preservation:** the `useAuth` hook usage and any existing
+  read-only "me" endpoint calls — wire them into Profile.
 
 > **PR strategy:** split into three PRs (Reports / History / Settings).
 > They touch disjoint files and review better separately.
@@ -489,17 +718,32 @@ tracked under **Follow-ups** below.
 
 ## Phase 6 — Polish: mobile + (optional) dark mode
 
+**Inputs**
+- **Branch (mobile):** `feat/redesign-phase-6-mobile`
+- **Branch (dark, if in scope):** `feat/redesign-phase-6b-dark-mode`
+- **First read (mobile):** the now-landed `Sidebar.tsx`, `Dashboard.tsx`
+  (Counter), `PrescriptionVerification.tsx` (Review), `Patients.tsx`,
+  the design-system mockup `00-design-system.html`,
+  `frontend/redesign-reference/11-counter-mobile.html`.
+- **First read (dark, if in scope):** `frontend/tailwind.config.js`,
+  `frontend/src/index.css`, the same page files as above, and
+  `frontend/redesign-reference/12-counter-dark.html`.
+- **Stubs:** none.
+- **Preservation:** the mobile reflow must not change any behavior —
+  same handlers, same data, same routing. Only viewport-class additions
+  (`md:` etc.) and rearrangement.
+
 > **Prompt (mobile):**
 > Make the Counter responsive per `11-counter-mobile.html`: collapse
 > the sidebar into a top bar / drawer under `md`, stack the hero and
 > rail, and verify the Review and Patients pages reflow cleanly on a
-> 380px viewport. Touch targets ≥ 40px. Run typecheck/lint/format.
+> 380px viewport. Touch targets ≥ 40px. Then run the **Finalize** block at the top of this doc.
 >
 > **Prompt (dark mode — only if decision #2 = now):**
 > Add `darkMode: "class"` to `tailwind.config.js`, a theme toggle in
 > the sidebar footer, and `dark:` variants across the shared
 > components and Counter to match `12-counter-dark.html`. Keep
-> semantic safety colors legible in both themes. Run typecheck/lint/format.
+> semantic safety colors legible in both themes. Then run the **Finalize** block at the top of this doc.
 
 ---
 
