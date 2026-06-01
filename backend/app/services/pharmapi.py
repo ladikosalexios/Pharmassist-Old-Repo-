@@ -309,9 +309,11 @@ def parse_prescription_search_xml(xml_text: str) -> list[dict]:
     the shape expected by the /prescriptions dashboard (same as MOCK_QUEUE_BASE),
     with additional Pharmapi-specific fields preserved.
 
-    Fields NOT available in the search response (populated as None):
-      - medication / drugName  → requires a per-prescription detail call
-      - physician              → requires a per-prescription detail call
+    Fields not present in the XML response (populated as None):
+      - medication / drugName  → available in v2 JSON via medicines[0]["name"]
+      - physician              → available in v2 JSON via doctorName
+    Note: Pharmapi v2 has no per-prescription detail endpoint; use
+    _parse_prescription_search_json for the current JSON-based path.
     """
     if not xml_text:
         return []
@@ -339,8 +341,8 @@ def parse_prescription_search_xml(xml_text: str) -> list[dict]:
                 # ── Core fields (same shape as MOCK_QUEUE_BASE) ─────────────────
                 "rxId": _el(item, "barcode"),
                 "patientName": patient_name,
-                "medication": None,  # not in search — populated on detail fetch
-                "physician": None,  # not in search — populated on detail fetch
+                "medication": None,  # not in XML — available in v2 JSON via medicines[0]["name"]
+                "physician": None,  # not in XML — available in v2 JSON via doctorName
                 "date": _date(_el(item, "issueDate")),
                 "status": _map_pharmapi_status(pharmapi_status),
                 # ── Extra Pharmapi fields (useful for UI / filtering) ────────────
