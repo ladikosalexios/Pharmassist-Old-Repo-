@@ -3,7 +3,7 @@
 import time
 from datetime import UTC, datetime
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from ..deps import get_current_user
 from ..schemas.auth import SessionStatus
@@ -34,7 +34,7 @@ async def pharmapi_connect(current: dict = Depends(get_current_user)):
 
     No-op refresh if /auth/login already opened the window.
     """
-    data = await pharmapi_get("/api/v1/user/me", accept_xml=True)
+    data = await pharmapi_get("/api/v1/user/me")
     _start_pharmapi_session(data)
     return {
         "success": True,
@@ -74,10 +74,10 @@ async def pharmapi_status(current: dict = Depends(get_current_user)):
 @router.get("/pharmacy")
 async def get_my_pharmacy(current: dict = Depends(get_current_user)):
     """
-    Fetch pharmacy details from Pharmapi.
+    Fetch pharmacy unit details from Pharmapi.
     Requires active Pharmapi session (call /pharmapi/connect first).
     """
-    return await pharmapi_get("/pharmacies/myPharmacy")
+    return await pharmapi_get("/api/v1/user/me/units")
 
 
 @router.get("/errors")
@@ -100,12 +100,10 @@ async def get_prescription_queue(
 
     Returns prescriptions that have not yet been dispensed (prescribed=false).
     Each item contains: barcode, patient name, patient AMKA, issue/expiry date,
-    status, insurance info.
+    status, insurance info, drug name (from medicines[0]) and prescriber name.
 
-    NOTE: Drug name and prescriber are NOT in the search response — those
-    require a per-prescription detail call (GET /pharmapi/prescriptions/{barcode}).
-    The frontend should populate those fields lazily when a pharmacist opens
-    a prescription for verification.
+    GET /pharmapi/prescriptions/{barcode} returns the same search-filtered
+    data — it is not a richer detail endpoint.
     """
     items = await pharmapi_search_prescriptions(
         prescribed=False,
@@ -150,13 +148,13 @@ async def get_prescription_history(
 @router.get("/prescriptions/{barcode}")
 async def get_prescription_detail(barcode: str, current: dict = Depends(get_current_user)):
     """
-    Fetch full prescription detail by barcode from ΗΔΥΚΑ.
+    Fetch prescription detail by barcode from ΗΔΥΚΑ.
 
-    This is the detail call — it returns drug name, dosage, prescriber, and
-    all fields not present in the search/queue response. Call this when a
-    pharmacist opens a prescription for verification.
-
-    NOTE: Response shape is TBD — update the normaliser in services/prescriptions.py
-    once the first real barcode is fetched and the JSON/XML shape is confirmed.
+    Pharmapi v2 has no dedicated per-prescription detail endpoint — the search
+    endpoint filtered by barcode is the correct approach per the OpenAPI spec.
+    Returns the first (and only) matching result, or 404 if not found.
     """
-    return await pharmapi_get(f"/prescriptions/{barcode}")
+    results = await pharmapi_search_prescriptions(barcode=barcode)
+    if not results:
+        raise HTTPException(status_code=404, detail=f"Prescription {barcode} not found")
+    return results[0]
