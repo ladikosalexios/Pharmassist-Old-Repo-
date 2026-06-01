@@ -100,12 +100,10 @@ async def get_prescription_queue(
 
     Returns prescriptions that have not yet been dispensed (prescribed=false).
     Each item contains: barcode, patient name, patient AMKA, issue/expiry date,
-    status, insurance info.
+    status, insurance info, drug name (from medicines[0]) and prescriber name.
 
-    NOTE: Drug name and prescriber are NOT in the search response — those
-    require a per-prescription detail call (GET /pharmapi/prescriptions/{barcode}).
-    The frontend should populate those fields lazily when a pharmacist opens
-    a prescription for verification.
+    GET /pharmapi/prescriptions/{barcode} returns the same search-filtered
+    data — it is not a richer detail endpoint.
     """
     items = await pharmapi_search_prescriptions(
         prescribed=False,

@@ -309,9 +309,11 @@ def parse_prescription_search_xml(xml_text: str) -> list[dict]:
     the shape expected by the /prescriptions dashboard (same as MOCK_QUEUE_BASE),
     with additional Pharmapi-specific fields preserved.
 
-    Fields NOT available in the search response (populated as None):
-      - medication / drugName  → requires a per-prescription detail call
-      - physician              → requires a per-prescription detail call
+    Fields not present in the XML response (populated as None):
+      - medication / drugName  → available in v2 JSON via medicines[0]["name"]
+      - physician              → available in v2 JSON via doctorName
+    Note: Pharmapi v2 has no per-prescription detail endpoint; use
+    _parse_prescription_search_json for the current JSON-based path.
     """
     if not xml_text:
         return []
@@ -339,8 +341,8 @@ def parse_prescription_search_xml(xml_text: str) -> list[dict]:
                 # ── Core fields (same shape as MOCK_QUEUE_BASE) ─────────────────
                 "rxId": _el(item, "barcode"),
                 "patientName": patient_name,
-                "medication": None,  # not in search — populated on detail fetch
-                "physician": None,  # not in search — populated on detail fetch
+                "medication": None,  # not in XML — available in v2 JSON via medicines[0]["name"]
+                "physician": None,  # not in XML — available in v2 JSON via doctorName
                 "date": _date(_el(item, "issueDate")),
                 "status": _map_pharmapi_status(pharmapi_status),
                 # ── Extra Pharmapi fields (useful for UI / filtering) ────────────
@@ -563,14 +565,44 @@ async def pharmapi_get_patient_insurances(
     return []
 
 
-def _parse_page_xml_items(raw_xml: str) -> list[dict]:
+def _parse_page_xml(raw_xml: str) -> dict:
+    """Parse a paginated XML response, returning items and page metadata.
+
+    Extracts the standard Pharmapi pagination envelope fields (totalPages,
+    lastPage, totalEntries) from root-level elements alongside the item list.
+    Falls back to safe defaults if any field is absent or non-numeric.
+    """
     if not raw_xml:
-        return []
+        return {"items": [], "totalPages": 1, "lastPage": True, "totalEntries": 0}
     try:
         root = ET.fromstring(raw_xml)
     except ET.ParseError as exc:
         raise HTTPException(502, f"Pharmapi: could not parse XML page response — {exc}") from exc
-    return [{child.tag: child.text for child in item} for item in root.findall("./contents/item")]
+    items = [{child.tag: child.text for child in item} for item in root.findall("./contents/item")]
+
+    def _root_text(tag: str) -> str | None:
+        el = root.find(tag)
+        return el.text.strip() if el is not None and el.text else None
+
+    try:
+        total_pages = int(_root_text("totalPages") or 1)
+    except ValueError:
+        total_pages = 1
+    try:
+        total_entries = int(_root_text("totalEntries") or len(items))
+    except ValueError:
+        total_entries = len(items)
+
+    return {
+        "items": items,
+        "totalPages": total_pages,
+        "lastPage": (_root_text("lastPage") or "true").lower() == "true",
+        "totalEntries": total_entries,
+    }
+
+
+def _parse_page_xml_items(raw_xml: str) -> list[dict]:
+    return _parse_page_xml(raw_xml)["items"]
 
 
 async def pharmapi_get_patient_intolerances(amka_or_ekaa: str) -> list[dict]:
@@ -588,15 +620,39 @@ async def pharmapi_get_patient_intolerances(amka_or_ekaa: str) -> list[dict]:
     return _parse_page_xml_items(raw.get("raw_xml", ""))
 
 
-async def pharmapi_get_patient_medicine_history(amka_or_ekaa: str) -> list[dict]:
+async def pharmapi_get_patient_medicine_history(
+    amka_or_ekaa: str,
+    page: int = 0,
+    size: int = 50,
+) -> dict:
+    """Fetch one page of executed prescription history for a patient.
+
+    Returns {"items": [...], "totalPages": N, "lastPage": bool,
+             "totalEntries": N, "blocked": False}.
+
+    On error 609 (pharmacy not yet permissioned by ΗΔΥΚΑ) returns the same
+    shape with empty items and "blocked": True so callers can render a
+    graceful empty state rather than propagating an error.
+    """
     pharmacy_id = get_pharmacy_id()
     # See note on pharmapi_get_patient_intolerances re: patientsConsent.
-    raw = await pharmapi_get(
-        f"/api/v1/patients/{amka_or_ekaa}/medicinehistory/full/{pharmacy_id}/prescription",
-        accept_xml=True,
-        params={"patientsConsent": "true"},
-    )
-    return _parse_page_xml_items(raw.get("raw_xml", ""))
+    try:
+        raw = await pharmapi_get(
+            f"/api/v1/patients/{amka_or_ekaa}/medicinehistory/full/{pharmacy_id}/prescription",
+            accept_xml=True,
+            params={"patientsConsent": "true", "page": page, "size": size},
+        )
+    except HTTPException as exc:
+        if "609" in str(exc.detail):
+            return {
+                "items": [],
+                "totalPages": 1,
+                "lastPage": True,
+                "totalEntries": 0,
+                "blocked": True,
+            }
+        raise
+    return {**_parse_page_xml(raw.get("raw_xml", "")), "blocked": False}
 
 
 async def pharmapi_get_masterdata_medicines(
