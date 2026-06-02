@@ -73,7 +73,7 @@ def live_rx_to_engine_shape(rx: dict, atc: str | None) -> dict:
     """
     amka = rx.get("patientAmka")
     return {
-        "rxId": rx["rxId"],
+        "rxId": rx.get("rxId"),
         "patient": {"id": amka, "amka": amka},
         "medication": {"atcCode": atc},
     }

@@ -40,7 +40,7 @@ def _to_row(item: dict) -> dict | None:
 
 async def atc_codes_for_barcodes(
     session: AsyncSession,
-    barcodes: list[str],
+    barcodes: list[str | None],
 ) -> dict[str, str]:
     """Return {gns_code: atc_code} for every barcode that exists in drug_catalog.
 

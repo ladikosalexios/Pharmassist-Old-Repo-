@@ -144,7 +144,7 @@ async def get_prescription_for_verification(
     atc = atc_map.get(medicine_barcode) if medicine_barcode else None
 
     shaped_rx = live_rx_to_engine_shape(rx, atc)
-    payload = await checks_for_prescription(session, rx_id, shaped_rx, pharmacy.id)
+    payload = await checks_for_prescription(session, shaped_rx["rxId"], shaped_rx, pharmacy.id)
     return {**rx, "safetyChecks": [c.model_dump(by_alias=True) for c in payload.checks]}
 
 
