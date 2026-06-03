@@ -113,6 +113,11 @@ export function DispenseWizard({
   const [manual, setManual] = useState(false);
   const [payload, setPayload] = useState("");
   const [scheme, setScheme] = useState<"GS1" | "PPN">("GS1");
+  // Controlled state for manual-entry fields
+  const [manualProductCode, setManualProductCode] = useState("");
+  const [manualSerial, setManualSerial] = useState("");
+  const [manualBatch, setManualBatch] = useState("");
+  const [manualExpiry, setManualExpiry] = useState("");
   const [counsel, setCounsel] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
   const [verifyError, setVerifyError] = useState<string | null>(null);
@@ -128,6 +133,10 @@ export function DispenseWizard({
     setManual(false);
     setPayload("");
     setScheme("GS1");
+    setManualProductCode("");
+    setManualSerial("");
+    setManualBatch("");
+    setManualExpiry("");
     setCounsel(false);
     setShowDetails(false);
     setVerifyError(null);
@@ -157,8 +166,12 @@ export function DispenseWizard({
   async function handleVerify() {
     setView("s1-verifying");
     setVerifyError(null);
+    // In manual mode, assemble GS1/PPN fields into the payload string sent to verifyPack
+    const effectivePayload = manual
+      ? `${scheme}:${manualProductCode}:${manualSerial}:${manualBatch}:${manualExpiry}`
+      : payload;
     try {
-      await verifyPack(payload);
+      await verifyPack(effectivePayload);
       setPackVerified(true);
       setView("s2-idle");
     } catch (e) {
@@ -366,17 +379,24 @@ export function DispenseWizard({
                       <div className="grid grid-cols-2 gap-2.5">
                         {(
                           [
-                            ["Product code", "05700123456789"],
-                            ["Serial number", "9d8X7p17"],
-                            ["Batch", "B-4471"],
-                            ["Expiry (YYMMDD)", "270531"],
-                          ] as [string, string][]
-                        ).map(([label, ph]) => (
+                            [
+                              "Product code",
+                              "05700123456789",
+                              manualProductCode,
+                              setManualProductCode,
+                            ],
+                            ["Serial number", "9d8X7p17", manualSerial, setManualSerial],
+                            ["Batch", "B-4471", manualBatch, setManualBatch],
+                            ["Expiry (YYMMDD)", "270531", manualExpiry, setManualExpiry],
+                          ] as [string, string, string, (v: string) => void][]
+                        ).map(([label, ph, val, setter]) => (
                           <label key={label} className="block">
                             <span className="mb-1 block text-[11px] font-semibold text-slate-500">
                               {label}
                             </span>
                             <input
+                              value={val}
+                              onChange={(e) => setter(e.target.value)}
                               placeholder={ph}
                               className="mono w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-[12.5px] outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
                             />
@@ -429,7 +449,11 @@ export function DispenseWizard({
                   <button
                     type="button"
                     onClick={handleVerify}
-                    disabled={view === "s1-verifying" || (!manual && !payload.trim())}
+                    disabled={
+                      view === "s1-verifying" ||
+                      (!manual && !payload.trim()) ||
+                      (manual && !manualProductCode.trim())
+                    }
                     className="flex items-center gap-1.5 rounded-lg bg-brand-600 px-4 py-2 text-[13px] font-semibold text-white transition-colors hover:bg-brand-700 disabled:bg-brand-600/70"
                   >
                     {view === "s1-verifying" ? (
@@ -583,7 +607,9 @@ export function DispenseWizard({
                 Dispensed successfully
               </h2>
               <p className="mt-1.5 text-[13px] text-slate-500">
-                The dispense was recorded in ΗΔΥΚΑ and the pack decommissioned.
+                {packVerified
+                  ? "The dispense was recorded in ΗΔΥΚΑ and the pack decommissioned."
+                  : "The dispense was recorded in ΗΔΥΚΑ. Pack decommission was not performed."}
               </p>
               <div className="mx-auto mt-5 max-w-[360px] rounded-xl border border-slate-200 bg-slate-50 px-4 py-1.5 text-left">
                 {executionNo && (

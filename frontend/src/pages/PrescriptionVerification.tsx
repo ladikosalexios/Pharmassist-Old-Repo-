@@ -392,7 +392,11 @@ export function PrescriptionVerification() {
             barcode={rx.code}
             patientName={rx.patient.name}
             drugName={rx.medication.drugName}
-            onClose={() => setApproveOpen(false)}
+            onClose={() => {
+              setApproveOpen(false);
+              // Navigate home when the pharmacist dismisses after a successful dispense
+              if (rx.status === "COMPLETED") navigate("/dashboard");
+            }}
             onDispensed={onDispensed}
           />
           <ContactPrescriberDrawer
