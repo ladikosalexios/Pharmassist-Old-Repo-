@@ -1,0 +1,17 @@
+{
+  "common": {
+    "appName": "PharmAssist"
+  },
+  "nav": {
+    "counter": "Counter",
+    "patients": "Patients",
+    "history": "History",
+    "reports": "Reports",
+    "settings": "Settings",
+    "signOut": "Sign out"
+  },
+  "shell": {
+    "loading": "Loading…",
+    "openingCounter": "Opening Counter…"
+  }
+}

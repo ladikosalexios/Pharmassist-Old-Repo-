@@ -14,11 +14,19 @@ export default {
           800: "#1E40AF",
         },
       },
+      fontFamily: {
+        mono: ["ui-monospace", "SF Mono", "JetBrains Mono", "Menlo", "Consolas", "monospace"],
+      },
       boxShadow: {
         card: "0 1px 2px rgba(15, 23, 42, 0.04)",
         cardLg: "0 4px 16px rgba(15, 23, 42, 0.06)",
+        modal: "0 24px 60px rgba(15, 23, 42, 0.22)",
       },
       keyframes: {
+        shimmer: {
+          "0%": { backgroundPosition: "-400px 0" },
+          "100%": { backgroundPosition: "400px 0" },
+        },
         "alert-in": {
           "0%": { opacity: "0", transform: "translateY(-4px)" },
           "100%": { opacity: "1", transform: "translateY(0)" },
@@ -41,6 +49,7 @@ export default {
         },
       },
       animation: {
+        shimmer: "shimmer 1.3s linear infinite",
         "alert-in": "alert-in 0.25s ease-out",
         "pulse-red-border": "pulse-red-border 1.8s ease-in-out infinite",
         "slide-in-right": "slide-in-right 0.25s ease-out",

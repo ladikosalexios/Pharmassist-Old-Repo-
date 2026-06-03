@@ -24,15 +24,14 @@ os.environ.setdefault(
 
 import uuid  # noqa: E402
 
-from app.routers.alerts import _live_rx_to_engine_shape  # noqa: E402
-from app.services.safety_engine import evaluate_safety  # noqa: E402
+from app.services.safety_engine import evaluate_safety, live_rx_to_engine_shape  # noqa: E402
 
 # ── _live_rx_to_engine_shape ─────────────────────────────────────────────────
 
 
 def test_live_rx_reshape_collapses_amka_into_patient_id():
     rx = {"rxId": "1234567890123456", "patientAmka": "15031962456"}
-    shaped = _live_rx_to_engine_shape(rx, "B01AA03")
+    shaped = live_rx_to_engine_shape(rx, "B01AA03")
     assert shaped == {
         "rxId": "1234567890123456",
         "patient": {"id": "15031962456", "amka": "15031962456"},
@@ -42,7 +41,7 @@ def test_live_rx_reshape_collapses_amka_into_patient_id():
 
 def test_live_rx_reshape_with_no_atc():
     rx = {"rxId": "1234567890123456", "patientAmka": "15031962456"}
-    shaped = _live_rx_to_engine_shape(rx, None)
+    shaped = live_rx_to_engine_shape(rx, None)
     assert shaped["medication"] == {"atcCode": None}
 
 

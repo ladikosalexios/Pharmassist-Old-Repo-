@@ -27,13 +27,14 @@ from ..db.session import get_session
 from ..deps import get_current_user
 from ..schemas.prescriptions import ApproveResponse, PatchResponse, PrescriptionPatch
 from ..services.documentation import record_prescription_action
+from ..services.drug_catalog import atc_codes_for_barcodes
 from ..services.pharmacy import find_pharmacy_by_name
 from ..services.pharmapi import (
     pharmapi_execute_prescription,
     pharmapi_search_prescriptions,
 )
 from ..services.prescriptions import MOCK_PRESCRIPTIONS, MOCK_QUEUE_BASE
-from ..services.safety_engine import checks_for_prescription
+from ..services.safety_engine import checks_for_prescription, live_rx_to_engine_shape
 
 router = APIRouter(prefix="/prescriptions", tags=["prescriptions"])
 
@@ -112,10 +113,10 @@ async def get_prescription_for_verification(
     Return full prescription data for the verification UI.
     In live mode, rx_id is the ΗΔΥΚΑ barcode.
 
-    Mock mode: `safetyChecks` is populated from checks_for_prescription.
-    Live mode: safety checks are not yet wired (same status as approve/flag);
-    `safetyChecks` is returned as an empty list so the frontend never sees a
-    missing key.
+    Both modes run checks_for_prescription and attach safetyChecks. In live
+    mode the incoming drug's ATC is resolved from drug_catalog; interaction
+    checks (section 1) don't fire because Pharmapi history lacks medicine
+    barcodes — see safety_engine.py for the full gap description.
     """
     if is_mock_pharmapi():
         rx = MOCK_PRESCRIPTIONS.get(rx_id)
@@ -128,12 +129,23 @@ async def get_prescription_for_verification(
         return {**rx, "safetyChecks": [c.model_dump(by_alias=True) for c in payload.checks]}
 
     # Live mode: Pharmapi has no per-prescription detail endpoint.
-    # Use the search endpoint filtered by barcode — returns the same shape
-    # as the list view, already normalised by _parse_prescription_search_json.
+    # Use the search endpoint filtered by barcode, then enrich with safety checks.
     results = await pharmapi_search_prescriptions(barcode=rx_id)
     if not results:
         raise HTTPException(status_code=404, detail=f"Prescription {rx_id} not found")
-    return {**results[0], "safetyChecks": []}
+    rx = results[0]
+
+    pharmacy = await find_pharmacy_by_name(session, current["pharmacy"])
+    if pharmacy is None:
+        raise HTTPException(status_code=400, detail="Pharmacy not found for current user")
+
+    medicine_barcode = rx.get("medicineBarcode")
+    atc_map = await atc_codes_for_barcodes(session, [medicine_barcode] if medicine_barcode else [])
+    atc = atc_map.get(medicine_barcode) if medicine_barcode else None
+
+    shaped_rx = live_rx_to_engine_shape(rx, atc)
+    payload = await checks_for_prescription(session, shaped_rx["rxId"], shaped_rx, pharmacy.id)
+    return {**rx, "safetyChecks": [c.model_dump(by_alias=True) for c in payload.checks]}
 
 
 # ── Actions (approve / flag / patch) ────────────────────────────────────────

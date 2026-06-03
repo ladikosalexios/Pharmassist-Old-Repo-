@@ -1,12 +1,11 @@
 """Active safety alerts for the dashboard."""
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models.drug_catalog import DrugCatalog
 from app.db.session import get_session
 from app.schemas.safety import SafetyAlertPayload
+from app.services.drug_catalog import atc_codes_for_barcodes
 from app.services.pharmacy import find_pharmacy_by_name
 from app.services.pharmapi import pharmapi_search_prescriptions
 from app.utils.environment import is_mock_pharmapi
@@ -14,37 +13,13 @@ from app.utils.environment import is_mock_pharmapi
 from ..constants import AlertStatus, PrescriptionStatus
 from ..deps import get_current_user
 from ..services.prescriptions import MOCK_PRESCRIPTIONS, MOCK_QUEUE_BASE
-from ..services.safety_engine import checks_for_prescription, load_active_safety_rules
+from ..services.safety_engine import (
+    checks_for_prescription,
+    live_rx_to_engine_shape,
+    load_active_safety_rules,
+)
 
 router = APIRouter(prefix="/alerts", tags=["alerts"])
-
-
-async def _resolve_atc_by_barcode(session: AsyncSession, barcodes: list[str]) -> dict[str, str]:
-    """One query that maps medicine barcode → ATC via the local drug_catalog.
-
-    v2 search doesn't carry ATC and there's no per-rx detail endpoint in the
-    spec; the catalogue we already sync from /masterdata/medicines is the
-    canonical source. Returns an empty dict if no barcodes resolve.
-    """
-    barcodes = [b for b in barcodes if b]
-    if not barcodes:
-        return {}
-    rows = await session.scalars(select(DrugCatalog).where(DrugCatalog.gns_code.in_(barcodes)))
-    return {row.gns_code: row.atc_code for row in rows}
-
-
-def _live_rx_to_engine_shape(rx: dict, atc: str | None) -> dict:
-    """Reshape a v2 search item into what evaluate_safety expects.
-
-    `patient.id` collapses to AMKA — rx_history's live path takes an AMKA
-    or EKAA, so a single identifier suffices.
-    """
-    amka = rx.get("patientAmka")
-    return {
-        "rxId": rx["rxId"],
-        "patient": {"id": amka, "amka": amka},
-        "medication": {"atcCode": atc},
-    }
 
 
 @router.get("/active", response_model=list[SafetyAlertPayload])
@@ -83,14 +58,14 @@ async def get_active_alerts(
     prescriptions = await pharmapi_search_prescriptions(prescribed=False, size=100)
     pending = [p for p in prescriptions if p["status"] == PrescriptionStatus.PENDING]
 
-    barcode_to_atc = await _resolve_atc_by_barcode(
+    barcode_to_atc = await atc_codes_for_barcodes(
         session, [p.get("medicineBarcode") for p in pending]
     )
 
     alerts = []
     for rx in pending:
         atc = barcode_to_atc.get(rx.get("medicineBarcode") or "")
-        shaped = _live_rx_to_engine_shape(rx, atc)
+        shaped = live_rx_to_engine_shape(rx, atc)
         payload = await checks_for_prescription(
             session, shaped["rxId"], shaped, pharmacy.id, rules=rules
         )

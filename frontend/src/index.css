@@ -25,13 +25,16 @@
     @apply border border-slate-300 bg-white text-slate-700 hover:bg-slate-50;
   }
   .btn-success {
-    @apply bg-emerald-600 text-white hover:bg-emerald-700;
+    @apply bg-brand-600 text-white hover:bg-brand-700;
   }
   .btn-amber {
     @apply border border-amber-300 bg-white text-amber-800 hover:bg-amber-50;
   }
   .card {
-    @apply rounded-2xl border border-slate-200 bg-white shadow-card;
+    @apply rounded-xl border border-slate-200 bg-white shadow-card;
+  }
+  .sk {
+    @apply animate-shimmer bg-gradient-to-r from-slate-200 via-slate-100 to-slate-200 bg-[length:800px_100%];
   }
   .chip {
     @apply inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium;
