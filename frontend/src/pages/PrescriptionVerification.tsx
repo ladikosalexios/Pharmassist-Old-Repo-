@@ -206,6 +206,7 @@ export function PrescriptionVerification() {
   const [approveSubmitting, setApproveSubmitting] = useState(false);
   const [approveError, setApproveError] = useState<string | null>(null);
   const [hasBlock, setHasBlock] = useState(false);
+  const [checksLoading, setChecksLoading] = useState(true);
   const [conditions, setConditions] = useState<PatientCondition[] | null>(null);
   const [conditionsError, setConditionsError] = useState<string | null>(null);
 
@@ -324,7 +325,7 @@ export function PrescriptionVerification() {
 
   const isCompleted = rx?.status === "COMPLETED";
   const isFlagged = rx?.status === "FLAGGED";
-  const approveDisabled = loading || hasBlock || isCompleted || isFlagged;
+  const approveDisabled = loading || checksLoading || hasBlock || isCompleted || isFlagged;
 
   return (
     <div className="mx-auto max-w-[1240px] px-6 py-6 lg:px-8">
@@ -430,7 +431,11 @@ export function PrescriptionVerification() {
           loading={loading}
         />
         <MedicationCard rx={rx} loading={loading} />
-        <SafetyChecksPanel rxId={rxId} onBlockChange={setHasBlock} />
+        <SafetyChecksPanel
+          rxId={rxId}
+          onBlockChange={setHasBlock}
+          onLoadingChange={setChecksLoading}
+        />
       </div>
     </div>
   );

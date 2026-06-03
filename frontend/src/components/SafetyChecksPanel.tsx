@@ -62,9 +62,14 @@ function Skl({ w = "100%", h = 14, mt = 0 }: { w?: string; h?: number; mt?: numb
 interface SafetyChecksPanelProps {
   rxId: string;
   onBlockChange?: (hasBlock: boolean) => void;
+  onLoadingChange?: (loading: boolean) => void;
 }
 
-export function SafetyChecksPanel({ rxId, onBlockChange }: SafetyChecksPanelProps) {
+export function SafetyChecksPanel({
+  rxId,
+  onBlockChange,
+  onLoadingChange,
+}: SafetyChecksPanelProps) {
   const [checks, setChecks] = useState<SafetyCheck[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -72,6 +77,7 @@ export function SafetyChecksPanel({ rxId, onBlockChange }: SafetyChecksPanelProp
   useEffect(() => {
     let active = true;
     setLoading(true);
+    onLoadingChange?.(true);
     setError(null);
     getSafetyChecks(rxId)
       .then((data) => {
@@ -85,7 +91,9 @@ export function SafetyChecksPanel({ rxId, onBlockChange }: SafetyChecksPanelProp
         onBlockChange?.(false);
       })
       .finally(() => {
-        if (active) setLoading(false);
+        if (!active) return;
+        setLoading(false);
+        onLoadingChange?.(false);
       });
     return () => {
       active = false;
@@ -166,11 +174,15 @@ function CheckRow({ check }: { check: SafetyCheck }) {
             <p className={`mt-1 text-[12.5px] leading-snug ${s.detailClass}`}>{check.message}</p>
           )}
           {open && check.details && (
-            <p className="mono mt-1.5 text-[11px] text-slate-500">{check.details}</p>
+            <p id={`check-details-${check.id}`} className="mono mt-1.5 text-[11px] text-slate-500">
+              {check.details}
+            </p>
           )}
           {expandable && (
             <button
               type="button"
+              aria-expanded={open}
+              aria-controls={`check-details-${check.id}`}
               onClick={() => setOpen((o) => !o)}
               className={`mt-1.5 flex items-center gap-0.5 text-[11.5px] font-semibold ${s.iconClass}`}
             >
