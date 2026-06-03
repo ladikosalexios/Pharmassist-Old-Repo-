@@ -1,5 +1,6 @@
 """Sync the drug_catalog table from Pharmapi masterdata."""
 
+from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -35,6 +36,24 @@ def _to_row(item: dict) -> dict | None:
         "interaction_group": None,  # not supplied by Pharmapi
         "active": item["inCirculation"] if item.get("inCirculation") is not None else True,
     }
+
+
+async def atc_codes_for_barcodes(
+    session: AsyncSession,
+    barcodes: list[str | None],
+) -> dict[str, str]:
+    """Return {gns_code: atc_code} for every barcode that exists in drug_catalog.
+
+    Rows where atc_code is blank (stored as "" by _to_row when Pharmapi omits
+    it) are excluded — callers get None from .get() for those, which is the
+    same signal as "not in catalog" and correctly causes ATC-keyed checks to
+    skip rather than match against an empty string.
+    """
+    barcodes = [b for b in barcodes if b]
+    if not barcodes:
+        return {}
+    rows = await session.scalars(select(DrugCatalog).where(DrugCatalog.gns_code.in_(barcodes)))
+    return {row.gns_code: row.atc_code for row in rows if row.atc_code}
 
 
 async def run_sync(since: str | None) -> None:
