@@ -36,6 +36,17 @@ export const ChevronLeftIcon = (p: SVGProps<SVGSVGElement>) => (
     <polyline points="15 18 9 12 15 6" />
   </svg>
 );
+export const ChevronDownIcon = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base(p)}>
+    <polyline points="6 9 12 15 18 9" />
+  </svg>
+);
+export const ArrowLeftIcon = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base(p)}>
+    <line x1="19" y1="12" x2="5" y2="12" />
+    <polyline points="12 19 5 12 12 5" />
+  </svg>
+);
 export const ChevronRightIcon = (p: SVGProps<SVGSVGElement>) => (
   <svg {...base(p)}>
     <polyline points="9 18 15 12 9 6" />
