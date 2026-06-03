@@ -1,0 +1,16 @@
+{
+  "common": {
+    "appName": "PharmAssist"
+  },
+  "nav": {
+    "counter": "Πάγκος",
+    "patients": "Ασθενείς",
+    "history": "Ιστορικό",
+    "reports": "Αναφορές",
+    "settings": "Ρυθμίσεις",
+    "signOut": "Αποσύνδεση"
+  },
+  "shell": {
+    "loading": "Φόρτωση…"
+  }
+}

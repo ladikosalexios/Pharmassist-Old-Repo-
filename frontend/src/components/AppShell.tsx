@@ -1,4 +1,5 @@
 import { Outlet, Navigate, useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { Sidebar } from "./Sidebar";
 import { useAuth } from "../lib/auth";
 import { useToast } from "./Toast";
@@ -9,6 +10,7 @@ export function AppShell() {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { t } = useTranslation();
 
   // Global shortcuts that should work on any authenticated page.
   useKeyboardShortcuts(
@@ -40,7 +42,7 @@ export function AppShell() {
   if (loading) {
     return (
       <div className="flex h-full items-center justify-center text-slate-500">
-        <span className="spinner mr-2 text-brand-600" /> Loading…
+        <span className="spinner mr-2 text-brand-600" /> {t("shell.loading")}
       </div>
     );
   }
