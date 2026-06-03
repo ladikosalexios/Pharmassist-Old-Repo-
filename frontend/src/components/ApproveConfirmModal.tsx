@@ -70,7 +70,7 @@ export function ApproveConfirmModal({
         className="w-full max-w-md rounded-2xl bg-white shadow-cardLg"
       >
         <div className="flex items-start gap-3 border-b border-slate-200 px-6 py-4">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700">
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand-100 text-brand-700">
             <CheckIcon />
           </div>
           <div className="flex-1">
@@ -103,7 +103,7 @@ export function ApproveConfirmModal({
               type="checkbox"
               checked={confirmed}
               onChange={(e) => setConfirmed(e.target.checked)}
-              className="mt-0.5 h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-100"
+              className="mt-0.5 h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-100"
             />
             <span>I confirm I have reviewed all safety checks and patient information</span>
           </label>
