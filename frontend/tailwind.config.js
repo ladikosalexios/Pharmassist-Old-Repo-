@@ -43,10 +43,6 @@ export default {
           "0%": { opacity: "0" },
           "100%": { opacity: "1" },
         },
-        shimmer: {
-          "0%": { backgroundPosition: "-400px 0" },
-          "100%": { backgroundPosition: "400px 0" },
-        },
       },
       animation: {
         shimmer: "shimmer 1.3s linear infinite",
@@ -54,7 +50,6 @@ export default {
         "pulse-red-border": "pulse-red-border 1.8s ease-in-out infinite",
         "slide-in-right": "slide-in-right 0.25s ease-out",
         "fade-in": "fade-in 0.2s ease-out",
-        shimmer: "shimmer 1.3s linear infinite",
       },
     },
   },
