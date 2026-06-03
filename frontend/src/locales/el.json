@@ -11,6 +11,7 @@
     "signOut": "Αποσύνδεση"
   },
   "shell": {
-    "loading": "Φόρτωση…"
+    "loading": "Φόρτωση…",
+    "openingCounter": "Άνοιγμα Πάγκου…"
   }
 }

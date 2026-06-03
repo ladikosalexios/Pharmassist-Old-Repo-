@@ -20,7 +20,7 @@ export default {
       boxShadow: {
         card: "0 1px 2px rgba(15, 23, 42, 0.04)",
         cardLg: "0 4px 16px rgba(15, 23, 42, 0.06)",
-        modal: "0 24px 60px rgba(15,23,42,0.22)",
+        modal: "0 24px 60px rgba(15, 23, 42, 0.22)",
       },
       keyframes: {
         shimmer: {

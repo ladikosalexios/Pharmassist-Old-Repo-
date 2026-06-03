@@ -11,6 +11,7 @@
     "signOut": "Sign out"
   },
   "shell": {
-    "loading": "Loading…"
+    "loading": "Loading…",
+    "openingCounter": "Opening Counter…"
   }
 }

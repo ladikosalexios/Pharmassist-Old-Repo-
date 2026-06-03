@@ -17,6 +17,7 @@ i18n
       order: ["querystring", "localStorage", "navigator"],
       lookupLocalStorage: "pharmassist_lang",
     },
+    supportedLngs: ["el", "en"],
     interpolation: { escapeValue: false },
     initImmediate: false,
   });
