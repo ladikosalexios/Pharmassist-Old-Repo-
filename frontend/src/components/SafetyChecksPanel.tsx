@@ -107,13 +107,15 @@ export function SafetyChecksPanel({
         <h2 className="text-[12px] font-bold uppercase tracking-wider text-slate-400">
           Automated Safety Checks
         </h2>
-        <span className="flex items-center gap-1.5 text-[11px] font-medium text-emerald-600">
-          <span className="relative flex h-1.5 w-1.5">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />
-            <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
+        {!error && (
+          <span className="flex items-center gap-1.5 text-[11px] font-medium text-emerald-600">
+            <span className="relative flex h-1.5 w-1.5">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />
+              <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
+            </span>
+            live
           </span>
-          live
-        </span>
+        )}
       </div>
 
       {/* legend */}
@@ -173,8 +175,12 @@ function CheckRow({ check }: { check: SafetyCheck }) {
           {expandable && (
             <p className={`mt-1 text-[12.5px] leading-snug ${s.detailClass}`}>{check.message}</p>
           )}
-          {open && check.details && (
-            <p id={`check-details-${check.id}`} className="mono mt-1.5 text-[11px] text-slate-500">
+          {check.details && (
+            <p
+              id={`check-details-${check.id}`}
+              hidden={!open}
+              className="mono mt-1.5 text-[11px] text-slate-500"
+            >
               {check.details}
             </p>
           )}
