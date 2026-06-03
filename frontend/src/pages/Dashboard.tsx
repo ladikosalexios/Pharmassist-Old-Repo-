@@ -125,7 +125,7 @@ export function Dashboard() {
           <Today items={todayItems} loading={queue === null} />
         </div>
         <div>
-          <SafetyAlertsPanel />
+          <SafetyAlertsPanel title={t("counter.safety.title")} />
         </div>
       </div>
 

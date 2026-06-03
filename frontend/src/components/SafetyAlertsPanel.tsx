@@ -65,9 +65,15 @@ const SEVERITY_COLOR: Record<Severity, string> = {
 interface SafetyAlertsPanelProps {
   /** Cap the visible scroll area; defaults to 24rem. */
   maxHeightClass?: string;
+  /** Header title; defaults to "Safety Alerts". The Counter overrides this
+   * to "Active safety alerts" (the wording the redesign reference uses). */
+  title?: string;
 }
 
-export function SafetyAlertsPanel({ maxHeightClass = "max-h-96" }: SafetyAlertsPanelProps) {
+export function SafetyAlertsPanel({
+  maxHeightClass = "max-h-96",
+  title = "Safety Alerts",
+}: SafetyAlertsPanelProps) {
   const [alerts, setAlerts] = useState<ActiveAlert[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -100,7 +106,7 @@ export function SafetyAlertsPanel({ maxHeightClass = "max-h-96" }: SafetyAlertsP
     <section className="card overflow-hidden">
       <header className="flex items-center gap-2 border-b border-slate-200 px-5 py-4">
         <AlertCircleIcon width={16} height={16} className="text-red-600" />
-        <h2 className="text-base font-semibold text-slate-900">Safety Alerts</h2>
+        <h2 className="text-base font-semibold text-slate-900">{title}</h2>
         {alerts && (
           <span className="ml-auto text-xs font-medium text-slate-500">{alerts.length} active</span>
         )}
