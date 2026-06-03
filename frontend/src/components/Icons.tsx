@@ -180,7 +180,7 @@ export const FilterIcon = (p: SVGProps<SVGSVGElement>) => (
 );
 export const BarcodeIcon = (p: SVGProps<SVGSVGElement>) => (
   <svg {...base(p)}>
-    <path d="M3 5v14M7 5v14M11 5v14M15 5v14M19 5v14M21 5v14" strokeLinecap="round" />
+    <path d="M3 5v14M7 5v14M11 5v14M15 5v14M19 5v14M21 5v14" />
   </svg>
 );
 export const KeyIcon = (p: SVGProps<SVGSVGElement>) => (

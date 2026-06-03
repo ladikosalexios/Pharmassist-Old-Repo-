@@ -18,6 +18,7 @@ i18n
       lookupLocalStorage: "pharmassist_lang",
     },
     interpolation: { escapeValue: false },
+    initImmediate: false,
   });
 
 export default i18n;

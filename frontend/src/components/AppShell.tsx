@@ -16,7 +16,7 @@ export function AppShell() {
   useKeyboardShortcuts(
     {
       d: () => {
-        toast("Opening dashboard…", "info");
+        toast(t("nav.counter"), "info");
         navigate("/dashboard");
       },
       p: async () => {

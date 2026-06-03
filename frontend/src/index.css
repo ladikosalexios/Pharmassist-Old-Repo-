@@ -33,9 +33,6 @@
   .card {
     @apply rounded-xl border border-slate-200 bg-white shadow-card;
   }
-  .mono {
-    font-family: theme(fontFamily.mono);
-  }
   .sk {
     @apply animate-shimmer bg-gradient-to-r from-slate-200 via-slate-100 to-slate-200 bg-[length:800px_100%];
   }
