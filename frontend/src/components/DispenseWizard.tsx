@@ -31,8 +31,6 @@ interface DispenseWizardProps {
   barcode: string;
   patientName: string;
   drugName: string;
-  participation?: string;
-  patientPays?: string;
   onClose: () => void;
   onDispensed: (status: string) => void;
 }
@@ -99,8 +97,6 @@ export function DispenseWizard({
   barcode,
   patientName,
   drugName,
-  participation,
-  patientPays,
   onClose,
   onDispensed,
 }: DispenseWizardProps) {
@@ -198,8 +194,7 @@ export function DispenseWizard({
     setDispenseErrorDetail(null);
     try {
       const result = await approvePrescription(rxId);
-      // Extract execution number from response if available
-      const execNo = (result as { executionNo?: string }).executionNo ?? null;
+      const execNo = result.executionNo ?? null;
       setExecutionNo(execNo);
       setView("s2-success");
       onDispensed(result.status);
@@ -494,17 +489,6 @@ export function DispenseWizard({
                 <SummaryRow label="Patient">{patientName}</SummaryRow>
                 <div className="border-t border-slate-200/70" />
                 <SummaryRow label="Medicine">{drugName}</SummaryRow>
-                {patientPays && (
-                  <>
-                    <div className="border-t border-slate-200/70" />
-                    <SummaryRow
-                      label={`Patient pays${participation ? ` (${participation} participation)` : ""}`}
-                      strong
-                    >
-                      {patientPays}
-                    </SummaryRow>
-                  </>
-                )}
               </div>
 
               {!packVerified && (
@@ -518,6 +502,7 @@ export function DispenseWizard({
                 </p>
               )}
 
+              {/* TODO: pass counsel to approvePrescription when API supports it */}
               <label className="mt-3 flex cursor-pointer items-center gap-2.5">
                 <input
                   type="checkbox"

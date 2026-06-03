@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   ArrowLeftIcon,
@@ -258,8 +258,12 @@ export function PrescriptionVerification() {
     if (!rx) return;
     setRx({ ...rx, status });
     toast("Prescription approved and recorded", "success");
-    // Wizard shows success view; navigate after user clicks "Back to counter"
   }
+
+  const handleWizardClose = useCallback(() => {
+    setApproveOpen(false);
+    if (rx?.status === "COMPLETED") navigate("/dashboard");
+  }, [rx?.status, navigate]);
 
   useKeyboardShortcuts({
     c: () => {
@@ -392,11 +396,7 @@ export function PrescriptionVerification() {
             barcode={rx.code}
             patientName={rx.patient.name}
             drugName={rx.medication.drugName}
-            onClose={() => {
-              setApproveOpen(false);
-              // Navigate home when the pharmacist dismisses after a successful dispense
-              if (rx.status === "COMPLETED") navigate("/dashboard");
-            }}
+            onClose={handleWizardClose}
             onDispensed={onDispensed}
           />
           <ContactPrescriberDrawer

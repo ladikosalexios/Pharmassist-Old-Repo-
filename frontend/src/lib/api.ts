@@ -154,12 +154,12 @@ export async function getActiveAlerts(): Promise<ActiveAlert[]> {
 
 export async function approvePrescription(
   rxId: string,
-): Promise<{ success: boolean; status: string }> {
+): Promise<{ success: boolean; status: string; executionNo?: string }> {
   const r = await fetch(`${API_BASE}/prescriptions/${encodeURIComponent(rxId)}/approve`, {
     method: "POST",
     credentials: "include",
   });
-  return handle(r) as Promise<{ success: boolean; status: string }>;
+  return handle(r) as Promise<{ success: boolean; status: string; executionNo?: string }>;
 }
 
 // TODO: FR-0.5 #3 — HMVS/FMD pack verification not yet wired on the backend.
