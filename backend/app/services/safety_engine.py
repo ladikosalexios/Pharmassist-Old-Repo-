@@ -19,10 +19,11 @@ from .patients import conditions, rx_history
 from .prescriptions import MOCK_PRESCRIPTIONS
 from .safety_checks import MOCK_SAFETY_CHECKS
 
-# Intolerances are not yet available from Pharmapi, so a minimal mock is used.
-# Each entry mirrors the shape the Pharmapi endpoint will eventually return.
-# Keyed by patient AMKA.
-# TODO: replace with live Pharmapi intolerances endpoint when wired.
+# Intolerances fallback for mock mode. Live intolerances are fetched from
+# Pharmapi in patients.resolve() but carry activeSubstance + intolerance type
+# with no ATC code — a drug_catalog/activesubstances lookup is needed to map
+# them to ATC before the engine can use them. Until that mapping is in place,
+# the mock covers the demo patients used in development.
 MOCK_INTOLERANCES: dict = {
     # P001 Maria Stavrou — "Penicillin (anaphylaxis)" allergy maps to J01CA (penicillins)
     "15031962456": [
@@ -59,6 +60,23 @@ def _rule_to_alert(rule: SafetyRule, rx_id: str) -> SafetyAlertPayload:
         rx_id=rx_id,
         created_at=datetime.now(UTC),
     )
+
+
+def live_rx_to_engine_shape(rx: dict, atc: str | None) -> dict:
+    """Reshape a Pharmapi v2 search item into the dict shape evaluate_safety expects.
+
+    `patientAmka` drives both `patient.id` and `patient.amka` — both are required
+    by the engine for intolerance and condition lookups. If AMKA is absent from
+    the Pharmapi response, all ATC-keyed patient checks will silently skip.
+    The v2 search schema includes `amka` on every result, but callers should be
+    aware of this dependency when handling edge cases.
+    """
+    amka = rx.get("patientAmka")
+    return {
+        "rxId": rx.get("rxId"),
+        "patient": {"id": amka, "amka": amka},
+        "medication": {"atcCode": atc},
+    }
 
 
 async def load_active_safety_rules(session: AsyncSession) -> list[SafetyRule]:
@@ -135,7 +153,9 @@ async def evaluate_safety(
     # --- 1. Drug-drug interactions & duplicate therapy ---
     # Pre-filter rules so we don't make the rx_history call (Pharmapi round-trip
     # in live mode) when no interaction/duplicate rules can possibly match.
-    # TODO: replace MOCK_PRESCRIPTIONS lookup with Pharmapi medicine history.
+    # Live mode gap: Pharmapi medicine history returns commercialName but no
+    # medicine barcode, so ATC resolution via drug_catalog is not yet possible.
+    # history_atcs will be empty in live mode; interaction checks don't fire.
     interaction_rules = [
         r for r in rules if r.check_type in (CheckType.INTERACTIONS, CheckType.DUPLICATE_THERAPY)
     ]
