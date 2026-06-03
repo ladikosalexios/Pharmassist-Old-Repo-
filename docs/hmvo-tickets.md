@@ -6,11 +6,28 @@ Companion to `docs/redesign-tickets.md` — both tracks run in parallel. This do
 
 ## TL;DR
 
-- **16 tickets**, total effort ~**5–6 engineer-weeks**.
+- **17 tickets**, total effort ~**5–6 engineer-weeks**.
 - Mostly independent of the redesign, **with 4 explicit coordination points** (see Conflict Matrix below).
-- The **i18n foundation (HMV-6a) MUST land in FR-0** — if FR-0 ships without it, every redesign component bakes English strings in and we have to retrofit later.
+- **HMV-6a (i18n foundation) ✅ already landed in PR #98 (FR-0)** — the most critical coordination point is closed before engineering starts.
 - **HMV-11 (Dispense wizard HMVS step)** layers on top of FR-3 — FR-3 should ship a non-HMVS dispense flow first; HMV-11 wires HMVS on top once endpoints exist.
+- **NEW HMV-16 (R18 Sectigo CA certificates) has a hard deadline of 18 May 2026** — production deployment fails silently against HMVS without it.
 - HMVO's test book hasn't arrived yet — HMV-15 is sized as a placeholder; rescope when received.
+
+## Revisions from the HMVO IT-supplier onboarding email (2026-06-02)
+
+This doc was first drafted before the HMVO onboarding details landed. Key corrections from the original draft:
+
+| Original assumption | Reality | Tickets affected |
+|---|---|---|
+| Endpoints like `POST /api/medicines/lot/qr` | REST on pack URIs: `GET /product/<scheme>/<gtin>/pack/<serial>?batch=...&expiry=...` (verify), `PATCH` same URL with `{"state": "Supplied"}` (state change) | HMV-7, HMV-8, HMV-9 |
+| Basic Auth | OAuth 2.0 Client Credentials Grant against `/identity/connect/token` | HMV-2 |
+| Credentials per pharmacy | Credentials per **Equipment**. Hierarchy: Organisation → Locations → Equipment. Each Equipment gets its own `client_id` + `client_secret` (cannot be regenerated once lost). | HMV-1 |
+| One environment toggle | Three environments: **ITE** (stateless dev sandbox, shared across all Solidsoft markets), **IQE** (Greek-specific qualification, stateful), **PROD** (live) | HMV-13 |
+| 4 pack states in `VerifyResponse` enum | 12 states: Active, Supplied, Sample, Destroyed, Stolen, Free Sample, Locked, Exported, Expired, Withdrawn, Recalled, Checked-out | HMV-7 |
+| No infrastructure ticket | **New HMV-16: R18 Sectigo CA certificate verification + install** (deadline 18 May 2026) | NEW |
+| (not considered) | **`isIntermarket` property** on responses — when pack data lives in another EU country, transaction escalates to EU Hub, slower and returns fewer fields. UI must handle gracefully. | HMV-7, HMV-11 |
+| (not considered) | API version `3.1`, datetimes in **UTC** | HMV-2 |
+| (not considered) | Public status dashboards (`status-iqe.nmvo.eu`, `status.nmvo.eu`) — link from our error UX | HMV-11 |
 
 ## Conflict matrix with the redesign
 
@@ -18,7 +35,7 @@ Companion to `docs/redesign-tickets.md` — both tracks run in parallel. This do
 |---|---|---|
 | **HMV-1** Credential storage admin UI | **FR-5c** Settings | Coordinate: HMV-1's admin UI form lives inside the Settings screen FR-5c builds. Eng A owns both. |
 | **HMV-5** NHRN/EOF display | **FR-2** Review + **FR-3** Dispense | Cross-cutting: NHRN must be present in the prescription detail card (FR-2) and the dispense wizard's drug summary (FR-3). Added as an explicit acceptance criterion in both. |
-| **HMV-6a** i18n foundation | **FR-0** Foundation | Must merge: add `react-i18next` + the i18n setup to FR-0's design-system foundation. Cheap to do upfront, expensive to retrofit. |
+| **HMV-6a** i18n foundation | **FR-0** Foundation | ✅ Done — landed in PR #98 (FR-0). `react-i18next`, `i18next-browser-languagedetector`, `src/lib/i18n.ts`, `en.json` + `el.json`, Sidebar + AppShell using `t()`. |
 | **HMV-11** Dispense wizard HMVS step | **FR-3** Dispense wizard | Layer: FR-3 ships a mock/non-HMVS dispense flow first; HMV-11 layers the HMVS verify / decommission step on top once HMV-7 / HMV-8 / HMV-10 exist. |
 
 The remaining 12 tickets touch backend services or pure-utility frontend components that don't collide with redesign file ownership.
@@ -30,24 +47,25 @@ Adding HMVO to the two-engineer redesign team means **carrying it on Eng A** (wh
 ## Sequencing across both tracks
 
 ```
-Week 1: [FR-0+HMV-6a] (i18n in foundation)  →  unblocks everyone
+Week 1: [FR-0 ✅ landed via PR #98 including HMV-6a]
         [HMV-1, HMV-2] backend infra (parallel)
         [HMV-3, HMV-4] compliance hooks (parallel)
+        [HMV-16] R18 CA cert verification (1 day, parallel — deadline 18 May)
 
 Week 2: [FR-0.5, FR-1, FR-2, FR-4]  ←  redesign work proceeds
-        [HMV-7, HMV-8, HMV-9] HMVS endpoints
-        [HMV-13] sandbox env
+        [HMV-7, HMV-8, HMV-9] HMVS endpoints (real REST URLs)
+        [HMV-13] three-environment wiring (ITE/IQE/PROD)
 
 Week 3: [FR-3]  ←  base dispense wizard (non-HMVS)
         [HMV-10] data matrix scanner
         [HMV-5] NHRN audit pass
 
-Week 4: [HMV-11] HMVS step layered on FR-3
+Week 4: [HMV-11] HMVS step layered on FR-3 (with isIntermarket handling)
         [HMV-12] HMVS audit log
         [FR-5a, FR-5b, FR-5c+HMV-1 admin]
 
-Week 5: [HMV-14] screen recording
-        [HMV-6b] Greek translation pass
+Week 5: [HMV-14] screen recording for HMVO
+        [HMV-6b] Greek translation pass (now possible because HMV-6a is in)
         [FR-6] polish
 
 Week 6: [HMV-15] test book completion (depends on HMVO sending it)
@@ -59,177 +77,242 @@ Week 6: [HMV-15] test book completion (depends on HMVO sending it)
 
 ## Layer 1 — Backend infrastructure
 
-### HMV-1 — HMVS credential storage
+### HMV-1 — HMVS credential storage (per-Equipment hierarchy)
 
 **Owner:** Eng A
 **Branch:** `feat/hmv-1-credential-storage`
 **Depends on:** —
 **Coordinates with:** FR-5c Settings (admin UI lives there)
-**Effort:** 3 days
+**Effort:** 4 days (expanded from 3 — three-level hierarchy is more involved than a single creds row)
 
 #### Scope
-HMVS requires per-pharmacy credentials (HMVS portal username + password, possibly client cert). Store encrypted at rest using the existing AES-256-GCM pattern (`app/crypto.py`), mirror how Pharmapi credentials are handled today.
+HMVS credentials are **per-Equipment**, not per-pharmacy. HMVO's data model is three levels deep:
+
+- **Organisation** — our pharmacy customer (1 per PharmAssist tenant)
+- **Locations** — physical pharmacy premises (1+ per organisation; one pharmacy can have multiple licensed premises)
+- **Equipment** — individual scanner/POS stations (1+ per location; each has its own OAuth client_id + client_secret)
+
+Each Equipment's `client_id` + `client_secret` is issued **once** at Equipment creation in the HMVO portal and **cannot be regenerated** if lost. Store them encrypted at rest using the existing AES-256-GCM pattern from `app/crypto.py`.
 
 #### Acceptance criteria
-- New columns on `pharmacist_pharmacies`: `hmvs_username TEXT`, `hmvs_password TEXT` (both nullable, both encrypted)
-- Alembic migration added; runs cleanly forward + backward
-- `app/services/hmvs_credentials.py` with `get_hmvs_credentials(session, pharmacy_id)` returning decrypted creds (or None)
-- The credential decryption only happens in-memory at the moment of use — never logged, never persisted plaintext
-- The admin UI form (lives in FR-5c Settings) takes username + password, validates non-empty, encrypts before persist
-- Unit test for the encrypt-then-decrypt round-trip
+- New tables: `hmvs_locations` (FK to pharmacy), `hmvs_equipment` (FK to location, holds encrypted client_id + client_secret + a friendly name like "Scanner 1 - Zebra")
+- Alembic migration runs cleanly up + down
+- `app/services/hmvs_credentials.py` with three helpers:
+  - `get_equipment_credentials(session, equipment_id)` → `(client_id, client_secret) | None`
+  - `list_equipment_for_pharmacy(session, pharmacy_id)` → ordered list of `{location, equipment_name, equipment_id}`
+  - `register_equipment(session, location_id, name, client_id, client_secret)` → persist with encryption
+- Credentials decrypted only in-memory at point of use — never logged, never persisted plaintext
+- One Equipment per dispense session at MVP (Settings UI in FR-5c lets the pharmacist pick which Equipment is "active" for this session — multiple-scanner pharmacies pick the right one)
+- Unit test for the encrypt-then-decrypt round-trip on `client_secret`
 
 #### Claude Code prompt
 ```
-You are adding HMVS credential storage to PharmAssist. HMVS = the Hellenic
-Medicines Verification System (Greek FMD). Credentials are per-pharmacy and
-must be encrypted at rest using the same pattern as Pharmapi credentials.
+You are adding HMVS credential storage to PharmAssist. HMVS credentials
+follow HMVO's three-level data model: Organisation → Locations → Equipment.
+Each Equipment is one scanner/POS station with its own OAuth client_id +
+client_secret. Client secrets are issued once and cannot be regenerated.
 
 INPUTS
 - Read backend/app/db/models/pharmacist_pharmacy.py — see how
-  pharmapi_username and pharmapi_password are modelled (Text, nullable,
-  encrypted at the application layer).
-- Read backend/app/crypto.py — encrypt_credential / decrypt_credential
-  are AES-256-GCM with a 12-byte nonce, base64-encoded. CREDENTIAL_ENCRYPTION_KEY
-  is loaded lazily.
-- Read backend/alembic/versions/ for migration style (naming convention,
-  upgrade/downgrade pattern). Add new models to alembic/env.py if you
-  create a new table (you should not — extend pharmacist_pharmacies).
-- Read backend/app/services/pharmacy.py + how login() reads pharmapi
-  credentials in app/routers/auth.py — mirror that exact pattern.
+  pharmapi_username + pharmapi_password are encrypted/stored. Pattern to mirror.
+- Read backend/app/crypto.py — encrypt_credential / decrypt_credential are
+  AES-256-GCM with 12-byte nonce, base64-encoded.
+- Read backend/alembic/versions/ for migration style + naming conventions.
+- Read backend/app/db/models/pharmacy.py and pharmacist_pharmacy.py to
+  understand the relationship pattern (SQLAlchemy 2.0 async, naming
+  convention via app/db/base.py MetaData).
+- HMVO data model reference (from their onboarding email):
+  Organisation (our pharmacy customer)
+    └─ Locations (physical premises — auto-generated location code,
+       requires HMVO approval after creation)
+       └─ Equipment (each scanner/POS gets one client_id + client_secret,
+          tracked for forensic audit; CANNOT be regenerated if lost)
 
-STUB CONTRACT (write this)
+STUB CONTRACTS (write these)
+# backend/app/db/models/hmvs_location.py
+class HmvsLocation(Base, TimestampMixin):
+    __tablename__ = "hmvs_locations"
+    id: Mapped[uuid.UUID] = mapped_column(UUID, primary_key=True, default=uuid.uuid4)
+    pharmacy_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("pharmacies.id"))
+    hmvo_location_code: Mapped[str] = mapped_column(Text, unique=True)
+    name: Mapped[str] = mapped_column(Text)
+    address: Mapped[str | None] = mapped_column(Text)
+    city: Mapped[str | None]
+    postal_code: Mapped[str | None]
+    approved_by_hmvo: Mapped[bool] = mapped_column(Boolean, default=False)
+    equipment: Mapped[list["HmvsEquipment"]] = relationship(back_populates="location")
+
+# backend/app/db/models/hmvs_equipment.py
+class HmvsEquipment(Base, TimestampMixin):
+    __tablename__ = "hmvs_equipment"
+    id: Mapped[uuid.UUID] = mapped_column(UUID, primary_key=True, default=uuid.uuid4)
+    location_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("hmvs_locations.id"))
+    name: Mapped[str] = mapped_column(Text)  # e.g. "Scanner 1 - Zebra"
+    client_id_encrypted: Mapped[str] = mapped_column(Text)
+    client_secret_encrypted: Mapped[str] = mapped_column(Text)
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    location: Mapped["HmvsLocation"] = relationship(back_populates="equipment")
+
 # backend/app/services/hmvs_credentials.py
-async def get_hmvs_credentials(
-    session: AsyncSession,
-    pharmacy_id: uuid.UUID,
-) -> tuple[str, str] | None:
-    """Return (username, password) decrypted in memory, or None if not set
-    on the default pharmacist_pharmacy link for this pharmacy."""
+async def get_equipment_credentials(
+    session: AsyncSession, equipment_id: uuid.UUID,
+) -> tuple[str, str] | None: ...
 
-async def set_hmvs_credentials(
-    session: AsyncSession,
-    pharmacist_id: uuid.UUID,
-    pharmacy_id: uuid.UUID,
-    username: str,
-    password: str,
-) -> None:
-    """Encrypt and persist HMVS credentials on the pharmacist_pharmacies
-    link row. Caller is responsible for verifying ownership before calling."""
+async def list_equipment_for_pharmacy(
+    session: AsyncSession, pharmacy_id: uuid.UUID,
+) -> list[dict]:
+    """Returns [{location_name, location_id, equipment_name, equipment_id}, ...]
+    ordered by location name then equipment name."""
+
+async def register_equipment(
+    session: AsyncSession, location_id: uuid.UUID,
+    name: str, client_id: str, client_secret: str,
+) -> uuid.UUID:
+    """Encrypt + persist a new Equipment. Returns the equipment_id.
+    Caller is responsible for capturing client_id + client_secret from the
+    pharmacist immediately after they create the Equipment in the HMVO portal."""
 
 ACCEPTANCE CRITERIA
-- Alembic migration adds hmvs_username + hmvs_password as Text NULL columns
-  on pharmacist_pharmacies. Naming convention matches existing pharmapi_* cols.
-- Migration runs alembic upgrade head and alembic downgrade -1 cleanly.
-- alembic/env.py changes only if you added a new model (you should not).
-- backend/app/services/hmvs_credentials.py implements both functions above.
-- A unit test in backend/tests/test_hmvs_credentials.py round-trips a
-  credential through encrypt + persist + fetch + decrypt and asserts equality.
-- Ruff + ruff format clean (line length 100). Run: cd backend && ruff check .
-  && ruff format .
+- Alembic migration creates both tables with proper FKs + indexes.
+- Both new model modules imported in alembic/env.py and in app/db/models/__init__.py.
+- alembic upgrade head and alembic downgrade -1 both run cleanly.
+- backend/app/services/hmvs_credentials.py implements all three functions.
+- backend/tests/test_hmvs_credentials.py covers:
+  - register_equipment → get_equipment_credentials round-trip
+  - list_equipment_for_pharmacy returns correct sort order
+  - Encryption uses encrypt_credential; raw client_id/secret are never on the model
+- Ruff + ruff format clean.
 
 DO NOT
-- Do not log credentials anywhere — not even at DEBUG.
-- Do not add an admin UI endpoint in this ticket — that lands as part of FR-5c.
-- Do not change how Pharmapi credentials work — pattern is the reference,
-  don't refactor.
+- Do not log client_id or client_secret anywhere — even at DEBUG.
+- Do not store creds on pharmacist_pharmacies (different hierarchy from Pharmapi creds).
+- Do not add admin UI endpoints here — that's the FR-5c coordination.
+- Do not allow client_secret to be returned over the API — only equipment_id
+  references are exposed.
 
 FINALIZE
-- Run: cd backend && pytest tests/test_hmvs_credentials.py -v
-- Run: cd backend && alembic upgrade head && alembic downgrade -1 && alembic upgrade head
-- Commit with message: "feat(hmv-1): HMVS credential storage on
-  pharmacist_pharmacies"
-- Open PR titled: "HMV-1: HMVS credential storage (encrypted at rest)"
+- Run: cd backend && alembic upgrade head && pytest tests/test_hmvs_credentials.py -v
+- Run: cd backend && alembic downgrade -1 && alembic upgrade head
+- Run: cd backend && ruff check . && ruff format .
+- Commit: "feat(hmv-1): HMVS Location + Equipment models with encrypted creds"
+- PR: "HMV-1: HMVS credential storage (per-Equipment hierarchy)"
 ```
 
 ---
 
-### HMV-2 — HMVS HTTP client + session management
+### HMV-2 — HMVS OAuth 2.0 client + token cache
 
 **Owner:** Eng A
 **Branch:** `feat/hmv-2-hmvs-client`
 **Depends on:** HMV-1
-**Effort:** 2 days
+**Effort:** 3 days (expanded from 2 — OAuth flow + token caching adds complexity)
 
 #### Scope
-The HMVS HTTP client that all the verify/decommission/reactivate endpoints (HMV-7/8/9) call through. Mirrors `app/services/pharmapi.py` in structure: auth, session, retry, error mapping. HMVS uses Basic Auth + (likely) an API key + (likely) mTLS — confirm exact auth shape with HMVO test docs when sandbox access lands.
+The HMVS HTTP client + OAuth 2.0 Client Credentials flow that all the verify / decommission / reactivate endpoints (HMV-7/8/9) call through. HMVS uses **OAuth 2.0 Client Credentials Grant** — POST to `/identity/connect/token` with `grant_type=client_credentials` + per-Equipment `client_id`/`client_secret`, get back a Bearer token with `expires_in`. Cache the token until expiry.
 
 #### Acceptance criteria
-- `app/services/hmvs.py` with `hmvs_get` / `hmvs_post` analogous to `pharmapi_get` / `pharmapi_post`
-- Credentials loaded lazily via `get_hmvs_credentials(session, pharmacy_id)`
-- Errors from HMVS mapped to `HTTPException(502, "HMVS: <code> — <message>")` consistently
-- A `HMVS_BASE_URL` setting in `app/config.py` (defaults to HMVO sandbox URL — env-overridable)
-- A `HMVS_MOCK=true` env toggle that short-circuits to a deterministic mock response (mirrors `is_mock_pharmapi()`)
-- Unit test covers: successful response parsing, error response mapping, mock-mode short-circuit
+- `app/services/hmvs.py` with `hmvs_get` / `hmvs_patch` taking `(session, equipment_id, path, …)` — token is fetched/cached per Equipment
+- OAuth token endpoint, env-configurable per environment (ITE / IQE / PROD)
+- Token cache: keyed by `equipment_id`, holds `(access_token, expires_at)`, refreshes 60s before expiry
+- API version `3.1` header on every request
+- Timestamps in request bodies / response parsing default to **UTC**
+- Errors mapped to `HTTPException(502, "HMVS: <code> — <message>")` with HTTP status preserved in a structured way (404/409/422 from HMVS are NOT bugs in our code — they're meaningful upstream states)
+- `HMVS_MOCK=true` env toggle short-circuits everything to deterministic stub
+- Unit test covers: token fetch + cache hit + cache miss after expiry + 4xx upstream mapping
 
 #### Claude Code prompt
 ```
-You are building the HMVS HTTP client — the single point of contact between
-PharmAssist backend and the Hellenic Medicines Verification System. All HMVS
-verify/decommission/reactivate endpoints will go through this.
+You are building the HMVS OAuth 2.0 client. HMVS auth is OAuth 2.0 Client
+Credentials Grant — each Equipment (scanner/POS station) has its own
+client_id + client_secret, exchanges them for a Bearer token, and uses
+that token until it expires.
 
 INPUTS
-- Read backend/app/services/pharmapi.py end-to-end. The shape you are
-  building is analogous: base URL + auth headers + httpx async client +
-  error mapping + mock-mode toggle.
-- Read backend/app/services/hmvs_credentials.py (HMV-1) — the credential
-  loader is your auth source.
-- Read backend/app/config.py — add HMVS_BASE_URL there. Default to the
-  HMVO sandbox URL ("https://hmvo-sandbox.example.gr" — placeholder until
-  real URL arrives; document in a comment).
-- Read backend/app/utils/environment.py — is_mock_pharmapi() is the
-  pattern. Add is_mock_hmvs() the same way (reading HMVS_MOCK env var).
+- Read backend/app/services/pharmapi.py — analogous structure (httpx async,
+  singleton client, error mapping), but the auth mechanism is different.
+- Read backend/app/services/hmvs_credentials.py (HMV-1) — your credential
+  source. Equipment-keyed lookup.
+- Read backend/app/config.py — add three URLs: HMVS_BASE_URL_ITE,
+  HMVS_BASE_URL_IQE, HMVS_BASE_URL_PROD (defaults: developer-ite.nmvo.eu,
+  portal-gr-iqe.nmvo.eu, TBD).
+- Read backend/app/utils/environment.py — add is_mock_hmvs() and
+  hmvs_environment() (returns 'ite' | 'iqe' | 'prod' from env var
+  HMVS_ENV, default 'ite').
+- HMVO auth flow (from onboarding email):
+  POST /identity/connect/token
+  Content-Type: application/x-www-form-urlencoded
+  grant_type=client_credentials&client_id=...&client_secret=...
+  →
+  {"access_token": "eyJ...", "expires_in": 32767, "token_type": "Bearer"}
 
-STUB CONTRACT
+STUB CONTRACTS
 # backend/app/services/hmvs.py
-async def hmvs_get(
-    session: AsyncSession,
-    pharmacy_id: uuid.UUID,
-    path: str,
-    *,
-    params: dict | None = None,
-) -> dict:
-    """GET with HMVS Basic Auth. Maps non-2xx to HTTPException(502, ...).
-    Returns parsed JSON dict."""
+class HmvsToken:
+    access_token: str
+    expires_at: datetime  # UTC, with 60s safety margin
 
-async def hmvs_post(
-    session: AsyncSession,
-    pharmacy_id: uuid.UUID,
-    path: str,
-    *,
-    json: dict,
-) -> dict:
-    """POST with HMVS Basic Auth. Same error mapping. Returns parsed JSON."""
+# Module-level cache: { equipment_id: HmvsToken }
+_token_cache: dict[uuid.UUID, HmvsToken] = {}
+
+async def get_or_refresh_token(
+    session: AsyncSession, equipment_id: uuid.UUID,
+) -> str:
+    """Return a valid Bearer token for this Equipment, fetching or refreshing
+    from /identity/connect/token if cached token is missing or near expiry.
+    Uses client credentials from get_equipment_credentials (HMV-1)."""
+
+async def hmvs_get(
+    session: AsyncSession, equipment_id: uuid.UUID, path: str,
+    *, params: dict | None = None,
+) -> tuple[int, dict]:
+    """GET with Bearer auth. Returns (http_status, parsed_json).
+    Status NOT mapped to exception here — caller interprets 404/409/422
+    as meaningful HMVS responses, not bugs."""
+
+async def hmvs_patch(
+    session: AsyncSession, equipment_id: uuid.UUID, path: str,
+    *, json: dict,
+) -> tuple[int, dict]:
+    """PATCH with Bearer auth. Used for state changes (Supplied, Active, etc.)."""
 
 # backend/app/utils/environment.py — add:
 def is_mock_hmvs() -> bool: ...
+def hmvs_environment() -> Literal['ite', 'iqe', 'prod']: ...
 
 ACCEPTANCE CRITERIA
-- hmvs.py uses httpx.AsyncClient with a 10s timeout. Re-use the client per
-  process (module-level singleton) — same pattern as pharmapi.py.
-- When is_mock_hmvs() is True, every call short-circuits to a stub response
-  (return {"status": "OK", "mock": True}) without touching the network.
-- 4xx responses raise HTTPException(502, "HMVS: <upstream_status> — <body[:200]>").
-- 5xx responses raise HTTPException(502, "HMVS: upstream error <status>").
-- Network errors (httpx.RequestError) raise HTTPException(502, "HMVS:
-  network error — <repr>").
-- backend/tests/test_hmvs_client.py covers: (a) mock-mode returns the stub,
-  (b) 200 OK returns parsed JSON, (c) 400 maps to 502 with the upstream
-  body in the detail, (d) RequestError maps to 502.
-- Use respx or httpx.MockTransport to stub the upstream — no real network
-  in tests.
-- Ruff + ruff format clean.
+- All requests carry headers: Authorization: Bearer <token>, Accept:
+  application/json, X-NMVS-API-Version: 3.1.
+- Token cache: stores access_token + expires_at (UTC, with 60s margin
+  before actual expiry). On expired or missing entry, re-fetch via
+  get_or_refresh_token. Concurrent callers must not double-fetch — use
+  an asyncio.Lock per equipment_id.
+- When is_mock_hmvs() returns True, every call returns deterministic stubs
+  without touching network. Mock responses configurable via a module-level
+  dict for test scenarios (e.g. HMVS_MOCK_RESPONSES[(equipment_id, 'GET',
+  '/product/...')] = (200, {...})).
+- Base URL chosen via hmvs_environment() → maps to ITE/IQE/PROD URLs from
+  config.
+- backend/tests/test_hmvs_client.py covers:
+  - Token fetch on first call, cache hit on second
+  - Token refresh after expires_at - 60s
+  - 200 OK PATCH returns (200, body)
+  - 404 from upstream returns (404, body) — NOT an exception
+  - Network error raises HTTPException(502, "HMVS: network error — ...")
+  - Mock mode returns configured stub
+  - Concurrent calls for same equipment_id only fetch token once (lock test)
 
 DO NOT
-- Do not retry automatically — HMVS calls are state-changing (decommission
-  is non-idempotent). Caller decides if retry is safe.
-- Do not log request bodies — they will contain pack serial numbers (sensitive).
-- Do not store the http client in a global variable that crosses test runs.
+- Do not retry automatically — HMVS PATCH state-changes are non-idempotent
+  (decommission means decommission). Caller decides retry.
+- Do not log access_token, client_id, or client_secret.
+- Do not log request bodies — they contain pack serials.
+- Do not raise on 404/409/422 — caller needs the status to interpret pack state.
 
 FINALIZE
 - Run: cd backend && pytest tests/test_hmvs_client.py -v
 - Run: cd backend && ruff check . && ruff format .
-- Commit: "feat(hmv-2): HMVS HTTP client with mock toggle and error mapping"
-- Open PR: "HMV-2: HMVS client (depends on HMV-1)"
+- Commit: "feat(hmv-2): HMVS OAuth 2.0 client with per-Equipment token cache"
+- PR: "HMV-2: HMVS client (OAuth Client Credentials, depends on HMV-1)"
 ```
 
 ---
@@ -434,93 +517,30 @@ FINALIZE
 
 ---
 
-### HMV-6a — i18n foundation (must land in FR-0)
+### HMV-6a — i18n foundation ✅ DELIVERED
 
-**Owner:** Eng A (owns FR-0)
-**Branch:** Part of FR-0 — `feat/fr-0-foundation`
-**Depends on:** —
-**Effort:** 1 day (added to FR-0's scope)
-**Critical:** This MUST land with FR-0. Retrofitting i18n after all the redesign components ship is significantly more expensive.
+**Status:** ✅ **Done — landed in PR #98 (FR-0)**
+**Owner:** cosmic-explore (Nick) on the redesign track
+**Effort actual:** ~1 day (bundled with FR-0)
 
-#### Scope
-Set up `react-i18next`, an `en` and `el` namespace, the `t()` hook usage pattern, and one example translated component. Every component built in FR-1 through FR-6 then uses `t('...')` rather than hardcoded strings. The full Greek translation pass happens in HMV-6b.
+#### What landed
 
-#### Acceptance criteria
-- `react-i18next` + `i18next` installed
-- `frontend/src/lib/i18n.ts` initialises i18next with `en` (default) + `el` (Greek) namespaces
-- Locale chosen via: URL query param `?lang=el` → localStorage → browser default → `el` fallback (HMVO commitment is Greek-first)
-- `frontend/src/locales/en.json` + `frontend/src/locales/el.json` exist with at least one example key (`common.appName: "PharmAssist"`)
-- One FR-0 foundation component (e.g. the AppShell header) uses `t('common.appName')` to demonstrate the pattern
-- The redesign-tickets doc is updated to note that every subsequent FR-N ticket must use `t()` for any new string
+PR #98 delivered the full i18n foundation as part of FR-0:
 
-#### Claude Code prompt
-```
-You are adding the i18n foundation to the FR-0 frontend foundation work.
-HMVO requires the entire UI in Greek; the cheapest path is to install i18n
-NOW so every redesign component uses t() from day one. Retrofitting later
-is ~10x the work.
+- `react-i18next` `^17.0.8`, `i18next` `^26.3.0`, `i18next-browser-languagedetector` `^8.2.1` installed
+- `frontend/src/lib/i18n.ts` — i18next initialised with Greek as default, detection order: `querystring → localStorage → navigator`, localStorage key `pharmassist_lang`, `initImmediate: false` for sync init
+- `frontend/src/locales/en.json` + `frontend/src/locales/el.json` — both populated with the initial key set (nav, common, etc.)
+- `frontend/src/main.tsx` — imports `./lib/i18n` before `<App />` mounts
+- `frontend/src/components/AppShell.tsx` — loading string + keyboard shortcut toast already using `t()`
+- `frontend/src/components/Sidebar.tsx` — all 5 nav items using `t('nav.*')`
 
-INPUTS
-- Read frontend/package.json — react-i18next is not yet installed.
-- Read docs/redesign-tickets.md FR-0 scope. You are extending FR-0, not
-  opening a separate PR.
-- Read frontend/src/main.tsx and frontend/src/App.tsx — i18n is initialised
-  at app bootstrap.
+#### Convention for subsequent FR-N work
 
-INSTALL
-cd frontend && npm install react-i18next i18next i18next-browser-languagedetector
+Every redesign ticket from FR-0.5 onwards **must** use `t('...')` for any visible string. No hardcoded English in JSX. The `check-i18n.sh` heuristic from HMV-6b will catch violations during the polish pass.
 
-STUB CONTRACT
-// frontend/src/lib/i18n.ts
-import i18n from 'i18next';
-import LanguageDetector from 'i18next-browser-languagedetector';
-import { initReactI18next } from 'react-i18next';
-import en from '../locales/en.json';
-import el from '../locales/el.json';
+#### Coordination follow-up
 
-i18n.use(LanguageDetector).use(initReactI18next).init({
-  resources: { en: { translation: en }, el: { translation: el } },
-  fallbackLng: 'el',
-  detection: {
-    order: ['querystring', 'localStorage', 'navigator'],
-    lookupQuerystring: 'lang',
-    lookupLocalStorage: 'pharmassist_lang',
-  },
-  interpolation: { escapeValue: false },
-});
-export default i18n;
-
-// frontend/src/locales/en.json + el.json
-{
-  "common": {
-    "appName": "PharmAssist"
-  }
-}
-
-ACCEPTANCE CRITERIA
-- frontend/src/main.tsx imports './lib/i18n' before <App /> mounts.
-- One existing component (suggest the AppShell header) uses
-  const { t } = useTranslation(); t('common.appName').
-- ?lang=el in the URL forces Greek; ?lang=en forces English. Choice
-  persists in localStorage as 'pharmassist_lang'.
-- npm run typecheck + npm run lint + npm run build all pass.
-- Coordinate with redesign-tickets.md author to add a top-of-doc note:
-  "All FR-N components must use t('...') for visible strings; never
-  hardcode English."
-
-DO NOT
-- Do not translate the full UI in this ticket — that's HMV-6b. Goal here
-  is plumbing + one example.
-- Do not pick a fancier library (formatjs, react-intl) — react-i18next
-  is the mature Greek-pharmacy-software default and keeps the bundle small.
-
-FINALIZE
-- Run: cd frontend && npm run typecheck && npm run lint && npm run build
-- Commit (as part of FR-0): "feat(fr-0/hmv-6a): i18n foundation with en+el
-  namespaces"
-- Verify in browser: load with ?lang=el, see Greek appName; load with
-  ?lang=en, see English appName.
-```
+- Update `docs/redesign-tickets.md` (a one-line note in the top section) to make the t() convention explicit for downstream FR engineers — without it, components written before FR-6b lands will leak English strings into the codebase and we'll have a bigger HMV-6b cleanup.
 
 ---
 
@@ -616,53 +636,105 @@ FINALIZE
 
 ## Layer 3 — HMVS endpoint integration
 
-### HMV-7 — Verify endpoint (single-pack verification)
+### HMV-7 — Verify endpoint (GET on pack URI)
 
 **Owner:** Eng A
 **Branch:** `feat/hmv-7-verify-endpoint`
 **Depends on:** HMV-2
-**Effort:** 2 days
+**Effort:** 2-3 days
 
 #### Scope
-The `POST /pharmapi/hmvs/verify` proxy that calls HMVS `/api/medicines/lot/qr` (SINGLE VERIFY) to check whether a pack QR code is genuine, in date, not already dispensed. Returns the verification status + decoded pack details (GTIN, serial, batch, expiry).
+The verify endpoint — proxies a GET to HMVS to check whether a pack is genuine, in date, not already dispensed. **The real HMVS URL pattern is REST on a pack URI**, not a POST:
+
+```
+GET /product/<scheme>/<productCode>/pack/<serialNumber>?batch=<batch>&expiry=<expiry>
+e.g. GET /product/gs1/05060141900022/pack/96392630670?batch=DemoPack&expiry=210300
+```
+
+Returns pack state (12 possible states) + product info + `nhrn` + `isIntermarket` flag.
 
 #### Acceptance criteria
-- `POST /pharmapi/hmvs/verify` accepts `{qr_code: str}` body
-- Calls `hmvs_post` (HMV-2) to forward to HMVS `/api/medicines/lot/qr`
-- Returns: `{status: "VERIFIED" | "DECOMMISSIONED" | "EXPIRED" | "RECALLED" | "UNKNOWN", gtin, serial, batch, expiry_date, raw_response}`
-- HMVS error responses (e.g., F-code "FNS-NHRN-LOT-99" type strings) mapped to clear status
-- Audit log entry written for every verify call (HMV-12 ticket — for now, leave a TODO comment if HMV-12 hasn't shipped)
-- Unit test covers: VERIFIED happy path, DECOMMISSIONED rejection, EXPIRED rejection, network error
+- `POST /pharmapi/hmvs/verify` accepts `{equipment_id: UUID, pack: ScannedPack}` body — Equipment must be active for the current pharmacy
+- Endpoint **parses the scanned GS1/IFA payload first** (don't pass raw QR to HMVS — extract GTIN/serial/batch/expiry, build the pack URI)
+- Calls `hmvs_get` (HMV-2) with the constructed URI
+- Returns the **12-state** pack status + `nhrn` + `isIntermarket` flag + decoded pack details
+- HTTP statuses preserved with meaning:
+  - 200 → pack found, state in response body
+  - 404 → pack not found in repository (includes batch/expiry mismatch — a verification *signal*, not an error)
+  - 409 → state conflict (rare on GET — still report cleanly)
+  - 422 → malformed pack URI (our bug — log and 500 to the SPA)
+  - 429 → throttled (surface to user as "try again shortly")
+- `isIntermarket: true` responses must NOT block the caller — degraded data is acceptable, surface a UI note
+- Audit log (HMV-12 TODO) records the verify outcome
+- Tests cover: 200 with each pack state, 404 not-found, 422 malformed, intermarket response, mock-mode stub
 
 #### Claude Code prompt
 ```
-You are building the verify endpoint — the proxy that calls HMVS single-pack
-verification when a pharmacist scans a pack's 2D Data Matrix.
+You are building the HMVS verify endpoint. The real HMVS API is REST on
+pack URIs (not POST to a verification endpoint). Each scanned pack QR is
+parsed locally to extract GTIN + serial + batch + expiry, then we GET the
+pack URI.
 
 INPUTS
-- Read backend/app/services/hmvs.py (HMV-2) — hmvs_post is your transport.
-- Read backend/app/routers/pharmapi.py — the proxy router pattern. Mirror it.
-- HMVS single-verify endpoint contract (from HMVO docs; if exact spec
-  isn't available, document assumptions and adjust when sandbox access
-  arrives):
-  POST /api/medicines/lot/qr
-  Body: {"qr": "<raw qr string from data matrix scanner>"}
-  Response: status code per pack state. Map upstream codes to our enum.
+- Read backend/app/services/hmvs.py (HMV-2) — hmvs_get returns (status, body).
+- Read frontend/src/lib/gs1.ts (HMV-10) — the GS1/IFA payload parser.
+- Read backend/app/routers/pharmapi.py — proxy router style.
+- HMVS verify contract (from HMVO email):
+  GET /product/<scheme>/<productCode>/pack/<serialNumber>?batch=<batchId>&expiry=<expiry>
+  - <scheme>: 'gs1' or 'ifa'
+  - <productCode>: GTIN-14 (for GS1) or PPN (for IFA)
+  - <serialNumber>: 1-20 chars from GS1 Character Set 82
+  - <batch>: 1-20 chars
+  - <expiry>: YYMMDD
+- HMVS response (200 OK) shape:
+  {
+    "operationCode": 11210000,  # use to determine UI presentation/colour
+    "state": "Active" | "Supplied" | "Sample" | "Destroyed" | "Stolen"
+           | "Free Sample" | "Locked" | "Exported" | "Expired"
+           | "Withdrawn" | "Recalled" | "Checked-out",
+    "information": "...",   # optional friendly text
+    "warning": "...",       # optional warning text
+    "nhrn": "...",          # κωδικός ΕΟΦ
+    "isIntermarket": false  # true if pack data was fetched from another EU market
+  }
+- HTTP statuses:
+  200 OK = pack found
+  404 = pack not in repo (or batch/expiry mismatch) — meaningful signal, NOT a bug
+  409 = state conflict (rare on GET)
+  422 = malformed request (our bug)
+  429 = throttled
 
-STUB CONTRACT
-# backend/app/routers/hmvs.py (new file)
+STUB CONTRACTS
+# backend/app/routers/hmvs.py (new file or extend if HMV-2 created it)
 router = APIRouter(prefix="/pharmapi/hmvs", tags=["hmvs"])
 
+PackState = Literal[
+    "Active", "Supplied", "Sample", "Destroyed", "Stolen",
+    "Free Sample", "Locked", "Exported", "Expired",
+    "Withdrawn", "Recalled", "Checked-out",
+]
+
+class ScannedPack(BaseModel):
+    scheme: Literal["gs1", "ifa"]
+    product_code: str   # GTIN or PPN
+    serial: str
+    batch: str
+    expiry: str         # YYMMDD as HMVS expects
+
 class VerifyRequest(BaseModel):
-    qr_code: str  # raw 2D Data Matrix payload
+    equipment_id: uuid.UUID
+    pack: ScannedPack
 
 class VerifyResponse(BaseModel):
-    status: Literal["VERIFIED", "DECOMMISSIONED", "EXPIRED", "RECALLED", "UNKNOWN"]
-    gtin: str | None
-    serial: str | None
-    batch: str | None
-    expiry_date: str | None  # YYYY-MM-DD
-    upstream_message: str | None
+    found: bool                       # False if HMVS returned 404
+    state: PackState | None
+    operation_code: int | None
+    nhrn: str | None
+    is_intermarket: bool
+    information: str | None
+    warning: str | None
+    http_status: int                  # for the SPA to render appropriate UX
+    upstream_message: str | None      # parsed from response body if non-200
 
 @router.post("/verify", response_model=VerifyResponse)
 async def hmvs_verify(
@@ -674,40 +746,47 @@ async def hmvs_verify(
 
 ACCEPTANCE CRITERIA
 - Router added to main.py app.include_router list.
-- Endpoint accepts the QR string, calls hmvs_post(session, pharmacy_id,
-  "/api/medicines/lot/qr", json={"qr": body.qr_code}).
-- Response parsed into the VerifyResponse shape. The status mapping table:
-  upstream "ACTIVE" → "VERIFIED"
-  upstream "DECOMMISSIONED" → "DECOMMISSIONED"
-  upstream "EXPIRED" → "EXPIRED"
-  upstream "RECALLED" → "RECALLED"
-  anything else → "UNKNOWN" (with upstream_message populated for debugging)
-- 2D Data Matrix QR encodes: GTIN (14 digits), Serial (up to 20 alphanumeric),
-  Batch (up to 20), Expiry (YYMMDD). Document the parsing in a helper.
-- Audit log: write a TODO comment for now — "HMV-12 will write the audit
-  row here once that ticket ships". Do not block on it.
-- Test in backend/tests/test_hmvs_verify.py:
-  - VERIFIED upstream → status "VERIFIED" with decoded fields
-  - DECOMMISSIONED upstream → status "DECOMMISSIONED"
-  - Upstream 502 → endpoint raises 502 with HMVS prefix in detail
-  - HMVS_MOCK=true → returns deterministic VERIFIED stub
+- Endpoint validates equipment_id belongs to current user's pharmacy
+  (via HMV-1 list_equipment_for_pharmacy). 403 if not.
+- URL construction: f"/product/{scheme}/{product_code}/pack/{serial}?batch={batch}&expiry={expiry}"
+  - URL-encode all path/query segments
+- hmvs_get returns (http_status, body). Map to VerifyResponse:
+  - 200 → found=True, state=body["state"], operation_code=body["operationCode"],
+    nhrn=body.get("nhrn"), is_intermarket=body.get("isIntermarket", False),
+    information, warning, http_status=200
+  - 404 → found=False, state=None, http_status=404, upstream_message="Pack not
+    found or batch/expiry mismatch"
+  - 422 → log error + raise HTTPException(500, "Internal pack URI error") —
+    this is our bug, never the user's
+  - 429 → raise HTTPException(429, "HMVS throttling — try again shortly")
+  - Other → raise HTTPException(502, f"HMVS: {http_status}")
+- Audit log: leave TODO comment for HMV-12.
+- backend/tests/test_hmvs_verify.py covers:
+  - 200 Active state mapped correctly
+  - 200 Supplied state (already-dispensed pack)
+  - 200 Recalled state
+  - 200 with isIntermarket=true returns the flag through
+  - 404 returns found=False without raising
+  - 422 raises 500 (logged)
+  - HMVS_MOCK=true returns deterministic Active stub
+  - Equipment not owned by current user → 403
 
 DO NOT
-- Do not retry on failure — HMVS verify is read-only but the pharmacist
-  needs to see real failures immediately.
-- Do not log the full QR code (contains serial number — privacy/regulatory
-  sensitive).
+- Do not raise an exception on 404 — it's a valid HMVS response state.
+- Do not log raw QR or serial numbers — privacy.
+- Do not handle decommission/state-change here — that's HMV-8 (PATCH).
+- Do not retry on failure.
 
 FINALIZE
 - Run: cd backend && pytest tests/test_hmvs_verify.py -v
 - Run: cd backend && ruff check . && ruff format .
-- Commit: "feat(hmv-7): POST /pharmapi/hmvs/verify endpoint"
-- PR: "HMV-7: HMVS single-pack verify (depends on HMV-2)"
+- Commit: "feat(hmv-7): POST /pharmapi/hmvs/verify (GET pack URI proxy)"
+- PR: "HMV-7: HMVS pack verify (real REST URL pattern, depends on HMV-2)"
 ```
 
 ---
 
-### HMV-8 — Decommission endpoint
+### HMV-8 — Decommission endpoint (PATCH state change)
 
 **Owner:** Eng A
 **Branch:** `feat/hmv-8-decommission-endpoint`
@@ -715,90 +794,107 @@ FINALIZE
 **Effort:** 2 days
 
 #### Scope
-`POST /pharmapi/hmvs/decommission` — called the moment a pack is dispensed to a patient. Removes the pack's serial number from the live HMVS registry. State-changing and non-idempotent — must NOT be called twice for the same pack.
+`POST /pharmapi/hmvs/decommission` — called the moment a pack is dispensed. **Real HMVS pattern is PATCH on the pack URI with `{"state": "<target>"}` body.** Target state ∈ Supplied / Destroyed / Sample / Stolen / Free Sample / Locked. For normal dispense, target is `Supplied`.
+
+State change is non-idempotent (decommission removes the pack from the live registry) — must NOT be called twice for the same pack. Local idempotency log enforces this.
 
 #### Acceptance criteria
-- `POST /pharmapi/hmvs/decommission` accepts `{qr_code, reason}` body where reason ∈ `DISPENSED | DESTROYED | SAMPLE | STOLEN`
-- Calls `hmvs_post` to `/api/medicines/decommission`
-- Returns: `{success: bool, upstream_message, decommissioned_at}`
-- **Idempotency guard**: track recent decommissions in a local table (`hmvs_decommission_log`) with `(pharmacy_id, serial)` as a unique key; if the pack was decommissioned by us in the last 5 minutes, return the cached response instead of re-calling
-- Audit log entry (TODO until HMV-12)
+- `POST /pharmapi/hmvs/decommission` accepts `{equipment_id, pack, target_state}` body (target_state defaults to `"Supplied"`)
+- Builds the same pack URI as HMV-7
+- Calls `hmvs_patch` with `json={"state": target_state}`
+- 200 = state change accepted (also covers "already in requested state" — treated as idempotent success)
+- 409 = upstream rejected the state change (e.g. pack already in incompatible state) → surface to caller
+- Local `hmvs_decommission_log` table with unique `(pharmacy_id, serial)` constraint — 5-minute idempotency cache
+- Audit log entry (HMV-12 TODO)
 
 #### Claude Code prompt
 ```
-You are building the decommission endpoint — called when a pack is dispensed
-to a patient. This is a STATE-CHANGING call to HMVS that must not be made
-twice for the same pack.
+You are building the HMVS decommission endpoint. This is a STATE-CHANGING
+call to HMVS that must not be made twice for the same pack. Real pattern is
+PATCH on the pack URI with {"state": "Supplied"} body — NOT a POST to a
+dedicated decommission endpoint.
 
 INPUTS
-- Read backend/app/routers/hmvs.py (created in HMV-7). Extend it; do not
-  create a new router file.
-- Read backend/app/services/hmvs.py (HMV-2) — hmvs_post is your transport.
-- HMVS decommission contract (assumed, validate when sandbox lands):
-  POST /api/medicines/decommission
-  Body: {"qr": "<raw>", "reason": "DISPENSED"}
-  Response: {"success": true} or {"success": false, "code": "...", "message": "..."}
+- Read backend/app/routers/hmvs.py (HMV-7) — extend it; do not create a new file.
+- Read backend/app/services/hmvs.py (HMV-2) — hmvs_patch is your transport.
+- HMVS state-change contract (from HMVO email):
+  PATCH /product/<scheme>/<productCode>/pack/<serialNumber>?batch=...&expiry=...
+  Body: {"state": "Supplied"}
+  Response (200): same shape as verify (operationCode, state, [warning], nhrn)
+  Response (409): system rejected state change; body has current state + reason
+  Idempotency: "if the pack is already in the requested state, the request is
+  treated as valid" — so 200 covers both "just changed" and "was already there"
 
 STUB CONTRACT
+class DecommissionTarget(str, Enum):
+    SUPPLIED = "Supplied"
+    DESTROYED = "Destroyed"
+    SAMPLE = "Sample"
+    STOLEN = "Stolen"
+    FREE_SAMPLE = "Free Sample"
+    LOCKED = "Locked"
+
 class DecommissionRequest(BaseModel):
-    qr_code: str
-    reason: Literal["DISPENSED", "DESTROYED", "SAMPLE", "STOLEN"] = "DISPENSED"
+    equipment_id: uuid.UUID
+    pack: ScannedPack            # reuse from HMV-7
+    target_state: DecommissionTarget = DecommissionTarget.SUPPLIED
 
 class DecommissionResponse(BaseModel):
     success: bool
+    final_state: PackState | None
+    operation_code: int | None
     upstream_message: str | None
-    decommissioned_at: datetime | None
-    idempotent_cached: bool = False  # True if we returned a cached response
+    decommissioned_at: datetime | None  # UTC
+    idempotent_cached: bool = False     # True if we returned a cached response
 
 @router.post("/decommission", response_model=DecommissionResponse)
-async def hmvs_decommission(
-    body: DecommissionRequest,
-    current: dict = Depends(get_current_user),
-    session: AsyncSession = Depends(get_session),
-) -> DecommissionResponse:
-    ...
+async def hmvs_decommission(...): ...
 
 ACCEPTANCE CRITERIA
-- New table hmvs_decommission_log with columns: id (PK), pharmacy_id (FK),
-  serial (string, indexed), gtin (string), reason (string), upstream_response
-  (JSONB), decommissioned_at (timestamptz default now()).
-- Unique constraint on (pharmacy_id, serial) to prevent double-write.
-- Alembic migration added.
+- New Alembic migration: hmvs_decommission_log table with columns:
+  id (PK uuid), pharmacy_id (FK), serial (text indexed), gtin (text),
+  target_state (text), upstream_response (JSONB), decommissioned_at
+  (timestamptz default now() UTC). Unique constraint on (pharmacy_id, serial).
 - Endpoint logic:
-  1. Parse QR to extract serial.
-  2. Check hmvs_decommission_log for (pharmacy_id, serial). If found AND
-     decommissioned_at is within last 5 minutes, return cached response with
-     idempotent_cached=true. (Prevents accidental double-dispense from a
-     pharmacist clicking twice.)
-  3. Otherwise, call hmvs_post(session, pharmacy_id, "/api/medicines/decommission",
-     json={"qr": body.qr_code, "reason": body.reason}).
-  4. On success: insert into hmvs_decommission_log, return DecommissionResponse(
-     success=True, upstream_message=..., decommissioned_at=...).
-  5. On failure: return DecommissionResponse(success=False, upstream_message=...).
-     DO NOT insert into the log on failure — let the pharmacist retry.
-- Test in backend/tests/test_hmvs_decommission.py:
-  - Happy path: success=True, log row created
-  - Same pack within 5 min: returns idempotent_cached=true, upstream not called
-  - Upstream failure: success=false, no log row
+  1. Validate equipment ownership (same as HMV-7).
+  2. Parse pack (already done — comes in as ScannedPack).
+  3. Idempotency check: SELECT from hmvs_decommission_log where
+     (pharmacy_id, serial) match AND decommissioned_at within last 5 min.
+     If hit, return cached response with idempotent_cached=true.
+  4. Otherwise call hmvs_patch with {"state": body.target_state.value}.
+  5. On 200: INSERT into hmvs_decommission_log, return DecommissionResponse(
+     success=True, final_state=body["state"], operation_code, decommissioned_at=
+     datetime.now(UTC), upstream_message=body.get("information")).
+  6. On 409: return DecommissionResponse(success=False, final_state=body["state"]
+     if present, upstream_message=body.get("information") or "State change rejected").
+     DO NOT insert into the log.
+  7. On 404: return DecommissionResponse(success=False, upstream_message="Pack
+     not found — cannot decommission"). DO NOT insert into log.
+  8. On other status: raise HTTPException(502, ...).
+- backend/tests/test_hmvs_decommission.py covers:
+  - Happy path: success=True, log row written
+  - Same pack within 5 min: idempotent_cached=True, upstream NOT called
+  - 409 from upstream: success=False, no log row, surfaced cleanly
+  - 404 from upstream: success=False, no log row
   - HMVS_MOCK=true returns success stub
 
 DO NOT
-- Do not retry on failure — let the pharmacist trigger retry explicitly.
-  Auto-retry could double-dispense if the first call actually succeeded
-  but the response was lost.
-- Do not allow a hard delete from hmvs_decommission_log — append-only.
-- Do not log the QR code.
+- Do not retry on failure — could double-dispense if first call succeeded
+  but response was lost.
+- Do not allow hard deletes from hmvs_decommission_log — append-only.
+- Do not log QR or serial.
+- Do not assume PATCH is idempotent at the HTTP level — use the local table.
 
 FINALIZE
 - Run: cd backend && alembic upgrade head && pytest tests/test_hmvs_decommission.py -v
 - Run: cd backend && ruff check . && ruff format .
-- Commit: "feat(hmv-8): POST /pharmapi/hmvs/decommission with idempotency guard"
-- PR: "HMV-8: HMVS decommission endpoint (depends on HMV-7)"
+- Commit: "feat(hmv-8): POST /pharmapi/hmvs/decommission (PATCH pack URI)"
+- PR: "HMV-8: HMVS decommission (PATCH state, depends on HMV-7)"
 ```
 
 ---
 
-### HMV-9 — Reactivate endpoint
+### HMV-9 — Reactivate endpoint (PATCH back to Active)
 
 **Owner:** Eng A
 **Branch:** `feat/hmv-9-reactivate-endpoint`
@@ -806,71 +902,68 @@ FINALIZE
 **Effort:** 1 day
 
 #### Scope
-`POST /pharmapi/hmvs/reactivate` — undo a decommission. Used when a pharmacist accidentally decommissioned a pack (e.g. scanned the wrong one or the patient changed their mind before leaving). Strict time window: HMVS only allows reactivation within ~10 days of decommission.
+`POST /pharmapi/hmvs/reactivate` — undo a decommission within HMVO's ~10-day reactivation window. **Real pattern is PATCH on the pack URI with `{"state": "Active"}`.** On success, clears the local idempotency entry so the pack can be re-dispensed cleanly later.
 
 #### Acceptance criteria
-- `POST /pharmapi/hmvs/reactivate` accepts `{qr_code}` body
-- Calls HMVS `/api/otcm/reactivate`
-- Returns: `{success, upstream_message}`
-- If reactivation succeeds, remove the row from `hmvs_decommission_log` (so the idempotency window doesn't block re-dispense to a different patient)
-- Audit log entry (TODO until HMV-12)
+- `POST /pharmapi/hmvs/reactivate` accepts `{equipment_id, pack}` body
+- Calls `hmvs_patch` with `{"state": "Active"}`
+- 200 → success, DELETE from `hmvs_decommission_log` for `(pharmacy_id, serial)`
+- 409 → most common failure (outside reactivation window), return `upstream_message` so UI can show the pharmacist why
+- Audit log entry (HMV-12 TODO)
 
 #### Claude Code prompt
 ```
-You are building the reactivate endpoint — the "undo" for HMV-8 decommission.
-HMVS allows reactivation within a strict ~10-day window after decommission.
-After that, packs are permanently retired.
+You are building the HMVS reactivate endpoint — the "undo" for HMV-8.
+Real pattern is PATCH on the pack URI with {"state": "Active"} body. HMVS
+allows reactivation within ~10 days; after that, packs are permanently
+retired and PATCH→Active returns 409.
 
 INPUTS
-- Read backend/app/routers/hmvs.py (HMV-7 + HMV-8). Extend; do not create
-  a new file.
-- HMVS reactivate contract (assumed):
-  POST /api/otcm/reactivate
-  Body: {"qr": "<raw>"}
-  Response: {"success": true} or {"success": false, "code": "...", "message": "..."}
-  Common failure: pack outside the reactivation window.
+- Read backend/app/routers/hmvs.py (HMV-7 + HMV-8). Extend; do not create new.
+- HMVS reactivate contract:
+  PATCH /product/<scheme>/<productCode>/pack/<serial>?batch=...&expiry=...
+  Body: {"state": "Active"}
+  Common failure: 409 with body.information explaining (e.g. "outside
+  reactivation window").
 
 STUB CONTRACT
 class ReactivateRequest(BaseModel):
-    qr_code: str
+    equipment_id: uuid.UUID
+    pack: ScannedPack
 
 class ReactivateResponse(BaseModel):
     success: bool
+    final_state: PackState | None
     upstream_message: str | None
 
 @router.post("/reactivate", response_model=ReactivateResponse)
-async def hmvs_reactivate(
-    body: ReactivateRequest,
-    current: dict = Depends(get_current_user),
-    session: AsyncSession = Depends(get_session),
-) -> ReactivateResponse:
-    ...
+async def hmvs_reactivate(...): ...
 
 ACCEPTANCE CRITERIA
-- Endpoint extracts serial from QR, calls hmvs_post(session, pharmacy_id,
-  "/api/otcm/reactivate", json={"qr": body.qr_code}).
-- On success: DELETE FROM hmvs_decommission_log WHERE pharmacy_id=... AND
-  serial=...  (so the 5-minute idempotency cache doesn't block a fresh
-  decommission to a different patient).
-- On failure: log row stays, no DB mutation. Return upstream_message so the
-  UI can show the pharmacist exactly why (most likely "outside reactivation
-  window").
-- Test in backend/tests/test_hmvs_reactivate.py:
+- Validates equipment ownership.
+- Calls hmvs_patch with {"state": "Active"}.
+- On 200: DELETE FROM hmvs_decommission_log WHERE pharmacy_id=... AND
+  serial=... (so a fresh decommission can happen cleanly to a different
+  patient).
+- On 409: return success=False, upstream_message=body.get("information") or
+  "Reactivation rejected (likely outside window)". Log row stays intact.
+- On 404: success=False, upstream_message="Pack not found".
+- backend/tests/test_hmvs_reactivate.py covers:
   - Happy path: success=True, log row deleted
-  - Upstream rejection (outside window): success=False, log row intact
+  - 409 outside window: success=False, log row intact, informative message
   - HMVS_MOCK=true returns success stub
+  - Validates equipment ownership
 
 DO NOT
-- Do not retry. Reactivation failures are usually permanent (out of window)
-  and shouldn't be retried automatically.
-- Do not allow reactivate without a prior decommission log row in mock
-  mode — useful sanity check.
+- Do not retry — reactivation failures are usually permanent (out of window).
+- Do not allow reactivate without a prior decommission log row in mock mode
+  (sanity check).
 
 FINALIZE
 - Run: cd backend && pytest tests/test_hmvs_reactivate.py -v
 - Run: cd backend && ruff check . && ruff format .
-- Commit: "feat(hmv-9): POST /pharmapi/hmvs/reactivate endpoint"
-- PR: "HMV-9: HMVS reactivate endpoint (undo for HMV-8)"
+- Commit: "feat(hmv-9): POST /pharmapi/hmvs/reactivate (PATCH to Active)"
+- PR: "HMV-9: HMVS reactivate (undo for HMV-8)"
 ```
 
 ---
@@ -1144,79 +1237,142 @@ FINALIZE
 
 ---
 
-### HMV-13 — Sandbox / test environment wiring
+### HMV-13 — Three-environment wiring (ITE / IQE / PROD)
 
 **Owner:** Eng A
-**Branch:** `feat/hmv-13-sandbox-env`
+**Branch:** `feat/hmv-13-three-environments`
 **Depends on:** HMV-1, HMV-2
-**Effort:** 1 day
+**Effort:** 1-2 days
 
 #### Scope
-Once HMVO sends the sandbox credentials + URL, wire them into our environment configuration. Create a `.env.hmvs.sandbox` template, document the setup, smoke-test the connection.
+HMVS has **three distinct environments** with different URLs, purposes, and statefulness — wire all three into our config so engineers can target the right one for each phase of work. Plus public status dashboards for outage signalling.
+
+| Env | Purpose | URL | Stateful | Cred isolation |
+|---|---|---|---|---|
+| **ITE** | Dev — canned response lookup, all Solidsoft markets share | `developer-ite.nmvo.eu` | No | Shared across all markets |
+| **IQE** | Greek-specific qualification / test book | `portal-gr-iqe.nmvo.eu` | Yes, dedicated Greek instance | Per-Equipment creds from IQE portal |
+| **PROD** | Live | (TBD post-qualification) | Yes | Per-Equipment creds from PROD portal |
 
 #### Acceptance criteria
-- `backend/.env.example` updated with `HMVS_BASE_URL`, `HMVS_MOCK` placeholders
-- `backend/.env.hmvs.sandbox.example` with HMVO sandbox URL (placeholder until real URL arrives) + instructions for getting credentials
-- A `scripts/hmvs_smoke.py` script that calls verify against a known test pack and prints the response
-- `docs/hmvs-setup.md` written: how to obtain HMVO sandbox creds, how to set them in the pharmacy admin UI (HMV-1), how to run the smoke script
+- `backend/.env.example` updated with all three `HMVS_BASE_URL_*` + `HMVS_ENV` toggle + `HMVS_MOCK`
+- `backend/.env.hmvs.example` template with placeholders + comments on where credentials come from
+- `scripts/hmvs_smoke.py` argparse takes `--env {ite,iqe,prod}` + `--equipment-id` + `--test-pack`, exits 0 on success
+- `docs/hmvs-setup.md` covers: getting access to each env, registering equipment in each portal, capturing client_id/secret, env-switching, status dashboards
+- Status dashboard URLs documented for outage signalling in UI:
+  - IQE: `https://status-iqe.nmvo.eu`
+  - PROD: `https://status.nmvo.eu`
 
 #### Claude Code prompt
 ```
-You are wiring the HMVS sandbox environment so engineers can test HMVS
-integration locally once HMVO grants access. This is plumbing + docs, no
-new product code.
+You are wiring all three HMVS environments (ITE/IQE/PROD) into our config
+and writing the developer setup docs. HMVS has shared dev (ITE), Greek-
+specific qualification (IQE), and production environments — each needs
+its own URL, credentials, and switching mechanism.
 
 INPUTS
-- Read backend/.env.example — the pattern for new env vars.
-- Read backend/app/config.py — HMVS_BASE_URL and HMVS_MOCK are added in HMV-2.
-- Read backend/scripts/seed.py — the script style (argparse, asyncio.run).
+- Read backend/.env.example — pattern for new env vars.
+- Read backend/app/config.py — extend with three HMVS_BASE_URL_* + HMVS_ENV.
+- Read backend/app/services/hmvs.py (HMV-2) — uses hmvs_environment() to
+  pick the right URL.
+- Read backend/scripts/seed.py — script style (argparse, asyncio.run).
 
 DELIVERABLES
 1. backend/.env.example — add:
-   HMVS_BASE_URL=https://hmvo-sandbox.example.gr
+   # HMVS environment toggle: 'ite' (default), 'iqe', or 'prod'
+   HMVS_ENV=ite
+   HMVS_BASE_URL_ITE=https://developer-ite.nmvo.eu
+   HMVS_BASE_URL_IQE=https://portal-gr-iqe.nmvo.eu
+   HMVS_BASE_URL_PROD=  # filled in post-qualification
    HMVS_MOCK=true
 
-2. backend/.env.hmvs.sandbox.example — template:
-   # Copy to .env.hmvs.sandbox and fill in real values from HMVO.
-   # Obtained via the HMVO IT-suppliers portal after test book completion.
-   HMVS_BASE_URL=<from HMVO email>
+2. backend/.env.hmvs.example — template:
+   # Copy to .env.hmvs and override for your dev needs.
+   # Equipment credentials are NOT here — they live in the DB (HMV-1)
+   # via the Settings admin UI after registration in the HMVO portal.
+   #
+   # For ITE: any Solidsoft market shares the same canned-response sandbox.
+   #          Get developer portal access via hmvo.support@reply.com.
+   # For IQE: Greek-specific, requires Equipment registration in the IQE
+   #          portal at portal-gr-iqe.nmvo.eu. Receive Client ID + Secret
+   #          on Equipment creation — save them immediately, cannot be
+   #          regenerated.
+   # For PROD: granted only after IQE testbook passes qualification.
+   HMVS_ENV=ite
    HMVS_MOCK=false
-   # Per-pharmacy credentials are set via the Settings admin UI (HMV-1),
-   # not via env. These vars only configure transport.
 
 3. backend/scripts/hmvs_smoke.py:
-   - argparse args: --pharmacy-id, --qr-code (or --test-pack to use a
-     hardcoded sample)
-   - Loads HMVS_BASE_URL from env
-   - Calls hmvs.hmvs_verify (or the underlying client function) for the
-     given pharmacy + QR
-   - Prints the full response, including status mapping
-   - Exits 0 on VERIFIED, 1 on any other status
+   import argparse, asyncio
+   parser.add_argument("--env", choices=["ite", "iqe", "prod"], default="ite")
+   parser.add_argument("--equipment-id", required=True, help="UUID from
+       HMVS Equipment registered via HMV-1")
+   parser.add_argument("--test-pack", action="store_true",
+       help="Use the hardcoded HMVO sample pack instead of --gtin/--serial/etc")
+   parser.add_argument("--gtin"); parser.add_argument("--serial");
+   parser.add_argument("--batch"); parser.add_argument("--expiry")
 
-4. docs/hmvs-setup.md:
-   - Section: "Getting HMVO sandbox access" — link to HMVO portal,
-     summarise the test-book requirement
-   - Section: "Setting credentials" — how to use the admin UI (HMV-1)
-   - Section: "Smoke-testing the connection" — how to run hmvs_smoke.py
-   - Section: "Going to production" — checklist (real creds, HMVS_MOCK=false,
-     HMVS_BASE_URL points to production, screen recording sent to HMVO)
+   async def main():
+       os.environ["HMVS_ENV"] = args.env
+       from app.services.hmvs import hmvs_get  # late import after env set
+       async with AsyncSessionLocal() as session:
+           pack_uri = f"/product/gs1/{gtin}/pack/{serial}?batch={batch}&expiry={expiry}"
+           status, body = await hmvs_get(session, args.equipment_id, pack_uri)
+           print(f"Status: {status}")
+           print(json.dumps(body, indent=2))
+           sys.exit(0 if status == 200 else 1)
+
+4. docs/hmvs-setup.md — covers ALL of:
+   # HMVS Developer Setup
+   ## Environments
+   <table of ITE/IQE/PROD>
+   ## Getting access
+   - ITE: email hmvo.support@reply.com with HMVO in CC. Name, email,
+     company. ~few days.
+   - IQE: gated on completing the test book in HMVO's onboarding portal.
+   - PROD: gated on passing qualification.
+   ## Registering Equipment
+   - Log into the env-specific portal (ITE: developer-ite.nmvo.eu, IQE:
+     portal-gr-iqe.nmvo.eu, PROD: TBD).
+   - Locations → Add Location (requires HMVO approval after creation).
+   - Equipment → Create Equipment (name + type, e.g. "Scanner 1 - Zebra").
+   - **Save the Client ID + Secret immediately** — they cannot be regenerated.
+   - Pass them to PharmAssist via the Settings admin UI (HMV-1).
+   ## Smoke test
+   $ cd backend
+   $ HMVS_MOCK=true python scripts/hmvs_smoke.py --env ite --equipment-id <uuid> --test-pack
+   ## Switching environments
+   $ HMVS_ENV=iqe python -m uvicorn main:app --reload
+   ## Status dashboards
+   - IQE: https://status-iqe.nmvo.eu
+   - PROD: https://status.nmvo.eu
+   These are pinged from our error UI when HMVS calls fail — pharmacist
+   can check before contacting support.
+   ## Going to production checklist
+   - [ ] Real Equipment IDs registered in PROD portal
+   - [ ] HMVS_ENV=prod, HMVS_MOCK=false
+   - [ ] HMVS_BASE_URL_PROD filled in
+   - [ ] Equipment credentials set in Settings admin UI
+   - [ ] R18 Sectigo CA certs verified on prod server (HMV-16)
+   - [ ] Screen recording (HMV-14) sent to HMVO
+   - [ ] Test book passed (HMV-15)
 
 ACCEPTANCE CRITERIA
-- All four files created.
-- hmvs_smoke.py runs in mock mode without real HMVO access (HMVS_MOCK=true)
-  and prints a mock response — useful for engineers without sandbox creds.
+- All four files in place.
+- HMVS_MOCK=true smoke runs without any real HMVO access and prints a
+  mock response — useful for engineers without sandbox creds.
 - docs/hmvs-setup.md is comprehensive enough that a new engineer can
   bootstrap without asking the team.
 
 DO NOT
-- Do not commit real HMVO credentials to the repo — even in .env.example.
-- Do not write a script that mutates HMVS state (no decommission in smoke).
+- Do not commit real Client IDs or Secrets to the repo, ever — even in
+  .env.example.
+- Do not write a script that mutates state (no decommission in smoke).
+- Do not assume PROD URL — leave blank until HMVO provides it post-qualification.
 
 FINALIZE
 - Run: cd backend && HMVS_MOCK=true python scripts/hmvs_smoke.py
-  --pharmacy-id <any uuid> --test-pack
-- Commit: "feat(hmv-13): sandbox env wiring + setup docs + smoke script"
-- PR: "HMV-13: HMVS sandbox environment"
+  --env ite --equipment-id <any-uuid> --test-pack
+- Commit: "feat(hmv-13): three-environment wiring (ITE/IQE/PROD) + setup docs"
+- PR: "HMV-13: Three HMVS environments + smoke script + setup docs"
 ```
 
 ---
@@ -1351,6 +1507,139 @@ FINALIZE (when complete)
 - Submit results bundle to HMVO via the IT-suppliers portal.
 - Wait for HMVO sign-off.
 - Commit: "feat(hmv-15): HMVO test book completion + sign-off"
+```
+
+---
+
+### HMV-16 — R18 Sectigo CA certificate verification (HARD DEADLINE: 18 May 2026)
+
+**Owner:** Eng A or DevOps
+**Branch:** `feat/hmv-16-r18-ca-certs`
+**Depends on:** —
+**Effort:** 1 day (potentially less if Linux base image already has the certs)
+**🚨 Hard deadline:** 18 May 2026 — after this date, HMVS production calls fail silently against any server lacking the new CAs.
+
+#### Scope
+
+HMVS upgrades to R18 on **18 May 2026**, switching SSL Certificate Authority from the old chain to **Sectigo Public Server Authentication Root R46** + sub-CA **Sectigo Public Server Authentication CA DV R36**. After R18 PROD deployment:
+
+- Servers WITHOUT the new CAs will receive an SSL cert validation error on every NMVS call
+- HMVS will appear to be down (no response) when it's actually up
+- Failures will be silent — no error code, just connection failure
+
+Fully-patched Windows / Azure environments ship with these CAs. **Linux containers (our backend) may NOT** — depends on the base image and how recently it was rebuilt.
+
+#### Acceptance criteria
+
+- Smoke-check from each environment (dev container, staging container, production container) that `curl https://developer-ite.nmvo.eu/` returns HTTP 200, NOT an SSL error
+- If missing, install both CA certs in the container's trust store
+- Add the CA cert installation to the Dockerfile (or base image) so future rebuilds inherit them
+- Document the check + fix procedure in `docs/hmvs-setup.md` (HMV-13's doc)
+- Add a startup check that logs a clear warning if the CAs are missing (defence-in-depth)
+- Verified by 1 May 2026 at the latest (2-week buffer before HMVO PROD deadline)
+
+#### Claude Code prompt
+
+```
+You are verifying and (if necessary) installing the Sectigo R18 root + sub
+CA certificates on our backend container. HMVS upgrades to R18 on 18 May
+2026 — without these CAs, every NMVS call from our server will fail SSL
+validation silently. Fully-patched Linux + Java environments may not have
+them; Windows + Azure usually do.
+
+INPUTS
+- Read backend/Dockerfile — base image (likely python:3.13-slim or similar)
+  may or may not include the Sectigo R46 + R36 CAs.
+- Read docs/hmvs-setup.md (HMV-13) — extend with the CA verification section.
+- Cert references (publicly available):
+  - Root CA: Sectigo Public Server Authentication Root R46
+    https://crt.sh/?d=4256644734
+  - Sub CA: Sectigo Public Server Authentication CA DV R36
+    https://crt.sh/?d=4267304690
+- HMVO verification method (from their email): visit
+  https://developer-ite.nmvo.eu/ from the target machine — if loads,
+  CAs are present; if SSL error, CAs are missing.
+
+WORK
+1. From the backend container (docker compose exec backend bash):
+   curl -I https://developer-ite.nmvo.eu/
+   - 200 = good, skip installation
+   - SSL cert error = continue to step 2
+
+2. Install both CAs. On Debian/Ubuntu base:
+   # Download the CAs to /usr/local/share/ca-certificates/ as .crt files
+   wget -O /usr/local/share/ca-certificates/sectigo-root-r46.crt \
+       https://crt.sh/?d=4256644734
+   wget -O /usr/local/share/ca-certificates/sectigo-sub-r36.crt \
+       https://crt.sh/?d=4267304690
+   update-ca-certificates
+   # Re-verify: curl -I https://developer-ite.nmvo.eu/  → expect 200
+
+3. Bake the install into backend/Dockerfile so future rebuilds inherit:
+   # After base image, before dependency install:
+   COPY infra/sectigo-root-r46.crt /usr/local/share/ca-certificates/
+   COPY infra/sectigo-sub-r36.crt /usr/local/share/ca-certificates/
+   RUN update-ca-certificates
+   # Commit the .crt files to infra/ so build is reproducible (these are
+   # public certs, safe to commit).
+
+4. Add a startup check to main.py (lifespan startup event):
+   async def _verify_hmvs_ca_certs():
+       try:
+           async with httpx.AsyncClient(timeout=5) as client:
+               r = await client.get("https://developer-ite.nmvo.eu/")
+               if r.status_code != 200:
+                   logger.warning(
+                       "HMVS CA check: developer-ite.nmvo.eu returned %s — "
+                       "verify Sectigo R46+R36 CAs are installed.",
+                       r.status_code,
+                   )
+       except ssl.SSLError as e:
+           logger.error(
+               "HMVS CA check: SSL validation FAILED — Sectigo R46+R36 "
+               "CAs are likely missing. NMVS calls will fail after R18 "
+               "deployment on 2026-05-18. See docs/hmvs-setup.md.",
+               exc_info=True,
+           )
+       except Exception:
+           # Network unreachable etc — don't block startup
+           pass
+   # Register in the lifespan startup event but don't block (asyncio.create_task)
+
+5. Update docs/hmvs-setup.md with a new section "R18 CA certificate
+   requirement" — include:
+   - The 18 May 2026 deadline
+   - The two cert names and crt.sh links
+   - The curl check
+   - The Dockerfile install pattern
+   - The startup-check warning
+
+ACCEPTANCE CRITERIA
+- `curl -I https://developer-ite.nmvo.eu/` from the running backend
+  container returns 200.
+- backend/Dockerfile installs both certs and runs update-ca-certificates.
+- infra/sectigo-root-r46.crt and infra/sectigo-sub-r36.crt committed.
+- Startup check in main.py logs WARNING on missing CAs without blocking
+  app startup.
+- docs/hmvs-setup.md has the R18 section.
+- Verified working in dev container by 1 May 2026.
+- Verified working in production container by 10 May 2026 (1 week before
+  HMVO deadline).
+
+DO NOT
+- Do not skip the Dockerfile install step — if it only lives in the
+  running container, the next rebuild loses it.
+- Do not block app startup on the CA check — a transient network issue
+  during boot shouldn't prevent the app from running.
+- Do not commit any private keys — only the public CA certs (which are
+  public knowledge anyway).
+
+FINALIZE
+- Run: docker compose build backend && docker compose up -d
+- Run: docker compose exec backend curl -I https://developer-ite.nmvo.eu/
+  (expect HTTP/2 200)
+- Commit: "feat(hmv-16): install Sectigo R46+R36 CAs for HMVS R18 release"
+- PR: "HMV-16: R18 Sectigo CA certificates (hard deadline 2026-05-18)"
 ```
 
 ---
