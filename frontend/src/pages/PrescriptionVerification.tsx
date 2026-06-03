@@ -9,11 +9,11 @@ import {
 } from "../components/Icons";
 import { SafetyChecksPanel } from "../components/SafetyChecksPanel";
 import { FlagDiscrepancyModal } from "../components/FlagDiscrepancyModal";
-import { ApproveConfirmModal } from "../components/ApproveConfirmModal";
+import { DispenseWizard } from "../components/DispenseWizard";
 import { ContactPrescriberDrawer } from "../components/ContactPrescriberDrawer";
 import { useToast } from "../components/Toast";
 import { useKeyboardShortcuts } from "../lib/keyboard";
-import { ApiError, getPrescription, approvePrescription, getPatientConditions } from "../lib/api";
+import { ApiError, getPrescription, getPatientConditions } from "../lib/api";
 import type { Prescription, PatientCondition } from "../types";
 
 function Skl({ w = "100%", h = 14, mt = 0 }: { w?: string; h?: number; mt?: number }) {
@@ -203,8 +203,6 @@ export function PrescriptionVerification() {
   const [flagOpen, setFlagOpen] = useState(false);
   const [approveOpen, setApproveOpen] = useState(false);
   const [contactOpen, setContactOpen] = useState(false);
-  const [approveSubmitting, setApproveSubmitting] = useState(false);
-  const [approveError, setApproveError] = useState<string | null>(null);
   const [hasBlock, setHasBlock] = useState(false);
   const [checksLoading, setChecksLoading] = useState(true);
   const [conditions, setConditions] = useState<PatientCondition[] | null>(null);
@@ -253,25 +251,14 @@ export function PrescriptionVerification() {
   function onClickApprove() {
     if (!rx) return;
     if (hasBlock) return;
-    setApproveError(null);
     setApproveOpen(true);
   }
 
-  async function onConfirmApprove() {
+  function onDispensed(status: string) {
     if (!rx) return;
-    setApproveSubmitting(true);
-    setApproveError(null);
-    try {
-      const result = await approvePrescription(rx.rxId);
-      setRx({ ...rx, status: result.status });
-      setApproveOpen(false);
-      toast("Prescription approved and recorded", "success");
-      navigate("/dashboard");
-    } catch (e) {
-      setApproveError(e instanceof ApiError ? e.message : "Approval failed. Please try again.");
-    } finally {
-      setApproveSubmitting(false);
-    }
+    setRx({ ...rx, status });
+    toast("Prescription approved and recorded", "success");
+    // Wizard shows success view; navigate after user clicks "Back to counter"
   }
 
   useKeyboardShortcuts({
@@ -399,18 +386,14 @@ export function PrescriptionVerification() {
             onClose={() => setFlagOpen(false)}
             onFlagged={(status) => setRx((cur) => (cur ? { ...cur, status } : cur))}
           />
-          <ApproveConfirmModal
+          <DispenseWizard
             open={approveOpen}
             rxId={rx.rxId}
+            barcode={rx.code}
             patientName={rx.patient.name}
             drugName={rx.medication.drugName}
-            dose={rx.medication.dose}
-            submitting={approveSubmitting}
-            error={approveError}
-            onClose={() => {
-              if (!approveSubmitting) setApproveOpen(false);
-            }}
-            onConfirm={onConfirmApprove}
+            onClose={() => setApproveOpen(false)}
+            onDispensed={onDispensed}
           />
           <ContactPrescriberDrawer
             open={contactOpen}
