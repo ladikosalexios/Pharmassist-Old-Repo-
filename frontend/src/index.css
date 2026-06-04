@@ -41,6 +41,10 @@
   }
 }
 
+.mono {
+  font-family: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+}
+
 .spinner {
   display: inline-block;
   width: 14px;
