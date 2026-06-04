@@ -481,3 +481,86 @@ export async function apiAcceptInvite(data: {
   if (res.status === 410) throw new Error("Invite has expired or already been used");
   if (!res.ok) throw new Error("Failed to create account");
 }
+
+// ── FR-0.5 #7 — Settings API stubs ──────────────────────────────────────────
+
+/** Send a team invite email via POST /admin/invite. Live today. */
+export async function invitePharmacist(email: string): Promise<{ success: boolean }> {
+  const r = await fetch(`${API_BASE}/admin/invite`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ email }),
+  });
+  return handle(r) as Promise<{ success: boolean }>;
+}
+
+// TODO: FR-0.5 #7 — the stubs below are not yet implemented on the backend.
+
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export async function updateProfile(_payload: { name?: string; email?: string }): Promise<void> {
+  throw new ApiError(501, "Profile update not yet available");
+}
+
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export async function updatePharmapiCredentials(_payload: {
+  currentPassword: string;
+  newPassword: string;
+}): Promise<void> {
+  throw new ApiError(501, "Pharmapi credential update not yet available");
+}
+
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export async function testPharmapiCredentials(_payload: {
+  username: string;
+  password: string;
+}): Promise<{ success: boolean }> {
+  throw new ApiError(501, "Pharmapi credential test not yet available");
+}
+
+export async function getPharmacy(): Promise<{
+  name: string;
+  category: string;
+  vat: string;
+  taxOffice: string;
+  address: string;
+}> {
+  throw new ApiError(501, "Pharmacy details not yet available");
+}
+
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export async function updatePharmacy(_payload: {
+  vat?: string;
+  taxOffice?: string;
+  address?: string;
+}): Promise<void> {
+  throw new ApiError(501, "Pharmacy update not yet available");
+}
+
+export async function listStaff(): Promise<
+  { id: string; name: string; email: string; role: string }[]
+> {
+  throw new ApiError(501, "Staff list not yet available");
+}
+
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export async function revokeStaff(_staffId: string): Promise<void> {
+  throw new ApiError(501, "Staff revocation not yet available");
+}
+
+export async function listAudit(): Promise<
+  { ts: string; actor: string; action: string; target: string; type: string }[]
+> {
+  throw new ApiError(501, "Audit log not yet available");
+}
+
+export async function listSessions(): Promise<
+  { id: string; device: string; lastSeen: string; current: boolean }[]
+> {
+  throw new ApiError(501, "Session list not yet available");
+}
+
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export async function revokeSession(_sessionId: string): Promise<void> {
+  throw new ApiError(501, "Session revocation not yet available");
+}

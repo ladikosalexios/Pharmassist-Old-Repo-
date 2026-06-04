@@ -245,3 +245,15 @@ export const ShieldOffIcon = (p: SVGProps<SVGSVGElement>) => (
     <line x1="1" y1="1" x2="23" y2="23" />
   </svg>
 );
+export const PlusIcon = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base(p)}>
+    <line x1="12" y1="5" x2="12" y2="19" />
+    <line x1="5" y1="12" x2="19" y2="12" />
+  </svg>
+);
+export const LockIcon = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base(p)}>
+    <rect x="3" y="11" width="18" height="11" rx="2" />
+    <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+  </svg>
+);
