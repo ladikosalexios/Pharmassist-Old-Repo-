@@ -321,13 +321,12 @@ export function PrescriptionVerification() {
   return (
     <div className="mx-auto max-w-[1240px] px-6 py-6 lg:px-8">
       {/* back link */}
-      <button
-        type="button"
-        onClick={() => navigate("/dashboard")}
+      <Link
+        to="/dashboard"
         className="inline-flex items-center gap-1.5 text-[13px] font-medium text-slate-500 transition-colors hover:text-slate-800"
       >
         <ArrowLeftIcon width={15} height={15} /> Back to counter
-      </button>
+      </Link>
 
       {/* header row */}
       <div className="mt-3 flex flex-col gap-4 border-b border-slate-200 pb-5 lg:flex-row lg:items-center lg:justify-between">
