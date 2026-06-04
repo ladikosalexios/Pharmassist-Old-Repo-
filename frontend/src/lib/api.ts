@@ -325,6 +325,28 @@ export async function exportDocumentationRecord(
   await downloadFile(url, `${id}.${format}`);
 }
 
+export interface CreateSideEffectPayload {
+  patientName: string;
+  drugName: string;
+  severity: "MILD" | "MODERATE" | "SEVERE";
+  symptom: string;
+  onset: string;
+  rxId?: string | null;
+}
+
+// TODO: FR-0.5 #6 — POST /side-effects not yet implemented on the backend.
+export async function createSideEffect(
+  payload: CreateSideEffectPayload,
+): Promise<SideEffectReport> {
+  const r = await fetch(`${API_BASE}/side-effects`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+  return handle(r) as Promise<SideEffectReport>;
+}
+
 export async function listSideEffects(
   params: { q?: string; sort?: AdrSort } = {},
 ): Promise<SideEffectListResponse> {
