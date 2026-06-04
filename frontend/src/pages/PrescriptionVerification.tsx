@@ -1,17 +1,13 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
-  ChevronLeftIcon,
+  ArrowLeftIcon,
   PhoneIcon,
   FlagIcon,
-  CheckIcon,
+  ChevronRightIcon,
   AlertCircleIcon,
-  AlertOctagonIcon,
-  FileTextIcon,
 } from "../components/Icons";
 import { SafetyChecksPanel } from "../components/SafetyChecksPanel";
-import { SPCQuickReference } from "../components/SPCQuickReference";
-import { PrescriptionDetailsCard } from "../components/PrescriptionDetailsCard";
 import { FlagDiscrepancyModal } from "../components/FlagDiscrepancyModal";
 import { ApproveConfirmModal } from "../components/ApproveConfirmModal";
 import { ContactPrescriberDrawer } from "../components/ContactPrescriberDrawer";
@@ -20,6 +16,183 @@ import { useKeyboardShortcuts } from "../lib/keyboard";
 import { ApiError, getPrescription, approvePrescription, getPatientConditions } from "../lib/api";
 import type { Prescription, PatientCondition } from "../types";
 
+function Skl({ w = "100%", h = 14, mt = 0 }: { w?: string; h?: number; mt?: number }) {
+  return (
+    <div className="sk animate-shimmer rounded" style={{ width: w, height: h, marginTop: mt }} />
+  );
+}
+
+function CardHead({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="mb-4">
+      <h2 className="text-[12px] font-bold uppercase tracking-wider text-slate-400">{children}</h2>
+    </div>
+  );
+}
+
+function Field({
+  label,
+  children,
+  mono,
+}: {
+  label: string;
+  children: React.ReactNode;
+  mono?: boolean;
+}) {
+  return (
+    <div>
+      <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">{label}</dt>
+      <dd className={`mt-0.5 text-[13.5px] text-slate-800 ${mono ? "mono" : ""}`}>{children}</dd>
+    </div>
+  );
+}
+
+function PatientCard({
+  rx,
+  conditions,
+  conditionsError,
+  loading,
+}: {
+  rx: Prescription | null;
+  conditions: PatientCondition[] | null;
+  conditionsError: string | null;
+  loading: boolean;
+}) {
+  if (loading || !rx) {
+    return (
+      <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-card">
+        <CardHead>Patient</CardHead>
+        <Skl w="60%" h={20} />
+        <Skl w="40%" h={13} mt={10} />
+        <div className="mt-5 grid grid-cols-2 gap-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i}>
+              <Skl w="50%" h={10} />
+              <Skl w="80%" h={14} mt={6} />
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  const p = rx.patient;
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-card">
+      <CardHead>Patient</CardHead>
+      <div className="text-[18px] font-bold text-slate-900">{p.name}</div>
+      <div className="mt-0.5 text-[13px] text-slate-500">{p.age} yrs</div>
+      <dl className="mt-5 grid grid-cols-2 gap-x-4 gap-y-4">
+        <Field label="AMKA" mono>
+          {p.amka}
+        </Field>
+        <Field label="Date of birth" mono>
+          {p.dateOfBirth}
+        </Field>
+        {conditions && conditions.length > 0 && (
+          <div className="col-span-2">
+            <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+              Conditions
+            </dt>
+            <dd className="mt-1 flex flex-wrap gap-1.5">
+              {conditions.map((c) => (
+                <span
+                  key={c.id}
+                  className="inline-flex items-center rounded-md border border-brand-100 bg-brand-50 px-2 py-0.5 text-[11.5px] font-medium text-brand-700"
+                >
+                  {c.name}
+                </span>
+              ))}
+            </dd>
+          </div>
+        )}
+        {conditionsError && (
+          <div className="col-span-2 flex items-center gap-1 text-[12px] text-red-600">
+            <AlertCircleIcon width={13} height={13} className="shrink-0" />
+            {conditionsError}
+          </div>
+        )}
+        {p.allergies && (
+          <div className="col-span-2">
+            <Field label="Allergies">{p.allergies}</Field>
+          </div>
+        )}
+      </dl>
+      <Link
+        to={`/patients/${p.amka}?from=${encodeURIComponent(rx.rxId)}`}
+        className="mt-4 inline-flex items-center gap-0.5 text-[12.5px] font-medium text-brand-600 hover:text-brand-700"
+      >
+        View full patient profile <ChevronRightIcon width={14} height={14} />
+      </Link>
+    </div>
+  );
+}
+
+function MedicationCard({ rx, loading }: { rx: Prescription | null; loading: boolean }) {
+  if (loading || !rx) {
+    return (
+      <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-card">
+        <CardHead>Medication</CardHead>
+        <Skl w="90%" h={18} />
+        <Skl w="50%" h={13} mt={10} />
+        <div className="mt-5 grid grid-cols-2 gap-4">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i}>
+              <Skl w="50%" h={10} />
+              <Skl w="75%" h={14} mt={6} />
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  const m = rx.medication;
+  const d = rx.prescriber;
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-card">
+      <CardHead>Medication</CardHead>
+      <div className="text-[16px] font-bold leading-snug text-slate-900">{m.drugName}</div>
+      <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12.5px] text-slate-500">
+        {m.atcCode && (
+          <span className="mono rounded bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-600">
+            ATC {m.atcCode}
+          </span>
+        )}
+        {m.nhrn && (
+          <span className="mono rounded bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-600">
+            EOF {m.nhrn}
+          </span>
+        )}
+      </div>
+      <dl className="mt-5 grid grid-cols-2 gap-x-4 gap-y-4">
+        <Field label="Dose">{m.dose}</Field>
+        <Field label="Form">{m.form}</Field>
+        <Field label="Route">{m.route}</Field>
+        <Field label="Frequency">{m.frequency}</Field>
+        <Field label="Duration">{m.treatmentDuration}</Field>
+      </dl>
+      <div className="mt-5 border-t border-slate-100 pt-4">
+        <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+          Prescriber
+        </dt>
+        <div className="mt-1 text-[13.5px] font-semibold text-slate-800">{d.name}</div>
+        <div className="mt-0.5 text-[12.5px] text-slate-500">
+          {d.specialty} · <span className="mono">{d.licenceId}</span>
+        </div>
+        {d.contact && (
+          <a
+            href={`tel:${d.contact}`}
+            className="mono mt-0.5 block text-[12.5px] text-brand-600 hover:text-brand-700"
+          >
+            {d.contact}
+          </a>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function PrescriptionVerification() {
   const { rxId = "" } = useParams<{ rxId: string }>();
   const navigate = useNavigate();
@@ -27,15 +200,13 @@ export function PrescriptionVerification() {
   const [rx, setRx] = useState<Prescription | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [actionMsg, setActionMsg] = useState<{ kind: "ok" | "warn" | "err"; text: string } | null>(
-    null,
-  );
   const [flagOpen, setFlagOpen] = useState(false);
   const [approveOpen, setApproveOpen] = useState(false);
   const [contactOpen, setContactOpen] = useState(false);
   const [approveSubmitting, setApproveSubmitting] = useState(false);
   const [approveError, setApproveError] = useState<string | null>(null);
-  const [blockedByChecks, setBlockedByChecks] = useState(false);
+  const [hasBlock, setHasBlock] = useState(false);
+  const [checksLoading, setChecksLoading] = useState(true);
   const [conditions, setConditions] = useState<PatientCondition[] | null>(null);
   const [conditionsError, setConditionsError] = useState<string | null>(null);
 
@@ -81,13 +252,7 @@ export function PrescriptionVerification() {
 
   function onClickApprove() {
     if (!rx) return;
-    setActionMsg(null);
-    const blockers = (rx.safetyChecks ?? []).filter((c) => c.status === "block");
-    if (blockers.length > 0) {
-      setBlockedByChecks(true);
-      return;
-    }
-    setBlockedByChecks(false);
+    if (hasBlock) return;
     setApproveError(null);
     setApproveOpen(true);
   }
@@ -109,9 +274,6 @@ export function PrescriptionVerification() {
     }
   }
 
-  // Page-level keyboard shortcuts. The hook itself ignores keystrokes while
-  // any modal/drawer is registered as open, so the C/F handlers don't fire
-  // when the approve or flag dialogs are already up.
   useKeyboardShortcuts({
     c: () => {
       if (!rx) return;
@@ -139,30 +301,21 @@ export function PrescriptionVerification() {
     },
   });
 
-  if (loading) {
-    return (
-      <div className="p-8">
-        <div className="flex items-center gap-2 text-slate-500">
-          <span className="spinner text-brand-600" /> Loading prescription…
-        </div>
-      </div>
-    );
-  }
-  if (loadError || !rx) {
+  if (loadError) {
     return (
       <div className="p-8">
         <Link
           to="/dashboard"
-          className="mb-4 inline-flex items-center gap-1 text-sm text-brand-600 hover:underline"
+          className="mb-4 inline-flex items-center gap-1.5 text-[13px] font-medium text-slate-500 hover:text-slate-800"
         >
-          <ChevronLeftIcon width={14} height={14} /> Back to Queue
+          <ArrowLeftIcon width={15} height={15} /> Back to counter
         </Link>
-        <div className="card p-6">
+        <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-6">
           <div className="flex items-start gap-2 text-red-700">
-            <AlertCircleIcon className="mt-0.5" />
+            <AlertCircleIcon className="mt-0.5 shrink-0" />
             <div>
               <div className="font-semibold">Could not load prescription {rxId}</div>
-              <p className="mt-1 text-sm text-red-600">{loadError ?? "Unknown error."}</p>
+              <p className="mt-1 text-sm text-red-600">{loadError}</p>
             </div>
           </div>
         </div>
@@ -170,308 +323,119 @@ export function PrescriptionVerification() {
     );
   }
 
+  const isCompleted = rx?.status === "COMPLETED";
+  const isFlagged = rx?.status === "FLAGGED";
+  const approveDisabled = loading || checksLoading || hasBlock || isCompleted || isFlagged;
+
   return (
-    <div className="p-6 lg:p-8">
-      {/* Header */}
-      <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
+    <div className="mx-auto max-w-[1240px] px-6 py-6 lg:px-8">
+      {/* back link */}
+      <Link
+        to="/dashboard"
+        className="inline-flex items-center gap-1.5 text-[13px] font-medium text-slate-500 transition-colors hover:text-slate-800"
+      >
+        <ArrowLeftIcon width={15} height={15} /> Back to counter
+      </Link>
+
+      {/* header row */}
+      <div className="mt-3 flex flex-col gap-4 border-b border-slate-200 pb-5 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <button
-            type="button"
-            onClick={() => navigate("/dashboard")}
-            className="inline-flex items-center gap-1 text-sm text-brand-600 hover:underline"
-          >
-            <ChevronLeftIcon width={14} height={14} /> Back to Queue
-          </button>
-          <h1 className="mt-2 text-2xl font-bold text-slate-900">
-            Prescription Verification
-            <span className="ml-3 align-middle text-base font-mono font-medium text-slate-500">
-              {rx.code}
-            </span>
+          <h1 className="text-[24px] font-bold tracking-tight text-slate-900">
+            Review prescription
           </h1>
+          {rx && <div className="mono mt-1 text-[13px] text-slate-500">{rx.code}</div>}
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <button type="button" onClick={() => setContactOpen(true)} className="btn btn-outline">
-            <PhoneIcon /> Contact Prescriber
-          </button>
-          {rx.status === "FLAGGED" ? (
-            <button
-              type="button"
-              disabled
-              aria-disabled="true"
-              className="btn cursor-not-allowed border border-red-300 bg-red-50 text-red-700"
-            >
-              <FlagIcon /> Flagged
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={() => setFlagOpen(true)}
-              disabled={rx.status === "COMPLETED"}
-              className="btn btn-amber disabled:opacity-60 disabled:cursor-not-allowed"
-            >
-              <FlagIcon /> Flag Discrepancy
-            </button>
-          )}
+
+        <div className="flex flex-wrap items-center gap-2.5">
           <button
             type="button"
-            onClick={onClickApprove}
-            disabled={rx.status === "COMPLETED" || rx.status === "FLAGGED"}
-            className="btn btn-success disabled:opacity-60 disabled:cursor-not-allowed"
+            onClick={() => setContactOpen(true)}
+            disabled={!rx}
+            className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-[13px] font-semibold text-slate-700 shadow-card transition-colors hover:bg-slate-50 disabled:opacity-50"
           >
-            <CheckIcon />
-            {rx.status === "COMPLETED" ? "Completed" : "Approve Prescription"}
+            <PhoneIcon width={15} height={15} /> Contact prescriber
           </button>
-          {rx.status === "COMPLETED" && (
-            <Link
-              to={`/instructions?rxId=${encodeURIComponent(rx.rxId)}`}
-              className="btn btn-primary"
+
+          <button
+            type="button"
+            onClick={() => setFlagOpen(true)}
+            disabled={!rx || isCompleted || isFlagged}
+            className="flex items-center gap-1.5 rounded-lg border border-amber-300 bg-amber-50 px-3.5 py-2 text-[13px] font-semibold text-amber-700 shadow-card transition-colors hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <FlagIcon width={15} height={15} /> {isFlagged ? "Flagged" : "Flag discrepancy"}
+          </button>
+
+          <div className="group relative">
+            <button
+              type="button"
+              onClick={onClickApprove}
+              disabled={approveDisabled}
+              className={`flex items-center gap-1.5 rounded-lg px-4 py-2 text-[13px] font-semibold shadow-card transition-colors ${
+                approveDisabled
+                  ? "cursor-not-allowed bg-slate-200 text-slate-400"
+                  : "bg-brand-600 text-white hover:bg-brand-700"
+              }`}
             >
-              <FileTextIcon /> Generate Instructions
-            </Link>
-          )}
+              {isCompleted ? "Completed" : "Approve & dispense"}
+              <ChevronRightIcon width={15} height={15} />
+            </button>
+            {hasBlock && (
+              <div className="pointer-events-none absolute right-0 top-full z-10 mt-2 w-64 rounded-lg bg-slate-900 px-3 py-2 text-[12px] leading-snug text-white opacity-0 shadow-cardLg transition-opacity group-hover:opacity-100">
+                Resolve all critical safety alerts before approving.
+                <span className="absolute -top-1 right-6 h-2 w-2 rotate-45 bg-slate-900" />
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
-      <FlagDiscrepancyModal
-        rxId={rx.rxId}
-        open={flagOpen}
-        onClose={() => setFlagOpen(false)}
-        onFlagged={(status) => setRx((cur) => (cur ? { ...cur, status } : cur))}
-      />
-
-      <ApproveConfirmModal
-        open={approveOpen}
-        rxId={rx.rxId}
-        patientName={rx.patient.name}
-        drugName={rx.medication.drugName}
-        dose={rx.medication.dose}
-        submitting={approveSubmitting}
-        error={approveError}
-        onClose={() => {
-          if (!approveSubmitting) setApproveOpen(false);
-        }}
-        onConfirm={onConfirmApprove}
-      />
-
-      <ContactPrescriberDrawer
-        open={contactOpen}
-        rxId={rx.rxId}
-        patientName={rx.patient.name}
-        prescriber={rx.prescriber}
-        onClose={() => setContactOpen(false)}
-      />
-
-      {blockedByChecks && (
-        <div
-          role="alert"
-          className="mb-5 flex items-start gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800"
-        >
-          <AlertOctagonIcon width={18} height={18} className="mt-0.5 shrink-0 text-red-600" />
-          <div className="flex-1">
-            <div className="font-semibold">Resolve all critical safety alerts before approving</div>
-            <p className="mt-0.5 text-[13px] text-red-700">
-              One or more automated safety checks require immediate action. Address them in the
-              Safety Checks panel and try again.
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={() => setBlockedByChecks(false)}
-            className="rounded p-1 text-red-700 hover:bg-red-100"
-            aria-label="Dismiss"
-          >
-            <svg
-              width={14}
-              height={14}
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth={2}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <line x1="18" y1="6" x2="6" y2="18" />
-              <line x1="6" y1="6" x2="18" y2="18" />
-            </svg>
-          </button>
-        </div>
-      )}
-
-      {actionMsg && (
-        <div
-          className={`mb-5 rounded-lg border px-4 py-3 text-sm ${
-            actionMsg.kind === "ok"
-              ? "border-emerald-200 bg-emerald-50 text-emerald-800"
-              : actionMsg.kind === "warn"
-                ? "border-amber-200 bg-amber-50 text-amber-800"
-                : "border-red-200 bg-red-50 text-red-800"
-          }`}
-        >
-          {actionMsg.text}
-        </div>
-      )}
-
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-10">
-        {/* Left main column */}
-        <div className="space-y-6 lg:col-span-7">
-          <PatientInfoCard rx={rx} conditions={conditions} conditionsError={conditionsError} />
-          <MedicationDetailsCard rx={rx} />
-          <SPCQuickReference
+      {/* dialogs */}
+      {rx && (
+        <>
+          <FlagDiscrepancyModal
+            rxId={rx.rxId}
+            open={flagOpen}
+            onClose={() => setFlagOpen(false)}
+            onFlagged={(status) => setRx((cur) => (cur ? { ...cur, status } : cur))}
+          />
+          <ApproveConfirmModal
+            open={approveOpen}
+            rxId={rx.rxId}
+            patientName={rx.patient.name}
             drugName={rx.medication.drugName}
-            atcCode={rx.medication.atcCode ?? ""}
-            fallback={{
-              recommendedDosage: rx.medication.spcRecommendedDosage,
-              contraindications: rx.spcQuickReference?.contraindications,
-              majorInteractions: rx.spcQuickReference?.majorInteractions,
+            dose={rx.medication.dose}
+            submitting={approveSubmitting}
+            error={approveError}
+            onClose={() => {
+              if (!approveSubmitting) setApproveOpen(false);
             }}
+            onConfirm={onConfirmApprove}
           />
-        </div>
+          <ContactPrescriberDrawer
+            open={contactOpen}
+            rxId={rx.rxId}
+            patientName={rx.patient.name}
+            prescriber={rx.prescriber}
+            onClose={() => setContactOpen(false)}
+          />
+        </>
+      )}
 
-        {/* Right sticky column */}
-        <div className="space-y-6 lg:col-span-3">
-          <div className="lg:sticky lg:top-6 space-y-6">
-            <SafetyChecksPanel rxId={rx.rxId} />
-            <PrescriptionDetailsCard rx={rx} />
-          </div>
-        </div>
+      {/* 3-column grid */}
+      <div className="mt-6 grid grid-cols-1 gap-5 lg:grid-cols-[1.35fr_1fr_1.05fr]">
+        <PatientCard
+          rx={rx}
+          conditions={conditions}
+          conditionsError={conditionsError}
+          loading={loading}
+        />
+        <MedicationCard rx={rx} loading={loading} />
+        <SafetyChecksPanel
+          rxId={rxId}
+          onBlockChange={setHasBlock}
+          onLoadingChange={setChecksLoading}
+        />
       </div>
     </div>
-  );
-}
-
-function Section({
-  title,
-  action,
-  children,
-}: {
-  title: string;
-  action?: React.ReactNode;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className="card overflow-hidden">
-      <header className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
-        <h2 className="text-base font-semibold text-slate-900">{title}</h2>
-        {action}
-      </header>
-      <div className="p-6">{children}</div>
-    </section>
-  );
-}
-
-function Field({ label, value, mono }: { label: string; value: React.ReactNode; mono?: boolean }) {
-  return (
-    <div>
-      <div className="text-xs font-medium uppercase tracking-wide text-slate-500">{label}</div>
-      <div className={`mt-1 text-sm text-slate-900 ${mono ? "font-mono" : ""}`}>{value}</div>
-    </div>
-  );
-}
-
-function PatientInfoCard({
-  rx,
-  conditions,
-  conditionsError,
-}: {
-  rx: Prescription;
-  conditions: PatientCondition[] | null;
-  conditionsError: string | null;
-}) {
-  const p = rx.patient;
-  return (
-    <Section
-      title="Patient Information"
-      action={
-        <Link
-          to={`/patients/${p.amka}?from=${encodeURIComponent(rx.rxId)}`}
-          className="text-sm font-medium text-brand-600 hover:underline"
-        >
-          View Full Patient Profile →
-        </Link>
-      }
-    >
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <Field label="Name" value={p.name} />
-        <Field label="Age" value={`${p.age} years`} />
-        <Field label="Date of Birth" value={p.dateOfBirth} />
-        <Field label="AMKA" value={p.amka} mono />
-      </div>
-      <div className="mt-5">
-        <div className="text-xs font-medium uppercase tracking-wide text-slate-500">
-          Medical Conditions
-        </div>
-        <div className="mt-2 flex flex-wrap gap-2">
-          {conditionsError ? (
-            <span className="inline-flex items-center gap-1 text-sm text-red-600">
-              <AlertCircleIcon width={13} height={13} className="shrink-0" />
-              {conditionsError}
-            </span>
-          ) : conditions === null ? (
-            <span className="spinner text-brand-600" />
-          ) : conditions.length > 0 ? (
-            conditions.map((c) => (
-              <span key={c.id} className="chip border border-brand-100 bg-brand-50 text-brand-700">
-                {c.name}
-              </span>
-            ))
-          ) : (
-            <span className="text-sm text-slate-500">None recorded.</span>
-          )}
-        </div>
-      </div>
-      <div className="mt-5">
-        <div className="text-xs font-medium uppercase tracking-wide text-slate-500">Allergies</div>
-        <p className="mt-1 text-sm text-slate-900">{p.allergies || "None known."}</p>
-      </div>
-    </Section>
-  );
-}
-
-function MedicationDetailsCard({ rx }: { rx: Prescription }) {
-  const m = rx.medication;
-  const d = rx.prescriber;
-  return (
-    <Section title="Medication Details">
-      <div className="text-2xl font-bold text-slate-900">{m.drugName}</div>
-      <div className="mt-1 text-sm text-slate-500">
-        {m.dose} · {m.form} · {m.route}
-      </div>
-
-      <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <Field label="Dose" value={m.dose} />
-        <Field label="Form" value={m.form} />
-        <Field label="Route" value={m.route} />
-        <Field label="Frequency" value={m.frequency} />
-        <Field label="Treatment Duration" value={m.treatmentDuration} />
-        {m.atcCode && <Field label="ATC Code" value={m.atcCode} mono />}
-      </div>
-
-      <div className="mt-7 rounded-xl border border-slate-200 bg-slate-50 p-5">
-        <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-          Prescribing Physician
-        </div>
-        <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <Field label="Name" value={d.name} />
-          <Field label="Licence / ID" value={d.licenceId} mono />
-          <Field label="Specialty" value={d.specialty} />
-          <Field
-            label="Contact"
-            value={
-              <a className="text-brand-600 hover:underline" href={`tel:${d.contact}`}>
-                {d.contact}
-              </a>
-            }
-          />
-          <Field
-            label="Email"
-            value={
-              <a className="text-brand-600 hover:underline" href={`mailto:${d.email}`}>
-                {d.email}
-              </a>
-            }
-          />
-        </div>
-      </div>
-    </Section>
   );
 }

@@ -13,6 +13,7 @@ export interface Patient {
 export interface Medication {
   drugName: string;
   atcCode?: string;
+  nhrn?: string;
   dose: string;
   form: string;
   route: string;
