@@ -1,6 +1,7 @@
 {
   "common": {
-    "appName": "PharmAssist"
+    "appName": "PharmAssist",
+    "instructions": "Instructions"
   },
   "nav": {
     "counter": "Counter",
@@ -13,5 +14,43 @@
   "shell": {
     "loading": "Loading…",
     "openingCounter": "Opening Counter…"
+  },
+  "counter": {
+    "title": "Counter",
+    "hero": {
+      "title": "Start a dispense",
+      "subtitle": "Every workflow begins with the patient's prescription.",
+      "tabBarcode": "Scan barcode",
+      "tabPaperless": "Paperless (AMKA + PIN)",
+      "barcodeLabel": "Scan or type prescription barcode",
+      "barcodePlaceholder": "e.g. 2605292031642",
+      "barcodeOpen": "Open",
+      "amkaTitle": "Patient gave you a 6-digit PIN",
+      "amkaPlaceholder": "AMKA (11 digits)",
+      "pinPlaceholder": "PIN",
+      "comingSoon": "Coming soon"
+    },
+    "inProgress": {
+      "title": "In progress",
+      "empty": "No prescriptions in progress. Scan a barcode above to start.",
+      "pending": "Pending",
+      "alertsSuffix_one": "{{count}} alert",
+      "alertsSuffix_other": "{{count}} alerts",
+      "abandon": "✕ Abandon"
+    },
+    "today": {
+      "title": "Today",
+      "empty": "No dispenses completed yet today.",
+      "fullHistory": "Full history →"
+    },
+    "safety": {
+      "title": "Active safety alerts",
+      "emptyTitle": "No active safety alerts",
+      "emptySubtitle": "Alerts from in-progress scans appear here.",
+      "errorLoad": "Could not load active alerts."
+    },
+    "queueError": "Could not load the prescription queue.",
+    "shortcutHintMac": "to focus the scanner",
+    "shortcutHintOther": "to focus the scanner"
   }
 }

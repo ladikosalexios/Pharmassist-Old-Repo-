@@ -95,6 +95,16 @@ export async function listPrescriptions(): Promise<QueueItem[]> {
   return data.items;
 }
 
+// TODO(hmv-backend): /prescriptions/paperless is not implemented in the backend
+// yet — the ΗΔΥΚΑ paperless endpoint (AMKA + PIN) isn't wired through. The
+// Counter's paperless tab calls this stub so the UI flow is exercisable, but
+// the actual lookup is gated as "Coming soon" until the backend route lands.
+/* eslint-disable @typescript-eslint/no-unused-vars */
+export async function paperlessLookup(_params: { amka: string; pin: string }): Promise<QueueItem> {
+  throw new ApiError(501, "Paperless lookup is not implemented yet.");
+}
+/* eslint-enable @typescript-eslint/no-unused-vars */
+
 export async function getNextPrescription(): Promise<QueueItem> {
   const r = await fetch(`${API_BASE}/prescriptions/next`, { credentials: "include" });
   return handle(r) as Promise<QueueItem>;
