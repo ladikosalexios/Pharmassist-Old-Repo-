@@ -3,13 +3,12 @@ import { Link, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
   AlertCircleIcon,
-  AlertTriangleIcon,
   BarcodeIcon,
   CheckCircleIcon,
   CheckIcon,
   ChevronRightIcon,
+  ClockIcon,
   FileTextIcon,
-  FlagIcon,
   KeyIcon,
   ShieldIcon,
 } from "../components/Icons";
@@ -20,6 +19,16 @@ import { ApiError, listPrescriptions } from "../lib/api";
 import type { QueueItem } from "../types";
 
 type HeroTab = "barcode" | "paperless";
+
+// Platform sniff for the ⌘K vs Ctrl+K shortcut hint. navigator.platform is
+// deprecated but still the most reliable cross-browser way to detect Apple
+// hardware; userAgentData.platform isn't universally available yet.
+function isAppleHost(): boolean {
+  if (typeof navigator === "undefined") return false;
+  const platform = (navigator.platform || "").toUpperCase();
+  if (platform) return /MAC|IPHONE|IPAD|IPOD/.test(platform);
+  return /Mac|iPhone|iPad|iPod/i.test(navigator.userAgent || "");
+}
 
 export function Dashboard() {
   const { t, i18n } = useTranslation();
@@ -129,12 +138,12 @@ export function Dashboard() {
         </div>
       </div>
 
-      {/* shortcut hint */}
+      {/* shortcut hint — platform-aware so Linux/Windows users see Ctrl+K */}
       <div className="mt-8 flex items-center justify-center gap-1.5 text-[12px] text-slate-400">
         <kbd className="rounded border border-slate-200 bg-white px-1.5 py-0.5 font-sans text-[11px] font-semibold text-slate-500 shadow-card">
-          ⌘K
+          {isAppleHost() ? "⌘K" : "Ctrl+K"}
         </kbd>
-        {t("counter.shortcutHint")}
+        {isAppleHost() ? t("counter.shortcutHintMac") : t("counter.shortcutHintOther")}
       </div>
     </div>
   );
@@ -168,7 +177,9 @@ function ScanHero({ scannerRef, onScanBarcode }: ScanHeroProps) {
           <button
             type="button"
             role="tab"
+            id="counter-tab-barcode"
             aria-selected={tab === "barcode"}
+            aria-controls="counter-panel-barcode"
             onClick={() => setTab("barcode")}
             className={`flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[12.5px] font-medium transition-colors ${
               tab === "barcode"
@@ -181,7 +192,9 @@ function ScanHero({ scannerRef, onScanBarcode }: ScanHeroProps) {
           <button
             type="button"
             role="tab"
+            id="counter-tab-paperless"
             aria-selected={tab === "paperless"}
+            aria-controls="counter-panel-paperless"
             onClick={() => setTab("paperless")}
             className={`flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[12.5px] font-medium transition-colors ${
               tab === "paperless"
@@ -194,8 +207,13 @@ function ScanHero({ scannerRef, onScanBarcode }: ScanHeroProps) {
         </div>
       </div>
 
-      <div className="rounded-xl bg-brand-50 p-6">
-        {tab === "barcode" ? (
+      {tab === "barcode" ? (
+        <div
+          role="tabpanel"
+          id="counter-panel-barcode"
+          aria-labelledby="counter-tab-barcode"
+          className="rounded-xl bg-brand-50 p-6"
+        >
           <form
             onSubmit={(e) => {
               e.preventDefault();
@@ -225,14 +243,18 @@ function ScanHero({ scannerRef, onScanBarcode }: ScanHeroProps) {
                 {t("counter.hero.barcodeOpen")}
               </button>
             </div>
-            <p className="mt-2.5 font-mono text-[11.5px] text-brand-600/70">
-              {t("counter.hero.barcodeRouteHint")}
-            </p>
           </form>
-        ) : (
+        </div>
+      ) : (
+        <div
+          role="tabpanel"
+          id="counter-panel-paperless"
+          aria-labelledby="counter-tab-paperless"
+          className="rounded-xl bg-brand-50 p-6"
+        >
           <PaperlessForm amka={amka} pin={pin} onAmkaChange={setAmka} onPinChange={setPin} />
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -283,9 +305,6 @@ function PaperlessForm({ amka, pin, onAmkaChange, onPinChange }: PaperlessFormPr
           {t("counter.hero.comingSoon")}
         </button>
       </div>
-      <p className="mt-2.5 font-mono text-[11.5px] text-brand-600/70">
-        {t("counter.hero.amkaRouteHint")}
-      </p>
     </form>
   );
 }
@@ -355,6 +374,10 @@ function InProgressRow({ rx, divider }: { rx: QueueItem; divider: boolean }) {
 function StatusChip({ status }: { status: QueueItem["status"] }) {
   const { t } = useTranslation();
   if (status === "FLAGGED") {
+    // TODO(data): QueueItem doesn't yet carry an alert count — the backend
+    // search shape only flags state, not multiplicity. Hardcoded to 1 until
+    // the queue payload includes a per-rx alertCount field. The plural i18n
+    // form (alertsSuffix_other) is already defined for when we wire it.
     return (
       <span className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2 py-0.5 text-[11.5px] font-semibold text-red-700">
         <AlertCircleIcon width={12} height={12} />{" "}
@@ -365,13 +388,16 @@ function StatusChip({ status }: { status: QueueItem["status"] }) {
   if (status === "PENDING") {
     return (
       <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[11.5px] font-semibold text-amber-700">
-        <AlertTriangleIcon width={12} height={12} /> {t("counter.inProgress.ok")}
+        <ClockIcon width={12} height={12} /> {t("counter.inProgress.pending")}
       </span>
     );
   }
+  // splitQueue only routes PENDING + FLAGGED into the in-progress list, so
+  // this COMPLETED-style branch is unreachable in current usage. Kept so the
+  // chip is total over QueueItem["status"] in case the caller changes.
   return (
     <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11.5px] font-semibold text-emerald-600">
-      <CheckIcon width={12} height={12} strokeWidth={3} /> {t("counter.inProgress.ok")}
+      <CheckIcon width={12} height={12} strokeWidth={3} /> {t("counter.inProgress.pending")}
     </span>
   );
 }
@@ -415,12 +441,9 @@ function Today({ items, loading }: SectionListProps<QueueItem>) {
 }
 
 function TodayRow({ rx, divider }: { rx: QueueItem; divider: boolean }) {
-  const { t } = useTranslation();
-  // No discrete "flagged in today's history" signal on a COMPLETED queue item
-  // — the FLAGGED row falls into the in-progress list, not here. Today's rows
-  // are completed dispenses with the safety check at action-time recorded
-  // elsewhere; we keep the visual hook for future use.
-  const flagged = false;
+  // Today's rows are COMPLETED dispenses by definition (splitQueue routes
+  // FLAGGED into in-progress). When the backend exposes a per-rx alert
+  // signal in history, we'll restore the amber flagged variant here.
   return (
     <Link
       to={`/prescription/${encodeURIComponent(rx.rxId)}`}
@@ -428,8 +451,8 @@ function TodayRow({ rx, divider }: { rx: QueueItem; divider: boolean }) {
         divider ? "border-t border-slate-100" : ""
       }`}
     >
-      <span className={`shrink-0 ${flagged ? "text-amber-600" : "text-emerald-500"}`}>
-        {flagged ? <FlagIcon width={16} height={16} /> : <CheckCircleIcon width={16} height={16} />}
+      <span className="shrink-0 text-emerald-500">
+        <CheckCircleIcon width={16} height={16} />
       </span>
       <span className="hidden w-[58px] shrink-0 truncate font-mono text-[12.5px] text-slate-400 sm:block">
         {rx.rxId.length > 4 ? `…${rx.rxId.slice(-4)}` : rx.rxId}
@@ -440,11 +463,6 @@ function TodayRow({ rx, divider }: { rx: QueueItem; divider: boolean }) {
       <span className="hidden truncate text-[12.5px] text-slate-500 md:block md:w-[150px]">
         {rx.medication}
       </span>
-      {flagged && (
-        <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-700">
-          {t("counter.today.flagged")}
-        </span>
-      )}
     </Link>
   );
 }

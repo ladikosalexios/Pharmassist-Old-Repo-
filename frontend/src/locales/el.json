@@ -17,7 +17,6 @@
   },
   "counter": {
     "title": "Πάγκος",
-    "headerLine": "{{date}} · {{pharmacy}}",
     "hero": {
       "title": "Έναρξη δοσοληψίας",
       "subtitle": "Κάθε διαδικασία ξεκινά με τη συνταγή του ασθενούς.",
@@ -26,27 +25,23 @@
       "barcodeLabel": "Σαρώστε ή πληκτρολογήστε τον κωδικό συνταγής",
       "barcodePlaceholder": "π.χ. 2605292031642",
       "barcodeOpen": "Άνοιγμα",
-      "barcodeRouteHint": "Καλεί /prescriptions/get/{barcode}",
       "amkaTitle": "Ο ασθενής σας έδωσε έναν 6ψήφιο κωδικό PIN",
       "amkaPlaceholder": "ΑΜΚΑ (11 ψηφία)",
       "pinPlaceholder": "PIN",
-      "amkaLookup": "Αναζήτηση",
-      "comingSoon": "Σύντομα διαθέσιμο",
-      "amkaRouteHint": "Καλεί /prescriptions/paperless (μη υλοποιημένο)"
+      "comingSoon": "Σύντομα διαθέσιμο"
     },
     "inProgress": {
       "title": "Σε εξέλιξη",
       "empty": "Καμία συνταγή σε εξέλιξη. Σαρώστε ένα barcode παραπάνω για να ξεκινήσετε.",
+      "pending": "Σε αναμονή",
       "alertsSuffix_one": "{{count}} ειδοποίηση",
       "alertsSuffix_other": "{{count}} ειδοποιήσεις",
-      "ok": "OK",
       "abandon": "✕ Εγκατάλειψη"
     },
     "today": {
       "title": "Σήμερα",
       "empty": "Καμία δοσοληψία δεν έχει ολοκληρωθεί σήμερα.",
-      "fullHistory": "Πλήρες ιστορικό →",
-      "flagged": "Επισημασμένη"
+      "fullHistory": "Πλήρες ιστορικό →"
     },
     "safety": {
       "title": "Ενεργές ειδοποιήσεις ασφαλείας",
@@ -55,6 +50,7 @@
       "errorLoad": "Δεν ήταν δυνατή η φόρτωση των ενεργών ειδοποιήσεων."
     },
     "queueError": "Δεν ήταν δυνατή η φόρτωση της ουράς συνταγών.",
-    "shortcutHint": "για εστίαση στον σαρωτή"
+    "shortcutHintMac": "για εστίαση στον σαρωτή",
+    "shortcutHintOther": "για εστίαση στον σαρωτή"
   }
 }
