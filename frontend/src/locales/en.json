@@ -3,7 +3,9 @@
     "appName": "PharmAssist",
     "footerCopyright": "© Pharmassist",
     "privacy": "privacy",
-    "terms": "terms"
+    "terms": "terms",
+    "showPassword": "Show password",
+    "hidePassword": "Hide password"
   },
   "nav": {
     "counter": "Counter",
@@ -23,13 +25,11 @@
     "emailPlaceholder": "pharmacist@demo.gr",
     "passwordLabel": "Password",
     "passwordPlaceholder": "••••••••",
-    "showPassword": "Show password",
-    "hidePassword": "Hide password",
     "forgotPassword": "Forgot password?",
     "submit": "Sign in",
     "submitting": "Signing in…",
     "missingFields": "Please enter your email and password.",
-    "errorTitle": "Invalid credentials",
+    "errorTitle": "Sign-in failed",
     "errorHint": "Check your email and password and try again.",
     "networkError": "Cannot reach the server. Make sure the API is running.",
     "footerNote": "New here? Ask your pharmacy admin for an invite.",
@@ -37,6 +37,7 @@
   },
   "acceptInvite": {
     "loading": "Loading your invitation…",
+    "loadFailed": "Failed to load invitation.",
     "missingTokenError": "No invitation token found. Please use the link from your invite.",
     "invalidTitle": "This invite is no longer valid",
     "invalidBody": "Invites expire after 7 days. Ask your pharmacy admin to send a new one.",

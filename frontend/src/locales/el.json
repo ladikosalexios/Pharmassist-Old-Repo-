@@ -3,7 +3,9 @@
     "appName": "PharmAssist",
     "footerCopyright": "© Pharmassist",
     "privacy": "απόρρητο",
-    "terms": "όροι"
+    "terms": "όροι",
+    "showPassword": "Εμφάνιση κωδικού",
+    "hidePassword": "Απόκρυψη κωδικού"
   },
   "nav": {
     "counter": "Πάγκος",
@@ -23,13 +25,11 @@
     "emailPlaceholder": "pharmacist@demo.gr",
     "passwordLabel": "Κωδικός πρόσβασης",
     "passwordPlaceholder": "••••••••",
-    "showPassword": "Εμφάνιση κωδικού",
-    "hidePassword": "Απόκρυψη κωδικού",
     "forgotPassword": "Ξεχάσατε τον κωδικό;",
     "submit": "Σύνδεση",
     "submitting": "Σύνδεση…",
     "missingFields": "Συμπληρώστε email και κωδικό πρόσβασης.",
-    "errorTitle": "Λανθασμένα στοιχεία",
+    "errorTitle": "Η σύνδεση απέτυχε",
     "errorHint": "Ελέγξτε email και κωδικό και προσπαθήστε ξανά.",
     "networkError": "Αδυναμία σύνδεσης με τον διακομιστή. Βεβαιωθείτε ότι το API εκτελείται.",
     "footerNote": "Νέος εδώ; Ζητήστε από τον διαχειριστή του φαρμακείου να σας στείλει πρόσκληση.",
@@ -37,6 +37,7 @@
   },
   "acceptInvite": {
     "loading": "Φόρτωση της πρόσκλησής σας…",
+    "loadFailed": "Αδυναμία φόρτωσης πρόσκλησης.",
     "missingTokenError": "Δεν βρέθηκε token πρόσκλησης. Χρησιμοποιήστε τον σύνδεσμο από την πρόσκλησή σας.",
     "invalidTitle": "Αυτή η πρόσκληση δεν είναι πλέον έγκυρη",
     "invalidBody": "Οι προσκλήσεις λήγουν μετά από 7 ημέρες. Ζητήστε από τον διαχειριστή του φαρμακείου να στείλει νέα.",

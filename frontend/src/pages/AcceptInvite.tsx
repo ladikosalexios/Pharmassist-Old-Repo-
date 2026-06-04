@@ -31,7 +31,6 @@ function scorePassword(pw: string): PasswordScore {
   if (checks.len) score++;
   if (checks.mixed) score++;
   if (checks.num) score++;
-  if (pw.length === 0) score = 0;
   return {
     score: Math.min(score, 4) as PasswordScore["score"],
     checks,
@@ -316,7 +315,7 @@ function InviteForm({ token, invite }: InviteFormProps) {
                   type="button"
                   onClick={() => setShowPw((v) => !v)}
                   disabled={submitting}
-                  aria-label={showPw ? t("login.hidePassword") : t("login.showPassword")}
+                  aria-label={showPw ? t("common.hidePassword") : t("common.showPassword")}
                   className="absolute right-1 top-1/2 -translate-y-1/2 rounded-md p-2 text-slate-400 transition-colors hover:text-slate-600 disabled:opacity-50"
                 >
                   {showPw ? (
@@ -550,8 +549,7 @@ export function AcceptInvite() {
         if (!cancelled) setInvite(info);
       })
       .catch((e) => {
-        if (!cancelled)
-          setLoadError(e instanceof Error ? e.message : t("acceptInvite.createFailed"));
+        if (!cancelled) setLoadError(e instanceof Error ? e.message : t("acceptInvite.loadFailed"));
       })
       .finally(() => {
         if (!cancelled) setLoading(false);

@@ -3,7 +3,13 @@ import { useNavigate, Navigate, useLocation, Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../lib/auth";
 import { ApiError } from "../lib/api";
-import { AlertCircleIcon, EyeIcon, EyeOffIcon, PillIcon } from "../components/Icons";
+import {
+  AlertCircleIcon,
+  CheckCircleIcon,
+  EyeIcon,
+  EyeOffIcon,
+  PillIcon,
+} from "../components/Icons";
 
 export function Login() {
   const { t } = useTranslation();
@@ -66,8 +72,8 @@ export function Login() {
               className="mb-5 flex items-start gap-2.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3.5 py-3 text-[13px] text-emerald-800 animate-alert-in"
               role="status"
             >
-              <span className="mt-0.5 shrink-0">
-                <AlertCircleIcon width={16} height={16} />
+              <span className="mt-0.5 shrink-0 text-emerald-600">
+                <CheckCircleIcon width={16} height={16} />
               </span>
               <div>{notice}</div>
             </div>
@@ -141,7 +147,7 @@ export function Login() {
                   type="button"
                   onClick={() => setShowPw((v) => !v)}
                   disabled={submitting}
-                  aria-label={showPw ? t("login.hidePassword") : t("login.showPassword")}
+                  aria-label={showPw ? t("common.hidePassword") : t("common.showPassword")}
                   className="absolute right-1 top-1/2 -translate-y-1/2 rounded-md p-2 text-slate-400 transition-colors hover:text-slate-600 disabled:opacity-50"
                 >
                   {showPw ? (
