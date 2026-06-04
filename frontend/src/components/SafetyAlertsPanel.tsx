@@ -104,11 +104,13 @@ export function SafetyAlertsPanel({
 
   return (
     <section className="card overflow-hidden">
-      <header className="flex items-center gap-2 border-b border-slate-200 px-5 py-4">
-        <AlertCircleIcon width={16} height={16} className="text-red-600" />
-        <h2 className="text-base font-semibold text-slate-900">{title}</h2>
-        {alerts && (
-          <span className="ml-auto text-xs font-medium text-slate-500">{alerts.length} active</span>
+      <header className="flex items-center gap-2 border-b border-slate-200 px-4 py-3">
+        <ShieldIcon width={16} height={16} className="text-slate-500" />
+        <h3 className="text-[13.5px] font-bold text-slate-900">{title}</h3>
+        {alerts && alerts.length > 0 && (
+          <span className="ml-auto rounded-full bg-red-50 px-2 py-0.5 text-[11.5px] font-semibold text-red-700">
+            {alerts.length}
+          </span>
         )}
       </header>
 

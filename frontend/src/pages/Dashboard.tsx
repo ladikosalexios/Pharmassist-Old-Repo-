@@ -13,7 +13,6 @@ import {
   ShieldIcon,
 } from "../components/Icons";
 import { SafetyAlertsPanel } from "../components/SafetyAlertsPanel";
-import { useKeyboardShortcuts } from "../lib/keyboard";
 import { useAuth } from "../lib/auth";
 import { ApiError, listPrescriptions } from "../lib/api";
 import type { QueueItem } from "../types";
@@ -80,13 +79,6 @@ export function Dashboard() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
-
-  // Single-key 's' jumps focus into the scanner — keeps parity with the rest
-  // of the app's discoverable shortcuts (useKeyboardShortcuts already skips
-  // input targets, so 's' typed inside a field still goes into the field).
-  useKeyboardShortcuts({
-    s: () => scannerRef.current?.focus(),
-  });
 
   const { inProgress, todayItems } = useMemo(() => splitQueue(queue ?? []), [queue]);
 
