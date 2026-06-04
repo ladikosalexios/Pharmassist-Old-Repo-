@@ -160,7 +160,11 @@ function AddConditionModal({ amka, onClose }: { amka: string; onClose: () => voi
             />
           </label>
         </div>
-        <div className="mt-5 flex justify-end gap-2.5">
+        {/* TODO: remove this notice when createPatientCondition API is wired */}
+        <p className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11.5px] text-amber-800">
+          Condition saving is not yet wired to the backend — this will be discarded on page refresh.
+        </p>
+        <div className="mt-3 flex justify-end gap-2.5">
           <button
             type="button"
             onClick={onClose}
@@ -259,7 +263,8 @@ export function PatientProfile() {
 
   const [usingFallback, setUsingFallback] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
-  const [historyFilter, setHistoryFilter] = useState("All");
+  type FilterKey = "all" | "last90" | "lastYear" | "byDrug";
+  const [historyFilter, setHistoryFilter] = useState<FilterKey>("all");
 
   useEffect(() => {
     let active = true;
@@ -507,18 +512,20 @@ export function PatientProfile() {
                     {profile.safetyFlags.pregnancyWeeks} wks
                   </span>
                 )}
-              {profile.safetyFlags.renalFunction !== "NORMAL" && (
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-[12px] font-medium text-amber-800">
-                  <InfoIcon width={13} height={13} /> Renal:{" "}
-                  {profile.safetyFlags.renalFunction.replace(/_/g, " ").toLowerCase()}
-                </span>
-              )}
-              {profile.safetyFlags.hepaticFunction !== "NORMAL" && (
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-[12px] font-medium text-amber-800">
-                  <InfoIcon width={13} height={13} /> Hepatic:{" "}
-                  {profile.safetyFlags.hepaticFunction.replace(/_/g, " ").toLowerCase()}
-                </span>
-              )}
+              {profile.safetyFlags.renalFunction &&
+                profile.safetyFlags.renalFunction !== "NORMAL" && (
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-[12px] font-medium text-amber-800">
+                    <InfoIcon width={13} height={13} /> Renal:{" "}
+                    {profile.safetyFlags.renalFunction.replace(/_/g, " ").toLowerCase()}
+                  </span>
+                )}
+              {profile.safetyFlags.hepaticFunction &&
+                profile.safetyFlags.hepaticFunction !== "NORMAL" && (
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-[12px] font-medium text-amber-800">
+                    <InfoIcon width={13} height={13} /> Hepatic:{" "}
+                    {profile.safetyFlags.hepaticFunction.replace(/_/g, " ").toLowerCase()}
+                  </span>
+                )}
             </div>
           )}
 
@@ -654,23 +661,25 @@ export function PatientProfile() {
             </h2>
             {rxHistory && rxHistory.length > 0 && (
               <div className="flex flex-wrap gap-1.5">
-                {[
-                  t("patientProfile.filterAll"),
-                  t("patientProfile.filterLast90"),
-                  t("patientProfile.filterLastYear"),
-                  t("patientProfile.filterByDrug"),
-                ].map((f) => (
+                {(
+                  [
+                    ["all", t("patientProfile.filterAll")],
+                    ["last90", t("patientProfile.filterLast90")],
+                    ["lastYear", t("patientProfile.filterLastYear")],
+                    ["byDrug", t("patientProfile.filterByDrug")],
+                  ] as [FilterKey, string][]
+                ).map(([key, label]) => (
                   <button
-                    key={f}
+                    key={key}
                     type="button"
-                    onClick={() => setHistoryFilter(f)}
+                    onClick={() => setHistoryFilter(key)}
                     className={`rounded-full px-3 py-1 text-[12px] font-medium transition-colors ${
-                      historyFilter === f
+                      historyFilter === key
                         ? "bg-brand-600 text-white"
                         : "border border-slate-200 bg-white text-slate-500 hover:bg-slate-50"
                     }`}
                   >
-                    {f}
+                    {label}
                   </button>
                 ))}
               </div>
