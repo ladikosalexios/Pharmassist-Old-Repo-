@@ -175,14 +175,19 @@ function CheckRow({ check }: { check: SafetyCheck }) {
           {expandable && (
             <p className={`mt-1 text-[12.5px] leading-snug ${s.detailClass}`}>{check.message}</p>
           )}
-          {check.details && (
-            <p
-              id={`check-details-${check.id}`}
-              hidden={!open}
-              className="mono mt-1.5 text-[11px] text-slate-500"
-            >
-              {check.details}
-            </p>
+          {(check.details || check.recommendedAction) && (
+            <div id={`check-details-${check.id}`} hidden={!open}>
+              {check.details && (
+                <p className="mono mt-1.5 text-[11px] text-slate-500">{check.details}</p>
+              )}
+              {check.recommendedAction && (
+                <p
+                  className={`mt-1.5 rounded border ${s.ring} bg-white px-2.5 py-1.5 text-[11.5px] leading-snug text-slate-700`}
+                >
+                  {check.recommendedAction}
+                </p>
+              )}
+            </div>
           )}
           {expandable && (
             <button
