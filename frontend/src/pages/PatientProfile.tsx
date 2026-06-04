@@ -1,15 +1,20 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { createPortal } from "react-dom";
+import { useTranslation } from "react-i18next";
 import {
   AlertCircleIcon,
-  AlertTriangleIcon,
   AlertOctagonIcon,
-  CheckCircleIcon,
-  ChevronLeftIcon,
+  AlertTriangleIcon,
+  ArrowLeftIcon,
+  ChevronDownIcon,
   ChevronRightIcon,
-  PhoneIcon,
-  ShieldIcon,
-  UsersIcon,
+  CheckCircleIcon,
+  InfoIcon,
+  PlusIcon,
+  EditIcon,
+  TrashIcon,
+  XIcon,
 } from "../components/Icons";
 import {
   ApiError,
@@ -20,63 +25,225 @@ import {
 } from "../lib/api";
 import { fallbackForPatient, isProfileShapeIncomplete } from "../lib/patientFallback";
 import {
-  type AdrSeverity,
-  type AdrStatus,
-  type OrganFunction,
   type PatientProfile as Profile,
   type PatientRxHistoryRow,
-  type PatientSafetyFlags,
   type SideEffectReport,
   PatientCondition,
 } from "../types";
 
-const TABS = ["rx", "adr", "safety"] as const;
-type Tab = (typeof TABS)[number];
-const TAB_LABEL: Record<Tab, string> = {
-  rx: "Prescription History",
-  adr: "Side Effect History",
-  safety: "Safety Profile",
-};
+// ── tiny helpers ──────────────────────────────────────────────────────────────
 
-const RX_STATUS_CHIP: Record<string, string> = {
-  PENDING: "bg-amber-100 text-amber-800",
-  COMPLETED: "bg-emerald-100 text-emerald-800",
-  FLAGGED: "bg-red-100 text-red-800",
-};
-const RX_STATUS_LABEL: Record<string, string> = {
-  PENDING: "Pending",
-  COMPLETED: "Completed",
-  FLAGGED: "Flagged",
-};
+function initials(name: string): string {
+  const parts = name.trim().split(/\s+/);
+  return ((parts[0]?.[0] ?? "") + (parts[1]?.[0] ?? "")).toUpperCase();
+}
 
-const SEVERITY_TONE: Record<AdrSeverity, string> = {
-  MILD: "bg-amber-100 text-amber-800",
-  MODERATE: "bg-orange-100 text-orange-800",
-  SEVERE: "bg-red-100 text-red-800",
-};
-const SEVERITY_LABEL: Record<AdrSeverity, string> = {
-  MILD: "Mild",
-  MODERATE: "Moderate",
-  SEVERE: "Severe",
-};
-const ADR_STATUS_TONE: Record<AdrStatus, string> = {
-  PENDING_REVIEW: "border border-amber-300 bg-white text-amber-800",
-  ESCALATED: "border border-red-300 bg-white text-red-800",
-  EOF_REPORTED: "border border-emerald-600 bg-emerald-600 text-white",
-};
-const ADR_STATUS_LABEL: Record<AdrStatus, string> = {
-  PENDING_REVIEW: "Pending Review",
-  ESCALATED: "Escalated",
-  EOF_REPORTED: "EOF Reported",
-};
+function formatDate(iso: string): string {
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+}
+
+function Skl({ w = "100%", h = 14, mt = 0 }: { w?: string; h?: number; mt?: number }) {
+  return (
+    <div className="sk animate-shimmer rounded" style={{ width: w, height: h, marginTop: mt }} />
+  );
+}
+
+function Card({ children, className = "" }: { children: React.ReactNode; className?: string }) {
+  return (
+    <div className={`rounded-xl border border-slate-200 bg-white p-5 shadow-card ${className}`}>
+      {children}
+    </div>
+  );
+}
+
+function SectionTitle({ children, right }: { children: React.ReactNode; right?: React.ReactNode }) {
+  return (
+    <div className="mb-3 flex items-center justify-between">
+      <h2 className="text-[15px] font-bold text-slate-900">{children}</h2>
+      {right}
+    </div>
+  );
+}
+
+function Field({
+  label,
+  children,
+  mono,
+}: {
+  label: string;
+  children: React.ReactNode;
+  mono?: boolean;
+}) {
+  return (
+    <div>
+      <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">{label}</dt>
+      <dd className={`mt-0.5 text-[13.5px] text-slate-800 ${mono ? "mono" : ""}`}>{children}</dd>
+    </div>
+  );
+}
+
+// ── Add Condition Modal ───────────────────────────────────────────────────────
+
+function AddConditionModal({ amka, onClose }: { amka: string; onClose: () => void }) {
+  const { t } = useTranslation();
+  const [type, setType] = useState("chronic");
+  const [desc, setDesc] = useState("");
+  const [notes, setNotes] = useState("");
+
+  function handleSave() {
+    // TODO: wire to createPatientCondition API when available
+    void amka;
+    onClose();
+  }
+
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div
+        className="absolute inset-0 animate-fade-in bg-slate-900/40"
+        onClick={onClose}
+        aria-hidden="true"
+      />
+      <div className="relative w-full max-w-[440px] animate-modal-in rounded-2xl bg-white p-6 shadow-modal">
+        <div className="flex items-center justify-between">
+          <h3 className="text-[16px] font-bold text-slate-900">
+            {t("patientProfile.addConditionTitle")}
+          </h3>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100"
+            aria-label={t("patientProfile.cancel")}
+          >
+            <XIcon width={18} height={18} />
+          </button>
+        </div>
+        <p className="mt-1 text-[12.5px] text-slate-500">
+          {t("patientProfile.addConditionSubtitle")}
+        </p>
+        <div className="mt-4 space-y-3">
+          <label className="block">
+            <span className="mb-1 block text-[12px] font-semibold text-slate-600">
+              {t("patientProfile.conditionType")}
+            </span>
+            <select
+              value={type}
+              onChange={(e) => setType(e.target.value)}
+              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-[13px] outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+            >
+              <option value="chronic">{t("patientProfile.conditionTypeChronic")}</option>
+              <option value="allergy">{t("patientProfile.conditionTypeAllergy")}</option>
+              <option value="protocol">{t("patientProfile.conditionTypeProtocol")}</option>
+            </select>
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-[12px] font-semibold text-slate-600">
+              {t("patientProfile.conditionDesc")}
+            </span>
+            <input
+              value={desc}
+              onChange={(e) => setDesc(e.target.value)}
+              placeholder="e.g. Χρόνια νεφρική νόσος"
+              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-[13px] outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+            />
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-[12px] font-semibold text-slate-600">
+              {t("patientProfile.conditionNotes")}
+            </span>
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              rows={2}
+              className="w-full resize-none rounded-lg border border-slate-200 bg-white px-3 py-2 text-[13px] outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+            />
+          </label>
+        </div>
+        <div className="mt-5 flex justify-end gap-2.5">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-[13px] font-semibold text-slate-600 hover:bg-slate-50"
+          >
+            {t("patientProfile.cancel")}
+          </button>
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={!desc.trim()}
+            className="rounded-lg bg-brand-600 px-4 py-2 text-[13px] font-semibold text-white hover:bg-brand-700 disabled:opacity-60"
+          >
+            {t("patientProfile.save")}
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
+// ── History row ───────────────────────────────────────────────────────────────
+
+function HistoryRow({ row, index }: { row: PatientRxHistoryRow; index: number }) {
+  const { t } = useTranslation();
+  const [open, setOpen] = useState(false);
+  const dispensedHere = row.status === "COMPLETED";
+
+  return (
+    <div className={`relative pl-7 ${index > 0 ? "pt-5" : ""}`}>
+      <span className="absolute left-[5px] top-1 h-2.5 w-2.5 rounded-full border-2 border-white bg-brand-500 shadow" />
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="mono text-[11.5px] text-slate-400">{row.date}</div>
+          <div className="mt-0.5 text-[13.5px] font-semibold text-slate-900">{row.drugName}</div>
+          <div
+            className={`mt-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ${
+              dispensedHere ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500"
+            }`}
+          >
+            <CheckCircleIcon width={12} height={12} />
+            {dispensedHere
+              ? t("patientProfile.dispensedHere")
+              : t("patientProfile.dispensedElsewhere")}
+          </div>
+          {open && row.prescriberName && (
+            <p className="mt-2 text-[12.5px] text-slate-500">
+              Prescriber: {row.prescriberName} · Rx{" "}
+              <Link
+                to={`/prescription/${row.rxId}`}
+                className="text-brand-600 hover:underline"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {row.rxId}
+              </Link>
+            </p>
+          )}
+        </div>
+        <button
+          type="button"
+          onClick={() => setOpen((o) => !o)}
+          className="flex shrink-0 items-center gap-0.5 text-[12px] font-semibold text-brand-600"
+        >
+          {t("patientProfile.details")}{" "}
+          <span className={`transition-transform ${open ? "rotate-180" : ""}`}>
+            <ChevronDownIcon width={13} height={13} />
+          </span>
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── Main page ─────────────────────────────────────────────────────────────────
 
 export function PatientProfile() {
   const { id = "" } = useParams<{ id: string }>();
   const [search] = useSearchParams();
   const fromRx = search.get("from");
   const navigate = useNavigate();
+  const { t } = useTranslation();
 
-  const [tab, setTab] = useState<Tab>("rx");
   const [profile, setProfile] = useState<Profile | null>(null);
   const [profileError, setProfileError] = useState<string | null>(null);
   const [profileLoading, setProfileLoading] = useState(true);
@@ -84,13 +251,15 @@ export function PatientProfile() {
   const [rxHistory, setRxHistory] = useState<PatientRxHistoryRow[] | null>(null);
   const [rxError, setRxError] = useState<string | null>(null);
 
-  const [adrHistory, setAdrHistory] = useState<SideEffectReport[] | null>(null);
-  const [adrError, setAdrError] = useState<string | null>(null);
+  // kept for future ADR section
+  const [, setAdrHistory] = useState<SideEffectReport[] | null>(null);
 
   const [conditions, setConditions] = useState<PatientCondition[] | null>(null);
   const [conditionsError, setConditionsError] = useState<string | null>(null);
 
   const [usingFallback, setUsingFallback] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
+  const [historyFilter, setHistoryFilter] = useState("All");
 
   useEffect(() => {
     let active = true;
@@ -100,7 +269,6 @@ export function PatientProfile() {
     setRxHistory(null);
     setAdrHistory(null);
     setRxError(null);
-    setAdrError(null);
     setConditionsError(null);
     setUsingFallback(false);
 
@@ -110,8 +278,6 @@ export function PatientProfile() {
       .then((data) => {
         if (!active) return;
         if (isProfileShapeIncomplete(data) && fb) {
-          // Live API hasn't been restarted to pick up the expanded profiles —
-          // use the local mirror so the page stays useful.
           setProfile(fb.profile);
           setUsingFallback(true);
         } else {
@@ -149,20 +315,18 @@ export function PatientProfile() {
       .then((items) => {
         if (active) setAdrHistory(items);
       })
-      .catch((e: unknown) => {
+      .catch(() => {
         if (!active) return;
         if (fb) {
           setAdrHistory(fb.adrHistory);
           setUsingFallback(true);
-        } else {
-          setAdrError(e instanceof ApiError ? e.message : "Could not load side-effect history.");
         }
       });
 
     getPatientConditions(id)
-      .then((conditions) => {
+      .then((data) => {
         if (!active) return;
-        setConditions(conditions);
+        setConditions(data);
       })
       .catch((e: unknown) => {
         if (!active) return;
@@ -181,477 +345,366 @@ export function PatientProfile() {
     };
   }, [id]);
 
-  const isPregnant =
-    profile?.safetyFlags?.pregnancyWeeks != null && profile.safetyFlags.pregnancyWeeks > 0;
+  // ── early states ──
+  if (profileLoading) {
+    return (
+      <div className="mx-auto max-w-[1100px] px-6 py-8 lg:px-8">
+        <div className="mb-6 h-5 w-32 sk animate-shimmer rounded" />
+        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-cardLg">
+          <div className="flex items-center gap-4">
+            <div className="h-16 w-16 shrink-0 sk animate-shimmer rounded-full" />
+            <div className="flex-1">
+              <Skl w="55%" h={22} />
+              <Skl w="40%" h={13} mt={10} />
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (profileError || !profile) {
+    return (
+      <div className="mx-auto max-w-[1100px] px-6 py-8 lg:px-8">
+        <Link
+          to="/patients"
+          className="mb-4 inline-flex items-center gap-1.5 text-[13px] font-medium text-slate-500 hover:text-slate-800"
+        >
+          <ArrowLeftIcon width={15} height={15} /> {t("patientProfile.backToPatients")}
+        </Link>
+        <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-5">
+          <div className="flex items-start gap-2 text-red-700">
+            <AlertCircleIcon className="mt-0.5 shrink-0" />
+            <span>{profileError ?? "Patient profile not available."}</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const intolerances = profile.intolerances ?? [];
+  const amka = profile.amka ?? id;
 
   return (
-    <div className="p-8">
-      {/* Back link */}
-      <div className="mb-3 flex items-center gap-2 text-sm">
-        {fromRx ? (
-          <Link
-            to={`/prescription/${fromRx}`}
-            className="inline-flex items-center gap-1 text-brand-600 hover:underline"
-          >
-            <ChevronLeftIcon width={14} height={14} /> Back to {fromRx}
-          </Link>
-        ) : (
-          <button
-            type="button"
-            onClick={() => navigate(-1)}
-            className="inline-flex items-center gap-1 text-brand-600 hover:underline"
-          >
-            <ChevronLeftIcon width={14} height={14} /> Back
-          </button>
-        )}
-      </div>
+    <div className="mx-auto max-w-[1100px] px-6 py-6 lg:px-8">
+      {addOpen && <AddConditionModal amka={amka} onClose={() => setAddOpen(false)} />}
 
-      {/* Profile header */}
-      {profileLoading ? (
-        <div className="card flex items-center gap-2 px-4 py-6 text-sm text-slate-500">
-          <span className="spinner text-brand-600" /> Loading profile…
-        </div>
-      ) : profileError || !profile ? (
-        <div className="card flex items-start gap-2 px-4 py-3 text-sm text-red-700">
-          <AlertCircleIcon width={14} height={14} className="mt-0.5 shrink-0" />
-          <span>{profileError ?? "Patient profile not available."}</span>
-        </div>
+      {/* back link */}
+      {fromRx ? (
+        <Link
+          to={`/prescription/${fromRx}`}
+          className="inline-flex items-center gap-1.5 text-[13px] font-medium text-slate-500 transition-colors hover:text-slate-800"
+        >
+          <ArrowLeftIcon width={15} height={15} /> {t("patientProfile.backToRx", { rxId: fromRx })}
+        </Link>
       ) : (
-        <>
-          {usingFallback && (
-            <div className="mb-3 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[13px] text-amber-800">
-              <AlertCircleIcon width={14} height={14} className="mt-0.5 shrink-0" />
-              <span>
-                Showing demo data — the patients API is unreachable or returned an outdated shape.
-              </span>
+        <Link
+          to="/patients"
+          className="inline-flex items-center gap-1.5 text-[13px] font-medium text-slate-500 transition-colors hover:text-slate-800"
+        >
+          <ArrowLeftIcon width={15} height={15} /> {t("patientProfile.backToPatients")}
+        </Link>
+      )}
+
+      {usingFallback && (
+        <div className="mt-3 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[13px] text-amber-800">
+          <AlertCircleIcon width={14} height={14} className="mt-0.5 shrink-0" />
+          <span>{t("patientProfile.fallbackBanner")}</span>
+        </div>
+      )}
+
+      {/* ── HEADER STRIP ── */}
+      <div className="mt-3 rounded-2xl border border-slate-200 bg-white p-6 shadow-cardLg">
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex items-center gap-4">
+            <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-brand-100 text-[20px] font-bold text-brand-700">
+              {initials(profile.name)}
             </div>
-          )}
-          <header className="card p-6">
-            <div className="flex flex-wrap items-start gap-6">
-              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-brand-100 text-brand-700">
-                <UsersIcon width={24} height={24} />
-              </div>
-              <div className="min-w-0 flex-1">
-                <h1 className="text-2xl font-bold text-slate-900">{profile.name}</h1>
-                <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-slate-600">
-                  {profile.amka && (
+            <div className="min-w-0">
+              <h1 className="text-[24px] font-bold tracking-tight text-slate-900">
+                {profile.name}
+              </h1>
+              <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12.5px] text-slate-500">
+                {amka && <span className="mono">AMKA {amka}</span>}
+                {typeof profile.age === "number" && (
+                  <>
+                    <span className="text-slate-300">·</span>
+                    <span>{profile.age} yrs</span>
+                  </>
+                )}
+                {profile.sex && (
+                  <>
+                    <span className="text-slate-300">·</span>
                     <span>
-                      AMKA: <span className="font-mono text-slate-800">{profile.amka}</span>
+                      {profile.sex === "F" ? "Θήλυ" : profile.sex === "M" ? "Άρρεν" : profile.sex}
                     </span>
-                  )}
-                  {typeof profile.age === "number" && <span>{profile.age} years</span>}
-                  {profile.dateOfBirth && <span>DOB: {profile.dateOfBirth}</span>}
-                  {profile.sex && (
-                    <span>
-                      Sex:{" "}
-                      {profile.sex === "F" ? "Female" : profile.sex === "M" ? "Male" : profile.sex}
-                    </span>
-                  )}
-                  {profile.phone && (
-                    <a
-                      href={`tel:${profile.phone}`}
-                      className="inline-flex items-center gap-1 text-brand-600 hover:underline"
-                    >
-                      <PhoneIcon width={13} height={13} /> {profile.phone}
-                    </a>
-                  )}
-                </div>
-
-                <div className="mt-4">
-                  <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    Medical Conditions
-                  </div>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {conditionsError ? (
-                      <span className="inline-flex items-center gap-1 text-sm text-red-600">
-                        <AlertCircleIcon width={13} height={13} className="shrink-0" />
-                        {conditionsError}
-                      </span>
-                    ) : conditions === null ? (
-                      <span className="spinner text-brand-600" />
-                    ) : conditions.length > 0 ? (
-                      conditions.map((c) => (
-                        <span
-                          key={c.id}
-                          className="chip border border-brand-100 bg-brand-50 text-brand-700"
-                        >
-                          {c.name}
-                        </span>
-                      ))
-                    ) : (
-                      <span className="text-sm text-slate-500">None recorded.</span>
-                    )}
-                  </div>
-                </div>
-
-                <div className="mt-4">
-                  <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    Allergies
-                  </div>
-                  <div className="mt-2">
-                    {profile.allergies && profile.allergies.length > 0 ? (
-                      <ul className="flex flex-wrap gap-2">
-                        {profile.allergies.map((a) => (
-                          <li key={a} className="chip border border-red-200 bg-red-50 text-red-800">
-                            {a}
-                          </li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <span className="text-sm text-slate-500">No known allergies.</span>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              <div className="shrink-0">
-                <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[12px] text-slate-500">
-                  Read-only — edits are made by the prescribing physician.
-                </div>
+                  </>
+                )}
               </div>
             </div>
-          </header>
-
-          {/* Tabs */}
-          <div
-            role="tablist"
-            aria-label="Patient sections"
-            className="mt-6 mb-4 flex gap-1 border-b border-slate-200"
-          >
-            {TABS.map((t) => (
-              <button
-                key={t}
-                role="tab"
-                aria-selected={tab === t}
-                type="button"
-                onClick={() => setTab(t)}
-                className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px ${
-                  tab === t
-                    ? "border-brand-600 text-brand-700"
-                    : "border-transparent text-slate-600 hover:text-slate-900"
-                }`}
-              >
-                {TAB_LABEL[t]}
-              </button>
-            ))}
           </div>
 
-          {tab === "rx" && <RxHistoryTab rows={rxHistory} error={rxError} />}
-          {tab === "adr" && <AdrHistoryTab rows={adrHistory} error={adrError} />}
-          {tab === "safety" && (
-            <SafetyProfileTab
-              flags={profile.safetyFlags}
-              intolerances={profile.intolerances ?? []}
-              isPregnant={isPregnant}
-            />
-          )}
-        </>
-      )}
-    </div>
-  );
-}
+          <div className="flex flex-wrap items-center gap-2.5">
+            <button
+              type="button"
+              onClick={() => navigate(`/side-effects`)}
+              className="rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-[13px] font-semibold text-slate-700 shadow-card transition-colors hover:bg-slate-50"
+            >
+              {t("patientProfile.reportSideEffect")}
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate(`/documentation`)}
+              className="rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-[13px] font-semibold text-slate-700 shadow-card transition-colors hover:bg-slate-50"
+            >
+              {t("patientProfile.viewDocumentation")}
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate("/dashboard")}
+              className="flex items-center gap-1.5 rounded-lg bg-brand-600 px-4 py-2 text-[13px] font-semibold text-white shadow-card transition-colors hover:bg-brand-700"
+            >
+              {t("patientProfile.startDispense")} <ChevronRightIcon width={15} height={15} />
+            </button>
+          </div>
+        </div>
+      </div>
 
-function RxHistoryTab({
-  rows,
-  error,
-}: {
-  rows: PatientRxHistoryRow[] | null;
-  error: string | null;
-}) {
-  if (error) {
-    return (
-      <div className="card flex items-start gap-2 px-4 py-3 text-sm text-red-700">
-        <AlertCircleIcon width={14} height={14} className="mt-0.5 shrink-0" />
-        <span>{error}</span>
-      </div>
-    );
-  }
-  if (!rows) {
-    return (
-      <div className="card flex items-center gap-2 px-4 py-6 text-sm text-slate-500">
-        <span className="spinner text-brand-600" /> Loading prescription history…
-      </div>
-    );
-  }
-  if (rows.length === 0) {
-    return (
-      <div className="card px-4 py-10 text-center text-sm text-slate-500">
-        No prescriptions on record.
-      </div>
-    );
-  }
-  return (
-    <div className="card overflow-hidden">
-      <div className="overflow-x-auto">
-        <table className="min-w-full text-sm">
-          <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-            <tr>
-              <th className="px-4 py-2.5">Date</th>
-              <th className="px-4 py-2.5">Drug</th>
-              <th className="px-4 py-2.5">Prescriber</th>
-              <th className="px-4 py-2.5">Status</th>
-              <th className="px-4 py-2.5"></th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {rows.map((r) => (
-              <tr
-                key={r.rxId}
-                tabIndex={0}
-                onClick={() => (window.location.href = `/prescription/${r.rxId}`)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") window.location.href = `/prescription/${r.rxId}`;
-                }}
-                className="cursor-pointer hover:bg-slate-50 focus:bg-slate-50 focus:outline-none"
-              >
-                <td className="px-4 py-3 text-slate-700">{r.date}</td>
-                <td className="px-4 py-3">
-                  <Link
-                    to={`/prescription/${r.rxId}`}
-                    className="text-brand-600 hover:underline"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    {r.drugName}
-                  </Link>
-                </td>
-                <td className="px-4 py-3 text-slate-700">{r.prescriberName}</td>
-                <td className="px-4 py-3">
-                  <span
-                    className={`chip ${RX_STATUS_CHIP[r.status] ?? "bg-slate-100 text-slate-800"}`}
-                  >
-                    {RX_STATUS_LABEL[r.status] ?? r.status}
-                  </span>
-                </td>
-                <td className="px-4 py-3 text-right text-slate-400">
-                  <ChevronRightIcon width={14} height={14} />
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
+      {/* ── DEMOGRAPHICS ── */}
+      <div className="mt-6">
+        <Card>
+          <SectionTitle>{t("patientProfile.demographicsTitle")}</SectionTitle>
+          <dl className="grid grid-cols-2 gap-x-6 gap-y-4 md:grid-cols-3">
+            {profile.dateOfBirth && (
+              <Field label="Date of birth" mono>
+                {profile.dateOfBirth}
+              </Field>
+            )}
+            {profile.sex && (
+              <Field label="Sex">
+                {profile.sex === "F" ? "Female" : profile.sex === "M" ? "Male" : profile.sex}
+              </Field>
+            )}
+            {profile.phone && (
+              <Field label="Phone" mono>
+                {profile.phone}
+              </Field>
+            )}
+          </dl>
 
-function AdrHistoryTab({ rows, error }: { rows: SideEffectReport[] | null; error: string | null }) {
-  if (error) {
-    return (
-      <div className="card flex items-start gap-2 px-4 py-3 text-sm text-red-700">
-        <AlertCircleIcon width={14} height={14} className="mt-0.5 shrink-0" />
-        <span>{error}</span>
-      </div>
-    );
-  }
-  if (!rows) {
-    return (
-      <div className="card flex items-center gap-2 px-4 py-6 text-sm text-slate-500">
-        <span className="spinner text-brand-600" /> Loading side-effect history…
-      </div>
-    );
-  }
-  if (rows.length === 0) {
-    return (
-      <div className="card px-4 py-10 text-center text-sm text-slate-500">
-        No adverse drug reactions on record.
-      </div>
-    );
-  }
-  return (
-    <ul className="space-y-3">
-      {rows.map((r) => (
-        <li key={r.id}>
-          <article className="card p-4">
-            <div className="flex flex-wrap items-center gap-2">
-              {r.rxId ? (
-                <Link
-                  to={`/prescription/${r.rxId}`}
-                  className="text-sm font-semibold text-brand-600 hover:underline"
-                >
-                  {r.drugName}
-                </Link>
-              ) : (
-                <span className="text-sm font-semibold text-slate-900">{r.drugName}</span>
+          {/* safety exceptions as chips */}
+          {profile.safetyFlags && (
+            <div className="mt-4 flex flex-wrap gap-2">
+              {profile.safetyFlags.g6pd && (
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-red-200 bg-red-50 px-3 py-1 text-[12px] font-medium text-red-800">
+                  <AlertOctagonIcon width={13} height={13} /> G6PD deficiency
+                </span>
               )}
-              <span className={`chip ${SEVERITY_TONE[r.severity]}`}>
-                {SEVERITY_LABEL[r.severity]}
-              </span>
-              <span className={`chip ${ADR_STATUS_TONE[r.status]}`}>
-                {ADR_STATUS_LABEL[r.status]}
-              </span>
-              <span className="ml-auto text-xs text-slate-500">{formatDate(r.reportedAt)}</span>
+              {profile.safetyFlags.pregnancyWeeks != null &&
+                profile.safetyFlags.pregnancyWeeks > 0 && (
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-[12px] font-medium text-amber-800">
+                    <InfoIcon width={13} height={13} /> Pregnancy{" "}
+                    {profile.safetyFlags.pregnancyWeeks} wks
+                  </span>
+                )}
+              {profile.safetyFlags.renalFunction !== "NORMAL" && (
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-[12px] font-medium text-amber-800">
+                  <InfoIcon width={13} height={13} /> Renal:{" "}
+                  {profile.safetyFlags.renalFunction.replace(/_/g, " ").toLowerCase()}
+                </span>
+              )}
+              {profile.safetyFlags.hepaticFunction !== "NORMAL" && (
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-[12px] font-medium text-amber-800">
+                  <InfoIcon width={13} height={13} /> Hepatic:{" "}
+                  {profile.safetyFlags.hepaticFunction.replace(/_/g, " ").toLowerCase()}
+                </span>
+              )}
             </div>
-            <p className="mt-2 text-[13px] leading-relaxed text-slate-700">{r.symptom}</p>
-            <p className="mt-1 text-[12px] text-slate-500">Onset: {r.onset}</p>
-          </article>
-        </li>
-      ))}
-    </ul>
-  );
-}
-
-interface SafetyProfileTabProps {
-  flags: PatientSafetyFlags | undefined;
-  intolerances: string[];
-  isPregnant: boolean;
-}
-
-const ORGAN_TONE: Record<OrganFunction, { chip: string; alert: boolean }> = {
-  NORMAL: { chip: "bg-emerald-100 text-emerald-800", alert: false },
-  MILD_IMPAIRMENT: { chip: "bg-amber-100 text-amber-800", alert: false },
-  MODERATE_IMPAIRMENT: { chip: "bg-red-100 text-red-800", alert: true },
-  SEVERE_IMPAIRMENT: { chip: "bg-red-100 text-red-800", alert: true },
-};
-const ORGAN_LABEL: Record<OrganFunction, string> = {
-  NORMAL: "Normal",
-  MILD_IMPAIRMENT: "Mild impairment",
-  MODERATE_IMPAIRMENT: "Moderate impairment",
-  SEVERE_IMPAIRMENT: "Severe impairment",
-};
-
-function SafetyProfileTab({ flags, intolerances, isPregnant }: SafetyProfileTabProps) {
-  if (!flags) {
-    return (
-      <div className="card px-4 py-10 text-center text-sm text-slate-500">
-        No safety profile recorded.
-      </div>
-    );
-  }
-
-  const renalTone = ORGAN_TONE[flags.renalFunction];
-  const hepaticTone = ORGAN_TONE[flags.hepaticFunction];
-  const alerts: string[] = [];
-  if (flags.g6pd) alerts.push("G6PD deficiency");
-  if (isPregnant) alerts.push(`Pregnancy (${flags.pregnancyWeeks} weeks)`);
-  if (renalTone.alert) alerts.push(`Renal: ${ORGAN_LABEL[flags.renalFunction]}`);
-  if (hepaticTone.alert) alerts.push(`Hepatic: ${ORGAN_LABEL[flags.hepaticFunction]}`);
-
-  return (
-    <div className="space-y-4">
-      <section className="card p-5">
-        <h2 className="mb-3 text-base font-semibold text-slate-900">Drug Intolerances</h2>
-        {intolerances.length === 0 ? (
-          <p className="text-sm text-slate-500">None recorded.</p>
-        ) : (
-          <ul className="flex flex-wrap gap-2">
-            {intolerances.map((i) => (
-              <li key={i} className="chip border border-amber-200 bg-amber-50 text-amber-800">
-                {i}
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-
-      <section className="card p-5">
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-base font-semibold text-slate-900">Special Flags</h2>
-          {alerts.length > 0 && (
-            <span className="inline-flex items-center gap-1 rounded-md bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700">
-              <AlertOctagonIcon width={12} height={12} /> {alerts.length} alert
-              {alerts.length === 1 ? "" : "s"} active
-            </span>
           )}
-        </div>
 
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <FlagCard
-            icon={<ShieldIcon width={16} height={16} />}
-            label="G6PD Deficiency"
-            tone={flags.g6pd ? "alert" : "normal"}
-            value={flags.g6pd ? "Positive — review oxidative-stress drugs" : "Negative"}
-          />
-          <FlagCard
-            icon={<AlertTriangleIcon width={16} height={16} />}
-            label="Pregnancy"
-            tone={isPregnant ? "warn" : "normal"}
-            value={
-              isPregnant
-                ? `${flags.pregnancyWeeks} weeks — verify teratogenicity`
-                : "Not pregnant / not applicable"
-            }
-          />
-          <FlagCard
-            icon={<ShieldIcon width={16} height={16} />}
-            label="Renal Function"
-            tone={
-              flags.renalFunction === "NORMAL"
-                ? "normal"
-                : flags.renalFunction === "MILD_IMPAIRMENT"
-                  ? "warn"
-                  : "alert"
-            }
-            value={ORGAN_LABEL[flags.renalFunction]}
-          />
-          <FlagCard
-            icon={<ShieldIcon width={16} height={16} />}
-            label="Hepatic Function"
-            tone={
-              flags.hepaticFunction === "NORMAL"
-                ? "normal"
-                : flags.hepaticFunction === "MILD_IMPAIRMENT"
-                  ? "warn"
-                  : "alert"
-            }
-            value={ORGAN_LABEL[flags.hepaticFunction]}
-          />
-        </div>
-
-        <p className="mt-3 text-[12px] text-slate-500">
-          These flags surface during automated safety checks on every prescription.
-        </p>
-      </section>
-    </div>
-  );
-}
-
-type FlagTone = "normal" | "warn" | "alert";
-const FLAG_TONE: Record<FlagTone, { box: string; label: string; icon: React.ReactNode }> = {
-  normal: {
-    box: "border-emerald-200 bg-emerald-50 text-emerald-800",
-    label: "text-emerald-700",
-    icon: <CheckCircleIcon width={14} height={14} />,
-  },
-  warn: {
-    box: "border-amber-200 bg-amber-50 text-amber-800",
-    label: "text-amber-700",
-    icon: <AlertTriangleIcon width={14} height={14} />,
-  },
-  alert: {
-    box: "border-red-200 bg-red-50 text-red-800",
-    label: "text-red-700",
-    icon: <AlertOctagonIcon width={14} height={14} />,
-  },
-};
-
-function FlagCard({
-  icon,
-  label,
-  value,
-  tone,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-  tone: FlagTone;
-}) {
-  const t = FLAG_TONE[tone];
-  return (
-    <div className={`rounded-xl border p-3.5 ${t.box}`}>
-      <div
-        className={`flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide ${t.label}`}
-      >
-        {icon}
-        <span>{label}</span>
-        <span className="ml-auto">{t.icon}</span>
+          {/* allergies info banner */}
+          {profile.allergies && profile.allergies.length > 0 && (
+            <div className="mt-3 flex items-start gap-2 rounded-lg border border-brand-100 bg-brand-50 px-3.5 py-2.5">
+              <InfoIcon width={15} height={15} className="mt-0.5 shrink-0 text-brand-600" />
+              <div className="text-[12.5px] leading-snug text-slate-700">
+                <span className="font-semibold text-brand-700">Allergies · </span>
+                {profile.allergies.join(", ")}
+              </div>
+            </div>
+          )}
+        </Card>
       </div>
-      <p className="mt-1.5 text-sm leading-relaxed text-slate-800">{value}</p>
+
+      {/* ── INTOLERANCES + CONDITIONS (2-col) ── */}
+      <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
+        {/* Intolerances */}
+        <Card>
+          <SectionTitle
+            right={
+              intolerances.length > 0 && (
+                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11.5px] font-semibold text-slate-500">
+                  {intolerances.length}
+                </span>
+              )
+            }
+          >
+            {t("patientProfile.intolerancesTitle")}
+          </SectionTitle>
+
+          {intolerances.length === 0 ? (
+            <p className="py-6 text-center text-[13px] italic text-slate-400">
+              {t("patientProfile.noIntolerances")}
+            </p>
+          ) : (
+            <div className="-mx-1 max-h-[340px] space-y-2 overflow-y-auto px-1">
+              {intolerances.map((name, i) => (
+                <div key={i} className="rounded-lg border border-amber-200 bg-amber-50/60 p-3">
+                  <div className="flex items-center gap-2">
+                    <AlertTriangleIcon width={14} height={14} className="text-amber-500" />
+                    <span className="mono text-[12.5px] font-bold text-slate-800">{name}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+
+        {/* Conditions */}
+        <Card>
+          <SectionTitle
+            right={
+              <button
+                type="button"
+                onClick={() => setAddOpen(true)}
+                className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[12px] font-semibold text-brand-600 transition-colors hover:bg-brand-50"
+              >
+                <PlusIcon width={13} height={13} /> {t("patientProfile.addCondition")}
+              </button>
+            }
+          >
+            {t("patientProfile.conditionsTitle")}{" "}
+            <span className="font-normal text-slate-400">
+              {t("patientProfile.conditionsSubtitle")}
+            </span>
+          </SectionTitle>
+
+          {conditionsError ? (
+            <div className="flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-[12.5px] text-red-700">
+              <AlertCircleIcon width={14} height={14} className="shrink-0" />
+              {conditionsError}
+            </div>
+          ) : conditions === null ? (
+            <div className="space-y-3">
+              {[0, 1, 2].map((i) => (
+                <div key={i}>
+                  <Skl w="55%" h={13} />
+                  <Skl w="40%" h={11} mt={6} />
+                </div>
+              ))}
+            </div>
+          ) : conditions.length === 0 ? (
+            <p className="py-6 text-center text-[13px] italic text-slate-400">
+              {t("patientProfile.noConditions")}
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {conditions.map((c) => (
+                <div
+                  key={c.id}
+                  className="group flex items-start justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50/60 p-3"
+                >
+                  <div className="min-w-0">
+                    <div className="text-[13px] font-semibold text-slate-800">{c.name}</div>
+                    {c.notes && (
+                      <div className="mt-0.5 text-[11.5px] text-slate-500">{c.notes}</div>
+                    )}
+                    <div className="mono mt-0.5 text-[11px] text-slate-400">
+                      {c.severity && `${c.severity} · `}recorded {formatDate(c.createdAt)}
+                    </div>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                    <button
+                      type="button"
+                      className="rounded p-1.5 text-slate-400 hover:bg-white hover:text-brand-600"
+                      aria-label="Edit"
+                    >
+                      <EditIcon width={14} height={14} />
+                    </button>
+                    <button
+                      type="button"
+                      className="rounded p-1.5 text-slate-400 hover:bg-white hover:text-red-600"
+                      aria-label="Remove"
+                    >
+                      <TrashIcon width={14} height={14} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+      </div>
+
+      {/* ── MEDICATION HISTORY ── */}
+      <div className="mt-6 mb-4">
+        <Card>
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <h2 className="text-[15px] font-bold text-slate-900">
+              {t("patientProfile.historyTitle")}
+            </h2>
+            {rxHistory && rxHistory.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {[
+                  t("patientProfile.filterAll"),
+                  t("patientProfile.filterLast90"),
+                  t("patientProfile.filterLastYear"),
+                  t("patientProfile.filterByDrug"),
+                ].map((f) => (
+                  <button
+                    key={f}
+                    type="button"
+                    onClick={() => setHistoryFilter(f)}
+                    className={`rounded-full px-3 py-1 text-[12px] font-medium transition-colors ${
+                      historyFilter === f
+                        ? "bg-brand-600 text-white"
+                        : "border border-slate-200 bg-white text-slate-500 hover:bg-slate-50"
+                    }`}
+                  >
+                    {f}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {rxError ? (
+            <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-[12.5px] text-red-700">
+              <AlertCircleIcon width={14} height={14} className="mt-0.5 shrink-0" />
+              {rxError}
+            </div>
+          ) : rxHistory === null ? (
+            <div className="space-y-4">
+              {[0, 1].map((i) => (
+                <div key={i}>
+                  <Skl w="20%" h={11} />
+                  <Skl w="60%" h={14} mt={6} />
+                </div>
+              ))}
+            </div>
+          ) : rxHistory.length === 0 ? (
+            <p className="py-8 text-center text-[13px] italic text-slate-400">
+              {t("patientProfile.noHistory")}
+            </p>
+          ) : (
+            <div className="relative">
+              <span className="absolute bottom-2 left-[10px] top-2 w-px bg-slate-200" />
+              {rxHistory.map((r, i) => (
+                <HistoryRow key={r.rxId} row={r} index={i} />
+              ))}
+            </div>
+          )}
+        </Card>
+      </div>
     </div>
   );
-}
-
-function formatDate(iso: string): string {
-  const d = new Date(iso);
-  if (isNaN(d.getTime())) return iso;
-  return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
 }
