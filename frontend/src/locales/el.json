@@ -13,5 +13,31 @@
   "shell": {
     "loading": "Φόρτωση…",
     "openingCounter": "Άνοιγμα Πάγκου…"
+  },
+  "history": {
+    "title": "Ιστορικό χορήγησης",
+    "subtitle": "Φιλτράρετε και αναζητήστε παλαιές χορηγήσεις.",
+    "statToday": "Σήμερα",
+    "statWeek": "Αυτή την εβδομάδα",
+    "statMonth": "Αυτόν τον μήνα",
+    "dateRange": "Εύρος ημερομηνιών",
+    "methodAll": "Όλα",
+    "methodPrint": "Εκτύπωση",
+    "methodDigital": "Ψηφιακό",
+    "methodBoth": "Και τα δύο",
+    "searchPlaceholder": "Ασθενής, ΑΜΚΑ, γραμμωτός κώδικας, φάρμακο…",
+    "exportCsv": "Εξαγωγή CSV",
+    "colDateTime": "Ημ/νία / ώρα",
+    "colBarcode": "Γραμμωτός κώδικας",
+    "colPatient": "Ασθενής",
+    "colMedication": "Φαρμακευτική αγωγή",
+    "colMethod": "Μέθοδος",
+    "colStatus": "Κατάσταση",
+    "emptyTitle": "Δεν βρέθηκαν χορηγήσεις",
+    "emptyDesc": "Δοκιμάστε να διευρύνετε το εύρος ημερομηνιών ή να διαγράψετε τον όρο αναζήτησης.",
+    "resetFilters": "Επαναφορά φίλτρων",
+    "showingOf": "Εμφάνιση {{from}}–{{to}} από {{total}}",
+    "print": "Εκτύπωση",
+    "open": "Άνοιγμα"
   }
 }
