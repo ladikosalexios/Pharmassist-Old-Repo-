@@ -369,7 +369,8 @@ export function History() {
             ))}
             <button
               type="button"
-              className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+              disabled
+              className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-400 disabled:opacity-50"
             >
               <ChevronRightIcon width={16} height={16} />
             </button>
