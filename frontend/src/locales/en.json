@@ -18,6 +18,8 @@
     "title": "Dispense history",
     "subtitle": "Filter and search past dispenses.",
     "statToday": "Today",
+    "statWeek": "This week",
+    "statMonth": "This month",
     "statTotal": "Total",
     "dateRange": "Date range",
     "methodAll": "All",

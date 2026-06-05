@@ -5,6 +5,8 @@ import {
   DownloadIcon,
   PrinterIcon,
   SearchXIcon,
+  CalendarIcon,
+  ChevronLeftIcon,
   ChevronRightIcon,
   AlertCircleIcon,
 } from "../components/Icons";
@@ -153,6 +155,16 @@ export function History() {
         </div>
         <span className="h-8 w-px bg-slate-200" />
         <div className="flex items-baseline gap-2">
+          <span className="text-[20px] font-bold tabular-nums text-slate-900">—</span>
+          <span className="text-[12px] font-medium text-slate-500">{t("history.statWeek")}</span>
+        </div>
+        <span className="h-8 w-px bg-slate-200" />
+        <div className="flex items-baseline gap-2">
+          <span className="text-[20px] font-bold tabular-nums text-slate-900">—</span>
+          <span className="text-[12px] font-medium text-slate-500">{t("history.statMonth")}</span>
+        </div>
+        <span className="h-8 w-px bg-slate-200" />
+        <div className="flex items-baseline gap-2">
           <span className="text-[20px] font-bold tabular-nums text-slate-900">
             {stats.total || "—"}
           </span>
@@ -163,6 +175,13 @@ export function History() {
       {/* sticky filter bar */}
       <div className="sticky top-0 z-20 -mx-2 mb-4 rounded-xl border border-slate-200 bg-white/95 px-4 py-3 shadow-card backdrop-blur">
         <div className="flex flex-wrap items-center gap-2.5">
+          <button
+            type="button"
+            className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-[12.5px] font-medium text-slate-600 transition-colors hover:bg-slate-50"
+          >
+            <CalendarIcon width={15} height={15} className="text-slate-400" />
+            {t("history.dateRange")}
+          </button>
           <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 p-0.5">
             {methodFilters.map(({ value, key }) => (
               <button
@@ -320,12 +339,43 @@ export function History() {
         </div>
       )}
 
-      {/* result count */}
-      {!loading && !isEmpty && data && (
-        <div className="mt-4">
+      {/* pagination */}
+      {!loading && !isEmpty && data && data.total > 10 && (
+        <div className="mt-4 flex items-center justify-between">
           <span className="text-[12.5px] text-slate-500">
             {t("history.showingOf", { from: 1, to: data.items.length, total: data.total })}
           </span>
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              disabled
+              className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-400 disabled:opacity-50"
+            >
+              <ChevronLeftIcon width={16} height={16} />
+            </button>
+            {["1", "2", "3", "…"].map((n, i) => (
+              <button
+                key={i}
+                type="button"
+                disabled={n === "…"}
+                className={`flex h-8 min-w-[32px] items-center justify-center rounded-lg px-2 text-[13px] font-medium transition-colors ${
+                  n === "1"
+                    ? "bg-brand-600 text-white"
+                    : n === "…"
+                      ? "cursor-default text-slate-400"
+                      : "border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                }`}
+              >
+                {n}
+              </button>
+            ))}
+            <button
+              type="button"
+              className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+            >
+              <ChevronRightIcon width={16} height={16} />
+            </button>
+          </div>
         </div>
       )}
     </div>
