@@ -154,12 +154,26 @@ export async function getActiveAlerts(): Promise<ActiveAlert[]> {
 
 export async function approvePrescription(
   rxId: string,
-): Promise<{ success: boolean; status: string }> {
+): Promise<{ success: boolean; status: string; executionNo?: string }> {
   const r = await fetch(`${API_BASE}/prescriptions/${encodeURIComponent(rxId)}/approve`, {
     method: "POST",
     credentials: "include",
   });
-  return handle(r) as Promise<{ success: boolean; status: string }>;
+  return handle(r) as Promise<{ success: boolean; status: string; executionNo?: string }>;
+}
+
+// TODO: FR-0.5 #3 — HMVS/FMD pack verification not yet wired on the backend.
+export async function verifyPack(
+  payload: string, // eslint-disable-line @typescript-eslint/no-unused-vars
+): Promise<{ status: "active" | "dispensed"; packCode: string }> {
+  throw new ApiError(501, "Pack verification not yet available");
+}
+
+// TODO: FR-0.5 #5 — FMD pack decommission not yet wired on the backend.
+export async function decommissionPack(
+  payload: string, // eslint-disable-line @typescript-eslint/no-unused-vars
+): Promise<{ success: boolean }> {
+  throw new ApiError(501, "Pack decommission not yet available");
 }
 
 export type DiscrepancyType =
@@ -367,6 +381,14 @@ export async function getPatient(patientId: string): Promise<PatientProfile> {
   return handle(r) as Promise<PatientProfile>;
 }
 
+// TODO: FR-0.5 #2 — Name search not possible via ΗΔΥΚΑ (no upstream endpoint).
+// When wired, this should query a local index of previously-served patients.
+export async function searchPatients(
+  _query: string, // eslint-disable-line @typescript-eslint/no-unused-vars
+): Promise<PatientProfile[]> {
+  throw new ApiError(501, "Name search not yet available");
+}
+
 export async function getPatientPrescriptions(patientId: string): Promise<PatientRxHistoryRow[]> {
   const r = await fetch(`${API_BASE}/patients/${encodeURIComponent(patientId)}/prescriptions`, {
     credentials: "include",
@@ -393,7 +415,7 @@ export async function getPatientConditions(patientId: string): Promise<PatientCo
   const r = await fetch(`${API_BASE}/patients/${encodeURIComponent(patientId)}/conditions`, {
     credentials: "include",
   });
-  const data = (await handle(r)) as Promise<PatientCondition[]>;
+  const data = (await handle(r)) as PatientCondition[];
   if (!Array.isArray(data)) {
     throw new ApiError(0, `Unexpected response from /patients/${patientId}/conditions.`);
   }

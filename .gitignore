@@ -1,7 +1,20 @@
 **/__pycache__/
 .env
 backend/.env
-.claude
+# Per-user / runtime Claude Code state — keep ignored
+.claude/settings.local.json
+.claude/launch.json
+.claude/worktrees/
+.claude/projects/
+# Team-shared Claude Code config — commit these
+!.claude/
+!.claude/settings.json
+!.claude/hooks/
+!.claude/hooks/**
+!.claude/skills/
+!.claude/skills/**
+!.claude/agents/
+!.claude/agents/**
 CLAUDE.MD
 .vscode
 *.code-workspace
