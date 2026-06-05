@@ -72,7 +72,22 @@
     "noReportsDesc": "You haven't filed any side-effect reports. New reports you submit will appear here.",
     "view": "View",
     "edit": "Edit",
-    "withdraw": "Withdraw"
+    "withdraw": "Withdraw",
+    "statTotal": "Total",
+    "statPending": "Pending",
+    "statSevere": "Severe",
+    "statEscalated": "Escalated",
+    "fallbackWarning": "Showing demo data — the side-effects API is unreachable.",
+    "symptomRash": "Rash",
+    "symptomNausea": "Nausea",
+    "symptomVomiting": "Vomiting",
+    "symptomItching": "Itching",
+    "symptomDizziness": "Dizziness",
+    "symptomHeadache": "Headache",
+    "symptomDyspnoea": "Dyspnoea",
+    "symptomEdema": "Edema",
+    "symptomDiarrhea": "Diarrhea",
+    "symptomAngioedema": "Angioedema"
   },
   "patients": {
     "title": "Patients",

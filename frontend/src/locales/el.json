@@ -72,7 +72,22 @@
     "noReportsDesc": "Δεν έχετε υποβάλει καμία αναφορά ανεπιθύμητης ενέργειας.",
     "view": "Προβολή",
     "edit": "Επεξεργασία",
-    "withdraw": "Ανάκληση"
+    "withdraw": "Ανάκληση",
+    "statTotal": "Σύνολο",
+    "statPending": "Εκκρεμείς",
+    "statSevere": "Σοβαρές",
+    "statEscalated": "Κλιμακωθείσες",
+    "fallbackWarning": "Εμφάνιση δεδομένων επίδειξης — το API ανεπιθύμητων ενεργειών δεν είναι διαθέσιμο.",
+    "symptomRash": "Εξάνθημα",
+    "symptomNausea": "Ναυτία",
+    "symptomVomiting": "Έμετος",
+    "symptomItching": "Κνησμός",
+    "symptomDizziness": "Ζάλη",
+    "symptomHeadache": "Κεφαλαλγία",
+    "symptomDyspnoea": "Δύσπνοια",
+    "symptomEdema": "Οίδημα",
+    "symptomDiarrhea": "Διάρροια",
+    "symptomAngioedema": "Αγγειοοίδημα"
   },
   "patients": {
     "title": "Ασθενείς",

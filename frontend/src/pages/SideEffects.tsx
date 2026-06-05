@@ -116,18 +116,6 @@ const FALLBACK_REPORTS: SideEffectReport[] = [
 ];
 
 const RECENT_PATIENTS = FALLBACK_REPORTS.slice(0, 3).map((r) => r.patientName);
-const COMMON_SYMPTOMS = [
-  "Εξάνθημα",
-  "Ναυτία",
-  "Έμετος",
-  "Κνησμός",
-  "Ζάλη",
-  "Κεφαλαλγία",
-  "Δύσπνοια",
-  "Οίδημα",
-  "Διάρροια",
-  "Αγγειοοίδημα",
-];
 
 const SEVERITY_RANK: Record<AdrSeverity, number> = { MILD: 0, MODERATE: 1, SEVERE: 2 };
 const STATUS_RANK: Record<AdrStatus, number> = { PENDING_REVIEW: 0, ESCALATED: 1, EOF_REPORTED: 2 };
@@ -264,10 +252,26 @@ function ReportForm({ onSubmitted, submittedRef }: ReportFormProps) {
   const [cause, setCause] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
+  const commonSymptoms = useMemo(
+    () => [
+      t("reports.symptomRash"),
+      t("reports.symptomNausea"),
+      t("reports.symptomVomiting"),
+      t("reports.symptomItching"),
+      t("reports.symptomDizziness"),
+      t("reports.symptomHeadache"),
+      t("reports.symptomDyspnoea"),
+      t("reports.symptomEdema"),
+      t("reports.symptomDiarrhea"),
+      t("reports.symptomAngioedema"),
+    ],
+    [t],
+  );
+
   const togglePick = (s: string) =>
     setPicked((p) => (p.includes(s) ? p.filter((x) => x !== s) : [...p, s]));
 
-  const valid = patient.trim() && med.trim() && sev && symptoms.trim();
+  const valid = patient.trim() && med.trim() && sev && (symptoms.trim() || picked.length > 0);
 
   async function handleSubmit() {
     if (!valid) return;
@@ -471,7 +475,7 @@ function ReportForm({ onSubmitted, submittedRef }: ReportFormProps) {
                   {t("reports.commonSymptoms")}
                 </div>
                 <div className="flex flex-wrap gap-1.5">
-                  {COMMON_SYMPTOMS.map((s) => {
+                  {commonSymptoms.map((s) => {
                     const on = picked.includes(s);
                     return (
                       <button
@@ -630,7 +634,7 @@ function PreviousReports({
         <div className="mb-3 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[13px] text-amber-800">
           <AlertCircleIcon width={14} height={14} className="mt-0.5 shrink-0" />
           <span>
-            Showing demo data — the side-effects API is unreachable.
+            {t("reports.fallbackWarning")}
             {fallbackError && <span className="ml-1 text-amber-700/80">({fallbackError})</span>}
           </span>
         </div>
@@ -890,35 +894,35 @@ export function SideEffects() {
   const statCards = useMemo(
     () => [
       {
-        label: "Total",
+        label: t("reports.statTotal"),
         value: stats.total,
         Icon: AlertTriangleIcon,
         tone: "bg-slate-100 text-slate-700",
         vc: "text-slate-900",
       },
       {
-        label: "Pending",
+        label: t("reports.statPending"),
         value: stats.pendingReview,
         Icon: ClockIcon,
         tone: "bg-amber-100 text-amber-700",
         vc: "text-amber-700",
       },
       {
-        label: "Severe",
+        label: t("reports.statSevere"),
         value: stats.severe,
         Icon: AlertOctagonIcon,
         tone: "bg-red-100 text-red-700",
         vc: "text-red-700",
       },
       {
-        label: "Escalated",
+        label: t("reports.statEscalated"),
         value: stats.escalated,
         Icon: FlagIcon,
         tone: "bg-blue-100 text-blue-700",
         vc: "text-blue-700",
       },
     ],
-    [stats],
+    [stats, t],
   );
 
   return (
