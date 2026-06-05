@@ -13,7 +13,6 @@ export type Theme = "light" | "dark";
 interface ThemeContextValue {
   theme: Theme;
   toggleTheme: () => void;
-  setTheme: (theme: Theme) => void;
 }
 
 const STORAGE_KEY = "pharmassist_theme";
@@ -43,16 +42,12 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     }
   }, [theme]);
 
-  const setTheme = useCallback((next: Theme) => setThemeState(next), []);
   const toggleTheme = useCallback(
     () => setThemeState((cur) => (cur === "dark" ? "light" : "dark")),
     [],
   );
 
-  const value = useMemo<ThemeContextValue>(
-    () => ({ theme, toggleTheme, setTheme }),
-    [theme, toggleTheme, setTheme],
-  );
+  const value = useMemo<ThemeContextValue>(() => ({ theme, toggleTheme }), [theme, toggleTheme]);
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 }

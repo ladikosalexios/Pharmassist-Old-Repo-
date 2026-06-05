@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { NavLink } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../lib/auth";
@@ -125,12 +125,50 @@ export function MobileNav() {
   const { t } = useTranslation();
   const { user } = useAuth();
   const [open, setOpen] = useState(false);
+  const asideRef = useRef<HTMLElement>(null);
 
-  // Close on Escape and lock body scroll while the drawer is open.
+  // Keep the off-screen drawer out of the tab order / a11y tree when closed.
+  // `inert` isn't typed by @types/react 18, so set it imperatively.
+  useEffect(() => {
+    const el = asideRef.current;
+    if (!el) return;
+    if (open) el.removeAttribute("inert");
+    else el.setAttribute("inert", "");
+  }, [open]);
+
+  // While open: move focus in, trap it, lock scroll, close on Escape, and
+  // restore focus to the opener on close.
   useEffect(() => {
     if (!open) return;
+    const opener = document.activeElement as HTMLElement | null;
+    const getFocusable = () =>
+      asideRef.current
+        ? Array.from(
+            asideRef.current.querySelectorAll<HTMLElement>(
+              'a[href],button:not([disabled]),input,textarea,select,[tabindex]:not([tabindex="-1"])',
+            ),
+          )
+        : [];
+    getFocusable()[0]?.focus();
+
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
+      if (e.key === "Escape") {
+        setOpen(false);
+        return;
+      }
+      if (e.key === "Tab") {
+        const f = getFocusable();
+        if (f.length === 0) return;
+        const first = f[0];
+        const last = f[f.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
     };
     window.addEventListener("keydown", onKey);
     const prevOverflow = document.body.style.overflow;
@@ -138,6 +176,7 @@ export function MobileNav() {
     return () => {
       window.removeEventListener("keydown", onKey);
       document.body.style.overflow = prevOverflow;
+      opener?.focus?.();
     };
   }, [open]);
 
@@ -176,9 +215,10 @@ export function MobileNav() {
           }`}
         />
         <aside
+          ref={asideRef}
           role="dialog"
           aria-modal="true"
-          aria-label={t("common.appName")}
+          aria-label={t("nav.mainMenu")}
           className={`absolute left-0 top-0 flex h-full w-[270px] max-w-[80%] flex-col bg-white shadow-2xl transition-transform duration-300 dark:bg-slate-900 ${
             open ? "translate-x-0" : "-translate-x-full"
           }`}
