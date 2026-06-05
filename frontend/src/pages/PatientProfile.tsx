@@ -44,6 +44,14 @@ function formatDate(iso: string): string {
   return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
 }
 
+function formatDateShort(iso: string): string {
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return iso;
+  const dd = String(d.getDate()).padStart(2, "0");
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  return `${dd}/${mm}/${d.getFullYear()}`;
+}
+
 function Skl({ w = "100%", h = 14, mt = 0 }: { w?: string; h?: number; mt?: number }) {
   return (
     <div className="sk animate-shimmer rounded" style={{ width: w, height: h, marginTop: mt }} />
@@ -162,7 +170,7 @@ function AddConditionModal({ amka, onClose }: { amka: string; onClose: () => voi
         </div>
         {/* TODO: remove this notice when createPatientCondition API is wired */}
         <p className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11.5px] text-amber-800">
-          Condition saving is not yet wired to the backend — this will be discarded on page refresh.
+          {t("patientProfile.conditionsSaveNotice")}
         </p>
         <div className="mt-3 flex justify-end gap-2.5">
           <button
@@ -213,7 +221,7 @@ function HistoryRow({ row, index }: { row: PatientRxHistoryRow; index: number })
           </div>
           {open && row.prescriberName && (
             <p className="mt-2 text-[12.5px] text-slate-500">
-              Prescriber: {row.prescriberName} · Rx{" "}
+              {t("patientProfile.prescriberLabel")} {row.prescriberName} · Rx{" "}
               <Link
                 to={`/prescription/${row.rxId}`}
                 className="text-brand-600 hover:underline"
@@ -241,6 +249,32 @@ function HistoryRow({ row, index }: { row: PatientRxHistoryRow; index: number })
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 
+type FilterKey = "all" | "last90" | "lastYear" | "byDrug";
+
+function applyHistoryFilter(rows: PatientRxHistoryRow[], filter: FilterKey): PatientRxHistoryRow[] {
+  const now = new Date();
+  if (filter === "last90") {
+    const cutoff = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+    return rows.filter((r) => new Date(r.date) >= cutoff);
+  }
+  if (filter === "lastYear") {
+    const cutoff = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
+    return rows.filter((r) => new Date(r.date) >= cutoff);
+  }
+  if (filter === "byDrug") {
+    const seen = new Set<string>();
+    return rows
+      .slice()
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+      .filter((r) => {
+        if (seen.has(r.drugName)) return false;
+        seen.add(r.drugName);
+        return true;
+      });
+  }
+  return rows;
+}
+
 export function PatientProfile() {
   const { id = "" } = useParams<{ id: string }>();
   const [search] = useSearchParams();
@@ -263,7 +297,6 @@ export function PatientProfile() {
 
   const [usingFallback, setUsingFallback] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
-  type FilterKey = "all" | "last90" | "lastYear" | "byDrug";
   const [historyFilter, setHistoryFilter] = useState<FilterKey>("all");
 
   useEffect(() => {
@@ -389,6 +422,9 @@ export function PatientProfile() {
 
   const intolerances = profile.intolerances ?? [];
   const amka = profile.amka ?? id;
+  const filteredHistory: PatientRxHistoryRow[] = rxHistory
+    ? applyHistoryFilter(rxHistory, historyFilter)
+    : [];
 
   return (
     <div className="mx-auto max-w-[1100px] px-6 py-6 lg:px-8">
@@ -434,14 +470,20 @@ export function PatientProfile() {
                 {typeof profile.age === "number" && (
                   <>
                     <span className="text-slate-300">·</span>
-                    <span>{profile.age} yrs</span>
+                    <span>
+                      {profile.age} {t("patientProfile.yearsAbbr")}
+                    </span>
                   </>
                 )}
                 {profile.sex && (
                   <>
                     <span className="text-slate-300">·</span>
                     <span>
-                      {profile.sex === "F" ? "Θήλυ" : profile.sex === "M" ? "Άρρεν" : profile.sex}
+                      {profile.sex === "F"
+                        ? t("patientProfile.sexFemale")
+                        : profile.sex === "M"
+                          ? t("patientProfile.sexMale")
+                          : profile.sex}
                     </span>
                   </>
                 )}
@@ -480,21 +522,24 @@ export function PatientProfile() {
         <Card>
           <SectionTitle>{t("patientProfile.demographicsTitle")}</SectionTitle>
           <dl className="grid grid-cols-2 gap-x-6 gap-y-4 md:grid-cols-3">
-            {profile.dateOfBirth && (
-              <Field label="Date of birth" mono>
-                {profile.dateOfBirth}
-              </Field>
-            )}
-            {profile.sex && (
-              <Field label="Sex">
-                {profile.sex === "F" ? "Female" : profile.sex === "M" ? "Male" : profile.sex}
-              </Field>
-            )}
-            {profile.phone && (
-              <Field label="Phone" mono>
-                {profile.phone}
-              </Field>
-            )}
+            <Field label={t("patientProfile.fieldDateOfBirth")} mono>
+              {profile.dateOfBirth ? formatDateShort(profile.dateOfBirth) : "—"}
+            </Field>
+            <Field label={t("patientProfile.fieldSex")}>
+              {!profile.sex
+                ? "—"
+                : profile.sex === "F"
+                  ? t("patientProfile.sexFemale")
+                  : profile.sex === "M"
+                    ? t("patientProfile.sexMale")
+                    : profile.sex}
+            </Field>
+            <Field label={t("patientProfile.fieldNationality")}>{profile.nationality ?? "—"}</Field>
+            <Field label={t("patientProfile.fieldPhone")} mono>
+              {profile.phone ?? "—"}
+            </Field>
+            <Field label={t("patientProfile.fieldEmail")}>{profile.email ?? "—"}</Field>
+            <Field label={t("patientProfile.fieldAddress")}>{profile.address ?? "—"}</Field>
           </dl>
 
           {/* safety exceptions as chips */}
@@ -502,28 +547,34 @@ export function PatientProfile() {
             <div className="mt-4 flex flex-wrap gap-2">
               {profile.safetyFlags.g6pd && (
                 <span className="inline-flex items-center gap-1.5 rounded-full border border-red-200 bg-red-50 px-3 py-1 text-[12px] font-medium text-red-800">
-                  <AlertOctagonIcon width={13} height={13} /> G6PD deficiency
+                  <AlertOctagonIcon width={13} height={13} /> {t("patientProfile.g6pdFlag")}
                 </span>
               )}
               {profile.safetyFlags.pregnancyWeeks != null &&
                 profile.safetyFlags.pregnancyWeeks > 0 && (
                   <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-[12px] font-medium text-amber-800">
-                    <InfoIcon width={13} height={13} /> Pregnancy{" "}
-                    {profile.safetyFlags.pregnancyWeeks} wks
+                    <InfoIcon width={13} height={13} />{" "}
+                    {t("patientProfile.pregnancyFlag", {
+                      weeks: profile.safetyFlags.pregnancyWeeks,
+                    })}
                   </span>
                 )}
               {profile.safetyFlags.renalFunction &&
                 profile.safetyFlags.renalFunction !== "NORMAL" && (
                   <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-[12px] font-medium text-amber-800">
-                    <InfoIcon width={13} height={13} /> Renal:{" "}
-                    {profile.safetyFlags.renalFunction.replace(/_/g, " ").toLowerCase()}
+                    <InfoIcon width={13} height={13} />{" "}
+                    {t("patientProfile.renalFlag", {
+                      value: profile.safetyFlags.renalFunction.replace(/_/g, " ").toLowerCase(),
+                    })}
                   </span>
                 )}
               {profile.safetyFlags.hepaticFunction &&
                 profile.safetyFlags.hepaticFunction !== "NORMAL" && (
                   <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-[12px] font-medium text-amber-800">
-                    <InfoIcon width={13} height={13} /> Hepatic:{" "}
-                    {profile.safetyFlags.hepaticFunction.replace(/_/g, " ").toLowerCase()}
+                    <InfoIcon width={13} height={13} />{" "}
+                    {t("patientProfile.hepaticFlag", {
+                      value: profile.safetyFlags.hepaticFunction.replace(/_/g, " ").toLowerCase(),
+                    })}
                   </span>
                 )}
             </div>
@@ -534,7 +585,9 @@ export function PatientProfile() {
             <div className="mt-3 flex items-start gap-2 rounded-lg border border-brand-100 bg-brand-50 px-3.5 py-2.5">
               <InfoIcon width={15} height={15} className="mt-0.5 shrink-0 text-brand-600" />
               <div className="text-[12.5px] leading-snug text-slate-700">
-                <span className="font-semibold text-brand-700">Allergies · </span>
+                <span className="font-semibold text-brand-700">
+                  {t("patientProfile.allergiesLabel")} ·{" "}
+                </span>
                 {profile.allergies.join(", ")}
               </div>
             </div>
@@ -626,21 +679,22 @@ export function PatientProfile() {
                       <div className="mt-0.5 text-[11.5px] text-slate-500">{c.notes}</div>
                     )}
                     <div className="mono mt-0.5 text-[11px] text-slate-400">
-                      {c.severity && `${c.severity} · `}recorded {formatDate(c.createdAt)}
+                      {c.severity && `${c.severity} · `}
+                      {t("patientProfile.recorded")} {formatDate(c.createdAt)}
                     </div>
                   </div>
                   <div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
                     <button
                       type="button"
                       className="rounded p-1.5 text-slate-400 hover:bg-white hover:text-brand-600"
-                      aria-label="Edit"
+                      aria-label={t("patientProfile.editCondition")}
                     >
                       <EditIcon width={14} height={14} />
                     </button>
                     <button
                       type="button"
                       className="rounded p-1.5 text-slate-400 hover:bg-white hover:text-red-600"
-                      aria-label="Remove"
+                      aria-label={t("patientProfile.removeCondition")}
                     >
                       <TrashIcon width={14} height={14} />
                     </button>
@@ -707,7 +761,7 @@ export function PatientProfile() {
           ) : (
             <div className="relative">
               <span className="absolute bottom-2 left-[10px] top-2 w-px bg-slate-200" />
-              {rxHistory.map((r, i) => (
+              {filteredHistory.map((r, i) => (
                 <HistoryRow key={r.rxId} row={r} index={i} />
               ))}
             </div>

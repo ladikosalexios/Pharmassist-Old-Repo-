@@ -68,6 +68,25 @@
     "filterLastYear": "Τελευταίο έτος",
     "filterByDrug": "Ανά φάρμακο",
     "severe": "ΣΟΒΑΡΗ",
-    "fallbackBanner": "Εμφάνιση δεδομένων επίδειξης — το API ασθενών δεν είναι διαθέσιμο."
+    "fallbackBanner": "Εμφάνιση δεδομένων επίδειξης — το API ασθενών δεν είναι διαθέσιμο.",
+    "prescriberLabel": "Συνταγογράφος:",
+    "yearsAbbr": "ετών",
+    "sexFemale": "Θήλυ",
+    "sexMale": "Άρρεν",
+    "fieldDateOfBirth": "Ημ/νια γέννησης",
+    "fieldSex": "Φύλο",
+    "fieldNationality": "Ιθαγένεια",
+    "fieldPhone": "Τηλέφωνο",
+    "fieldEmail": "Email",
+    "fieldAddress": "Διεύθυνση",
+    "g6pdFlag": "Ανεπάρκεια G6PD",
+    "pregnancyFlag": "Κύηση {{weeks}} εβδ.",
+    "renalFlag": "Νεφρική: {{value}}",
+    "hepaticFlag": "Ηπατική: {{value}}",
+    "allergiesLabel": "Αλλεργίες",
+    "recorded": "καταγράφηκε",
+    "conditionsSaveNotice": "Η αποθήκευση παθήσεων δεν είναι ακόμα συνδεδεμένη με το backend — θα διαγραφεί κατά την ανανέωση.",
+    "editCondition": "Επεξεργασία",
+    "removeCondition": "Αφαίρεση"
   }
 }

@@ -415,7 +415,7 @@ export async function getPatientConditions(patientId: string): Promise<PatientCo
   const r = await fetch(`${API_BASE}/patients/${encodeURIComponent(patientId)}/conditions`, {
     credentials: "include",
   });
-  const data = (await handle(r)) as Promise<PatientCondition[]>;
+  const data = (await handle(r)) as PatientCondition[];
   if (!Array.isArray(data)) {
     throw new ApiError(0, `Unexpected response from /patients/${patientId}/conditions.`);
   }

@@ -68,6 +68,25 @@
     "filterLastYear": "Last year",
     "filterByDrug": "By drug",
     "severe": "SEVERE",
-    "fallbackBanner": "Showing demo data — the patients API is unreachable or returned an outdated shape."
+    "fallbackBanner": "Showing demo data — the patients API is unreachable or returned an outdated shape.",
+    "prescriberLabel": "Prescriber:",
+    "yearsAbbr": "yrs",
+    "sexFemale": "Female",
+    "sexMale": "Male",
+    "fieldDateOfBirth": "Date of birth",
+    "fieldSex": "Sex",
+    "fieldNationality": "Nationality",
+    "fieldPhone": "Phone",
+    "fieldEmail": "Email",
+    "fieldAddress": "Address",
+    "g6pdFlag": "G6PD deficiency",
+    "pregnancyFlag": "Pregnancy {{weeks}} wks",
+    "renalFlag": "Renal: {{value}}",
+    "hepaticFlag": "Hepatic: {{value}}",
+    "allergiesLabel": "Allergies",
+    "recorded": "recorded",
+    "conditionsSaveNotice": "Condition saving is not yet wired to the backend — this will be discarded on page refresh.",
+    "editCondition": "Edit",
+    "removeCondition": "Remove"
   }
 }
