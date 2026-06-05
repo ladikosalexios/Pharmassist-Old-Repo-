@@ -277,12 +277,13 @@ function ReportForm({ onSubmitted, submittedRef }: ReportFormProps) {
       Moderate: "MODERATE",
       Severe: "SEVERE",
     };
+    const symptom = [symptoms.trim(), ...picked].filter(Boolean).join("; ");
     try {
       const report = await createSideEffect({
         patientName: patient,
         drugName: med,
         severity: severityMap[sev] ?? "MILD",
-        symptom: symptoms,
+        symptom,
         onset: onset || phase,
       });
       onSubmitted(report);
@@ -299,7 +300,7 @@ function ReportForm({ onSubmitted, submittedRef }: ReportFormProps) {
           severity: (severityMap[sev] as AdrSeverity) ?? "MILD",
           status: "PENDING_REVIEW",
           reportedAt: new Date().toISOString(),
-          symptom: symptoms,
+          symptom,
           onset: onset || phase,
         };
         onSubmitted(optimistic);
@@ -508,7 +509,9 @@ function ReportForm({ onSubmitted, submittedRef }: ReportFormProps) {
               >
                 <option value="">{t("reports.causalityPlaceholder")}</option>
                 {(["Certain", "Probable", "Possible", "Unlikely"] as const).map((v) => (
-                  <option key={v}>{t(`reports.causality${v}`)}</option>
+                  <option key={v} value={v}>
+                    {t(`reports.causality${v}`)}
+                  </option>
                 ))}
               </select>
             </div>
@@ -566,9 +569,11 @@ function ReportForm({ onSubmitted, submittedRef }: ReportFormProps) {
 
 // ── Previous reports tab ───────────────────────────────────────────────────────
 
+type StatusFilter = "all" | "PENDING_REVIEW" | "ESCALATED" | "EOF_REPORTED";
+type SevFilter = "all" | "MILD" | "MODERATE" | "SEVERE";
+
 interface PreviousReportsProps {
   items: SideEffectReport[] | null;
-  stats: SideEffectStats;
   loading: boolean;
   usingFallback: boolean;
   fallbackError: string | null;
@@ -589,23 +594,35 @@ function PreviousReports({
   onViewProfile,
 }: PreviousReportsProps) {
   const { t } = useTranslation();
-  const [statusFilter, setStatusFilter] = useState("All");
-  const [sevFilter, setSevFilter] = useState("All");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [sevFilter, setSevFilter] = useState<SevFilter>("all");
 
-  const statusTabs = [
-    t("reports.filterAll"),
-    t("reports.filterDraft"),
-    t("reports.filterSubmitted"),
-    t("reports.filterAcknowledged"),
+  const statusTabs: { value: StatusFilter; label: string }[] = [
+    { value: "all", label: t("reports.filterAll") },
+    { value: "PENDING_REVIEW", label: t("reports.filterDraft") },
+    { value: "ESCALATED", label: t("reports.filterSubmitted") },
+    { value: "EOF_REPORTED", label: t("reports.filterAcknowledged") },
   ];
-  const sevTabs = [
-    t("reports.filterAll"),
-    t("reports.severityMild"),
-    t("reports.severityModerate"),
-    t("reports.severitySevere"),
+  const sevTabs: { value: SevFilter; label: string }[] = [
+    { value: "all", label: t("reports.filterAll") },
+    { value: "MILD", label: t("reports.severityMild") },
+    { value: "MODERATE", label: t("reports.severityModerate") },
+    { value: "SEVERE", label: t("reports.severitySevere") },
   ];
 
-  const empty = !loading && (!items || items.length === 0);
+  const visible = useMemo(
+    () =>
+      items
+        ? items.filter(
+            (r) =>
+              (statusFilter === "all" || r.status === statusFilter) &&
+              (sevFilter === "all" || r.severity === sevFilter),
+          )
+        : null,
+    [items, statusFilter, sevFilter],
+  );
+
+  const empty = !loading && (!visible || visible.length === 0);
 
   return (
     <div>
@@ -621,34 +638,34 @@ function PreviousReports({
 
       <div className="mb-4 flex flex-wrap items-center gap-2.5">
         <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 p-0.5">
-          {statusTabs.map((s) => (
+          {statusTabs.map(({ value, label }) => (
             <button
-              key={s}
+              key={value}
               type="button"
-              onClick={() => setStatusFilter(s)}
+              onClick={() => setStatusFilter(value)}
               className={`rounded-md px-2.5 py-1.5 text-[12px] font-medium transition-colors ${
-                statusFilter === s
+                statusFilter === value
                   ? "bg-white text-brand-700 shadow-card"
                   : "text-slate-500 hover:text-slate-700"
               }`}
             >
-              {s}
+              {label}
             </button>
           ))}
         </div>
         <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 p-0.5">
-          {sevTabs.map((s) => (
+          {sevTabs.map(({ value, label }) => (
             <button
-              key={s}
+              key={value}
               type="button"
-              onClick={() => setSevFilter(s)}
+              onClick={() => setSevFilter(value)}
               className={`rounded-md px-2.5 py-1.5 text-[12px] font-medium transition-colors ${
-                sevFilter === s
+                sevFilter === value
                   ? "bg-white text-brand-700 shadow-card"
                   : "text-slate-500 hover:text-slate-700"
               }`}
             >
-              {s}
+              {label}
             </button>
           ))}
         </div>
@@ -674,7 +691,7 @@ function PreviousReports({
         </div>
       )}
 
-      {!loading && items && items.length > 0 && (
+      {!loading && visible && visible.length > 0 && (
         <div className="animate-fade-in overflow-hidden rounded-xl border border-slate-200 bg-white shadow-card">
           <div className="grid grid-cols-[110px_150px_1fr_110px_130px_120px] items-center gap-4 border-b border-slate-200 bg-slate-50 px-5 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
             <span>{t("reports.colDate")}</span>
@@ -684,7 +701,7 @@ function PreviousReports({
             <span>{t("reports.colStatus")}</span>
             <span />
           </div>
-          {items.map((r, i) => (
+          {visible.map((r, i) => (
             <div
               key={r.id}
               className={`group grid grid-cols-[110px_150px_1fr_110px_130px_120px] items-center gap-4 px-5 py-3.5 transition-colors hover:bg-slate-50 ${
@@ -753,8 +770,8 @@ export function SideEffects() {
   const navigate = useNavigate();
 
   const [tab, setTab] = useState<"report" | "previous">("report");
-  const [query] = useState("");
-  const [sort] = useState<AdrSort>("date");
+  const query = "";
+  const sort: AdrSort = "date";
   const [items, setItems] = useState<SideEffectReport[] | null>(null);
   const [stats, setStats] = useState<SideEffectStats>({
     total: 0,
@@ -863,6 +880,9 @@ export function SideEffects() {
       total: cur.total + 1,
       pendingReview: cur.pendingReview + 1,
     }));
+    if (usingFallback) {
+      setFallbackMaster((cur) => [report, ...cur]);
+    }
     setSubmittedRef(report.id);
     setTimeout(() => setTab("previous"), 2000);
   }
@@ -936,7 +956,10 @@ export function SideEffects() {
           <button
             key={v}
             type="button"
-            onClick={() => setTab(v)}
+            onClick={() => {
+              if (v === "report") setSubmittedRef(null);
+              setTab(v);
+            }}
             className={`-mb-px border-b-2 px-4 py-2.5 text-[13.5px] font-semibold transition-colors ${
               tab === v
                 ? "border-brand-600 text-brand-700"
@@ -964,14 +987,16 @@ export function SideEffects() {
       ) : (
         <PreviousReports
           items={items}
-          stats={stats}
           loading={loading}
           usingFallback={usingFallback}
           fallbackError={fallbackError}
           busyId={busyId}
           onFlag={onFlag}
           onNotify={onNotifyPhysician}
-          onViewProfile={(r) => navigate(`/patients/${r.patientId}`)}
+          onViewProfile={(r) => {
+            if (r.patientId) navigate(`/patients/${r.patientId}`);
+            else toast("Patient ID not available for this report.", "warn");
+          }}
         />
       )}
     </div>
