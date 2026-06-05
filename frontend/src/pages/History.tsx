@@ -24,6 +24,12 @@ const METHOD_TONE: Record<DeliveryMethod, string> = {
   BOTH: "bg-slate-100 text-slate-600",
 };
 
+const METHOD_KEY: Record<DeliveryMethod, string> = {
+  PRINT: "methodPrint",
+  DIGITAL: "methodDigital",
+  BOTH: "methodBoth",
+};
+
 const STATUS_TONE: Record<string, string> = {
   COMPLETED: "bg-emerald-50 text-emerald-700",
   FLAGGED: "bg-red-50 text-red-700",
@@ -32,6 +38,16 @@ const STATUS_TONE: Record<string, string> = {
 
 function Skl({ w = "100%", h = 12 }: { w?: string; h?: number }) {
   return <div className="sk animate-shimmer rounded" style={{ width: w, height: h }} />;
+}
+
+function formatDateTime(iso: string): string {
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return iso;
+  const dd = String(d.getDate()).padStart(2, "0");
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const hh = String(d.getHours()).padStart(2, "0");
+  const min = String(d.getMinutes()).padStart(2, "0");
+  return `${dd}/${mm}/${d.getFullYear()} ${hh}:${min}`;
 }
 
 export function History() {
@@ -131,15 +147,17 @@ export function History() {
 
       {/* stats strip */}
       <div className="mb-5 flex flex-wrap items-center gap-x-8 gap-y-3 rounded-xl border border-slate-200 bg-white px-6 py-4 shadow-card">
-        {[
-          { label: t("history.statToday"), value: stats.today },
-          { label: t("history.statTotal"), value: stats.total || "—" },
-        ].map(({ label, value }) => (
-          <div key={label} className="flex items-baseline gap-2">
-            <span className="text-[20px] font-bold tabular-nums text-slate-900">{value}</span>
-            <span className="text-[12px] font-medium text-slate-500">{label}</span>
-          </div>
-        ))}
+        <div className="flex items-baseline gap-2">
+          <span className="text-[20px] font-bold tabular-nums text-slate-900">{stats.today}</span>
+          <span className="text-[12px] font-medium text-slate-500">{t("history.statToday")}</span>
+        </div>
+        <span className="h-8 w-px bg-slate-200" />
+        <div className="flex items-baseline gap-2">
+          <span className="text-[20px] font-bold tabular-nums text-slate-900">
+            {stats.total || "—"}
+          </span>
+          <span className="text-[12px] font-medium text-slate-500">{t("history.statTotal")}</span>
+        </div>
       </div>
 
       {/* sticky filter bar */}
@@ -251,7 +269,9 @@ export function History() {
                 i > 0 ? "border-t border-slate-100" : ""
               }`}
             >
-              <span className="mono text-[12px] text-slate-500">{r.dispensedAt}</span>
+              <span className="mono text-[12px] text-slate-500">
+                {formatDateTime(r.dispensedAt)}
+              </span>
               <span className="mono truncate text-[12.5px] text-slate-600">{r.rxId}</span>
               <span className="truncate text-[13px] font-medium text-slate-900">
                 {r.patientName}
@@ -259,9 +279,11 @@ export function History() {
               <span className="truncate text-[12.5px] text-slate-600">{r.drugName}</span>
               <span>
                 <span
-                  className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${METHOD_TONE[r.deliveryMethod]}`}
+                  className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${METHOD_TONE[r.deliveryMethod] ?? "bg-slate-100 text-slate-500"}`}
                 >
-                  {r.deliveryMethod}
+                  {METHOD_KEY[r.deliveryMethod]
+                    ? t(`history.${METHOD_KEY[r.deliveryMethod]}`)
+                    : (r.deliveryMethod ?? "—")}
                 </span>
               </span>
               <span>
