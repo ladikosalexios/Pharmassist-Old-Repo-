@@ -106,6 +106,8 @@ function Toggle({ on, onClick }: { on: boolean; onClick: () => void }) {
   return (
     <button
       type="button"
+      role="switch"
+      aria-checked={on}
       onClick={onClick}
       className={`relative h-6 w-11 rounded-full transition-colors ${on ? "bg-brand-600" : "bg-slate-200"}`}
     >
@@ -129,6 +131,7 @@ function ComingSoonBadge() {
 
 function PwModal({ onClose }: { onClose: () => void }) {
   const { t } = useTranslation();
+  const { toast } = useToast();
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -181,7 +184,10 @@ function PwModal({ onClose }: { onClose: () => void }) {
           </button>
           <button
             type="button"
-            onClick={onClose}
+            onClick={() => {
+              toast("Password update is coming soon.", "info");
+              onClose();
+            }}
             disabled={!current || !next || next !== confirm}
             className="rounded-lg bg-brand-600 px-4 py-2 text-[13px] font-semibold text-white hover:bg-brand-700 disabled:opacity-50"
           >
@@ -197,8 +203,8 @@ function PwModal({ onClose }: { onClose: () => void }) {
 // ── sub-pages ─────────────────────────────────────────────────────────────────
 
 function ProfilePage({ profile, onSave }: { profile: MeResponse | null; onSave: () => void }) {
-  const { t } = useTranslation();
-  const [lang, setLang] = useState("EL");
+  const { t, i18n } = useTranslation();
+  const [lang, setLang] = useState(() => (i18n.language === "en" ? "EN" : "EL"));
   const [notifs, setNotifs] = useState({ a: true, b: true, c: false, d: true });
 
   return (
@@ -228,7 +234,10 @@ function ProfilePage({ profile, onSave }: { profile: MeResponse | null; onSave: 
               <button
                 key={v}
                 type="button"
-                onClick={() => setLang(v)}
+                onClick={() => {
+                  setLang(v);
+                  void i18n.changeLanguage(v.toLowerCase());
+                }}
                 className={`rounded-md px-3 py-1.5 text-[12.5px] font-medium transition-colors ${
                   lang === v ? "bg-white text-brand-700 shadow-card" : "text-slate-500"
                 }`}
@@ -450,8 +459,8 @@ function TeamPage({
               className={`flex items-center gap-3 px-4 py-3 ${i > 0 ? "border-t border-slate-100" : ""}`}
             >
               <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-100 text-[12px] font-bold text-slate-500">
-                {m.name.split(" ")[1]?.[0] ?? m.name[0]}
                 {m.name.split(" ")[0][0]}
+                {m.name.split(" ")[1]?.[0] ?? ""}
               </div>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2 text-[13.5px] font-semibold text-slate-900">
@@ -475,33 +484,45 @@ function TeamPage({
   );
 }
 
+const MOCK_AUDIT = [
+  {
+    ts: "31/05/2026 14:31:08",
+    actor: "—",
+    action: "Dispense executed",
+    target: "barcode …",
+    type: "dispense",
+  },
+  {
+    ts: "31/05/2026 13:58:12",
+    actor: "—",
+    action: "Patient data accessed",
+    target: "AMKA ••••",
+    type: "access",
+  },
+  {
+    ts: "31/05/2026 09:02:41",
+    actor: "—",
+    action: "Login",
+    target: "IP 79.x.x.x",
+    type: "login",
+  },
+];
+
+type AuditFilter = "all" | "dispense" | "access" | "login";
+
 function AuditPage() {
   const { t } = useTranslation();
-  const [filter, setFilter] = useState("All");
+  const [filter, setFilter] = useState<AuditFilter>("all");
 
-  const MOCK_AUDIT = [
-    {
-      ts: "31/05/2026 14:31:08",
-      actor: "—",
-      action: "Dispense executed",
-      target: "barcode …",
-      type: "dispense",
-    },
-    {
-      ts: "31/05/2026 13:58:12",
-      actor: "—",
-      action: "Patient data accessed",
-      target: "AMKA ••••",
-      type: "access",
-    },
-    {
-      ts: "31/05/2026 09:02:41",
-      actor: "—",
-      action: "Login",
-      target: "IP 79.x.x.x",
-      type: "login",
-    },
+  const auditTabs: { value: AuditFilter; label: string }[] = [
+    { value: "all", label: t("settings.auditAll") },
+    { value: "dispense", label: t("settings.auditDispense") },
+    { value: "access", label: t("settings.auditAccess") },
+    { value: "login", label: t("settings.auditLogin") },
   ];
+
+  const visibleAudit = filter === "all" ? MOCK_AUDIT : MOCK_AUDIT.filter((a) => a.type === filter);
+
   const TYPE_TONE: Record<string, string> = {
     dispense: "bg-emerald-50 text-emerald-700",
     access: "bg-brand-50 text-brand-700",
@@ -512,23 +533,18 @@ function AuditPage() {
     <Card title={t("settings.auditTitle")} desc={t("settings.auditDesc")}>
       <div className="mb-3 flex flex-wrap items-center gap-2.5">
         <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 p-0.5">
-          {[
-            t("settings.auditAll"),
-            t("settings.auditDispense"),
-            t("settings.auditAccess"),
-            t("settings.auditLogin"),
-          ].map((x) => (
+          {auditTabs.map(({ value, label }) => (
             <button
-              key={x}
+              key={value}
               type="button"
-              onClick={() => setFilter(x)}
+              onClick={() => setFilter(value)}
               className={`rounded-md px-2.5 py-1.5 text-[12px] font-medium transition-colors ${
-                filter === x
+                filter === value
                   ? "bg-white text-brand-700 shadow-card"
                   : "text-slate-500 hover:text-slate-700"
               }`}
             >
-              {x}
+              {label}
             </button>
           ))}
         </div>
@@ -549,7 +565,7 @@ function AuditPage() {
           <span>{t("settings.colAction")}</span>
           <span>{t("settings.colType")}</span>
         </div>
-        {MOCK_AUDIT.map((a, i) => (
+        {visibleAudit.map((a, i) => (
           <div
             key={i}
             className={`grid grid-cols-[170px_140px_1fr_120px] items-center gap-4 px-4 py-3 ${i > 0 ? "border-t border-slate-100" : ""}`}
@@ -643,8 +659,8 @@ export function Settings() {
   useEffect(() => {
     me()
       .then(setProfile)
-      .catch(() => {});
-  }, []);
+      .catch(() => toast("Could not load profile.", "error"));
+  }, [toast]);
 
   const SUBNAV: {
     id: SubPage;
@@ -660,10 +676,6 @@ export function Settings() {
     { id: "audit", label: t("settings.navAudit"), Icon: ListIcon },
     { id: "danger", label: t("settings.navDanger"), Icon: ShieldOffIcon, danger: true },
   ];
-
-  async function handleInvite(email: string) {
-    await invitePharmacist(email);
-  }
 
   return (
     <div className="mx-auto max-w-[1100px] px-6 py-8 lg:px-8">
@@ -708,13 +720,16 @@ export function Settings() {
         {/* panel */}
         <div className="min-w-0 animate-fade-in" key={page}>
           {page === "profile" && (
-            <ProfilePage profile={profile} onSave={() => toast("Profile saved.", "success")} />
+            <ProfilePage
+              profile={profile}
+              onSave={() => toast("Coming soon — profile editing is not yet available.", "info")}
+            />
           )}
           {page === "credentials" && (
             <CredentialsPage profile={profile} onUpdatePw={() => setPwOpen(true)} />
           )}
           {page === "pharmacy" && <PharmacyPage profile={profile} />}
-          {page === "team" && <TeamPage profile={profile} onInvite={handleInvite} />}
+          {page === "team" && <TeamPage profile={profile} onInvite={invitePharmacist} />}
           {page === "audit" && <AuditPage />}
           {page === "danger" && (
             <DangerPage onSignOutAll={() => toast("Signed out on all other devices.", "success")} />
