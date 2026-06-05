@@ -158,9 +158,9 @@ function nextStatus(s: AdrStatus): AdrStatus {
 }
 
 const SEVERITY_TONE: Record<AdrSeverity, string> = {
-  MILD: "bg-amber-100 text-amber-800",
-  MODERATE: "bg-orange-100 text-orange-800",
-  SEVERE: "bg-red-100 text-red-800",
+  MILD: "bg-amber-100 text-amber-800 dark:bg-amber-500/15 dark:text-amber-400",
+  MODERATE: "bg-orange-100 text-orange-800 dark:bg-orange-500/15 dark:text-orange-400",
+  SEVERE: "bg-red-100 text-red-800 dark:bg-red-500/15 dark:text-red-400",
 };
 
 const SEVERITY_LABEL: Record<AdrSeverity, string> = {
@@ -170,8 +170,10 @@ const SEVERITY_LABEL: Record<AdrSeverity, string> = {
 };
 
 const STATUS_STYLE: Record<AdrStatus, string> = {
-  PENDING_REVIEW: "border border-amber-300 bg-white text-amber-800",
-  ESCALATED: "border border-red-300 bg-white text-red-800",
+  PENDING_REVIEW:
+    "border border-amber-300 bg-white text-amber-800 dark:border-amber-500/30 dark:bg-transparent dark:text-amber-400",
+  ESCALATED:
+    "border border-red-300 bg-white text-red-800 dark:border-red-500/30 dark:bg-transparent dark:text-red-400",
   EOF_REPORTED: "border border-emerald-600 bg-emerald-600 text-white",
 };
 
@@ -247,29 +249,29 @@ export function SideEffects() {
       {
         label: "Total Reports",
         value: stats.total,
-        tone: "bg-slate-100 text-slate-700",
-        valueClass: "text-slate-900",
+        tone: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
+        valueClass: "text-slate-900 dark:text-slate-100",
         Icon: AlertTriangleIcon,
       },
       {
         label: "Pending Review",
         value: stats.pendingReview,
-        tone: "bg-amber-100 text-amber-700",
-        valueClass: "text-amber-700",
+        tone: "bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-400",
+        valueClass: "text-amber-700 dark:text-amber-400",
         Icon: ClockIcon,
       },
       {
         label: "Severe Cases",
         value: stats.severe,
-        tone: "bg-red-100 text-red-700",
-        valueClass: "text-red-700",
+        tone: "bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-400",
+        valueClass: "text-red-700 dark:text-red-400",
         Icon: AlertOctagonIcon,
       },
       {
         label: "Escalated",
         value: stats.escalated,
-        tone: "bg-blue-100 text-blue-700",
-        valueClass: "text-blue-700",
+        tone: "bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-400",
+        valueClass: "text-blue-700 dark:text-blue-400",
         Icon: FlagIcon,
       },
     ],
@@ -339,15 +341,19 @@ export function SideEffects() {
   }
 
   return (
-    <div className="p-8">
+    <div className="p-4 sm:p-6 lg:p-8">
       {/* Header */}
       <div className="mb-7 flex items-start gap-3">
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-amber-100 text-amber-700">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-400">
           <AlertTriangleIcon width={18} height={18} />
         </div>
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Side Effect Reports</h1>
-          <p className="mt-1 text-sm text-slate-500">Patient-reported adverse drug reactions</p>
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">
+            Side Effect Reports
+          </h1>
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+            Patient-reported adverse drug reactions
+          </p>
         </div>
       </div>
 
@@ -357,7 +363,9 @@ export function SideEffects() {
           <div key={label} className="card p-5">
             <div className="flex items-start justify-between">
               <div>
-                <div className="text-sm font-medium text-slate-500">{label}</div>
+                <div className="text-sm font-medium text-slate-500 dark:text-slate-400">
+                  {label}
+                </div>
                 <div className={`mt-1 text-3xl font-bold ${valueClass}`}>
                   {loading ? "—" : value}
                 </div>
@@ -376,20 +384,20 @@ export function SideEffects() {
           <SearchIcon
             width={16}
             height={16}
-            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500"
           />
           <input
             type="search"
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
             placeholder="Search by patient name, medication, or symptom..."
-            className="w-full rounded-lg border border-slate-300 bg-white py-2 pl-9 pr-3 text-sm outline-none focus:border-brand-600 focus:ring-2 focus:ring-brand-100"
+            className="w-full rounded-lg border border-slate-300 bg-white py-2 pl-9 pr-3 text-sm outline-none focus:border-brand-600 focus:ring-2 focus:ring-brand-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
           />
         </div>
         <select
           value={sort}
           onChange={(e) => setSort(e.target.value as AdrSort)}
-          className="rounded-lg border border-slate-300 bg-white py-2 pl-3 pr-8 text-sm outline-none focus:border-brand-600 focus:ring-2 focus:ring-brand-100"
+          className="rounded-lg border border-slate-300 bg-white py-2 pl-3 pr-8 text-sm outline-none focus:border-brand-600 focus:ring-2 focus:ring-brand-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
           aria-label="Sort reports"
         >
           {SORT_OPTIONS.map((o) => (
@@ -402,22 +410,26 @@ export function SideEffects() {
 
       {/* Fallback banner */}
       {usingFallback && !loading && (
-        <div className="mb-3 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[13px] text-amber-800">
+        <div className="mb-3 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[13px] text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-400">
           <AlertCircleIcon width={14} height={14} className="mt-0.5 shrink-0" />
           <span>
             Showing demo data — the side-effects API is unreachable. Mutations apply locally only.
-            {fallbackError && <span className="ml-1 text-amber-700/80">({fallbackError})</span>}
+            {fallbackError && (
+              <span className="ml-1 text-amber-700/80 dark:text-amber-400/80">
+                ({fallbackError})
+              </span>
+            )}
           </span>
         </div>
       )}
 
       {/* List */}
       {loading ? (
-        <div className="card flex items-center gap-2 px-4 py-6 text-sm text-slate-500">
+        <div className="card flex items-center gap-2 px-4 py-6 text-sm text-slate-500 dark:text-slate-400">
           <span className="spinner text-brand-600" /> Loading reports…
         </div>
       ) : !items || items.length === 0 ? (
-        <div className="card px-4 py-10 text-center text-sm text-slate-500">
+        <div className="card px-4 py-10 text-center text-sm text-slate-500 dark:text-slate-400">
           No reports match your filters.
         </div>
       ) : (
@@ -444,10 +456,10 @@ export function SideEffects() {
       )}
 
       {/* Guidelines */}
-      <div className="mt-8 rounded-xl border border-blue-200 bg-blue-50 px-5 py-4 text-sm text-blue-900">
+      <div className="mt-8 rounded-xl border border-blue-200 bg-blue-50 px-5 py-4 text-sm text-blue-900 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-200">
         <div className="mb-2 flex items-center gap-2 font-semibold">
-          <CheckCircleIcon width={16} height={16} className="text-blue-600" /> Pharmacovigilance
-          Guidelines
+          <CheckCircleIcon width={16} height={16} className="text-blue-600 dark:text-blue-400" />{" "}
+          Pharmacovigilance Guidelines
         </div>
         <ol className="list-decimal space-y-1.5 pl-5 leading-relaxed">
           <li>
@@ -494,7 +506,9 @@ function ReportCard({ report, busy, onContact, onNotify, onFlag, onViewProfile }
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <h3 className="text-base font-semibold text-slate-900">{report.patientName}</h3>
+            <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">
+              {report.patientName}
+            </h3>
             <span className={`chip ${SEVERITY_TONE[report.severity]}`}>
               {SEVERITY_LABEL[report.severity]}
             </span>
@@ -502,39 +516,48 @@ function ReportCard({ report, busy, onContact, onNotify, onFlag, onViewProfile }
               {STATUS_LABEL[report.status]}
             </span>
           </div>
-          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-slate-500">
+          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-slate-500 dark:text-slate-400">
             {report.rxId ? (
               <Link
                 to={`/prescription/${report.rxId}`}
-                className="font-medium text-brand-600 hover:underline"
+                className="font-medium text-brand-600 hover:underline dark:text-brand-400"
               >
                 {report.drugName}
               </Link>
             ) : (
-              <span className="font-medium text-slate-700">{report.drugName}</span>
+              <span className="font-medium text-slate-700 dark:text-slate-300">
+                {report.drugName}
+              </span>
             )}
-            <span className="text-slate-400">·</span>
+            <span className="text-slate-400 dark:text-slate-500">·</span>
             <span>
-              Patient ID: <span className="font-mono text-slate-700">{report.patientId}</span>
+              Patient ID:{" "}
+              <span className="font-mono text-slate-700 dark:text-slate-300">
+                {report.patientId}
+              </span>
             </span>
-            <span className="text-slate-400">·</span>
+            <span className="text-slate-400 dark:text-slate-500">·</span>
             <span>Reported {formatTimestamp(report.reportedAt)}</span>
           </div>
         </div>
       </header>
 
       <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
-        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
-          <div className="text-xs font-semibold uppercase tracking-wide text-amber-700">
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-500/30 dark:bg-amber-500/10">
+          <div className="text-xs font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-400">
             Reported Symptom
           </div>
-          <p className="mt-1.5 text-sm leading-relaxed text-amber-900">{report.symptom}</p>
+          <p className="mt-1.5 text-sm leading-relaxed text-amber-900 dark:text-amber-200">
+            {report.symptom}
+          </p>
         </div>
-        <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
-          <div className="text-xs font-semibold uppercase tracking-wide text-blue-700">
+        <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 dark:border-blue-500/30 dark:bg-blue-500/10">
+          <div className="text-xs font-semibold uppercase tracking-wide text-blue-700 dark:text-blue-400">
             Time of Onset
           </div>
-          <p className="mt-1.5 text-sm leading-relaxed text-blue-900">{report.onset}</p>
+          <p className="mt-1.5 text-sm leading-relaxed text-blue-900 dark:text-blue-200">
+            {report.onset}
+          </p>
         </div>
       </div>
 

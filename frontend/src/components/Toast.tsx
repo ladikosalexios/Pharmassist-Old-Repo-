@@ -17,20 +17,24 @@ const ToastContext = createContext<ToastContextValue | undefined>(undefined);
 
 const TONE: Record<ToastVariant, { box: string; icon: ReactNode }> = {
   success: {
-    box: "border-emerald-200 bg-emerald-50 text-emerald-800",
-    icon: <CheckCircleIcon width={16} height={16} className="text-emerald-600" />,
+    box: "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300",
+    icon: (
+      <CheckCircleIcon width={16} height={16} className="text-emerald-600 dark:text-emerald-400" />
+    ),
   },
   warn: {
-    box: "border-amber-200 bg-amber-50 text-amber-800",
-    icon: <AlertTriangleIcon width={16} height={16} className="text-amber-600" />,
+    box: "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300",
+    icon: (
+      <AlertTriangleIcon width={16} height={16} className="text-amber-600 dark:text-amber-400" />
+    ),
   },
   error: {
-    box: "border-red-200 bg-red-50 text-red-800",
-    icon: <AlertCircleIcon width={16} height={16} className="text-red-600" />,
+    box: "border-red-200 bg-red-50 text-red-800 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300",
+    icon: <AlertCircleIcon width={16} height={16} className="text-red-600 dark:text-red-400" />,
   },
   info: {
-    box: "border-slate-200 bg-white text-slate-800",
-    icon: <CheckCircleIcon width={16} height={16} className="text-brand-600" />,
+    box: "border-slate-200 bg-white text-slate-800 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200",
+    icon: <CheckCircleIcon width={16} height={16} className="text-brand-600 dark:text-brand-400" />,
   },
 };
 
@@ -75,7 +79,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
               <button
                 type="button"
                 onClick={() => dismiss(t.id)}
-                className="ml-1 -mr-1 rounded p-0.5 text-slate-500 hover:bg-black/5 hover:text-slate-900"
+                className="ml-1 -mr-1 rounded p-0.5 text-slate-500 hover:bg-black/5 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-slate-100"
                 aria-label="Dismiss"
               >
                 <svg

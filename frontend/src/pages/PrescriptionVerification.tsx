@@ -25,7 +25,9 @@ function Skl({ w = "100%", h = 14, mt = 0 }: { w?: string; h?: number; mt?: numb
 function CardHead({ children }: { children: React.ReactNode }) {
   return (
     <div className="mb-4">
-      <h2 className="text-[12px] font-bold uppercase tracking-wider text-slate-400">{children}</h2>
+      <h2 className="text-[12px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+        {children}
+      </h2>
     </div>
   );
 }
@@ -41,8 +43,14 @@ function Field({
 }) {
   return (
     <div>
-      <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">{label}</dt>
-      <dd className={`mt-0.5 text-[13.5px] text-slate-800 ${mono ? "mono" : ""}`}>{children}</dd>
+      <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
+        {label}
+      </dt>
+      <dd
+        className={`mt-0.5 text-[13.5px] text-slate-800 dark:text-slate-200 ${mono ? "mono" : ""}`}
+      >
+        {children}
+      </dd>
     </div>
   );
 }
@@ -60,7 +68,7 @@ function PatientCard({
 }) {
   if (loading || !rx) {
     return (
-      <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-card">
+      <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-card dark:border-slate-800 dark:bg-slate-900">
         <CardHead>Patient</CardHead>
         <Skl w="60%" h={20} />
         <Skl w="40%" h={13} mt={10} />
@@ -78,10 +86,10 @@ function PatientCard({
 
   const p = rx.patient;
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-card">
+    <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-card dark:border-slate-800 dark:bg-slate-900">
       <CardHead>Patient</CardHead>
-      <div className="text-[18px] font-bold text-slate-900">{p.name}</div>
-      <div className="mt-0.5 text-[13px] text-slate-500">{p.age} yrs</div>
+      <div className="text-[18px] font-bold text-slate-900 dark:text-slate-100">{p.name}</div>
+      <div className="mt-0.5 text-[13px] text-slate-500 dark:text-slate-400">{p.age} yrs</div>
       <dl className="mt-5 grid grid-cols-2 gap-x-4 gap-y-4">
         <Field label="AMKA" mono>
           {p.amka}
@@ -91,14 +99,14 @@ function PatientCard({
         </Field>
         {conditions && conditions.length > 0 && (
           <div className="col-span-2">
-            <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+            <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
               Conditions
             </dt>
             <dd className="mt-1 flex flex-wrap gap-1.5">
               {conditions.map((c) => (
                 <span
                   key={c.id}
-                  className="inline-flex items-center rounded-md border border-brand-100 bg-brand-50 px-2 py-0.5 text-[11.5px] font-medium text-brand-700"
+                  className="inline-flex items-center rounded-md border border-brand-100 bg-brand-50 px-2 py-0.5 text-[11.5px] font-medium text-brand-700 dark:border-brand-500/20 dark:bg-brand-500/15 dark:text-brand-300"
                 >
                   {c.name}
                 </span>
@@ -107,7 +115,7 @@ function PatientCard({
           </div>
         )}
         {conditionsError && (
-          <div className="col-span-2 flex items-center gap-1 text-[12px] text-red-600">
+          <div className="col-span-2 flex items-center gap-1 text-[12px] text-red-600 dark:text-red-400">
             <AlertCircleIcon width={13} height={13} className="shrink-0" />
             {conditionsError}
           </div>
@@ -120,7 +128,7 @@ function PatientCard({
       </dl>
       <Link
         to={`/patients/${p.amka}?from=${encodeURIComponent(rx.rxId)}`}
-        className="mt-4 inline-flex items-center gap-0.5 text-[12.5px] font-medium text-brand-600 hover:text-brand-700"
+        className="mt-4 inline-flex items-center gap-0.5 text-[12.5px] font-medium text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300"
       >
         View full patient profile <ChevronRightIcon width={14} height={14} />
       </Link>
@@ -131,7 +139,7 @@ function PatientCard({
 function MedicationCard({ rx, loading }: { rx: Prescription | null; loading: boolean }) {
   if (loading || !rx) {
     return (
-      <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-card">
+      <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-card dark:border-slate-800 dark:bg-slate-900">
         <CardHead>Medication</CardHead>
         <Skl w="90%" h={18} />
         <Skl w="50%" h={13} mt={10} />
@@ -150,17 +158,19 @@ function MedicationCard({ rx, loading }: { rx: Prescription | null; loading: boo
   const m = rx.medication;
   const d = rx.prescriber;
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-card">
+    <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-card dark:border-slate-800 dark:bg-slate-900">
       <CardHead>Medication</CardHead>
-      <div className="text-[16px] font-bold leading-snug text-slate-900">{m.drugName}</div>
-      <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12.5px] text-slate-500">
+      <div className="text-[16px] font-bold leading-snug text-slate-900 dark:text-slate-100">
+        {m.drugName}
+      </div>
+      <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12.5px] text-slate-500 dark:text-slate-400">
         {m.atcCode && (
-          <span className="mono rounded bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-600">
+          <span className="mono rounded bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-600 dark:bg-slate-800 dark:text-slate-300">
             ATC {m.atcCode}
           </span>
         )}
         {m.nhrn && (
-          <span className="mono rounded bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-600">
+          <span className="mono rounded bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-600 dark:bg-slate-800 dark:text-slate-300">
             EOF {m.nhrn}
           </span>
         )}
@@ -172,18 +182,20 @@ function MedicationCard({ rx, loading }: { rx: Prescription | null; loading: boo
         <Field label="Frequency">{m.frequency}</Field>
         <Field label="Duration">{m.treatmentDuration}</Field>
       </dl>
-      <div className="mt-5 border-t border-slate-100 pt-4">
-        <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+      <div className="mt-5 border-t border-slate-100 pt-4 dark:border-slate-800">
+        <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
           Prescriber
         </dt>
-        <div className="mt-1 text-[13.5px] font-semibold text-slate-800">{d.name}</div>
-        <div className="mt-0.5 text-[12.5px] text-slate-500">
+        <div className="mt-1 text-[13.5px] font-semibold text-slate-800 dark:text-slate-200">
+          {d.name}
+        </div>
+        <div className="mt-0.5 text-[12.5px] text-slate-500 dark:text-slate-400">
           {d.specialty} · <span className="mono">{d.licenceId}</span>
         </div>
         {d.contact && (
           <a
             href={`tel:${d.contact}`}
-            className="mono mt-0.5 block text-[12.5px] text-brand-600 hover:text-brand-700"
+            className="mono mt-0.5 block text-[12.5px] text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300"
           >
             {d.contact}
           </a>
@@ -294,19 +306,19 @@ export function PrescriptionVerification() {
 
   if (loadError) {
     return (
-      <div className="p-8">
+      <div className="p-4 sm:p-6 lg:p-8">
         <Link
           to="/dashboard"
-          className="mb-4 inline-flex items-center gap-1.5 text-[13px] font-medium text-slate-500 hover:text-slate-800"
+          className="mb-4 inline-flex min-h-[40px] items-center gap-1.5 text-[13px] font-medium text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
         >
           <ArrowLeftIcon width={15} height={15} /> Back to counter
         </Link>
-        <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-6">
-          <div className="flex items-start gap-2 text-red-700">
+        <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-6 dark:border-red-500/30 dark:bg-red-500/10">
+          <div className="flex items-start gap-2 text-red-700 dark:text-red-400">
             <AlertCircleIcon className="mt-0.5 shrink-0" />
             <div>
               <div className="font-semibold">Could not load prescription {rxId}</div>
-              <p className="mt-1 text-sm text-red-600">{loadError}</p>
+              <p className="mt-1 text-sm text-red-600 dark:text-red-400/90">{loadError}</p>
             </div>
           </div>
         </div>
@@ -319,22 +331,26 @@ export function PrescriptionVerification() {
   const approveDisabled = loading || checksLoading || hasBlock || isCompleted || isFlagged;
 
   return (
-    <div className="mx-auto max-w-[1240px] px-6 py-6 lg:px-8">
+    <div className="mx-auto max-w-[1240px] px-4 py-6 sm:px-6 lg:px-8">
       {/* back link */}
       <Link
         to="/dashboard"
-        className="inline-flex items-center gap-1.5 text-[13px] font-medium text-slate-500 transition-colors hover:text-slate-800"
+        className="inline-flex min-h-[40px] items-center gap-1.5 text-[13px] font-medium text-slate-500 transition-colors hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
       >
         <ArrowLeftIcon width={15} height={15} /> Back to counter
       </Link>
 
       {/* header row */}
-      <div className="mt-3 flex flex-col gap-4 border-b border-slate-200 pb-5 lg:flex-row lg:items-center lg:justify-between">
+      <div className="mt-3 flex flex-col gap-4 border-b border-slate-200 pb-5 dark:border-slate-800 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <h1 className="text-[24px] font-bold tracking-tight text-slate-900">
+          <h1 className="text-[24px] font-bold tracking-tight text-slate-900 dark:text-slate-100">
             Review prescription
           </h1>
-          {rx && <div className="mono mt-1 text-[13px] text-slate-500">{rx.code}</div>}
+          {rx && (
+            <div className="mono mt-1 text-[13px] text-slate-500 dark:text-slate-400">
+              {rx.code}
+            </div>
+          )}
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5">
@@ -342,7 +358,7 @@ export function PrescriptionVerification() {
             type="button"
             onClick={() => setContactOpen(true)}
             disabled={!rx}
-            className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-[13px] font-semibold text-slate-700 shadow-card transition-colors hover:bg-slate-50 disabled:opacity-50"
+            className="flex min-h-[40px] items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-[13px] font-semibold text-slate-700 shadow-card transition-colors hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
           >
             <PhoneIcon width={15} height={15} /> Contact prescriber
           </button>
@@ -351,7 +367,7 @@ export function PrescriptionVerification() {
             type="button"
             onClick={() => setFlagOpen(true)}
             disabled={!rx || isCompleted || isFlagged}
-            className="flex items-center gap-1.5 rounded-lg border border-amber-300 bg-amber-50 px-3.5 py-2 text-[13px] font-semibold text-amber-700 shadow-card transition-colors hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-50"
+            className="flex min-h-[40px] items-center gap-1.5 rounded-lg border border-amber-300 bg-amber-50 px-3.5 py-2 text-[13px] font-semibold text-amber-700 shadow-card transition-colors hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-400 dark:hover:bg-amber-500/20"
           >
             <FlagIcon width={15} height={15} /> {isFlagged ? "Flagged" : "Flag discrepancy"}
           </button>
@@ -361,19 +377,19 @@ export function PrescriptionVerification() {
               type="button"
               onClick={onClickApprove}
               disabled={approveDisabled}
-              className={`flex items-center gap-1.5 rounded-lg px-4 py-2 text-[13px] font-semibold shadow-card transition-colors ${
+              className={`flex min-h-[40px] items-center gap-1.5 rounded-lg px-4 py-2 text-[13px] font-semibold shadow-card transition-colors ${
                 approveDisabled
-                  ? "cursor-not-allowed bg-slate-200 text-slate-400"
-                  : "bg-brand-600 text-white hover:bg-brand-700"
+                  ? "cursor-not-allowed bg-slate-200 text-slate-400 dark:bg-slate-800 dark:text-slate-500"
+                  : "bg-brand-600 text-white hover:bg-brand-700 dark:hover:bg-brand-500"
               }`}
             >
               {isCompleted ? "Completed" : "Approve & dispense"}
               <ChevronRightIcon width={15} height={15} />
             </button>
             {hasBlock && (
-              <div className="pointer-events-none absolute right-0 top-full z-10 mt-2 w-64 rounded-lg bg-slate-900 px-3 py-2 text-[12px] leading-snug text-white opacity-0 shadow-cardLg transition-opacity group-hover:opacity-100">
+              <div className="pointer-events-none absolute right-0 top-full z-10 mt-2 w-64 rounded-lg bg-slate-900 px-3 py-2 text-[12px] leading-snug text-white opacity-0 shadow-cardLg transition-opacity group-hover:opacity-100 dark:bg-slate-700">
                 Resolve all critical safety alerts before approving.
-                <span className="absolute -top-1 right-6 h-2 w-2 rotate-45 bg-slate-900" />
+                <span className="absolute -top-1 right-6 h-2 w-2 rotate-45 bg-slate-900 dark:bg-slate-700" />
               </div>
             )}
           </div>

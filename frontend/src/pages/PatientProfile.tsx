@@ -39,9 +39,9 @@ const TAB_LABEL: Record<Tab, string> = {
 };
 
 const RX_STATUS_CHIP: Record<string, string> = {
-  PENDING: "bg-amber-100 text-amber-800",
-  COMPLETED: "bg-emerald-100 text-emerald-800",
-  FLAGGED: "bg-red-100 text-red-800",
+  PENDING: "bg-amber-100 text-amber-800 dark:bg-amber-500/15 dark:text-amber-400",
+  COMPLETED: "bg-emerald-100 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-400",
+  FLAGGED: "bg-red-100 text-red-800 dark:bg-red-500/15 dark:text-red-400",
 };
 const RX_STATUS_LABEL: Record<string, string> = {
   PENDING: "Pending",
@@ -50,9 +50,9 @@ const RX_STATUS_LABEL: Record<string, string> = {
 };
 
 const SEVERITY_TONE: Record<AdrSeverity, string> = {
-  MILD: "bg-amber-100 text-amber-800",
-  MODERATE: "bg-orange-100 text-orange-800",
-  SEVERE: "bg-red-100 text-red-800",
+  MILD: "bg-amber-100 text-amber-800 dark:bg-amber-500/15 dark:text-amber-400",
+  MODERATE: "bg-orange-100 text-orange-800 dark:bg-orange-500/15 dark:text-orange-400",
+  SEVERE: "bg-red-100 text-red-800 dark:bg-red-500/15 dark:text-red-400",
 };
 const SEVERITY_LABEL: Record<AdrSeverity, string> = {
   MILD: "Mild",
@@ -60,9 +60,11 @@ const SEVERITY_LABEL: Record<AdrSeverity, string> = {
   SEVERE: "Severe",
 };
 const ADR_STATUS_TONE: Record<AdrStatus, string> = {
-  PENDING_REVIEW: "border border-amber-300 bg-white text-amber-800",
-  ESCALATED: "border border-red-300 bg-white text-red-800",
-  EOF_REPORTED: "border border-emerald-600 bg-emerald-600 text-white",
+  PENDING_REVIEW:
+    "border border-amber-300 bg-white text-amber-800 dark:border-amber-500/30 dark:bg-transparent dark:text-amber-400",
+  ESCALATED:
+    "border border-red-300 bg-white text-red-800 dark:border-red-500/30 dark:bg-transparent dark:text-red-400",
+  EOF_REPORTED: "border border-emerald-600 bg-emerald-600 text-white dark:border-emerald-500",
 };
 const ADR_STATUS_LABEL: Record<AdrStatus, string> = {
   PENDING_REVIEW: "Pending Review",
@@ -185,13 +187,13 @@ export function PatientProfile() {
     profile?.safetyFlags?.pregnancyWeeks != null && profile.safetyFlags.pregnancyWeeks > 0;
 
   return (
-    <div className="p-8">
+    <div className="p-4 sm:p-6 lg:p-8">
       {/* Back link */}
       <div className="mb-3 flex items-center gap-2 text-sm">
         {fromRx ? (
           <Link
             to={`/prescription/${fromRx}`}
-            className="inline-flex items-center gap-1 text-brand-600 hover:underline"
+            className="inline-flex min-h-[40px] items-center gap-1 text-brand-600 hover:underline dark:text-brand-400"
           >
             <ChevronLeftIcon width={14} height={14} /> Back to {fromRx}
           </Link>
@@ -199,7 +201,7 @@ export function PatientProfile() {
           <button
             type="button"
             onClick={() => navigate(-1)}
-            className="inline-flex items-center gap-1 text-brand-600 hover:underline"
+            className="inline-flex min-h-[40px] items-center gap-1 text-brand-600 hover:underline dark:text-brand-400"
           >
             <ChevronLeftIcon width={14} height={14} /> Back
           </button>
@@ -208,18 +210,18 @@ export function PatientProfile() {
 
       {/* Profile header */}
       {profileLoading ? (
-        <div className="card flex items-center gap-2 px-4 py-6 text-sm text-slate-500">
+        <div className="card flex items-center gap-2 px-4 py-6 text-sm text-slate-500 dark:text-slate-400">
           <span className="spinner text-brand-600" /> Loading profile…
         </div>
       ) : profileError || !profile ? (
-        <div className="card flex items-start gap-2 px-4 py-3 text-sm text-red-700">
+        <div className="card flex items-start gap-2 px-4 py-3 text-sm text-red-700 dark:text-red-400">
           <AlertCircleIcon width={14} height={14} className="mt-0.5 shrink-0" />
           <span>{profileError ?? "Patient profile not available."}</span>
         </div>
       ) : (
         <>
           {usingFallback && (
-            <div className="mb-3 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[13px] text-amber-800">
+            <div className="mb-3 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[13px] text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300">
               <AlertCircleIcon width={14} height={14} className="mt-0.5 shrink-0" />
               <span>
                 Showing demo data — the patients API is unreachable or returned an outdated shape.
@@ -228,15 +230,20 @@ export function PatientProfile() {
           )}
           <header className="card p-6">
             <div className="flex flex-wrap items-start gap-6">
-              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-brand-100 text-brand-700">
+              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-brand-100 text-brand-700 dark:bg-brand-500/15 dark:text-brand-300">
                 <UsersIcon width={24} height={24} />
               </div>
               <div className="min-w-0 flex-1">
-                <h1 className="text-2xl font-bold text-slate-900">{profile.name}</h1>
-                <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-slate-600">
+                <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">
+                  {profile.name}
+                </h1>
+                <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-slate-600 dark:text-slate-300">
                   {profile.amka && (
                     <span>
-                      AMKA: <span className="font-mono text-slate-800">{profile.amka}</span>
+                      AMKA:{" "}
+                      <span className="font-mono text-slate-800 dark:text-slate-200">
+                        {profile.amka}
+                      </span>
                     </span>
                   )}
                   {typeof profile.age === "number" && <span>{profile.age} years</span>}
@@ -250,7 +257,7 @@ export function PatientProfile() {
                   {profile.phone && (
                     <a
                       href={`tel:${profile.phone}`}
-                      className="inline-flex items-center gap-1 text-brand-600 hover:underline"
+                      className="inline-flex items-center gap-1 text-brand-600 hover:underline dark:text-brand-400"
                     >
                       <PhoneIcon width={13} height={13} /> {profile.phone}
                     </a>
@@ -258,12 +265,12 @@ export function PatientProfile() {
                 </div>
 
                 <div className="mt-4">
-                  <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  <div className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
                     Medical Conditions
                   </div>
                   <div className="mt-2 flex flex-wrap gap-2">
                     {conditionsError ? (
-                      <span className="inline-flex items-center gap-1 text-sm text-red-600">
+                      <span className="inline-flex items-center gap-1 text-sm text-red-600 dark:text-red-400">
                         <AlertCircleIcon width={13} height={13} className="shrink-0" />
                         {conditionsError}
                       </span>
@@ -273,39 +280,46 @@ export function PatientProfile() {
                       conditions.map((c) => (
                         <span
                           key={c.id}
-                          className="chip border border-brand-100 bg-brand-50 text-brand-700"
+                          className="chip border border-brand-100 bg-brand-50 text-brand-700 dark:border-brand-500/20 dark:bg-brand-500/15 dark:text-brand-300"
                         >
                           {c.name}
                         </span>
                       ))
                     ) : (
-                      <span className="text-sm text-slate-500">None recorded.</span>
+                      <span className="text-sm text-slate-500 dark:text-slate-400">
+                        None recorded.
+                      </span>
                     )}
                   </div>
                 </div>
 
                 <div className="mt-4">
-                  <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  <div className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
                     Allergies
                   </div>
                   <div className="mt-2">
                     {profile.allergies && profile.allergies.length > 0 ? (
                       <ul className="flex flex-wrap gap-2">
                         {profile.allergies.map((a) => (
-                          <li key={a} className="chip border border-red-200 bg-red-50 text-red-800">
+                          <li
+                            key={a}
+                            className="chip border border-red-200 bg-red-50 text-red-800 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-400"
+                          >
                             {a}
                           </li>
                         ))}
                       </ul>
                     ) : (
-                      <span className="text-sm text-slate-500">No known allergies.</span>
+                      <span className="text-sm text-slate-500 dark:text-slate-400">
+                        No known allergies.
+                      </span>
                     )}
                   </div>
                 </div>
               </div>
 
               <div className="shrink-0">
-                <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[12px] text-slate-500">
+                <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[12px] text-slate-500 dark:border-slate-700 dark:bg-slate-800/50 dark:text-slate-400">
                   Read-only — edits are made by the prescribing physician.
                 </div>
               </div>
@@ -316,7 +330,7 @@ export function PatientProfile() {
           <div
             role="tablist"
             aria-label="Patient sections"
-            className="mt-6 mb-4 flex gap-1 border-b border-slate-200"
+            className="mt-6 mb-4 flex gap-1 overflow-x-auto border-b border-slate-200 dark:border-slate-800"
           >
             {TABS.map((t) => (
               <button
@@ -325,10 +339,10 @@ export function PatientProfile() {
                 aria-selected={tab === t}
                 type="button"
                 onClick={() => setTab(t)}
-                className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px ${
+                className={`-mb-px min-h-[40px] shrink-0 whitespace-nowrap border-b-2 px-4 py-2 text-sm font-medium ${
                   tab === t
-                    ? "border-brand-600 text-brand-700"
-                    : "border-transparent text-slate-600 hover:text-slate-900"
+                    ? "border-brand-600 text-brand-700 dark:border-brand-400 dark:text-brand-300"
+                    : "border-transparent text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
                 }`}
               >
                 {TAB_LABEL[t]}
@@ -360,7 +374,7 @@ function RxHistoryTab({
 }) {
   if (error) {
     return (
-      <div className="card flex items-start gap-2 px-4 py-3 text-sm text-red-700">
+      <div className="card flex items-start gap-2 px-4 py-3 text-sm text-red-700 dark:text-red-400">
         <AlertCircleIcon width={14} height={14} className="mt-0.5 shrink-0" />
         <span>{error}</span>
       </div>
@@ -368,14 +382,14 @@ function RxHistoryTab({
   }
   if (!rows) {
     return (
-      <div className="card flex items-center gap-2 px-4 py-6 text-sm text-slate-500">
+      <div className="card flex items-center gap-2 px-4 py-6 text-sm text-slate-500 dark:text-slate-400">
         <span className="spinner text-brand-600" /> Loading prescription history…
       </div>
     );
   }
   if (rows.length === 0) {
     return (
-      <div className="card px-4 py-10 text-center text-sm text-slate-500">
+      <div className="card px-4 py-10 text-center text-sm text-slate-500 dark:text-slate-400">
         No prescriptions on record.
       </div>
     );
@@ -384,7 +398,7 @@ function RxHistoryTab({
     <div className="card overflow-hidden">
       <div className="overflow-x-auto">
         <table className="min-w-full text-sm">
-          <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+          <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:bg-slate-800/50 dark:text-slate-400">
             <tr>
               <th className="px-4 py-2.5">Date</th>
               <th className="px-4 py-2.5">Drug</th>
@@ -393,7 +407,7 @@ function RxHistoryTab({
               <th className="px-4 py-2.5"></th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100">
+          <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
             {rows.map((r) => (
               <tr
                 key={r.rxId}
@@ -402,27 +416,27 @@ function RxHistoryTab({
                 onKeyDown={(e) => {
                   if (e.key === "Enter") window.location.href = `/prescription/${r.rxId}`;
                 }}
-                className="cursor-pointer hover:bg-slate-50 focus:bg-slate-50 focus:outline-none"
+                className="cursor-pointer hover:bg-slate-50 focus:bg-slate-50 focus:outline-none dark:hover:bg-slate-800/60 dark:focus:bg-slate-800/60"
               >
-                <td className="px-4 py-3 text-slate-700">{r.date}</td>
+                <td className="px-4 py-3 text-slate-700 dark:text-slate-300">{r.date}</td>
                 <td className="px-4 py-3">
                   <Link
                     to={`/prescription/${r.rxId}`}
-                    className="text-brand-600 hover:underline"
+                    className="text-brand-600 hover:underline dark:text-brand-400"
                     onClick={(e) => e.stopPropagation()}
                   >
                     {r.drugName}
                   </Link>
                 </td>
-                <td className="px-4 py-3 text-slate-700">{r.prescriberName}</td>
+                <td className="px-4 py-3 text-slate-700 dark:text-slate-300">{r.prescriberName}</td>
                 <td className="px-4 py-3">
                   <span
-                    className={`chip ${RX_STATUS_CHIP[r.status] ?? "bg-slate-100 text-slate-800"}`}
+                    className={`chip ${RX_STATUS_CHIP[r.status] ?? "bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-300"}`}
                   >
                     {RX_STATUS_LABEL[r.status] ?? r.status}
                   </span>
                 </td>
-                <td className="px-4 py-3 text-right text-slate-400">
+                <td className="px-4 py-3 text-right text-slate-400 dark:text-slate-500">
                   <ChevronRightIcon width={14} height={14} />
                 </td>
               </tr>
@@ -437,7 +451,7 @@ function RxHistoryTab({
 function AdrHistoryTab({ rows, error }: { rows: SideEffectReport[] | null; error: string | null }) {
   if (error) {
     return (
-      <div className="card flex items-start gap-2 px-4 py-3 text-sm text-red-700">
+      <div className="card flex items-start gap-2 px-4 py-3 text-sm text-red-700 dark:text-red-400">
         <AlertCircleIcon width={14} height={14} className="mt-0.5 shrink-0" />
         <span>{error}</span>
       </div>
@@ -445,14 +459,14 @@ function AdrHistoryTab({ rows, error }: { rows: SideEffectReport[] | null; error
   }
   if (!rows) {
     return (
-      <div className="card flex items-center gap-2 px-4 py-6 text-sm text-slate-500">
+      <div className="card flex items-center gap-2 px-4 py-6 text-sm text-slate-500 dark:text-slate-400">
         <span className="spinner text-brand-600" /> Loading side-effect history…
       </div>
     );
   }
   if (rows.length === 0) {
     return (
-      <div className="card px-4 py-10 text-center text-sm text-slate-500">
+      <div className="card px-4 py-10 text-center text-sm text-slate-500 dark:text-slate-400">
         No adverse drug reactions on record.
       </div>
     );
@@ -466,12 +480,14 @@ function AdrHistoryTab({ rows, error }: { rows: SideEffectReport[] | null; error
               {r.rxId ? (
                 <Link
                   to={`/prescription/${r.rxId}`}
-                  className="text-sm font-semibold text-brand-600 hover:underline"
+                  className="text-sm font-semibold text-brand-600 hover:underline dark:text-brand-400"
                 >
                   {r.drugName}
                 </Link>
               ) : (
-                <span className="text-sm font-semibold text-slate-900">{r.drugName}</span>
+                <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                  {r.drugName}
+                </span>
               )}
               <span className={`chip ${SEVERITY_TONE[r.severity]}`}>
                 {SEVERITY_LABEL[r.severity]}
@@ -479,10 +495,14 @@ function AdrHistoryTab({ rows, error }: { rows: SideEffectReport[] | null; error
               <span className={`chip ${ADR_STATUS_TONE[r.status]}`}>
                 {ADR_STATUS_LABEL[r.status]}
               </span>
-              <span className="ml-auto text-xs text-slate-500">{formatDate(r.reportedAt)}</span>
+              <span className="ml-auto text-xs text-slate-500 dark:text-slate-400">
+                {formatDate(r.reportedAt)}
+              </span>
             </div>
-            <p className="mt-2 text-[13px] leading-relaxed text-slate-700">{r.symptom}</p>
-            <p className="mt-1 text-[12px] text-slate-500">Onset: {r.onset}</p>
+            <p className="mt-2 text-[13px] leading-relaxed text-slate-700 dark:text-slate-300">
+              {r.symptom}
+            </p>
+            <p className="mt-1 text-[12px] text-slate-500 dark:text-slate-400">Onset: {r.onset}</p>
           </article>
         </li>
       ))}
@@ -497,10 +517,22 @@ interface SafetyProfileTabProps {
 }
 
 const ORGAN_TONE: Record<OrganFunction, { chip: string; alert: boolean }> = {
-  NORMAL: { chip: "bg-emerald-100 text-emerald-800", alert: false },
-  MILD_IMPAIRMENT: { chip: "bg-amber-100 text-amber-800", alert: false },
-  MODERATE_IMPAIRMENT: { chip: "bg-red-100 text-red-800", alert: true },
-  SEVERE_IMPAIRMENT: { chip: "bg-red-100 text-red-800", alert: true },
+  NORMAL: {
+    chip: "bg-emerald-100 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-400",
+    alert: false,
+  },
+  MILD_IMPAIRMENT: {
+    chip: "bg-amber-100 text-amber-800 dark:bg-amber-500/15 dark:text-amber-400",
+    alert: false,
+  },
+  MODERATE_IMPAIRMENT: {
+    chip: "bg-red-100 text-red-800 dark:bg-red-500/15 dark:text-red-400",
+    alert: true,
+  },
+  SEVERE_IMPAIRMENT: {
+    chip: "bg-red-100 text-red-800 dark:bg-red-500/15 dark:text-red-400",
+    alert: true,
+  },
 };
 const ORGAN_LABEL: Record<OrganFunction, string> = {
   NORMAL: "Normal",
@@ -512,7 +544,7 @@ const ORGAN_LABEL: Record<OrganFunction, string> = {
 function SafetyProfileTab({ flags, intolerances, isPregnant }: SafetyProfileTabProps) {
   if (!flags) {
     return (
-      <div className="card px-4 py-10 text-center text-sm text-slate-500">
+      <div className="card px-4 py-10 text-center text-sm text-slate-500 dark:text-slate-400">
         No safety profile recorded.
       </div>
     );
@@ -529,13 +561,18 @@ function SafetyProfileTab({ flags, intolerances, isPregnant }: SafetyProfileTabP
   return (
     <div className="space-y-4">
       <section className="card p-5">
-        <h2 className="mb-3 text-base font-semibold text-slate-900">Drug Intolerances</h2>
+        <h2 className="mb-3 text-base font-semibold text-slate-900 dark:text-slate-100">
+          Drug Intolerances
+        </h2>
         {intolerances.length === 0 ? (
-          <p className="text-sm text-slate-500">None recorded.</p>
+          <p className="text-sm text-slate-500 dark:text-slate-400">None recorded.</p>
         ) : (
           <ul className="flex flex-wrap gap-2">
             {intolerances.map((i) => (
-              <li key={i} className="chip border border-amber-200 bg-amber-50 text-amber-800">
+              <li
+                key={i}
+                className="chip border border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-400"
+              >
                 {i}
               </li>
             ))}
@@ -545,9 +582,11 @@ function SafetyProfileTab({ flags, intolerances, isPregnant }: SafetyProfileTabP
 
       <section className="card p-5">
         <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-base font-semibold text-slate-900">Special Flags</h2>
+          <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">
+            Special Flags
+          </h2>
           {alerts.length > 0 && (
-            <span className="inline-flex items-center gap-1 rounded-md bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700">
+            <span className="inline-flex items-center gap-1 rounded-md bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700 dark:bg-red-500/10 dark:text-red-400">
               <AlertOctagonIcon width={12} height={12} /> {alerts.length} alert
               {alerts.length === 1 ? "" : "s"} active
             </span>
@@ -597,7 +636,7 @@ function SafetyProfileTab({ flags, intolerances, isPregnant }: SafetyProfileTabP
           />
         </div>
 
-        <p className="mt-3 text-[12px] text-slate-500">
+        <p className="mt-3 text-[12px] text-slate-500 dark:text-slate-400">
           These flags surface during automated safety checks on every prescription.
         </p>
       </section>
@@ -608,18 +647,18 @@ function SafetyProfileTab({ flags, intolerances, isPregnant }: SafetyProfileTabP
 type FlagTone = "normal" | "warn" | "alert";
 const FLAG_TONE: Record<FlagTone, { box: string; label: string; icon: React.ReactNode }> = {
   normal: {
-    box: "border-emerald-200 bg-emerald-50 text-emerald-800",
-    label: "text-emerald-700",
+    box: "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300",
+    label: "text-emerald-700 dark:text-emerald-400",
     icon: <CheckCircleIcon width={14} height={14} />,
   },
   warn: {
-    box: "border-amber-200 bg-amber-50 text-amber-800",
-    label: "text-amber-700",
+    box: "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300",
+    label: "text-amber-700 dark:text-amber-400",
     icon: <AlertTriangleIcon width={14} height={14} />,
   },
   alert: {
-    box: "border-red-200 bg-red-50 text-red-800",
-    label: "text-red-700",
+    box: "border-red-200 bg-red-50 text-red-800 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300",
+    label: "text-red-700 dark:text-red-400",
     icon: <AlertOctagonIcon width={14} height={14} />,
   },
 };
@@ -645,7 +684,7 @@ function FlagCard({
         <span>{label}</span>
         <span className="ml-auto">{t.icon}</span>
       </div>
-      <p className="mt-1.5 text-sm leading-relaxed text-slate-800">{value}</p>
+      <p className="mt-1.5 text-sm leading-relaxed text-slate-800 dark:text-slate-200">{value}</p>
     </div>
   );
 }

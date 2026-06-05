@@ -14,23 +14,25 @@ const SHORTCUTS: Shortcut[] = [
 export function KeyboardShortcutsCard() {
   return (
     <section className="card p-5">
-      <h2 className="mb-3 text-base font-semibold text-slate-900">Keyboard Shortcuts</h2>
+      <h2 className="mb-3 text-base font-semibold text-slate-900 dark:text-slate-100">
+        Keyboard Shortcuts
+      </h2>
       <ul className="space-y-2">
         {SHORTCUTS.map((s) => (
           <li
             key={s.description}
-            className="flex items-center justify-between gap-3 text-[13px] text-slate-700"
+            className="flex items-center justify-between gap-3 text-[13px] text-slate-700 dark:text-slate-300"
           >
             <span className="flex items-center gap-1">
               {s.keys.map((k) => (
                 <Key key={k} label={k} />
               ))}
             </span>
-            <span className="text-right text-slate-600">{s.description}</span>
+            <span className="text-right text-slate-600 dark:text-slate-400">{s.description}</span>
           </li>
         ))}
       </ul>
-      <p className="mt-3 text-[11px] text-slate-500">
+      <p className="mt-3 text-[11px] text-slate-500 dark:text-slate-400">
         Shortcuts pause while an input is focused or a dialog is open.
       </p>
     </section>
@@ -39,7 +41,7 @@ export function KeyboardShortcutsCard() {
 
 function Key({ label }: { label: string }) {
   return (
-    <kbd className="inline-flex min-w-[24px] items-center justify-center rounded-md border border-slate-300 bg-slate-50 px-1.5 py-0.5 font-mono text-[11px] font-semibold text-slate-700 shadow-[inset_0_-1px_0_rgba(15,23,42,0.08)]">
+    <kbd className="inline-flex min-w-[24px] items-center justify-center rounded-md border border-slate-300 bg-slate-50 px-1.5 py-0.5 font-mono text-[11px] font-semibold text-slate-700 shadow-[inset_0_-1px_0_rgba(15,23,42,0.08)] dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200">
       {label}
     </kbd>
   );
