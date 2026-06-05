@@ -1,4 +1,4 @@
-import i18n, { type InitOptions } from "i18next";
+import i18n from "i18next";
 import { initReactI18next } from "react-i18next";
 import LanguageDetector from "i18next-browser-languagedetector";
 import en from "../locales/en.json";
@@ -19,9 +19,6 @@ i18n
     },
     supportedLngs: ["el", "en"],
     interpolation: { escapeValue: false },
-    // `initImmediate` is honoured at runtime but absent from i18next 26's
-    // InitOptions typings — cast keeps the synchronous-init behaviour.
-    initImmediate: false,
-  } as InitOptions);
+  });
 
 export default i18n;
