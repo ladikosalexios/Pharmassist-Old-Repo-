@@ -312,7 +312,7 @@ PharmAssist rather than a layer on top of something else.
   admin invites a pharmacist by email; the pharmacist accepts and links to the pharmacy).
 - Seats are billed monthly; a pharmacy adds or removes seats as its team changes.
 
-### Tier 1 — Essential · €35 / seat / month
+### Tier 1 — Essential · €45 / seat / month
 
 The full dispensing app. Everything an independent pharmacy needs to work the counter safely
 and compliantly.
@@ -331,7 +331,7 @@ Includes:
 - **Documentation / legal audit log** — every dispensing action recorded with safety snapshot;
   PDF / CSV export
 
-### Tier 2 — Clinical · €60 / seat / month
+### Tier 2 — Clinical · €75 / seat / month
 
 Everything in Essential, plus the AI clinical intelligence layer.
 
@@ -349,7 +349,7 @@ Adds:
 |---|---|
 | Seat-volume discount | Seats 4+ at −15% (a multi-pharmacist pharmacy does not pay linearly) |
 | Annual prepay | −15% (≈2 months free) on the whole subscription |
-| Onboarding | €150 one-time, **waived on annual prepay** |
+| Onboarding | €390 one-time (includes ΗΔΥΚΑ setup + 4h training), **waived on annual prepay** |
 
 ### B2C Feature Matrix
 
@@ -379,21 +379,21 @@ Monthly figures are before the annual-prepay discount. The seats-4+ volume break
 −15% to the per-seat rate from seat 4 onward; the **Annual** column then applies a further
 −15% to the resulting 12-month total.
 
-**Essential — €35 / seat / month** (seats 4+ at €29.75)
+**Essential — €45 / seat / month** (seats 4+ at €38.25)
 
 | Pharmacy size | Seats | Monthly | Annual (−15%) |
 |---|---|---|---|
-| Solo | 1 | €35.00 | €357.00 |
-| Small team | 3 | €105.00 | €1,071.00 |
-| Larger team | 5 | €164.50 (3×€35 + 2×€29.75) | €1,677.90 |
+| Solo | 1 | €45.00 | €459.00 |
+| Small team | 3 | €135.00 | €1,377.00 |
+| Larger team | 5 | €211.50 (3×€45 + 2×€38.25) | €2,157.30 |
 
-**Clinical — €60 / seat / month** (seats 4+ at €51.00)
+**Clinical — €75 / seat / month** (seats 4+ at €63.75)
 
 | Pharmacy size | Seats | Monthly | Annual (−15%) |
 |---|---|---|---|
-| Solo | 1 | €60.00 | €612.00 |
-| Small team | 3 | €180.00 | €1,836.00 |
-| Larger team | 5 | €282.00 (3×€60 + 2×€51) | €2,876.40 |
+| Solo | 1 | €75.00 | €765.00 |
+| Small team | 3 | €225.00 | €2,295.00 |
+| Larger team | 5 | €352.50 (3×€75 + 2×€63.75) | €3,595.50 |
 
 ### Competitive positioning (vs. incumbent ERP — e.g. PYLON Farmakon)
 
