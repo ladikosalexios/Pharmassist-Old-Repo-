@@ -34,8 +34,6 @@ const METHOD_KEY: Record<DeliveryMethod, string> = {
 
 const STATUS_TONE: Record<string, string> = {
   COMPLETED: "bg-emerald-50 text-emerald-700",
-  FLAGGED: "bg-red-50 text-red-700",
-  PENDING: "bg-amber-50 text-amber-700",
 };
 
 function Skl({ w = "100%", h = 12 }: { w?: string; h?: number }) {
@@ -314,7 +312,7 @@ export function History() {
               </span>
 
               {/* hover actions */}
-              <div className="absolute right-4 top-1/2 flex -translate-y-1/2 items-center gap-1.5 opacity-0 transition-opacity group-hover:opacity-100">
+              <div className="absolute right-4 top-1/2 flex -translate-y-1/2 items-center gap-1.5 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
                 <button
                   type="button"
                   onClick={() => {
