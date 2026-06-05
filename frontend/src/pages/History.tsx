@@ -2,15 +2,18 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   SearchIcon,
-  CalendarIcon,
   DownloadIcon,
   PrinterIcon,
   SearchXIcon,
-  ChevronLeftIcon,
   ChevronRightIcon,
   AlertCircleIcon,
 } from "../components/Icons";
-import { ApiError, exportDocumentation, listDocumentation } from "../lib/api";
+import {
+  ApiError,
+  exportDocumentation,
+  exportDocumentationRecord,
+  listDocumentation,
+} from "../lib/api";
 import { useToast } from "../components/Toast";
 import { DocumentationDetailModal } from "../components/DocumentationDetailModal";
 import type { DeliveryMethod, DeliveryMethodFilter, DocumentationListResponse } from "../types";
@@ -129,13 +132,10 @@ export function History() {
       {/* stats strip */}
       <div className="mb-5 flex flex-wrap items-center gap-x-8 gap-y-3 rounded-xl border border-slate-200 bg-white px-6 py-4 shadow-card">
         {[
-          {
-            label: t("history.statToday"),
-            value: data?.stats ? data.stats.print + data.stats.digital + data.stats.both : "—",
-          },
-          { label: t("history.statMonth"), value: stats.total || "—" },
-        ].map(({ label, value }, i) => (
-          <div key={i} className="flex items-baseline gap-2">
+          { label: t("history.statToday"), value: stats.today },
+          { label: t("history.statTotal"), value: stats.total || "—" },
+        ].map(({ label, value }) => (
+          <div key={label} className="flex items-baseline gap-2">
             <span className="text-[20px] font-bold tabular-nums text-slate-900">{value}</span>
             <span className="text-[12px] font-medium text-slate-500">{label}</span>
           </div>
@@ -145,14 +145,6 @@ export function History() {
       {/* sticky filter bar */}
       <div className="sticky top-0 z-20 -mx-2 mb-4 rounded-xl border border-slate-200 bg-white/95 px-4 py-3 shadow-card backdrop-blur">
         <div className="flex flex-wrap items-center gap-2.5">
-          <button
-            type="button"
-            className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-[12.5px] font-medium text-slate-600 transition-colors hover:bg-slate-50"
-          >
-            <CalendarIcon width={15} height={15} className="text-slate-400" />
-            {t("history.dateRange")}
-          </button>
-
           <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 p-0.5">
             {methodFilters.map(({ value, key }) => (
               <button
@@ -276,7 +268,7 @@ export function History() {
                 <span
                   className={`rounded-full px-2 py-0.5 text-[11.5px] font-semibold ${STATUS_TONE["COMPLETED"]}`}
                 >
-                  Dispensed
+                  {t("history.statusDispensed")}
                 </span>
               </span>
 
@@ -284,6 +276,11 @@ export function History() {
               <div className="absolute right-4 top-1/2 flex -translate-y-1/2 items-center gap-1.5 opacity-0 transition-opacity group-hover:opacity-100">
                 <button
                   type="button"
+                  onClick={() => {
+                    exportDocumentationRecord(r.id, "pdf").catch(() =>
+                      toast("Export failed.", "error"),
+                    );
+                  }}
                   className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11.5px] font-semibold text-slate-600 shadow-card hover:bg-slate-50"
                 >
                   <PrinterIcon width={13} height={13} /> {t("history.print")}
@@ -301,34 +298,12 @@ export function History() {
         </div>
       )}
 
-      {/* pagination */}
+      {/* result count */}
       {!loading && !isEmpty && data && (
-        <div className="mt-4 flex items-center justify-between">
+        <div className="mt-4">
           <span className="text-[12.5px] text-slate-500">
             {t("history.showingOf", { from: 1, to: data.items.length, total: data.total })}
           </span>
-          <div className="flex items-center gap-1.5">
-            <button
-              type="button"
-              disabled
-              className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-400"
-            >
-              <ChevronLeftIcon width={16} height={16} />
-            </button>
-            <button
-              type="button"
-              className="flex h-8 min-w-8 items-center justify-center rounded-lg bg-brand-600 px-2 text-[13px] font-medium text-white"
-            >
-              1
-            </button>
-            <button
-              type="button"
-              disabled
-              className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-400"
-            >
-              <ChevronRightIcon width={16} height={16} />
-            </button>
-          </div>
         </div>
       )}
     </div>
