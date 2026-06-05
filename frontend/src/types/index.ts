@@ -217,6 +217,9 @@ export interface PatientProfile {
   age?: number;
   sex?: "F" | "M" | string;
   phone?: string | null;
+  nationality?: string | null;
+  address?: string | null;
+  email?: string | null;
   conditions?: string[];
   allergies?: string[];
   intolerances?: string[];

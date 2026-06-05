@@ -6,6 +6,7 @@ import { Dashboard } from "./pages/Dashboard";
 import { PrescriptionVerification } from "./pages/PrescriptionVerification";
 import { Documentation } from "./pages/Documentation";
 import { SideEffects } from "./pages/SideEffects";
+import { Patients } from "./pages/Patients";
 import { PatientProfile } from "./pages/PatientProfile";
 import { Instructions } from "./pages/Instructions";
 
@@ -19,6 +20,7 @@ export function App() {
         <Route path="/prescription/:rxId" element={<PrescriptionVerification />} />
         <Route path="/documentation" element={<Documentation />} />
         <Route path="/side-effects" element={<SideEffects />} />
+        <Route path="/patients" element={<Patients />} />
         <Route path="/patients/:id" element={<PatientProfile />} />
         <Route path="/instructions" element={<Instructions />} />
       </Route>
