@@ -85,6 +85,13 @@ def get_documentation_log_dict(doc_log: DocumentationLog) -> dict:
 
 
 async def stats(session: AsyncSession) -> dict:
+    # TODO (backend PR): extend return value with date-windowed counts so the
+    # History page stats strip can show real figures:
+    #   "today":  COUNT WHERE dispensed_at >= start of current UTC day
+    #   "week":   COUNT WHERE dispensed_at >= start of current ISO week (Monday)
+    #   "month":  COUNT WHERE dispensed_at >= first day of current UTC month
+    # Frontend keys: history.statToday / history.statWeek / history.statMonth.
+    # The DocumentationLog.dispensed_at column is already available for filtering.
     rows = (
         await session.execute(
             select(DocumentationLog.delivery_method, func.count().label("n")).group_by(
