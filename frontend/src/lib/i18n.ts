@@ -19,7 +19,6 @@ i18n
     },
     supportedLngs: ["el", "en"],
     interpolation: { escapeValue: false },
-    initImmediate: false,
   });
 
 export default i18n;
