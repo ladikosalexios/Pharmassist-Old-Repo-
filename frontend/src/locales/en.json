@@ -158,6 +158,7 @@
     "previewTitle": "Preview",
     "previewSubtitle": "Live — updates as you edit the form.",
     "queueErrorTitle": "Couldn't load the queue",
+    "rxErrorTitle": "Couldn't load prescription",
     "prescriptionLabel": "Prescription",
     "prescriptionPlaceholder": "Select a prescription…",
     "languageLabel": "Language",
