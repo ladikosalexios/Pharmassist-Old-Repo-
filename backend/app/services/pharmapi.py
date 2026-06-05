@@ -511,6 +511,9 @@ def clean_pharmapi_patient_data(data: dict) -> PatientPayload:
         if isinstance(data.get("sex"), dict)
         else data.get("sex") or "",
         phone=data.get("telephone") or "",
+        nationality=data.get("nationality") or None,
+        address=data.get("address") or None,
+        email=None,
         conditions=None,
         allergies=None,
         intolerances=None,
