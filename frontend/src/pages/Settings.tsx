@@ -136,6 +136,14 @@ function PwModal({ onClose }: { onClose: () => void }) {
   const [next, setNext] = useState("");
   const [confirm, setConfirm] = useState("");
 
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
   return createPortal(
     <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
       <div
@@ -252,21 +260,21 @@ function ProfilePage({ profile, onSave }: { profile: MeResponse | null; onSave: 
       <Card title={t("settings.notifTitle")} desc={t("settings.notifDesc")}>
         {[
           {
-            label: "New safety alerts on active scans",
+            label: t("settings.notifSafetyAlerts"),
             inApp: notifs.a,
             email: notifs.b,
             onA: () => setNotifs((s) => ({ ...s, a: !s.a })),
             onE: () => setNotifs((s) => ({ ...s, b: !s.b })),
           },
           {
-            label: "ADR report acknowledgements",
+            label: t("settings.notifAdrAck"),
             inApp: notifs.c,
             email: notifs.d,
             onA: () => setNotifs((s) => ({ ...s, c: !s.c })),
             onE: () => setNotifs((s) => ({ ...s, d: !s.d })),
           },
           {
-            label: "ΗΔΥΚΑ session-expiry warnings",
+            label: t("settings.notifHdykaExpiry"),
             inApp: true,
             email: false,
             onA: () => {},
@@ -380,7 +388,7 @@ function PharmacyPage({ profile }: { profile: MeResponse | null }) {
         hint={t("settings.fieldCategoryHint")}
       >
         <span className="inline-flex items-center rounded-full bg-brand-50 px-3 py-1 text-[12.5px] font-semibold text-brand-700">
-          ΕΟΠΥΥ contracted
+          {t("settings.categoryEopyyContracted")}
         </span>
       </Row>
       <Row label={t("settings.fieldVat")}>
@@ -584,7 +592,9 @@ function AuditPage() {
         ))}
       </div>
       <div className="mt-3 flex items-center justify-between">
-        <span className="text-[12px] text-slate-500">Showing 1–3 of —</span>
+        <span className="text-[12px] text-slate-500">
+          {t("settings.auditShowing", { to: visibleAudit.length, total: "—" })}
+        </span>
         <div className="flex gap-1.5">
           <button
             type="button"
