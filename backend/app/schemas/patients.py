@@ -33,6 +33,9 @@ class PatientPayload(BaseModel):
     age: int
     sex: str
     phone: str
+    nationality: str | None = None
+    address: str | None = None
+    email: str | None = None
     conditions: list | None = None
     allergies: list | None = None
     intolerances: list | None = None
