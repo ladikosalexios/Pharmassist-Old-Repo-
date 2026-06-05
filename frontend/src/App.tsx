@@ -4,7 +4,7 @@ import { Login } from "./pages/Login";
 import { AcceptInvite } from "./pages/AcceptInvite";
 import { Dashboard } from "./pages/Dashboard";
 import { PrescriptionVerification } from "./pages/PrescriptionVerification";
-import { Documentation } from "./pages/Documentation";
+import { History } from "./pages/History";
 import { SideEffects } from "./pages/SideEffects";
 import { Patients } from "./pages/Patients";
 import { PatientProfile } from "./pages/PatientProfile";
@@ -18,7 +18,8 @@ export function App() {
       <Route element={<AppShell />}>
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/prescription/:rxId" element={<PrescriptionVerification />} />
-        <Route path="/documentation" element={<Documentation />} />
+        <Route path="/history" element={<History />} />
+        <Route path="/documentation" element={<Navigate to="/history" replace />} />
         <Route path="/side-effects" element={<SideEffects />} />
         <Route path="/patients" element={<Patients />} />
         <Route path="/patients/:id" element={<PatientProfile />} />
