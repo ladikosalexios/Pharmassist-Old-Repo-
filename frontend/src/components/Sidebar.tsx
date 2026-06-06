@@ -182,14 +182,14 @@ export function MobileNav() {
 
   // If the viewport grows to ≥md while the drawer is open, the drawer becomes
   // md:hidden — close it so the scroll-lock/inert cleanup runs and the page
-  // doesn't get stuck unscrollable.
+  // doesn't get stuck unscrollable. A resize listener (rather than matchMedia's
+  // `change`) fires reliably across browsers and emulators.
   useEffect(() => {
-    const mq = window.matchMedia("(min-width: 768px)");
-    const onChange = (e: MediaQueryListEvent) => {
-      if (e.matches) setOpen(false);
+    const onResize = () => {
+      if (window.innerWidth >= 768) setOpen(false);
     };
-    mq.addEventListener("change", onChange);
-    return () => mq.removeEventListener("change", onChange);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
   }, []);
 
   const close = () => setOpen(false);
