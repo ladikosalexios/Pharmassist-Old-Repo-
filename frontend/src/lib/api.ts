@@ -164,14 +164,14 @@ export async function approvePrescription(
 
 // TODO: FR-0.5 #3 — HMVS/FMD pack verification not yet wired on the backend.
 export async function verifyPack(
-  payload: string, // eslint-disable-line @typescript-eslint/no-unused-vars
+  _payload: string, // eslint-disable-line @typescript-eslint/no-unused-vars
 ): Promise<{ status: "active" | "dispensed"; packCode: string }> {
   throw new ApiError(501, "Pack verification not yet available");
 }
 
 // TODO: FR-0.5 #5 — FMD pack decommission not yet wired on the backend.
 export async function decommissionPack(
-  payload: string, // eslint-disable-line @typescript-eslint/no-unused-vars
+  _payload: string, // eslint-disable-line @typescript-eslint/no-unused-vars
 ): Promise<{ success: boolean }> {
   throw new ApiError(501, "Pack decommission not yet available");
 }
