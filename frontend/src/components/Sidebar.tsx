@@ -180,6 +180,18 @@ export function MobileNav() {
     };
   }, [open]);
 
+  // If the viewport grows to ≥md while the drawer is open, the drawer becomes
+  // md:hidden — close it so the scroll-lock/inert cleanup runs and the page
+  // doesn't get stuck unscrollable.
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 768px)");
+    const onChange = (e: MediaQueryListEvent) => {
+      if (e.matches) setOpen(false);
+    };
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
+
   const close = () => setOpen(false);
 
   return (
@@ -189,6 +201,8 @@ export function MobileNav() {
           type="button"
           onClick={() => setOpen(true)}
           aria-label={t("nav.openMenu")}
+          aria-expanded={open}
+          aria-controls="mobile-drawer"
           className="flex h-10 w-10 items-center justify-center rounded-lg text-slate-600 transition-colors hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
         >
           <MenuIcon width={22} height={22} />
@@ -216,6 +230,7 @@ export function MobileNav() {
         />
         <aside
           ref={asideRef}
+          id="mobile-drawer"
           role="dialog"
           aria-modal="true"
           aria-label={t("nav.mainMenu")}

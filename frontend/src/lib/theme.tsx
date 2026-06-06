@@ -31,21 +31,42 @@ function readInitialTheme(): Theme {
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setThemeState] = useState<Theme>(readInitialTheme);
 
-  // Reflect the active theme onto <html> and persist the choice.
+  // Reflect the active theme onto <html> on every change. Deliberately does NOT
+  // persist: a system-derived initial value must not be written to localStorage,
+  // or it becomes a sticky "explicit choice" that stops following the OS theme.
   useEffect(() => {
-    const root = document.documentElement;
-    root.classList.toggle("dark", theme === "dark");
-    try {
-      localStorage.setItem(STORAGE_KEY, theme);
-    } catch {
-      /* ignore — persistence is best-effort */
-    }
+    document.documentElement.classList.toggle("dark", theme === "dark");
   }, [theme]);
 
-  const toggleTheme = useCallback(
-    () => setThemeState((cur) => (cur === "dark" ? "light" : "dark")),
-    [],
-  );
+  // Until the user makes an explicit choice (nothing stored), keep following the
+  // OS theme live.
+  useEffect(() => {
+    const mq = window.matchMedia("(prefers-color-scheme: dark)");
+    const onChange = (e: MediaQueryListEvent) => {
+      let stored: string | null = null;
+      try {
+        stored = localStorage.getItem(STORAGE_KEY);
+      } catch {
+        /* ignore */
+      }
+      if (!stored) setThemeState(e.matches ? "dark" : "light");
+    };
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
+
+  // Persist only on an explicit user toggle.
+  const toggleTheme = useCallback(() => {
+    setThemeState((cur) => {
+      const next: Theme = cur === "dark" ? "light" : "dark";
+      try {
+        localStorage.setItem(STORAGE_KEY, next);
+      } catch {
+        /* ignore — persistence is best-effort */
+      }
+      return next;
+    });
+  }, []);
 
   const value = useMemo<ThemeContextValue>(() => ({ theme, toggleTheme }), [theme, toggleTheme]);
 
