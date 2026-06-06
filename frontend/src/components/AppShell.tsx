@@ -1,6 +1,6 @@
 import { Outlet, Navigate, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Sidebar } from "./Sidebar";
+import { Sidebar, MobileNav } from "./Sidebar";
 import { useAuth } from "../lib/auth";
 import { useToast } from "./Toast";
 import { useKeyboardShortcuts } from "../lib/keyboard";
@@ -41,7 +41,7 @@ export function AppShell() {
 
   if (loading) {
     return (
-      <div className="flex h-full items-center justify-center text-slate-500">
+      <div className="flex h-full items-center justify-center text-slate-500 dark:text-slate-400">
         <span className="spinner mr-2 text-brand-600" /> {t("shell.loading")}
       </div>
     );
@@ -50,7 +50,8 @@ export function AppShell() {
   return (
     <div className="flex h-full overflow-hidden">
       <Sidebar />
-      <main className="flex-1 overflow-y-auto bg-slate-50">
+      <main className="flex min-w-0 flex-1 flex-col overflow-y-auto bg-slate-50 dark:bg-slate-950">
+        <MobileNav />
         <Outlet />
       </main>
     </div>

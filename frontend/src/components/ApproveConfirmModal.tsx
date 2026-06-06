@@ -67,17 +67,17 @@ export function ApproveConfirmModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className="w-full max-w-md rounded-2xl bg-white shadow-cardLg"
+        className="w-full max-w-md rounded-2xl bg-white shadow-cardLg dark:bg-slate-900"
       >
-        <div className="flex items-start gap-3 border-b border-slate-200 px-6 py-4">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand-100 text-brand-700">
+        <div className="flex items-start gap-3 border-b border-slate-200 px-6 py-4 dark:border-slate-800">
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand-100 text-brand-700 dark:bg-brand-500/15 dark:text-brand-300">
             <CheckIcon />
           </div>
           <div className="flex-1">
-            <h2 id={titleId} className="text-base font-semibold text-slate-900">
+            <h2 id={titleId} className="text-base font-semibold text-slate-900 dark:text-slate-100">
               Confirm Prescription Approval
             </h2>
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-slate-500 dark:text-slate-400">
               <span className="font-mono">{rxId}</span> — once approved, the prescription is
               recorded.
             </p>
@@ -85,25 +85,25 @@ export function ApproveConfirmModal({
         </div>
 
         <form onSubmit={onSubmit} className="px-6 py-5">
-          <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-800/50">
             <Row label="Patient" value={patientName} />
             <Row label="Drug" value={drugName} />
             <Row label="Dose" value={dose} last />
           </div>
 
           {error && (
-            <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+            <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-400">
               {error}
             </div>
           )}
 
-          <label className="mt-4 flex cursor-pointer items-start gap-2.5 text-[13px] text-slate-700">
+          <label className="mt-4 flex cursor-pointer items-start gap-2.5 text-[13px] text-slate-700 dark:text-slate-300">
             <input
               ref={checkboxRef}
               type="checkbox"
               checked={confirmed}
               onChange={(e) => setConfirmed(e.target.checked)}
-              className="mt-0.5 h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-100"
+              className="mt-0.5 h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-100 dark:border-slate-700"
             />
             <span>I confirm I have reviewed all safety checks and patient information</span>
           </label>
@@ -136,10 +136,12 @@ export function ApproveConfirmModal({
 function Row({ label, value, last }: { label: string; value: string; last?: boolean }) {
   return (
     <div
-      className={`flex items-center justify-between ${last ? "" : "border-b border-slate-200 pb-2 mb-2"}`}
+      className={`flex items-center justify-between ${last ? "" : "border-b border-slate-200 pb-2 mb-2 dark:border-slate-800"}`}
     >
-      <span className="text-xs font-medium uppercase tracking-wide text-slate-500">{label}</span>
-      <span className="text-sm font-semibold text-slate-900">{value}</span>
+      <span className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
+        {label}
+      </span>
+      <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">{value}</span>
     </div>
   );
 }

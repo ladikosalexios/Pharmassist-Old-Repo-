@@ -13,7 +13,12 @@
     "history": "Ιστορικό",
     "reports": "Αναφορές",
     "settings": "Ρυθμίσεις",
-    "signOut": "Αποσύνδεση"
+    "signOut": "Αποσύνδεση",
+    "openMenu": "Άνοιγμα μενού",
+    "closeMenu": "Κλείσιμο μενού",
+    "mainMenu": "Κύριο μενού",
+    "darkMode": "Σκούρο θέμα",
+    "lightMode": "Ανοιχτό θέμα"
   },
   "shell": {
     "loading": "Φόρτωση…",

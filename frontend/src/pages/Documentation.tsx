@@ -32,9 +32,9 @@ const METHOD_OPTIONS: { value: DeliveryMethodFilter; label: string }[] = [
 ];
 
 const METHOD_TONE: Record<DeliveryMethod, string> = {
-  PRINT: "bg-blue-100 text-blue-800",
-  DIGITAL: "bg-emerald-100 text-emerald-800",
-  BOTH: "bg-violet-100 text-violet-800",
+  PRINT: "bg-blue-100 text-blue-800 dark:bg-blue-500/15 dark:text-blue-400",
+  DIGITAL: "bg-emerald-100 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-400",
+  BOTH: "bg-violet-100 text-violet-800 dark:bg-violet-500/15 dark:text-violet-400",
 };
 
 const METHOD_LABEL: Record<DeliveryMethod, string> = {
@@ -44,8 +44,10 @@ const METHOD_LABEL: Record<DeliveryMethod, string> = {
 };
 
 const SETTING_TONE: Record<DocumentationRecord["setting"], string> = {
-  Private: "border-slate-200 bg-slate-100 text-slate-700",
-  Hospital: "border-amber-200 bg-amber-100 text-amber-800",
+  Private:
+    "border-slate-200 bg-slate-100 text-slate-700 dark:border-slate-800 dark:bg-slate-800 dark:text-slate-300",
+  Hospital:
+    "border-amber-200 bg-amber-100 text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/15 dark:text-amber-400",
 };
 
 export function Documentation() {
@@ -92,26 +94,26 @@ export function Documentation() {
       {
         label: "Total Records",
         value: stats.total,
-        tone: "bg-slate-100 text-slate-700",
-        valueClass: "text-slate-900",
+        tone: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
+        valueClass: "text-slate-900 dark:text-slate-100",
       },
       {
         label: "Print Delivery",
         value: stats.print,
-        tone: "bg-blue-100 text-blue-700",
-        valueClass: "text-blue-700",
+        tone: "bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-400",
+        valueClass: "text-blue-700 dark:text-blue-400",
       },
       {
         label: "Digital Delivery",
         value: stats.digital,
-        tone: "bg-emerald-100 text-emerald-700",
-        valueClass: "text-emerald-700",
+        tone: "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400",
+        valueClass: "text-emerald-700 dark:text-emerald-400",
       },
       {
         label: "Both Methods",
         value: stats.both,
-        tone: "bg-violet-100 text-violet-700",
-        valueClass: "text-violet-700",
+        tone: "bg-violet-100 text-violet-700 dark:bg-violet-500/15 dark:text-violet-400",
+        valueClass: "text-violet-700 dark:text-violet-400",
       },
     ];
   }, [data]);
@@ -141,12 +143,14 @@ export function Documentation() {
   }
 
   return (
-    <div className="p-8">
+    <div className="p-4 sm:p-6 lg:p-8">
       {/* Header */}
       <div className="mb-7 flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Documentation &amp; Legal Log</h1>
-          <p className="mt-1 text-sm text-slate-500">
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">
+            Documentation &amp; Legal Log
+          </h1>
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
             Record of patient counseling and medication dispensing
           </p>
         </div>
@@ -167,7 +171,9 @@ export function Documentation() {
           <div key={label} className="card p-5">
             <div className="flex items-start justify-between">
               <div>
-                <div className="text-sm font-medium text-slate-500">{label}</div>
+                <div className="text-sm font-medium text-slate-500 dark:text-slate-400">
+                  {label}
+                </div>
                 <div className={`mt-1 text-3xl font-bold ${valueClass}`}>
                   {loading ? "—" : value}
                 </div>
@@ -186,26 +192,26 @@ export function Documentation() {
           <SearchIcon
             width={16}
             height={16}
-            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500"
           />
           <input
             type="search"
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
             placeholder="Search by patient name or prescription code..."
-            className="w-full rounded-lg border border-slate-300 bg-white py-2 pl-9 pr-3 text-sm outline-none focus:border-brand-600 focus:ring-2 focus:ring-brand-100"
+            className="w-full rounded-lg border border-slate-300 bg-white py-2 pl-9 pr-3 text-sm outline-none focus:border-brand-600 focus:ring-2 focus:ring-brand-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
           />
         </div>
         <div className="relative">
           <FilterIcon
             width={16}
             height={16}
-            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500"
           />
           <select
             value={method}
             onChange={(e) => setMethod(e.target.value as DeliveryMethodFilter)}
-            className="rounded-lg border border-slate-300 bg-white py-2 pl-9 pr-8 text-sm outline-none focus:border-brand-600 focus:ring-2 focus:ring-brand-100"
+            className="rounded-lg border border-slate-300 bg-white py-2 pl-9 pr-8 text-sm outline-none focus:border-brand-600 focus:ring-2 focus:ring-brand-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
             aria-label="Filter by delivery method"
           >
             {METHOD_OPTIONS.map((o) => (
@@ -219,16 +225,16 @@ export function Documentation() {
 
       {/* Records */}
       {error ? (
-        <div className="card flex items-start gap-2 px-4 py-3 text-sm text-red-700">
+        <div className="card flex items-start gap-2 px-4 py-3 text-sm text-red-700 dark:text-red-400">
           <AlertCircleIcon width={14} height={14} className="mt-0.5 shrink-0" />
           <span>{error}</span>
         </div>
       ) : loading ? (
-        <div className="card flex items-center gap-2 px-4 py-6 text-sm text-slate-500">
+        <div className="card flex items-center gap-2 px-4 py-6 text-sm text-slate-500 dark:text-slate-400">
           <span className="spinner text-brand-600" /> Loading records…
         </div>
       ) : !data || data.items.length === 0 ? (
-        <div className="card px-4 py-10 text-center text-sm text-slate-500">
+        <div className="card px-4 py-10 text-center text-sm text-slate-500 dark:text-slate-400">
           No records match your filters.
         </div>
       ) : (
@@ -247,9 +253,10 @@ export function Documentation() {
       )}
 
       {/* Legal notice */}
-      <div className="mt-8 rounded-xl border border-blue-200 bg-blue-50 px-5 py-4 text-sm text-blue-900">
+      <div className="mt-8 rounded-xl border border-blue-200 bg-blue-50 px-5 py-4 text-sm text-blue-900 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-200">
         <div className="mb-1 flex items-center gap-2 font-semibold">
-          <CheckCircleIcon width={16} height={16} className="text-blue-600" /> Legal Compliance
+          <CheckCircleIcon width={16} height={16} className="text-blue-600 dark:text-blue-400" />{" "}
+          Legal Compliance
         </div>
         <p className="leading-relaxed">
           All documentation records are maintained in compliance with pharmacy regulations and HIPAA
@@ -281,8 +288,10 @@ function RecordCard({ record, exporting, onView, onExport }: RecordCardProps) {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <h3 className="text-base font-semibold text-slate-900">{record.patientName}</h3>
-            <span className="chip border border-brand-100 bg-brand-50 font-mono text-brand-700">
+            <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">
+              {record.patientName}
+            </h3>
+            <span className="chip border border-brand-100 bg-brand-50 font-mono text-brand-700 dark:border-brand-500/20 dark:bg-brand-500/15 dark:text-brand-300">
               {record.rxId}
             </span>
             <span className={`chip border ${SETTING_TONE[record.setting]}`}>{record.setting}</span>
@@ -293,32 +302,37 @@ function RecordCard({ record, exporting, onView, onExport }: RecordCardProps) {
 
           <Link
             to={`/prescription/${record.rxId}`}
-            className="mt-1.5 inline-block text-sm font-medium text-brand-600 hover:underline"
+            className="mt-1.5 inline-block text-sm font-medium text-brand-600 hover:underline dark:text-brand-400"
           >
             {record.drugName}
           </Link>
 
           <div className="mt-3">
-            <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+            <div className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
               Information Provided
             </div>
-            <p className="mt-1 text-sm leading-relaxed text-slate-700">
+            <p className="mt-1 text-sm leading-relaxed text-slate-700 dark:text-slate-300">
               {record.informationProvided}
             </p>
           </div>
 
-          <div className="mt-3 grid grid-cols-1 gap-1.5 text-[13px] text-slate-600 sm:grid-cols-2">
+          <div className="mt-3 grid grid-cols-1 gap-1.5 text-[13px] text-slate-600 dark:text-slate-300 sm:grid-cols-2">
             <div>
-              <span className="font-medium text-slate-500">Language:</span> {record.language}
+              <span className="font-medium text-slate-500 dark:text-slate-400">Language:</span>{" "}
+              {record.language}
             </div>
             <div>
-              <span className="font-medium text-slate-500">Delivery Method:</span>{" "}
+              <span className="font-medium text-slate-500 dark:text-slate-400">
+                Delivery Method:
+              </span>{" "}
               {METHOD_LABEL[record.deliveryMethod]}
             </div>
-            <div className="sm:col-span-2 mt-1 text-xs text-slate-500">
+            <div className="sm:col-span-2 mt-1 text-xs text-slate-500 dark:text-slate-400">
               Dispensed by:{" "}
-              <span className="font-medium text-slate-700">PharmD {record.pharmacistName}</span> ·{" "}
-              {formatTimestamp(record.dispensedAt)}
+              <span className="font-medium text-slate-700 dark:text-slate-300">
+                PharmD {record.pharmacistName}
+              </span>{" "}
+              · {formatTimestamp(record.dispensedAt)}
             </div>
           </div>
         </div>

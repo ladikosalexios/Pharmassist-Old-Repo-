@@ -124,17 +124,17 @@ export function FlagDiscrepancyModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className="w-full max-w-md rounded-2xl bg-white shadow-cardLg"
+        className="w-full max-w-md rounded-2xl bg-white shadow-cardLg dark:bg-slate-900"
       >
-        <div className="flex items-start gap-3 border-b border-slate-200 px-6 py-4">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-100 text-amber-700">
+        <div className="flex items-start gap-3 border-b border-slate-200 px-6 py-4 dark:border-slate-800">
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-400">
             <FlagIcon />
           </div>
           <div className="flex-1">
-            <h2 id={titleId} className="text-base font-semibold text-slate-900">
+            <h2 id={titleId} className="text-base font-semibold text-slate-900 dark:text-slate-100">
               Flag Prescription Discrepancy
             </h2>
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-slate-500 dark:text-slate-400">
               <span className="font-mono">{rxId}</span> — describe the issue and submit for review.
             </p>
           </div>
@@ -142,12 +142,15 @@ export function FlagDiscrepancyModal({
 
         <form onSubmit={onSubmit} className="px-6 py-5">
           {err && (
-            <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+            <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-400">
               {err}
             </div>
           )}
 
-          <label htmlFor="discrepancyType" className="block text-[13px] font-medium text-slate-600">
+          <label
+            htmlFor="discrepancyType"
+            className="block text-[13px] font-medium text-slate-600 dark:text-slate-300"
+          >
             Discrepancy Type
           </label>
           <select
@@ -155,7 +158,7 @@ export function FlagDiscrepancyModal({
             ref={firstFieldRef}
             value={discrepancyType}
             onChange={(e) => setDiscrepancyType(e.target.value as DiscrepancyType | "")}
-            className="mt-1.5 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-brand-600 focus:ring-2 focus:ring-brand-100"
+            className="mt-1.5 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-brand-600 focus:ring-2 focus:ring-brand-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
           >
             <option value="" disabled>
               Select a type…
@@ -167,7 +170,10 @@ export function FlagDiscrepancyModal({
             ))}
           </select>
 
-          <label htmlFor="notes" className="mt-4 block text-[13px] font-medium text-slate-600">
+          <label
+            htmlFor="notes"
+            className="mt-4 block text-[13px] font-medium text-slate-600 dark:text-slate-300"
+          >
             Notes / Description
           </label>
           <textarea
@@ -175,15 +181,15 @@ export function FlagDiscrepancyModal({
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             placeholder="Describe what looks wrong and any context the prescriber will need."
-            className="mt-1.5 w-full min-h-[110px] resize-vertical rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-brand-600 focus:ring-2 focus:ring-brand-100"
+            className="mt-1.5 w-full min-h-[110px] resize-vertical rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-brand-600 focus:ring-2 focus:ring-brand-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
           />
 
-          <label className="mt-4 flex cursor-pointer items-start gap-2.5 text-[13px] text-slate-700">
+          <label className="mt-4 flex cursor-pointer items-start gap-2.5 text-[13px] text-slate-700 dark:text-slate-300">
             <input
               type="checkbox"
               checked={notifyPhysicianFlag}
               onChange={(e) => setNotifyPhysicianFlag(e.target.checked)}
-              className="mt-0.5 h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-100"
+              className="mt-0.5 h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-100 dark:border-slate-700"
             />
             <span>Notify prescribing physician immediately</span>
           </label>

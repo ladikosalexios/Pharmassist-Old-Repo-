@@ -13,7 +13,12 @@
     "history": "History",
     "reports": "Reports",
     "settings": "Settings",
-    "signOut": "Sign out"
+    "signOut": "Sign out",
+    "openMenu": "Open menu",
+    "closeMenu": "Close menu",
+    "mainMenu": "Main menu",
+    "darkMode": "Dark mode",
+    "lightMode": "Light mode"
   },
   "shell": {
     "loading": "Loading…",

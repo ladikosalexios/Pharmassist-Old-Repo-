@@ -190,20 +190,22 @@ function formatTimestamp(iso: string): string {
 // ── severity / status display ─────────────────────────────────────────────────
 
 const SEV_TONE: Record<AdrSeverity, string> = {
-  MILD: "bg-emerald-50 text-emerald-700",
-  MODERATE: "bg-amber-50 text-amber-700",
-  SEVERE: "bg-red-50 text-red-700",
+  MILD: "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400",
+  MODERATE: "bg-amber-50 text-amber-700 dark:bg-amber-500/15 dark:text-amber-400",
+  SEVERE: "bg-red-50 text-red-700 dark:bg-red-500/15 dark:text-red-400",
 };
 const SEV_BTN: Record<string, string> = {
-  Severe: "border-red-300 bg-red-50 text-red-700",
-  Moderate: "border-amber-300 bg-amber-50 text-amber-700",
-  Mild: "border-emerald-300 bg-emerald-50 text-emerald-700",
+  Severe:
+    "border-red-300 bg-red-50 text-red-700 dark:border-red-500/30 dark:bg-red-500/15 dark:text-red-400",
+  Moderate:
+    "border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/15 dark:text-amber-400",
+  Mild: "border-emerald-300 bg-emerald-50 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/15 dark:text-emerald-400",
 };
 
 const STATUS_TONE: Record<AdrStatus, string> = {
-  PENDING_REVIEW: "bg-slate-100 text-slate-600",
-  ESCALATED: "bg-brand-50 text-brand-700",
-  EOF_REPORTED: "bg-emerald-50 text-emerald-700",
+  PENDING_REVIEW: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300",
+  ESCALATED: "bg-brand-50 text-brand-700 dark:bg-brand-500/15 dark:text-brand-300",
+  EOF_REPORTED: "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400",
 };
 const STATUS_LABEL: Record<AdrStatus, string> = {
   PENDING_REVIEW: "Draft",
@@ -221,12 +223,12 @@ const SEVERITY_LABEL: Record<AdrSeverity, string> = {
 function StepHead({ n, title, sub }: { n: string; title: string; sub?: string }) {
   return (
     <div className="mb-3 flex items-start gap-3">
-      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-100 text-[12px] font-bold text-brand-700">
+      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-100 text-[12px] font-bold text-brand-700 dark:bg-brand-500/15 dark:text-brand-300">
         {n}
       </span>
       <div>
-        <h3 className="text-[14px] font-bold text-slate-900">{title}</h3>
-        {sub && <p className="text-[12px] text-slate-500">{sub}</p>}
+        <h3 className="text-[14px] font-bold text-slate-900 dark:text-slate-100">{title}</h3>
+        {sub && <p className="text-[12px] text-slate-500 dark:text-slate-400">{sub}</p>}
       </div>
     </div>
   );
@@ -319,14 +321,18 @@ function ReportForm({ onSubmitted, submittedRef }: ReportFormProps) {
 
   if (submittedRef) {
     return (
-      <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3.5 animate-fade-in">
+      <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3.5 animate-fade-in dark:border-emerald-500/30 dark:bg-emerald-500/10">
         <div className="flex items-start gap-3">
-          <CheckCircleIcon width={20} height={20} className="mt-0.5 text-emerald-600 shrink-0" />
+          <CheckCircleIcon
+            width={20}
+            height={20}
+            className="mt-0.5 text-emerald-600 shrink-0 dark:text-emerald-400"
+          />
           <div>
-            <div className="text-[14px] font-bold text-emerald-800">
+            <div className="text-[14px] font-bold text-emerald-800 dark:text-emerald-200">
               {t("reports.submittedTitle")}
             </div>
-            <div className="mt-0.5 text-[12.5px] text-emerald-700">
+            <div className="mt-0.5 text-[12.5px] text-emerald-700 dark:text-emerald-400">
               {t("reports.submittedRef", { ref: submittedRef })}
             </div>
           </div>
@@ -339,17 +345,17 @@ function ReportForm({ onSubmitted, submittedRef }: ReportFormProps) {
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_300px]">
       <div className="space-y-5">
         {/* 1 — Patient */}
-        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-card">
+        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-card dark:border-slate-800 dark:bg-slate-900">
           <StepHead n="1" title={t("reports.step1Title")} sub={t("reports.step1Sub")} />
           <div className="relative">
-            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
+            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500">
               <SearchIcon width={16} height={16} />
             </span>
             <input
               value={patient}
               onChange={(e) => setPatient(e.target.value)}
               placeholder={t("reports.searchPatient")}
-              className="w-full rounded-lg border border-slate-200 bg-white py-2.5 pl-9 pr-3 text-[13.5px] outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+              className="w-full rounded-lg border border-slate-200 bg-white py-2.5 pl-9 pr-3 text-[13.5px] outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
             />
           </div>
           <div className="mt-2.5 flex flex-wrap gap-2">
@@ -360,8 +366,8 @@ function ReportForm({ onSubmitted, submittedRef }: ReportFormProps) {
                 onClick={() => setPatient(r)}
                 className={`max-w-[180px] truncate rounded-full border px-3 py-1 text-[12px] font-medium transition-colors ${
                   patient === r
-                    ? "border-brand-300 bg-brand-50 text-brand-700"
-                    : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                    ? "border-brand-300 bg-brand-50 text-brand-700 dark:border-brand-500/30 dark:bg-brand-500/15 dark:text-brand-300"
+                    : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300 dark:hover:bg-slate-800/60"
                 }`}
               >
                 {r}
@@ -371,39 +377,41 @@ function ReportForm({ onSubmitted, submittedRef }: ReportFormProps) {
         </div>
 
         {/* 2 — Medicine */}
-        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-card">
+        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-card dark:border-slate-800 dark:bg-slate-900">
           <StepHead n="2" title={t("reports.step2Title")} sub={t("reports.step2Sub")} />
           <div className="flex gap-2.5">
             <div className="relative flex-1">
-              <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
+              <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500">
                 <SearchIcon width={16} height={16} />
               </span>
               <input
                 value={med}
                 onChange={(e) => setMed(e.target.value)}
                 placeholder={t("reports.searchMed")}
-                className="w-full rounded-lg border border-slate-200 bg-white py-2.5 pl-9 pr-3 text-[13.5px] outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+                className="w-full rounded-lg border border-slate-200 bg-white py-2.5 pl-9 pr-3 text-[13.5px] outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
               />
             </div>
             <button
               type="button"
-              className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-[12.5px] font-semibold text-slate-600 hover:bg-slate-50"
+              className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-[12.5px] font-semibold text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300 dark:hover:bg-slate-800/60"
             >
               <BarcodeIcon width={15} height={15} /> {t("reports.scan")}
             </button>
           </div>
           {med && (
-            <p className="mono mt-2 text-[11.5px] text-slate-400">{t("reports.autofillNote")}</p>
+            <p className="mono mt-2 text-[11.5px] text-slate-400 dark:text-slate-500">
+              {t("reports.autofillNote")}
+            </p>
           )}
         </div>
 
         {/* 3 — Reaction */}
-        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-card">
+        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-card dark:border-slate-800 dark:bg-slate-900">
           <StepHead n="3" title={t("reports.step3Title")} />
           <div className="space-y-4">
             {/* severity */}
             <div>
-              <label className="mb-1.5 block text-[12px] font-semibold text-slate-600">
+              <label className="mb-1.5 block text-[12px] font-semibold text-slate-600 dark:text-slate-300">
                 {t("reports.severityLabel")}
               </label>
               <div className="flex gap-2">
@@ -415,7 +423,7 @@ function ReportForm({ onSubmitted, submittedRef }: ReportFormProps) {
                     className={`flex-1 rounded-lg border px-3 py-2 text-[13px] font-semibold transition-colors ${
                       sev === s
                         ? SEV_BTN[s]
-                        : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50"
+                        : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-400 dark:hover:bg-slate-800/60"
                     }`}
                   >
                     {t(`reports.severity${s}`)}
@@ -427,28 +435,30 @@ function ReportForm({ onSubmitted, submittedRef }: ReportFormProps) {
             {/* onset + timing */}
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
-                <label className="mb-1.5 block text-[12px] font-semibold text-slate-600">
+                <label className="mb-1.5 block text-[12px] font-semibold text-slate-600 dark:text-slate-300">
                   {t("reports.onsetDate")}
                 </label>
                 <input
                   type="date"
                   value={onset}
                   onChange={(e) => setOnset(e.target.value)}
-                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-[13px] text-slate-700 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-[13px] text-slate-700 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300"
                 />
               </div>
               <div>
-                <label className="mb-1.5 block text-[12px] font-semibold text-slate-600">
+                <label className="mb-1.5 block text-[12px] font-semibold text-slate-600 dark:text-slate-300">
                   {t("reports.timing")}
                 </label>
-                <div className="flex gap-1 rounded-lg border border-slate-200 bg-slate-50 p-0.5">
+                <div className="flex gap-1 rounded-lg border border-slate-200 bg-slate-50 p-0.5 dark:border-slate-800 dark:bg-slate-800/50">
                   {(["during", "after"] as const).map((v) => (
                     <button
                       key={v}
                       type="button"
                       onClick={() => setPhase(v)}
                       className={`flex-1 rounded-md px-2 py-1.5 text-[12px] font-medium transition-colors ${
-                        phase === v ? "bg-white text-brand-700 shadow-card" : "text-slate-500"
+                        phase === v
+                          ? "bg-white text-brand-700 shadow-card dark:bg-slate-900 dark:text-brand-300"
+                          : "text-slate-500 dark:text-slate-400"
                       }`}
                     >
                       {t(`reports.timing${v.charAt(0).toUpperCase() + v.slice(1)}`)}
@@ -460,7 +470,7 @@ function ReportForm({ onSubmitted, submittedRef }: ReportFormProps) {
 
             {/* symptoms */}
             <div>
-              <label className="mb-1.5 block text-[12px] font-semibold text-slate-600">
+              <label className="mb-1.5 block text-[12px] font-semibold text-slate-600 dark:text-slate-300">
                 {t("reports.symptomsLabel")}
               </label>
               <textarea
@@ -468,10 +478,10 @@ function ReportForm({ onSubmitted, submittedRef }: ReportFormProps) {
                 onChange={(e) => setSymptoms(e.target.value)}
                 rows={3}
                 placeholder={t("reports.symptomsPlaceholder")}
-                className="w-full resize-none rounded-lg border border-slate-200 bg-white px-3 py-2 text-[13px] outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+                className="w-full resize-none rounded-lg border border-slate-200 bg-white px-3 py-2 text-[13px] outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
               />
               <div className="mt-2">
-                <div className="mb-1.5 text-[11px] font-medium text-slate-400">
+                <div className="mb-1.5 text-[11px] font-medium text-slate-400 dark:text-slate-500">
                   {t("reports.commonSymptoms")}
                 </div>
                 <div className="flex flex-wrap gap-1.5">
@@ -485,7 +495,7 @@ function ReportForm({ onSubmitted, submittedRef }: ReportFormProps) {
                         className={`flex items-center gap-1 rounded-full px-2.5 py-1 text-[11.5px] font-medium transition-colors ${
                           on
                             ? "bg-brand-600 text-white"
-                            : "border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                            : "border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300 dark:hover:bg-slate-800/60"
                         }`}
                       >
                         {on ? (
@@ -503,13 +513,13 @@ function ReportForm({ onSubmitted, submittedRef }: ReportFormProps) {
 
             {/* causality */}
             <div>
-              <label className="mb-1.5 block text-[12px] font-semibold text-slate-600">
+              <label className="mb-1.5 block text-[12px] font-semibold text-slate-600 dark:text-slate-300">
                 {t("reports.causality")}
               </label>
               <select
                 value={cause}
                 onChange={(e) => setCause(e.target.value)}
-                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-[13px] text-slate-700 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-[13px] text-slate-700 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
               >
                 <option value="">{t("reports.causalityPlaceholder")}</option>
                 {(["Certain", "Probable", "Possible", "Unlikely"] as const).map((v) => (
@@ -526,7 +536,7 @@ function ReportForm({ onSubmitted, submittedRef }: ReportFormProps) {
         <div className="flex items-center justify-between gap-3">
           <button
             type="button"
-            className="rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-[13px] font-semibold text-slate-600 transition-colors hover:bg-slate-50"
+            className="rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-[13px] font-semibold text-slate-600 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300 dark:hover:bg-slate-800/60"
           >
             {t("reports.saveDraft")}
           </button>
@@ -534,7 +544,7 @@ function ReportForm({ onSubmitted, submittedRef }: ReportFormProps) {
             type="button"
             onClick={handleSubmit}
             disabled={!valid || submitting}
-            className="rounded-lg bg-brand-600 px-6 py-2.5 text-[13px] font-semibold text-white shadow-card transition-colors hover:bg-brand-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none"
+            className="rounded-lg bg-brand-600 px-6 py-2.5 text-[13px] font-semibold text-white shadow-card transition-colors hover:bg-brand-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none dark:disabled:bg-slate-800 dark:disabled:text-slate-500"
           >
             {submitting ? <span className="spinner" /> : t("reports.step4Submit")}
           </button>
@@ -543,12 +553,12 @@ function ReportForm({ onSubmitted, submittedRef }: ReportFormProps) {
 
       {/* helper sidebar */}
       <aside>
-        <div className="sticky top-4 rounded-xl border border-brand-100 bg-brand-50 p-5">
-          <div className="flex items-center gap-2 text-brand-700">
+        <div className="sticky top-4 rounded-xl border border-brand-100 bg-brand-50 p-5 dark:border-brand-500/20 dark:bg-brand-500/10">
+          <div className="flex items-center gap-2 text-brand-700 dark:text-brand-300">
             <InfoIcon width={17} height={17} />
             <h3 className="text-[13.5px] font-bold">{t("reports.helperTitle")}</h3>
           </div>
-          <ul className="mt-3 space-y-2.5 text-[12.5px] leading-relaxed text-slate-700">
+          <ul className="mt-3 space-y-2.5 text-[12.5px] leading-relaxed text-slate-700 dark:text-slate-300">
             {[
               "Any suspected adverse reaction — even if causality is uncertain.",
               "Serious reactions: hospitalisation, life-threatening, congenital, persistent disability.",
@@ -557,12 +567,12 @@ function ReportForm({ onSubmitted, submittedRef }: ReportFormProps) {
               "Reactions during pregnancy or breastfeeding.",
             ].map((item, i) => (
               <li key={i} className="flex items-start gap-2">
-                <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-brand-500" />
+                <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-brand-500 dark:bg-brand-400" />
                 {item}
               </li>
             ))}
           </ul>
-          <div className="mt-4 border-t border-brand-200/60 pt-3 text-[11.5px] text-slate-500">
+          <div className="mt-4 border-t border-brand-200/60 pt-3 text-[11.5px] text-slate-500 dark:border-brand-500/20 dark:text-slate-400">
             {t("reports.helperFooter")}
           </div>
         </div>
@@ -631,17 +641,19 @@ function PreviousReports({
   return (
     <div>
       {usingFallback && (
-        <div className="mb-3 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[13px] text-amber-800">
+        <div className="mb-3 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[13px] text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-400">
           <AlertCircleIcon width={14} height={14} className="mt-0.5 shrink-0" />
           <span>
             {t("reports.fallbackWarning")}
-            {fallbackError && <span className="ml-1 text-amber-700/80">({fallbackError})</span>}
+            {fallbackError && (
+              <span className="ml-1 text-amber-700/80 dark:text-amber-400">({fallbackError})</span>
+            )}
           </span>
         </div>
       )}
 
       <div className="mb-4 flex flex-wrap items-center gap-2.5">
-        <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 p-0.5">
+        <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 p-0.5 dark:border-slate-800 dark:bg-slate-800/50">
           {statusTabs.map(({ value, label }) => (
             <button
               key={value}
@@ -649,15 +661,15 @@ function PreviousReports({
               onClick={() => setStatusFilter(value)}
               className={`rounded-md px-2.5 py-1.5 text-[12px] font-medium transition-colors ${
                 statusFilter === value
-                  ? "bg-white text-brand-700 shadow-card"
-                  : "text-slate-500 hover:text-slate-700"
+                  ? "bg-white text-brand-700 shadow-card dark:bg-slate-900 dark:text-brand-300"
+                  : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
               }`}
             >
               {label}
             </button>
           ))}
         </div>
-        <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 p-0.5">
+        <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 p-0.5 dark:border-slate-800 dark:bg-slate-800/50">
           {sevTabs.map(({ value, label }) => (
             <button
               key={value}
@@ -665,8 +677,8 @@ function PreviousReports({
               onClick={() => setSevFilter(value)}
               className={`rounded-md px-2.5 py-1.5 text-[12px] font-medium transition-colors ${
                 sevFilter === value
-                  ? "bg-white text-brand-700 shadow-card"
-                  : "text-slate-500 hover:text-slate-700"
+                  ? "bg-white text-brand-700 shadow-card dark:bg-slate-900 dark:text-brand-300"
+                  : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
               }`}
             >
               {label}
@@ -676,28 +688,28 @@ function PreviousReports({
       </div>
 
       {loading && (
-        <div className="rounded-xl border border-slate-200 bg-white px-4 py-6 text-center text-[13px] text-slate-500 shadow-card">
+        <div className="rounded-xl border border-slate-200 bg-white px-4 py-6 text-center text-[13px] text-slate-500 shadow-card dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400">
           <span className="spinner text-brand-600" /> Loading reports…
         </div>
       )}
 
       {empty && (
-        <div className="flex animate-fade-in flex-col items-center rounded-2xl border border-dashed border-slate-200 bg-white px-6 py-16 text-center shadow-card">
-          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-400">
+        <div className="flex animate-fade-in flex-col items-center rounded-2xl border border-dashed border-slate-200 bg-white px-6 py-16 text-center shadow-card dark:border-slate-800 dark:bg-slate-900">
+          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500">
             <FileTextIcon width={22} height={22} />
           </div>
-          <h3 className="mt-4 text-[15px] font-bold text-slate-900">
+          <h3 className="mt-4 text-[15px] font-bold text-slate-900 dark:text-slate-100">
             {t("reports.noReportsTitle")}
           </h3>
-          <p className="mt-1.5 max-w-[320px] text-[13px] text-slate-500">
+          <p className="mt-1.5 max-w-[320px] text-[13px] text-slate-500 dark:text-slate-400">
             {t("reports.noReportsDesc")}
           </p>
         </div>
       )}
 
       {!loading && visible && visible.length > 0 && (
-        <div className="animate-fade-in overflow-hidden rounded-xl border border-slate-200 bg-white shadow-card">
-          <div className="grid grid-cols-[110px_150px_1fr_110px_130px_120px] items-center gap-4 border-b border-slate-200 bg-slate-50 px-5 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+        <div className="animate-fade-in overflow-hidden rounded-xl border border-slate-200 bg-white shadow-card dark:border-slate-800 dark:bg-slate-900">
+          <div className="grid grid-cols-[110px_150px_1fr_110px_130px_120px] items-center gap-4 border-b border-slate-200 bg-slate-50 px-5 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:border-slate-800 dark:bg-slate-800/50 dark:text-slate-500">
             <span>{t("reports.colDate")}</span>
             <span>{t("reports.colPatient")}</span>
             <span>{t("reports.colMedicine")}</span>
@@ -708,15 +720,19 @@ function PreviousReports({
           {visible.map((r, i) => (
             <div
               key={r.id}
-              className={`group grid grid-cols-[110px_150px_1fr_110px_130px_120px] items-center gap-4 px-5 py-3.5 transition-colors hover:bg-slate-50 ${
-                i > 0 ? "border-t border-slate-100" : ""
+              className={`group grid grid-cols-[110px_150px_1fr_110px_130px_120px] items-center gap-4 px-5 py-3.5 transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/60 ${
+                i > 0 ? "border-t border-slate-100 dark:border-slate-800" : ""
               }`}
             >
-              <span className="mono text-[12.5px] text-slate-500">
+              <span className="mono text-[12.5px] text-slate-500 dark:text-slate-400">
                 {formatTimestamp(r.reportedAt)}
               </span>
-              <span className="mono text-[12.5px] text-slate-700">{r.patientName}</span>
-              <span className="truncate text-[13px] font-medium text-slate-900">{r.drugName}</span>
+              <span className="mono text-[12.5px] text-slate-700 dark:text-slate-300">
+                {r.patientName}
+              </span>
+              <span className="truncate text-[13px] font-medium text-slate-900 dark:text-slate-100">
+                {r.drugName}
+              </span>
               <span>
                 <span
                   className={`rounded-full px-2 py-0.5 text-[11.5px] font-semibold ${SEV_TONE[r.severity]}`}
@@ -735,7 +751,7 @@ function PreviousReports({
                 <button
                   type="button"
                   onClick={() => onViewProfile(r)}
-                  className="text-[12px] font-semibold text-brand-600 hover:text-brand-700"
+                  className="text-[12px] font-semibold text-brand-600 hover:text-brand-700 dark:text-brand-400"
                 >
                   {t("reports.view")}
                 </button>
@@ -744,7 +760,7 @@ function PreviousReports({
                     type="button"
                     onClick={() => onFlag(r)}
                     disabled={busyId === r.id}
-                    className="text-[12px] font-semibold text-slate-500 hover:text-slate-700 disabled:opacity-50"
+                    className="text-[12px] font-semibold text-slate-500 hover:text-slate-700 disabled:opacity-50 dark:text-slate-400 dark:hover:text-slate-200"
                   >
                     {t("reports.edit")}
                   </button>
@@ -753,7 +769,7 @@ function PreviousReports({
                   type="button"
                   onClick={() => onNotify(r)}
                   disabled={busyId === r.id || !r.rxId}
-                  className="text-[12px] font-semibold text-slate-400 hover:text-red-600 disabled:opacity-40"
+                  className="text-[12px] font-semibold text-slate-400 hover:text-red-600 disabled:opacity-40 dark:text-slate-500 dark:hover:text-red-400"
                 >
                   {t("reports.withdraw")}
                 </button>
@@ -897,29 +913,29 @@ export function SideEffects() {
         label: t("reports.statTotal"),
         value: stats.total,
         Icon: AlertTriangleIcon,
-        tone: "bg-slate-100 text-slate-700",
-        vc: "text-slate-900",
+        tone: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
+        vc: "text-slate-900 dark:text-slate-100",
       },
       {
         label: t("reports.statPending"),
         value: stats.pendingReview,
         Icon: ClockIcon,
-        tone: "bg-amber-100 text-amber-700",
-        vc: "text-amber-700",
+        tone: "bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-400",
+        vc: "text-amber-700 dark:text-amber-400",
       },
       {
         label: t("reports.statSevere"),
         value: stats.severe,
         Icon: AlertOctagonIcon,
-        tone: "bg-red-100 text-red-700",
-        vc: "text-red-700",
+        tone: "bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-400",
+        vc: "text-red-700 dark:text-red-400",
       },
       {
         label: t("reports.statEscalated"),
         value: stats.escalated,
         Icon: FlagIcon,
-        tone: "bg-blue-100 text-blue-700",
-        vc: "text-blue-700",
+        tone: "bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-400",
+        vc: "text-blue-700 dark:text-blue-400",
       },
     ],
     [stats, t],
@@ -929,19 +945,26 @@ export function SideEffects() {
     <div className="mx-auto max-w-[1100px] px-6 py-8 lg:px-8">
       {/* header */}
       <div className="mb-6">
-        <h1 className="text-[24px] font-bold tracking-tight text-slate-900">
+        <h1 className="text-[24px] font-bold tracking-tight text-slate-900 dark:text-slate-100">
           {t("reports.title")}
         </h1>
-        <p className="mt-1 text-[13px] text-slate-500">{t("reports.subtitle")}</p>
+        <p className="mt-1 text-[13px] text-slate-500 dark:text-slate-400">
+          {t("reports.subtitle")}
+        </p>
       </div>
 
       {/* stat strip */}
       <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
         {statCards.map(({ label, value, Icon, tone, vc }) => (
-          <div key={label} className="rounded-xl border border-slate-200 bg-white p-4 shadow-card">
+          <div
+            key={label}
+            className="rounded-xl border border-slate-200 bg-white p-4 shadow-card dark:border-slate-800 dark:bg-slate-900"
+          >
             <div className="flex items-start justify-between">
               <div>
-                <div className="text-[11.5px] font-medium text-slate-500">{label}</div>
+                <div className="text-[11.5px] font-medium text-slate-500 dark:text-slate-400">
+                  {label}
+                </div>
                 <div className={`mt-0.5 text-[22px] font-bold tabular-nums ${vc}`}>
                   {loading ? "—" : value}
                 </div>
@@ -955,7 +978,7 @@ export function SideEffects() {
       </div>
 
       {/* tabs */}
-      <div className="mb-6 flex items-center gap-1 border-b border-slate-200">
+      <div className="mb-6 flex items-center gap-1 border-b border-slate-200 dark:border-slate-800">
         {(["report", "previous"] as const).map((v) => (
           <button
             key={v}
@@ -966,8 +989,8 @@ export function SideEffects() {
             }}
             className={`-mb-px border-b-2 px-4 py-2.5 text-[13.5px] font-semibold transition-colors ${
               tab === v
-                ? "border-brand-600 text-brand-700"
-                : "border-transparent text-slate-500 hover:text-slate-800"
+                ? "border-brand-600 text-brand-700 dark:border-brand-400 dark:text-brand-300"
+                : "border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
             }`}
           >
             {t(v === "report" ? "reports.tabReport" : "reports.tabPrevious")}
@@ -978,7 +1001,7 @@ export function SideEffects() {
       {tab === "report" ? (
         <div className="animate-fade-in">
           {!submittedRef && (
-            <h2 className="mb-4 text-[16px] font-bold text-slate-900">
+            <h2 className="mb-4 text-[16px] font-bold text-slate-900 dark:text-slate-100">
               {t("reports.newReportTitle")}
             </h2>
           )}

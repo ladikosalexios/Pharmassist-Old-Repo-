@@ -27,24 +27,24 @@ interface StatusVisual {
 const STATUS_VISUAL: Record<CheckStatus, StatusVisual> = {
   block: {
     severity: "Critical",
-    border: "border-red-300",
-    bg: "bg-red-50",
-    label: "text-red-700",
+    border: "border-red-300 dark:border-red-500/30",
+    bg: "bg-red-50 dark:bg-red-500/10",
+    label: "text-red-700 dark:text-red-400",
     pulse: true,
   },
   review: {
     severity: "Review",
-    border: "border-amber-300",
-    bg: "bg-amber-50",
-    label: "text-amber-700",
+    border: "border-amber-300 dark:border-amber-500/30",
+    bg: "bg-amber-50 dark:bg-amber-500/10",
+    label: "text-amber-700 dark:text-amber-400",
   },
   // Never rendered (the dashboard only surfaces non-OK alerts) — defined for
   // exhaustiveness so the map is total over CheckStatus.
   ok: {
     severity: "Review",
-    border: "border-slate-200",
-    bg: "bg-slate-50",
-    label: "text-slate-600",
+    border: "border-slate-200 dark:border-slate-700",
+    bg: "bg-slate-50 dark:bg-slate-800/50",
+    label: "text-slate-600 dark:text-slate-400",
   },
 };
 
@@ -58,8 +58,8 @@ const TYPE_ICON: Record<AlertType, typeof PillIcon> = {
 };
 
 const SEVERITY_COLOR: Record<Severity, string> = {
-  Critical: "text-red-600",
-  Review: "text-amber-600",
+  Critical: "text-red-600 dark:text-red-400",
+  Review: "text-amber-600 dark:text-amber-400",
 };
 
 interface SafetyAlertsPanelProps {
@@ -98,25 +98,31 @@ export function SafetyAlertsPanel({ maxHeightClass = "max-h-96" }: SafetyAlertsP
 
   return (
     <section className="card overflow-hidden">
-      <header className="flex items-center gap-2 border-b border-slate-200 px-5 py-4">
-        <AlertCircleIcon width={16} height={16} className="text-red-600" />
-        <h2 className="text-base font-semibold text-slate-900">Safety Alerts</h2>
+      <header className="flex items-center gap-2 border-b border-slate-200 px-5 py-4 dark:border-slate-800">
+        <AlertCircleIcon width={16} height={16} className="text-red-600 dark:text-red-400" />
+        <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">
+          Safety Alerts
+        </h2>
         {alerts && (
-          <span className="ml-auto text-xs font-medium text-slate-500">{alerts.length} active</span>
+          <span className="ml-auto text-xs font-medium text-slate-500 dark:text-slate-400">
+            {alerts.length} active
+          </span>
         )}
       </header>
 
       {loading ? (
-        <div className="flex items-center gap-2 px-5 py-6 text-sm text-slate-500">
+        <div className="flex items-center gap-2 px-5 py-6 text-sm text-slate-500 dark:text-slate-400">
           <span className="spinner text-brand-600" /> Loading alerts…
         </div>
       ) : error ? (
-        <div className="m-4 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-700">
+        <div className="m-4 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-400">
           <AlertCircleIcon width={14} height={14} className="mt-0.5 shrink-0" />
           <span>{error}</span>
         </div>
       ) : !alerts || alerts.length === 0 ? (
-        <div className="px-5 py-8 text-center text-sm text-slate-500">No active alerts.</div>
+        <div className="px-5 py-8 text-center text-sm text-slate-500 dark:text-slate-400">
+          No active alerts.
+        </div>
       ) : (
         <div className={`space-y-3 overflow-y-auto p-4 ${maxHeightClass}`}>
           {alerts.map((a) => {
@@ -127,8 +133,8 @@ export function SafetyAlertsPanel({ maxHeightClass = "max-h-96" }: SafetyAlertsP
         </div>
       )}
 
-      <footer className="border-t border-slate-200 bg-slate-50 px-5 py-4">
-        <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+      <footer className="border-t border-slate-200 bg-slate-50 px-5 py-4 dark:border-slate-800 dark:bg-slate-800/40">
+        <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
           Alert Summary
         </div>
         <ul className="space-y-1 text-xs">
@@ -153,15 +159,17 @@ function AlertCard({ alert, isNew }: { alert: ActiveAlert; isNew: boolean }) {
         <span className={`text-xs font-bold tracking-wide ${v.label}`}>
           {alert.type.toUpperCase()}
         </span>
-        <span className="ml-auto text-[11px] font-medium uppercase tracking-wide text-slate-500">
+        <span className="ml-auto text-[11px] font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
           {v.severity}
         </span>
       </div>
-      <p className="mt-1.5 text-[13px] leading-relaxed text-slate-700">{alert.description}</p>
+      <p className="mt-1.5 text-[13px] leading-relaxed text-slate-700 dark:text-slate-300">
+        {alert.description}
+      </p>
       {alert.rxId && (
         <Link
           to={`/prescription/${alert.rxId}`}
-          className="mt-2 inline-flex items-center gap-1 text-[12px] font-semibold text-brand-600 hover:underline"
+          className="mt-2 inline-flex items-center gap-1 text-[12px] font-semibold text-brand-600 hover:underline dark:text-brand-400"
         >
           View Prescription <ChevronRightIcon width={12} height={12} />
         </Link>

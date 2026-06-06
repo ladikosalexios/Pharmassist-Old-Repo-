@@ -10,7 +10,12 @@
   }
   body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    @apply bg-slate-50 text-slate-900 antialiased;
+    @apply bg-slate-50 text-slate-900 antialiased dark:bg-slate-950 dark:text-slate-100;
+  }
+  /* Render native controls (checkboxes, selects, scrollbars) in the dark
+     palette when the dark class is active. */
+  .dark {
+    color-scheme: dark;
   }
 }
 
@@ -19,22 +24,22 @@
     @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-colors;
   }
   .btn-primary {
-    @apply bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-70 disabled:cursor-not-allowed;
+    @apply bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-70 disabled:cursor-not-allowed dark:hover:bg-brand-500;
   }
   .btn-outline {
-    @apply border border-slate-300 bg-white text-slate-700 hover:bg-slate-50;
+    @apply border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700;
   }
   .btn-success {
-    @apply bg-brand-600 text-white hover:bg-brand-700;
+    @apply bg-brand-600 text-white hover:bg-brand-700 dark:hover:bg-brand-500;
   }
   .btn-amber {
-    @apply border border-amber-300 bg-white text-amber-800 hover:bg-amber-50;
+    @apply border border-amber-300 bg-white text-amber-800 hover:bg-amber-50 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-300 dark:hover:bg-amber-500/20;
   }
   .card {
-    @apply rounded-xl border border-slate-200 bg-white shadow-card;
+    @apply rounded-xl border border-slate-200 bg-white shadow-card dark:border-slate-800 dark:bg-slate-900;
   }
   .sk {
-    @apply animate-shimmer bg-gradient-to-r from-slate-200 via-slate-100 to-slate-200 bg-[length:800px_100%];
+    @apply animate-shimmer bg-gradient-to-r from-slate-200 via-slate-100 to-slate-200 bg-[length:800px_100%] dark:from-slate-800 dark:via-slate-700 dark:to-slate-800;
   }
   .chip {
     @apply inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium;

@@ -60,7 +60,9 @@ function Skl({ w = "100%", h = 14, mt = 0 }: { w?: string; h?: number; mt?: numb
 
 function Card({ children, className = "" }: { children: React.ReactNode; className?: string }) {
   return (
-    <div className={`rounded-xl border border-slate-200 bg-white p-5 shadow-card ${className}`}>
+    <div
+      className={`rounded-xl border border-slate-200 bg-white p-5 shadow-card dark:border-slate-800 dark:bg-slate-900 ${className}`}
+    >
       {children}
     </div>
   );
@@ -69,7 +71,7 @@ function Card({ children, className = "" }: { children: React.ReactNode; classNa
 function SectionTitle({ children, right }: { children: React.ReactNode; right?: React.ReactNode }) {
   return (
     <div className="mb-3 flex items-center justify-between">
-      <h2 className="text-[15px] font-bold text-slate-900">{children}</h2>
+      <h2 className="text-[15px] font-bold text-slate-900 dark:text-slate-100">{children}</h2>
       {right}
     </div>
   );
@@ -86,8 +88,14 @@ function Field({
 }) {
   return (
     <div>
-      <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">{label}</dt>
-      <dd className={`mt-0.5 text-[13.5px] text-slate-800 ${mono ? "mono" : ""}`}>{children}</dd>
+      <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
+        {label}
+      </dt>
+      <dd
+        className={`mt-0.5 text-[13.5px] text-slate-800 dark:text-slate-200 ${mono ? "mono" : ""}`}
+      >
+        {children}
+      </dd>
     </div>
   );
 }
@@ -113,32 +121,32 @@ function AddConditionModal({ amka, onClose }: { amka: string; onClose: () => voi
         onClick={onClose}
         aria-hidden="true"
       />
-      <div className="relative w-full max-w-[440px] animate-modal-in rounded-2xl bg-white p-6 shadow-modal">
+      <div className="relative w-full max-w-[440px] animate-modal-in rounded-2xl bg-white p-6 shadow-modal dark:bg-slate-900">
         <div className="flex items-center justify-between">
-          <h3 className="text-[16px] font-bold text-slate-900">
+          <h3 className="text-[16px] font-bold text-slate-900 dark:text-slate-100">
             {t("patientProfile.addConditionTitle")}
           </h3>
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100"
+            className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 dark:text-slate-500 dark:hover:bg-slate-800"
             aria-label={t("patientProfile.cancel")}
           >
             <XIcon width={18} height={18} />
           </button>
         </div>
-        <p className="mt-1 text-[12.5px] text-slate-500">
+        <p className="mt-1 text-[12.5px] text-slate-500 dark:text-slate-400">
           {t("patientProfile.addConditionSubtitle")}
         </p>
         <div className="mt-4 space-y-3">
           <label className="block">
-            <span className="mb-1 block text-[12px] font-semibold text-slate-600">
+            <span className="mb-1 block text-[12px] font-semibold text-slate-600 dark:text-slate-300">
               {t("patientProfile.conditionType")}
             </span>
             <select
               value={type}
               onChange={(e) => setType(e.target.value)}
-              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-[13px] outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-[13px] outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
             >
               <option value="chronic">{t("patientProfile.conditionTypeChronic")}</option>
               <option value="allergy">{t("patientProfile.conditionTypeAllergy")}</option>
@@ -146,37 +154,37 @@ function AddConditionModal({ amka, onClose }: { amka: string; onClose: () => voi
             </select>
           </label>
           <label className="block">
-            <span className="mb-1 block text-[12px] font-semibold text-slate-600">
+            <span className="mb-1 block text-[12px] font-semibold text-slate-600 dark:text-slate-300">
               {t("patientProfile.conditionDesc")}
             </span>
             <input
               value={desc}
               onChange={(e) => setDesc(e.target.value)}
               placeholder="e.g. Χρόνια νεφρική νόσος"
-              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-[13px] outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-[13px] outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
             />
           </label>
           <label className="block">
-            <span className="mb-1 block text-[12px] font-semibold text-slate-600">
+            <span className="mb-1 block text-[12px] font-semibold text-slate-600 dark:text-slate-300">
               {t("patientProfile.conditionNotes")}
             </span>
             <textarea
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               rows={2}
-              className="w-full resize-none rounded-lg border border-slate-200 bg-white px-3 py-2 text-[13px] outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+              className="w-full resize-none rounded-lg border border-slate-200 bg-white px-3 py-2 text-[13px] outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
             />
           </label>
         </div>
         {/* TODO: remove this notice when createPatientCondition API is wired */}
-        <p className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11.5px] text-amber-800">
+        <p className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11.5px] text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-400">
           {t("patientProfile.conditionsSaveNotice")}
         </p>
         <div className="mt-3 flex justify-end gap-2.5">
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-[13px] font-semibold text-slate-600 hover:bg-slate-50"
+            className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-[13px] font-semibold text-slate-600 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800/60"
           >
             {t("patientProfile.cancel")}
           </button>
@@ -204,14 +212,18 @@ function HistoryRow({ row, index }: { row: PatientRxHistoryRow; index: number })
 
   return (
     <div className={`relative pl-7 ${index > 0 ? "pt-5" : ""}`}>
-      <span className="absolute left-[5px] top-1 h-2.5 w-2.5 rounded-full border-2 border-white bg-brand-500 shadow" />
+      <span className="absolute left-[5px] top-1 h-2.5 w-2.5 rounded-full border-2 border-white bg-brand-500 shadow dark:border-slate-900" />
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="mono text-[11.5px] text-slate-400">{row.date}</div>
-          <div className="mt-0.5 text-[13.5px] font-semibold text-slate-900">{row.drugName}</div>
+          <div className="mono text-[11.5px] text-slate-400 dark:text-slate-500">{row.date}</div>
+          <div className="mt-0.5 text-[13.5px] font-semibold text-slate-900 dark:text-slate-100">
+            {row.drugName}
+          </div>
           <div
             className={`mt-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ${
-              dispensedHere ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500"
+              dispensedHere
+                ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400"
+                : "bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400"
             }`}
           >
             <CheckCircleIcon width={12} height={12} />
@@ -220,11 +232,11 @@ function HistoryRow({ row, index }: { row: PatientRxHistoryRow; index: number })
               : t("patientProfile.dispensedElsewhere")}
           </div>
           {open && row.prescriberName && (
-            <p className="mt-2 text-[12.5px] text-slate-500">
+            <p className="mt-2 text-[12.5px] text-slate-500 dark:text-slate-400">
               {t("patientProfile.prescriberLabel")} {row.prescriberName} · Rx{" "}
               <Link
                 to={`/prescription/${row.rxId}`}
-                className="text-brand-600 hover:underline"
+                className="text-brand-600 hover:underline dark:text-brand-400"
                 onClick={(e) => e.stopPropagation()}
               >
                 {row.rxId}
@@ -235,7 +247,7 @@ function HistoryRow({ row, index }: { row: PatientRxHistoryRow; index: number })
         <button
           type="button"
           onClick={() => setOpen((o) => !o)}
-          className="flex shrink-0 items-center gap-0.5 text-[12px] font-semibold text-brand-600"
+          className="flex shrink-0 items-center gap-0.5 text-[12px] font-semibold text-brand-600 dark:text-brand-400"
         >
           {t("patientProfile.details")}{" "}
           <span className={`transition-transform ${open ? "rotate-180" : ""}`}>
@@ -388,7 +400,7 @@ export function PatientProfile() {
     return (
       <div className="mx-auto max-w-[1100px] px-6 py-8 lg:px-8">
         <div className="mb-6 h-5 w-32 sk animate-shimmer rounded" />
-        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-cardLg">
+        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-cardLg dark:border-slate-800 dark:bg-slate-900">
           <div className="flex items-center gap-4">
             <div className="h-16 w-16 shrink-0 sk animate-shimmer rounded-full" />
             <div className="flex-1">
@@ -406,12 +418,12 @@ export function PatientProfile() {
       <div className="mx-auto max-w-[1100px] px-6 py-8 lg:px-8">
         <Link
           to="/patients"
-          className="mb-4 inline-flex items-center gap-1.5 text-[13px] font-medium text-slate-500 hover:text-slate-800"
+          className="mb-4 inline-flex items-center gap-1.5 text-[13px] font-medium text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
         >
           <ArrowLeftIcon width={15} height={15} /> {t("patientProfile.backToPatients")}
         </Link>
-        <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-5">
-          <div className="flex items-start gap-2 text-red-700">
+        <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-5 dark:border-red-500/30 dark:bg-red-500/10">
+          <div className="flex items-start gap-2 text-red-700 dark:text-red-400">
             <AlertCircleIcon className="mt-0.5 shrink-0" />
             <span>{profileError ?? "Patient profile not available."}</span>
           </div>
@@ -434,38 +446,38 @@ export function PatientProfile() {
       {fromRx ? (
         <Link
           to={`/prescription/${fromRx}`}
-          className="inline-flex items-center gap-1.5 text-[13px] font-medium text-slate-500 transition-colors hover:text-slate-800"
+          className="inline-flex items-center gap-1.5 text-[13px] font-medium text-slate-500 transition-colors hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
         >
           <ArrowLeftIcon width={15} height={15} /> {t("patientProfile.backToRx", { rxId: fromRx })}
         </Link>
       ) : (
         <Link
           to="/patients"
-          className="inline-flex items-center gap-1.5 text-[13px] font-medium text-slate-500 transition-colors hover:text-slate-800"
+          className="inline-flex items-center gap-1.5 text-[13px] font-medium text-slate-500 transition-colors hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
         >
           <ArrowLeftIcon width={15} height={15} /> {t("patientProfile.backToPatients")}
         </Link>
       )}
 
       {usingFallback && (
-        <div className="mt-3 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[13px] text-amber-800">
+        <div className="mt-3 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[13px] text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-400">
           <AlertCircleIcon width={14} height={14} className="mt-0.5 shrink-0" />
           <span>{t("patientProfile.fallbackBanner")}</span>
         </div>
       )}
 
       {/* ── HEADER STRIP ── */}
-      <div className="mt-3 rounded-2xl border border-slate-200 bg-white p-6 shadow-cardLg">
+      <div className="mt-3 rounded-2xl border border-slate-200 bg-white p-6 shadow-cardLg dark:border-slate-800 dark:bg-slate-900">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex items-center gap-4">
-            <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-brand-100 text-[20px] font-bold text-brand-700">
+            <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-brand-100 text-[20px] font-bold text-brand-700 dark:bg-brand-500/15 dark:text-brand-300">
               {initials(profile.name)}
             </div>
             <div className="min-w-0">
-              <h1 className="text-[24px] font-bold tracking-tight text-slate-900">
+              <h1 className="text-[24px] font-bold tracking-tight text-slate-900 dark:text-slate-100">
                 {profile.name}
               </h1>
-              <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12.5px] text-slate-500">
+              <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12.5px] text-slate-500 dark:text-slate-400">
                 {amka && <span className="mono">AMKA {amka}</span>}
                 {typeof profile.age === "number" && (
                   <>
@@ -495,14 +507,14 @@ export function PatientProfile() {
             <button
               type="button"
               onClick={() => navigate(`/side-effects`)}
-              className="rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-[13px] font-semibold text-slate-700 shadow-card transition-colors hover:bg-slate-50"
+              className="rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-[13px] font-semibold text-slate-700 shadow-card transition-colors hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800/60"
             >
               {t("patientProfile.reportSideEffect")}
             </button>
             <button
               type="button"
               onClick={() => navigate(`/documentation`)}
-              className="rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-[13px] font-semibold text-slate-700 shadow-card transition-colors hover:bg-slate-50"
+              className="rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-[13px] font-semibold text-slate-700 shadow-card transition-colors hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800/60"
             >
               {t("patientProfile.viewDocumentation")}
             </button>
@@ -546,13 +558,13 @@ export function PatientProfile() {
           {profile.safetyFlags && (
             <div className="mt-4 flex flex-wrap gap-2">
               {profile.safetyFlags.g6pd && (
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-red-200 bg-red-50 px-3 py-1 text-[12px] font-medium text-red-800">
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-red-200 bg-red-50 px-3 py-1 text-[12px] font-medium text-red-800 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-400">
                   <AlertOctagonIcon width={13} height={13} /> {t("patientProfile.g6pdFlag")}
                 </span>
               )}
               {profile.safetyFlags.pregnancyWeeks != null &&
                 profile.safetyFlags.pregnancyWeeks > 0 && (
-                  <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-[12px] font-medium text-amber-800">
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-[12px] font-medium text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-400">
                     <InfoIcon width={13} height={13} />{" "}
                     {t("patientProfile.pregnancyFlag", {
                       weeks: profile.safetyFlags.pregnancyWeeks,
@@ -561,7 +573,7 @@ export function PatientProfile() {
                 )}
               {profile.safetyFlags.renalFunction &&
                 profile.safetyFlags.renalFunction !== "NORMAL" && (
-                  <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-[12px] font-medium text-amber-800">
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-[12px] font-medium text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-400">
                     <InfoIcon width={13} height={13} />{" "}
                     {t("patientProfile.renalFlag", {
                       value: profile.safetyFlags.renalFunction.replace(/_/g, " ").toLowerCase(),
@@ -570,7 +582,7 @@ export function PatientProfile() {
                 )}
               {profile.safetyFlags.hepaticFunction &&
                 profile.safetyFlags.hepaticFunction !== "NORMAL" && (
-                  <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-[12px] font-medium text-amber-800">
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-[12px] font-medium text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-400">
                     <InfoIcon width={13} height={13} />{" "}
                     {t("patientProfile.hepaticFlag", {
                       value: profile.safetyFlags.hepaticFunction.replace(/_/g, " ").toLowerCase(),
@@ -582,10 +594,14 @@ export function PatientProfile() {
 
           {/* allergies info banner */}
           {profile.allergies && profile.allergies.length > 0 && (
-            <div className="mt-3 flex items-start gap-2 rounded-lg border border-brand-100 bg-brand-50 px-3.5 py-2.5">
-              <InfoIcon width={15} height={15} className="mt-0.5 shrink-0 text-brand-600" />
-              <div className="text-[12.5px] leading-snug text-slate-700">
-                <span className="font-semibold text-brand-700">
+            <div className="mt-3 flex items-start gap-2 rounded-lg border border-brand-100 bg-brand-50 px-3.5 py-2.5 dark:border-brand-500/20 dark:bg-brand-500/10">
+              <InfoIcon
+                width={15}
+                height={15}
+                className="mt-0.5 shrink-0 text-brand-600 dark:text-brand-400"
+              />
+              <div className="text-[12.5px] leading-snug text-slate-700 dark:text-slate-300">
+                <span className="font-semibold text-brand-700 dark:text-brand-400">
                   {t("patientProfile.allergiesLabel")} ·{" "}
                 </span>
                 {profile.allergies.join(", ")}
@@ -602,7 +618,7 @@ export function PatientProfile() {
           <SectionTitle
             right={
               intolerances.length > 0 && (
-                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11.5px] font-semibold text-slate-500">
+                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11.5px] font-semibold text-slate-500 dark:bg-slate-800 dark:text-slate-400">
                   {intolerances.length}
                 </span>
               )
@@ -612,16 +628,25 @@ export function PatientProfile() {
           </SectionTitle>
 
           {intolerances.length === 0 ? (
-            <p className="py-6 text-center text-[13px] italic text-slate-400">
+            <p className="py-6 text-center text-[13px] italic text-slate-400 dark:text-slate-500">
               {t("patientProfile.noIntolerances")}
             </p>
           ) : (
             <div className="-mx-1 max-h-[340px] space-y-2 overflow-y-auto px-1">
               {intolerances.map((name, i) => (
-                <div key={i} className="rounded-lg border border-amber-200 bg-amber-50/60 p-3">
+                <div
+                  key={i}
+                  className="rounded-lg border border-amber-200 bg-amber-50/60 p-3 dark:border-amber-500/30 dark:bg-amber-500/10"
+                >
                   <div className="flex items-center gap-2">
-                    <AlertTriangleIcon width={14} height={14} className="text-amber-500" />
-                    <span className="mono text-[12.5px] font-bold text-slate-800">{name}</span>
+                    <AlertTriangleIcon
+                      width={14}
+                      height={14}
+                      className="text-amber-500 dark:text-amber-400"
+                    />
+                    <span className="mono text-[12.5px] font-bold text-slate-800 dark:text-slate-200">
+                      {name}
+                    </span>
                   </div>
                 </div>
               ))}
@@ -636,20 +661,20 @@ export function PatientProfile() {
               <button
                 type="button"
                 onClick={() => setAddOpen(true)}
-                className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[12px] font-semibold text-brand-600 transition-colors hover:bg-brand-50"
+                className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[12px] font-semibold text-brand-600 transition-colors hover:bg-brand-50 dark:border-slate-800 dark:bg-slate-900 dark:text-brand-400 dark:hover:bg-brand-500/10"
               >
                 <PlusIcon width={13} height={13} /> {t("patientProfile.addCondition")}
               </button>
             }
           >
             {t("patientProfile.conditionsTitle")}{" "}
-            <span className="font-normal text-slate-400">
+            <span className="font-normal text-slate-400 dark:text-slate-500">
               {t("patientProfile.conditionsSubtitle")}
             </span>
           </SectionTitle>
 
           {conditionsError ? (
-            <div className="flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-[12.5px] text-red-700">
+            <div className="flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-[12.5px] text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-400">
               <AlertCircleIcon width={14} height={14} className="shrink-0" />
               {conditionsError}
             </div>
@@ -663,7 +688,7 @@ export function PatientProfile() {
               ))}
             </div>
           ) : conditions.length === 0 ? (
-            <p className="py-6 text-center text-[13px] italic text-slate-400">
+            <p className="py-6 text-center text-[13px] italic text-slate-400 dark:text-slate-500">
               {t("patientProfile.noConditions")}
             </p>
           ) : (
@@ -671,14 +696,18 @@ export function PatientProfile() {
               {conditions.map((c) => (
                 <div
                   key={c.id}
-                  className="group flex items-start justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50/60 p-3"
+                  className="group flex items-start justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50/60 p-3 dark:border-slate-800 dark:bg-slate-800/50"
                 >
                   <div className="min-w-0">
-                    <div className="text-[13px] font-semibold text-slate-800">{c.name}</div>
+                    <div className="text-[13px] font-semibold text-slate-800 dark:text-slate-200">
+                      {c.name}
+                    </div>
                     {c.notes && (
-                      <div className="mt-0.5 text-[11.5px] text-slate-500">{c.notes}</div>
+                      <div className="mt-0.5 text-[11.5px] text-slate-500 dark:text-slate-400">
+                        {c.notes}
+                      </div>
                     )}
-                    <div className="mono mt-0.5 text-[11px] text-slate-400">
+                    <div className="mono mt-0.5 text-[11px] text-slate-400 dark:text-slate-500">
                       {c.severity && `${c.severity} · `}
                       {t("patientProfile.recorded")} {formatDate(c.createdAt)}
                     </div>
@@ -686,14 +715,14 @@ export function PatientProfile() {
                   <div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
                     <button
                       type="button"
-                      className="rounded p-1.5 text-slate-400 hover:bg-white hover:text-brand-600"
+                      className="rounded p-1.5 text-slate-400 hover:bg-white hover:text-brand-600 dark:text-slate-500 dark:hover:bg-slate-800 dark:hover:text-brand-400"
                       aria-label={t("patientProfile.editCondition")}
                     >
                       <EditIcon width={14} height={14} />
                     </button>
                     <button
                       type="button"
-                      className="rounded p-1.5 text-slate-400 hover:bg-white hover:text-red-600"
+                      className="rounded p-1.5 text-slate-400 hover:bg-white hover:text-red-600 dark:text-slate-500 dark:hover:bg-slate-800 dark:hover:text-red-400"
                       aria-label={t("patientProfile.removeCondition")}
                     >
                       <TrashIcon width={14} height={14} />
@@ -710,7 +739,7 @@ export function PatientProfile() {
       <div className="mt-6 mb-4">
         <Card>
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-            <h2 className="text-[15px] font-bold text-slate-900">
+            <h2 className="text-[15px] font-bold text-slate-900 dark:text-slate-100">
               {t("patientProfile.historyTitle")}
             </h2>
             {rxHistory && rxHistory.length > 0 && (
@@ -730,7 +759,7 @@ export function PatientProfile() {
                     className={`rounded-full px-3 py-1 text-[12px] font-medium transition-colors ${
                       historyFilter === key
                         ? "bg-brand-600 text-white"
-                        : "border border-slate-200 bg-white text-slate-500 hover:bg-slate-50"
+                        : "border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400 dark:hover:bg-slate-800/60"
                     }`}
                   >
                     {label}
@@ -741,7 +770,7 @@ export function PatientProfile() {
           </div>
 
           {rxError ? (
-            <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-[12.5px] text-red-700">
+            <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-[12.5px] text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-400">
               <AlertCircleIcon width={14} height={14} className="mt-0.5 shrink-0" />
               {rxError}
             </div>
@@ -755,12 +784,12 @@ export function PatientProfile() {
               ))}
             </div>
           ) : rxHistory.length === 0 ? (
-            <p className="py-8 text-center text-[13px] italic text-slate-400">
+            <p className="py-8 text-center text-[13px] italic text-slate-400 dark:text-slate-500">
               {t("patientProfile.noHistory")}
             </p>
           ) : (
             <div className="relative">
-              <span className="absolute bottom-2 left-[10px] top-2 w-px bg-slate-200" />
+              <span className="absolute bottom-2 left-[10px] top-2 w-px bg-slate-200 dark:bg-slate-800" />
               {filteredHistory.map((r, i) => (
                 <HistoryRow key={r.rxId} row={r} index={i} />
               ))}

@@ -111,12 +111,14 @@ export function ContactPrescriberDrawer({
         role="dialog"
         aria-modal="true"
         aria-label="Contact Prescriber"
-        className="absolute right-0 top-0 flex h-full w-full max-w-md flex-col bg-white shadow-cardLg animate-slide-in-right"
+        className="absolute right-0 top-0 flex h-full w-full max-w-md flex-col bg-white dark:bg-slate-900 shadow-cardLg animate-slide-in-right"
       >
-        <header className="flex items-start justify-between gap-3 border-b border-slate-200 px-5 py-4">
+        <header className="flex items-start justify-between gap-3 border-b border-slate-200 dark:border-slate-800 px-5 py-4">
           <div>
-            <h2 className="text-base font-semibold text-slate-900">Contact Prescriber</h2>
-            <p className="text-xs text-slate-500">
+            <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">
+              Contact Prescriber
+            </h2>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
               <span className="font-mono">{rxId}</span> — {patientName}
             </p>
           </div>
@@ -125,7 +127,7 @@ export function ContactPrescriberDrawer({
             type="button"
             onClick={onClose}
             disabled={sending}
-            className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
+            className="rounded-lg p-1.5 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
             aria-label="Close contact panel"
           >
             <XIcon />
@@ -134,10 +136,14 @@ export function ContactPrescriberDrawer({
 
         <div className="flex-1 overflow-y-auto">
           {/* Prescriber card */}
-          <section className="border-b border-slate-200 px-5 py-4">
-            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-              <div className="text-sm font-semibold text-slate-900">{prescriber.name}</div>
-              <div className="mt-0.5 text-xs text-slate-500">{prescriber.specialty}</div>
+          <section className="border-b border-slate-200 dark:border-slate-800 px-5 py-4">
+            <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 p-4">
+              <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                {prescriber.name}
+              </div>
+              <div className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                {prescriber.specialty}
+              </div>
               <dl className="mt-3 space-y-2 text-[13px]">
                 <Field
                   label="Licence / ID"
@@ -148,7 +154,7 @@ export function ContactPrescriberDrawer({
                   value={
                     <a
                       href={`tel:${prescriber.contact}`}
-                      className="text-brand-600 hover:underline"
+                      className="text-brand-600 dark:text-brand-400 hover:underline"
                     >
                       {prescriber.contact}
                     </a>
@@ -157,7 +163,10 @@ export function ContactPrescriberDrawer({
                 <Field
                   label="Email"
                   value={
-                    <a href={mailtoHref} className="text-brand-600 hover:underline">
+                    <a
+                      href={mailtoHref}
+                      className="text-brand-600 dark:text-brand-400 hover:underline"
+                    >
                       {prescriber.email}
                     </a>
                   }
@@ -189,27 +198,27 @@ export function ContactPrescriberDrawer({
           {/* Message history */}
           <section className="px-5 py-4">
             <div className="mb-3 flex items-center justify-between">
-              <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
                 Message History
               </h3>
               {messages && (
-                <span className="text-xs text-slate-500">
+                <span className="text-xs text-slate-500 dark:text-slate-400">
                   {messages.length} message{messages.length === 1 ? "" : "s"}
                 </span>
               )}
             </div>
 
             {loadError ? (
-              <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-700">
+              <div className="flex items-start gap-2 rounded-lg border border-red-200 dark:border-red-500/30 bg-red-50 dark:bg-red-500/10 px-3 py-2.5 text-sm text-red-700 dark:text-red-400">
                 <AlertCircleIcon width={14} height={14} className="mt-0.5 shrink-0" />
                 <span>{loadError}</span>
               </div>
             ) : !messages ? (
-              <div className="flex items-center gap-2 text-sm text-slate-500">
-                <span className="spinner text-brand-600" /> Loading messages…
+              <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
+                <span className="spinner text-brand-600 dark:text-brand-400" /> Loading messages…
               </div>
             ) : messages.length === 0 ? (
-              <div className="rounded-lg border border-dashed border-slate-200 px-4 py-6 text-center text-sm text-slate-500">
+              <div className="rounded-lg border border-dashed border-slate-200 dark:border-slate-800 px-4 py-6 text-center text-sm text-slate-500 dark:text-slate-400">
                 No messages yet. Start the thread below.
               </div>
             ) : (
@@ -227,10 +236,10 @@ export function ContactPrescriberDrawer({
         <form
           id="compose"
           onSubmit={onSubmit}
-          className="border-t border-slate-200 bg-slate-50 px-5 py-4"
+          className="border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 px-5 py-4"
         >
           {sendError && (
-            <div className="mb-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800">
+            <div className="mb-2 rounded-lg border border-red-200 dark:border-red-500/30 bg-red-50 dark:bg-red-500/10 px-3 py-2 text-xs text-red-800 dark:text-red-400">
               {sendError}
             </div>
           )}
@@ -242,7 +251,7 @@ export function ContactPrescriberDrawer({
             value={body}
             onChange={(e) => setBody(e.target.value)}
             placeholder={`Write a message to ${prescriber.name}…`}
-            className="w-full min-h-[88px] resize-vertical rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-brand-600 focus:ring-2 focus:ring-brand-100"
+            className="w-full min-h-[88px] resize-vertical rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 dark:text-slate-100 px-3 py-2 text-sm outline-none focus:border-brand-600 focus:ring-2 focus:ring-brand-100"
           />
           <div className="mt-2 flex justify-end">
             <button
@@ -264,8 +273,10 @@ export function ContactPrescriberDrawer({
 function Field({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="flex items-baseline justify-between gap-3">
-      <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">{label}</dt>
-      <dd className="text-right text-sm text-slate-900">{value}</dd>
+      <dt className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
+        {label}
+      </dt>
+      <dd className="text-right text-sm text-slate-900 dark:text-slate-100">{value}</dd>
     </div>
   );
 }
@@ -278,11 +289,11 @@ function MessageRow({ message }: { message: PrescriptionMessage }) {
         className={`max-w-[85%] rounded-2xl px-3.5 py-2.5 text-[13px] leading-relaxed ${
           fromPharmacist
             ? "bg-brand-600 text-white"
-            : "bg-white text-slate-800 border border-slate-200"
+            : "bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700"
         }`}
       >
         <div
-          className={`mb-1 flex items-baseline gap-2 text-[11px] ${fromPharmacist ? "text-white/80" : "text-slate-500"}`}
+          className={`mb-1 flex items-baseline gap-2 text-[11px] ${fromPharmacist ? "text-white/80" : "text-slate-500 dark:text-slate-400"}`}
         >
           <span className="font-semibold">{message.fromName}</span>
           <span>{formatTimestamp(message.sentAt)}</span>

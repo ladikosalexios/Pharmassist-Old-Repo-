@@ -17,38 +17,43 @@ interface SevStyle {
   tagLabel: string;
   titleClass: string;
   detailClass: string;
+  /** Border for the recommended-action inner box (kept neutral of the tint). */
+  actionBox: string;
   pulse: boolean;
 }
 
 const SEV: Record<CheckStatus, SevStyle> = {
   block: {
-    ring: "border-red-300 bg-red-50",
-    iconClass: "text-red-600",
+    ring: "border-red-300 bg-red-50 dark:border-red-500/30 dark:bg-red-500/10",
+    iconClass: "text-red-600 dark:text-red-400",
     icon: <AlertOctagonIcon width={16} height={16} />,
     tag: "bg-red-600 text-white",
     tagLabel: "CRITICAL",
-    titleClass: "text-red-800",
-    detailClass: "text-slate-700",
+    titleClass: "text-red-800 dark:text-red-400",
+    detailClass: "text-slate-700 dark:text-slate-300",
+    actionBox: "border-red-200 dark:border-red-500/30",
     pulse: true,
   },
   review: {
-    ring: "border-amber-300 bg-amber-50",
-    iconClass: "text-amber-600",
+    ring: "border-amber-300 bg-amber-50 dark:border-amber-500/30 dark:bg-amber-500/10",
+    iconClass: "text-amber-600 dark:text-amber-400",
     icon: <AlertTriangleIcon width={16} height={16} />,
     tag: "bg-amber-500 text-white",
     tagLabel: "REVIEW",
-    titleClass: "text-amber-800",
-    detailClass: "text-slate-700",
+    titleClass: "text-amber-800 dark:text-amber-400",
+    detailClass: "text-slate-700 dark:text-slate-300",
+    actionBox: "border-amber-200 dark:border-amber-500/30",
     pulse: false,
   },
   ok: {
-    ring: "border-emerald-200 bg-emerald-50/60",
-    iconClass: "text-emerald-600",
+    ring: "border-emerald-200 bg-emerald-50/60 dark:border-emerald-500/30 dark:bg-emerald-500/10",
+    iconClass: "text-emerald-600 dark:text-emerald-400",
     icon: <CheckCircleIcon width={16} height={16} />,
-    tag: "bg-emerald-100 text-emerald-700",
+    tag: "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400",
     tagLabel: "OK",
-    titleClass: "text-slate-700",
-    detailClass: "text-slate-500",
+    titleClass: "text-slate-700 dark:text-slate-300",
+    detailClass: "text-slate-500 dark:text-slate-400",
+    actionBox: "border-emerald-200 dark:border-emerald-500/30",
     pulse: false,
   },
 };
@@ -101,14 +106,14 @@ export function SafetyChecksPanel({
   }, [rxId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-card">
+    <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-card dark:border-slate-800 dark:bg-slate-900">
       {/* header */}
       <div className="mb-3 flex items-center justify-between">
-        <h2 className="text-[12px] font-bold uppercase tracking-wider text-slate-400">
+        <h2 className="text-[12px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
           Automated Safety Checks
         </h2>
         {!error && (
-          <span className="flex items-center gap-1.5 text-[11px] font-medium text-emerald-600">
+          <span className="flex items-center gap-1.5 text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
             <span className="relative flex h-1.5 w-1.5">
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />
               <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
@@ -119,29 +124,40 @@ export function SafetyChecksPanel({
       </div>
 
       {/* legend */}
-      <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-400">
+      <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-400 dark:text-slate-500">
         <span className="flex items-center gap-1">
-          <CheckCircleIcon width={12} height={12} className="text-emerald-500" /> ok
+          <CheckCircleIcon
+            width={12}
+            height={12}
+            className="text-emerald-500 dark:text-emerald-400"
+          />{" "}
+          ok
         </span>
         <span className="flex items-center gap-1">
-          <AlertTriangleIcon width={12} height={12} className="text-amber-500" /> review
+          <AlertTriangleIcon
+            width={12}
+            height={12}
+            className="text-amber-500 dark:text-amber-400"
+          />{" "}
+          review
         </span>
         <span className="flex items-center gap-1">
-          <AlertOctagonIcon width={12} height={12} className="text-red-500" /> immediate action
+          <AlertOctagonIcon width={12} height={12} className="text-red-500 dark:text-red-400" />{" "}
+          immediate action
         </span>
       </div>
 
       {loading ? (
         <div className="space-y-2.5">
           {Array.from({ length: 5 }).map((_, i) => (
-            <div key={i} className="rounded-lg border border-slate-100 p-3">
+            <div key={i} className="rounded-lg border border-slate-100 p-3 dark:border-slate-800">
               <Skl w="60%" h={13} />
               <Skl w="90%" h={11} mt={8} />
             </div>
           ))}
         </div>
       ) : error ? (
-        <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-[12.5px] text-red-700">
+        <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-[12.5px] text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-400">
           <AlertCircleIcon width={14} height={14} className="mt-0.5 shrink-0" />
           <span>{error}</span>
         </div>
@@ -178,11 +194,13 @@ function CheckRow({ check }: { check: SafetyCheck }) {
           {(check.details || check.recommendedAction) && (
             <div id={`check-details-${check.id}`} hidden={!open}>
               {check.details && (
-                <p className="mono mt-1.5 text-[11px] text-slate-500">{check.details}</p>
+                <p className="mono mt-1.5 text-[11px] text-slate-500 dark:text-slate-400">
+                  {check.details}
+                </p>
               )}
               {check.recommendedAction && (
                 <p
-                  className={`mt-1.5 rounded border ${s.ring} bg-white px-2.5 py-1.5 text-[11.5px] leading-snug text-slate-700`}
+                  className={`mt-1.5 rounded border ${s.actionBox} bg-white px-2.5 py-1.5 text-[11.5px] leading-snug text-slate-700 dark:bg-slate-800 dark:text-slate-300`}
                 >
                   {check.recommendedAction}
                 </p>

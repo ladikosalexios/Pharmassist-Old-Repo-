@@ -47,7 +47,7 @@ const SETTING_OPTIONS = [
 type Setting = (typeof SETTING_OPTIONS)[number]["value"];
 
 const INPUT_CLASS =
-  "w-full rounded-lg border border-slate-200 bg-white px-3.5 py-2.5 text-[14px] text-slate-900 outline-none transition-colors focus:border-brand-500 focus:ring-2 focus:ring-brand-100";
+  "w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 px-3.5 py-2.5 text-[14px] text-slate-900 dark:text-slate-100 outline-none transition-colors focus:border-brand-500 focus:ring-2 focus:ring-brand-100";
 
 export function Instructions() {
   const { t } = useTranslation();
@@ -229,39 +229,39 @@ export function Instructions() {
       <div className="mb-3 print:hidden">
         <Link
           to="/dashboard"
-          className="inline-flex items-center gap-1 text-[13px] font-medium text-brand-600 transition-colors hover:text-brand-700"
+          className="inline-flex items-center gap-1 text-[13px] font-medium text-brand-600 dark:text-brand-400 transition-colors hover:text-brand-700"
         >
           <ChevronLeftIcon width={14} height={14} /> {t("instructions.backToDashboard")}
         </Link>
       </div>
 
       <header className="mb-6 print:hidden">
-        <h1 className="text-[24px] font-bold tracking-tight text-slate-900">
+        <h1 className="text-[24px] font-bold tracking-tight text-slate-900 dark:text-slate-100">
           {t("instructions.title")}
         </h1>
-        <p className="mt-1 text-[13px] leading-relaxed text-slate-500">
+        <p className="mt-1 text-[13px] leading-relaxed text-slate-500 dark:text-slate-400">
           {t("instructions.subtitle")}
         </p>
       </header>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 print:block">
         {/* Form */}
-        <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-card print:hidden">
-          <h2 className="mb-4 text-[16px] font-bold text-slate-900">
+        <section className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 shadow-card print:hidden">
+          <h2 className="mb-4 text-[16px] font-bold text-slate-900 dark:text-slate-100">
             {t("instructions.formTitle")}
           </h2>
 
           {queueError && (
             <div
               role="alert"
-              className="mb-3 flex items-start gap-2.5 rounded-lg border border-amber-200 bg-amber-50 px-3.5 py-3 text-[13px] text-amber-800 animate-alert-in"
+              className="mb-3 flex items-start gap-2.5 rounded-lg border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 px-3.5 py-3 text-[13px] text-amber-800 dark:text-amber-200 animate-alert-in"
             >
-              <span className="mt-0.5 shrink-0 text-amber-600">
+              <span className="mt-0.5 shrink-0 text-amber-600 dark:text-amber-400">
                 <AlertCircleIcon width={16} height={16} />
               </span>
               <div>
                 <div className="font-semibold">{t("instructions.queueErrorTitle")}</div>
-                <div className="text-amber-700/90">{queueError}</div>
+                <div className="text-amber-700/90 dark:text-amber-400/90">{queueError}</div>
               </div>
             </div>
           )}
@@ -282,14 +282,14 @@ export function Instructions() {
           {rxError && (
             <div
               role="alert"
-              className="mt-3 flex items-start gap-2.5 rounded-lg border border-red-200 bg-red-50 px-3.5 py-3 text-[13px] text-red-700 animate-alert-in"
+              className="mt-3 flex items-start gap-2.5 rounded-lg border border-red-200 dark:border-red-500/30 bg-red-50 dark:bg-red-500/10 px-3.5 py-3 text-[13px] text-red-700 dark:text-red-400 animate-alert-in"
             >
-              <span className="mt-0.5 shrink-0 text-red-600">
+              <span className="mt-0.5 shrink-0 text-red-600 dark:text-red-400">
                 <AlertCircleIcon width={16} height={16} />
               </span>
               <div>
                 <div className="font-semibold">{t("instructions.rxErrorTitle")}</div>
-                <div className="text-red-600/90">{rxError}</div>
+                <div className="text-red-600/90 dark:text-red-400/90">{rxError}</div>
               </div>
             </div>
           )}
@@ -343,7 +343,7 @@ export function Instructions() {
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               placeholder={t("instructions.notesPlaceholder")}
-              className={`min-h-[140px] resize-vertical placeholder:text-slate-400 ${INPUT_CLASS}`}
+              className={`min-h-[140px] resize-vertical placeholder:text-slate-400 dark:placeholder:text-slate-500 ${INPUT_CLASS}`}
             />
           </Field>
 
@@ -360,12 +360,12 @@ export function Instructions() {
             />
           </div>
 
-          <div className="mt-6 flex flex-wrap gap-2 border-t border-slate-200 pt-4">
+          <div className="mt-6 flex flex-wrap gap-2 border-t border-slate-200 dark:border-slate-800 pt-4">
             <button
               type="button"
               onClick={onPrint}
               disabled={!preview}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-4 py-2 text-[13px] font-semibold text-slate-700 shadow-card transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-2 text-[13px] font-semibold text-slate-700 dark:text-slate-200 shadow-card transition-colors hover:bg-slate-50 dark:hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
             >
               <PrinterIcon width={15} height={15} /> {t("instructions.print")}
             </button>
@@ -388,7 +388,7 @@ export function Instructions() {
               type="button"
               onClick={onSaveToLog}
               disabled={!preview || saving}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-4 py-2 text-[13px] font-semibold text-slate-700 shadow-card transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-2 text-[13px] font-semibold text-slate-700 dark:text-slate-200 shadow-card transition-colors hover:bg-slate-50 dark:hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {saving ? <span className="spinner" /> : <CheckIcon width={15} height={15} />}
               {saving ? t("instructions.saving") : t("instructions.save")}
@@ -399,42 +399,44 @@ export function Instructions() {
         {/* Preview — id + inner <pre> are required by the @media print rules in index.css. */}
         <section
           id="instructions-preview"
-          className="rounded-xl border border-slate-200 bg-white p-6 shadow-card"
+          className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 shadow-card"
         >
           <header className="mb-4 flex items-start justify-between gap-3 print:hidden">
             <div>
-              <h2 className="text-[16px] font-bold text-slate-900">
+              <h2 className="text-[16px] font-bold text-slate-900 dark:text-slate-100">
                 {t("instructions.previewTitle")}
               </h2>
-              <p className="text-xs text-slate-500">{t("instructions.previewSubtitle")}</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                {t("instructions.previewSubtitle")}
+              </p>
             </div>
             {rx && (
-              <span className="mono inline-flex items-center rounded-full bg-brand-50 px-2 py-0.5 text-[11.5px] font-semibold text-brand-700">
+              <span className="mono inline-flex items-center rounded-full bg-brand-50 dark:bg-brand-500/10 px-2 py-0.5 text-[11.5px] font-semibold text-brand-700 dark:text-brand-300">
                 {rx.rxId}
               </span>
             )}
           </header>
 
           {rxLoading ? (
-            <div className="flex items-center gap-2 text-sm text-slate-500">
+            <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
               <span className="spinner text-brand-600" /> {t("instructions.loadingRx")}
             </div>
           ) : !rx ? (
-            <div className="flex flex-col items-center rounded-xl border border-dashed border-slate-200 bg-white px-6 py-10 text-center">
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-brand-50 text-brand-500">
+            <div className="flex flex-col items-center rounded-xl border border-dashed border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-6 py-10 text-center">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-brand-50 dark:bg-brand-500/10 text-brand-500 dark:text-brand-400">
                 <FileTextIcon width={22} height={22} />
               </div>
-              <h3 className="mt-3.5 text-[15px] font-bold text-slate-900">
+              <h3 className="mt-3.5 text-[15px] font-bold text-slate-900 dark:text-slate-100">
                 {t("instructions.emptyTitle")}
               </h3>
-              <p className="mt-1.5 max-w-[300px] text-[13px] text-slate-500">
+              <p className="mt-1.5 max-w-[300px] text-[13px] text-slate-500 dark:text-slate-400">
                 {t("instructions.emptyBody")}
               </p>
             </div>
           ) : (
             <pre
               aria-live="polite"
-              className="whitespace-pre-wrap rounded-lg border border-slate-200 bg-white p-4 font-sans text-[13px] leading-relaxed text-slate-800"
+              className="whitespace-pre-wrap rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 font-sans text-[13px] leading-relaxed text-slate-800 dark:text-slate-200"
             >
               {preview}
             </pre>
@@ -448,7 +450,9 @@ export function Instructions() {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className="block text-sm">
-      <span className="mb-1.5 block text-[13px] font-medium text-slate-700">{label}</span>
+      <span className="mb-1.5 block text-[13px] font-medium text-slate-700 dark:text-slate-300">
+        {label}
+      </span>
       {children}
     </label>
   );
@@ -464,12 +468,12 @@ function Checkbox({
   onChange: (v: boolean) => void;
 }) {
   return (
-    <label className="flex cursor-pointer items-start gap-2.5 text-[13px] text-slate-700">
+    <label className="flex cursor-pointer items-start gap-2.5 text-[13px] text-slate-700 dark:text-slate-300">
       <input
         type="checkbox"
         checked={checked}
         onChange={(e) => onChange(e.target.checked)}
-        className="mt-0.5 h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-100"
+        className="mt-0.5 h-4 w-4 rounded border-slate-300 dark:border-slate-600 text-brand-600 focus:ring-brand-100"
       />
       <span>{label}</span>
     </label>
