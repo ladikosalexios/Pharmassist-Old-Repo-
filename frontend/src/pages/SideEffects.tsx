@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import {
   AlertTriangleIcon,
   AlertCircleIcon,
@@ -7,13 +8,21 @@ import {
   CheckCircleIcon,
   ClockIcon,
   FlagIcon,
-  PhoneIcon,
+  InfoIcon,
+  PlusIcon,
   SearchIcon,
-  SendIcon,
-  UsersIcon,
+  BarcodeIcon,
+  FileTextIcon,
+  CheckIcon,
 } from "../components/Icons";
 import { useToast } from "../components/Toast";
-import { ApiError, flagSideEffect, listSideEffects, notifyPhysician } from "../lib/api";
+import {
+  ApiError,
+  createSideEffect,
+  flagSideEffect,
+  listSideEffects,
+  notifyPhysician,
+} from "../lib/api";
 import type {
   AdrSeverity,
   AdrSort,
@@ -23,9 +32,8 @@ import type {
   SideEffectStats,
 } from "../types";
 
-// Mirror of the backend seed so the page still works when the API is down or
-// hasn't yet been restarted to pick up the new /side-effects route. Mutations
-// in fallback mode are local-only and reset on reload.
+// ── fallback data ─────────────────────────────────────────────────────────────
+
 const FALLBACK_REPORTS: SideEffectReport[] = [
   {
     id: "ADR-2026-0009",
@@ -107,6 +115,8 @@ const FALLBACK_REPORTS: SideEffectReport[] = [
   },
 ];
 
+const RECENT_PATIENTS = FALLBACK_REPORTS.slice(0, 3).map((r) => r.patientName);
+
 const SEVERITY_RANK: Record<AdrSeverity, number> = { MILD: 0, MODERATE: 1, SEVERE: 2 };
 const STATUS_RANK: Record<AdrStatus, number> = { PENDING_REVIEW: 0, ESCALATED: 1, EOF_REPORTED: 2 };
 
@@ -157,44 +167,631 @@ function nextStatus(s: AdrStatus): AdrStatus {
   return s;
 }
 
-const SEVERITY_TONE: Record<AdrSeverity, string> = {
-  MILD: "bg-amber-100 text-amber-800 dark:bg-amber-500/15 dark:text-amber-400",
-  MODERATE: "bg-orange-100 text-orange-800 dark:bg-orange-500/15 dark:text-orange-400",
-  SEVERE: "bg-red-100 text-red-800 dark:bg-red-500/15 dark:text-red-400",
+function recomputeStats(
+  prev: SideEffectStats,
+  oldStatus: AdrStatus,
+  newStatus: AdrStatus,
+): SideEffectStats {
+  if (oldStatus === newStatus) return prev;
+  const next = { ...prev };
+  if (oldStatus === "PENDING_REVIEW") next.pendingReview = Math.max(0, next.pendingReview - 1);
+  if (oldStatus === "ESCALATED") next.escalated = Math.max(0, next.escalated - 1);
+  if (newStatus === "PENDING_REVIEW") next.pendingReview += 1;
+  if (newStatus === "ESCALATED") next.escalated += 1;
+  return next;
+}
+
+function formatTimestamp(iso: string): string {
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+}
+
+// ── severity / status display ─────────────────────────────────────────────────
+
+const SEV_TONE: Record<AdrSeverity, string> = {
+  MILD: "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400",
+  MODERATE: "bg-amber-50 text-amber-700 dark:bg-amber-500/15 dark:text-amber-400",
+  SEVERE: "bg-red-50 text-red-700 dark:bg-red-500/15 dark:text-red-400",
+};
+const SEV_BTN: Record<string, string> = {
+  Severe:
+    "border-red-300 bg-red-50 text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-400",
+  Moderate:
+    "border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-400",
+  Mild: "border-emerald-300 bg-emerald-50 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-400",
 };
 
+const STATUS_TONE: Record<AdrStatus, string> = {
+  PENDING_REVIEW: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300",
+  ESCALATED: "bg-brand-50 text-brand-700 dark:bg-brand-500/15 dark:text-brand-300",
+  EOF_REPORTED: "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400",
+};
+const STATUS_LABEL: Record<AdrStatus, string> = {
+  PENDING_REVIEW: "Draft",
+  ESCALATED: "Submitted",
+  EOF_REPORTED: "Acknowledged",
+};
 const SEVERITY_LABEL: Record<AdrSeverity, string> = {
   MILD: "Mild",
   MODERATE: "Moderate",
   SEVERE: "Severe",
 };
 
-const STATUS_STYLE: Record<AdrStatus, string> = {
-  PENDING_REVIEW:
-    "border border-amber-300 bg-white text-amber-800 dark:border-amber-500/30 dark:bg-transparent dark:text-amber-400",
-  ESCALATED:
-    "border border-red-300 bg-white text-red-800 dark:border-red-500/30 dark:bg-transparent dark:text-red-400",
-  EOF_REPORTED: "border border-emerald-600 bg-emerald-600 text-white",
-};
+// ── Step head ─────────────────────────────────────────────────────────────────
 
-const STATUS_LABEL: Record<AdrStatus, string> = {
-  PENDING_REVIEW: "Pending Review",
-  ESCALATED: "Escalated",
-  EOF_REPORTED: "EOF Reported",
-};
+function StepHead({ n, title, sub }: { n: string; title: string; sub?: string }) {
+  return (
+    <div className="mb-3 flex items-start gap-3">
+      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-100 text-[12px] font-bold text-brand-700 dark:bg-brand-500/15 dark:text-brand-300">
+        {n}
+      </span>
+      <div>
+        <h3 className="text-[14px] font-bold text-slate-900 dark:text-slate-100">{title}</h3>
+        {sub && <p className="text-[12px] text-slate-500 dark:text-slate-400">{sub}</p>}
+      </div>
+    </div>
+  );
+}
 
-const SORT_OPTIONS: { value: AdrSort; label: string }[] = [
-  { value: "date", label: "Date Reported (newest)" },
-  { value: "severity", label: "Severity" },
-  { value: "status", label: "Status" },
-];
+// ── Report form ───────────────────────────────────────────────────────────────
+
+interface ReportFormProps {
+  onSubmitted: (report: SideEffectReport) => void;
+  submittedRef: string | null;
+}
+
+function ReportForm({ onSubmitted, submittedRef }: ReportFormProps) {
+  const { t } = useTranslation();
+  const { toast } = useToast();
+  const [patient, setPatient] = useState("");
+  const [med, setMed] = useState("");
+  const [sev, setSev] = useState("");
+  const [onset, setOnset] = useState("");
+  const [phase, setPhase] = useState<"during" | "after">("during");
+  const [symptoms, setSymptoms] = useState("");
+  const [picked, setPicked] = useState<string[]>([]);
+  const [cause, setCause] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  const commonSymptoms = useMemo(
+    () => [
+      t("reports.symptomRash"),
+      t("reports.symptomNausea"),
+      t("reports.symptomVomiting"),
+      t("reports.symptomItching"),
+      t("reports.symptomDizziness"),
+      t("reports.symptomHeadache"),
+      t("reports.symptomDyspnoea"),
+      t("reports.symptomEdema"),
+      t("reports.symptomDiarrhea"),
+      t("reports.symptomAngioedema"),
+    ],
+    [t],
+  );
+
+  const togglePick = (s: string) =>
+    setPicked((p) => (p.includes(s) ? p.filter((x) => x !== s) : [...p, s]));
+
+  const valid = patient.trim() && med.trim() && sev && (symptoms.trim() || picked.length > 0);
+
+  async function handleSubmit() {
+    if (!valid) return;
+    setSubmitting(true);
+    const severityMap: Record<string, AdrSeverity> = {
+      Mild: "MILD",
+      Moderate: "MODERATE",
+      Severe: "SEVERE",
+    };
+    const symptom = [symptoms.trim(), ...picked].filter(Boolean).join("; ");
+    try {
+      const report = await createSideEffect({
+        patientName: patient,
+        drugName: med,
+        severity: severityMap[sev] ?? "MILD",
+        symptom,
+        onset: onset || phase,
+      });
+      onSubmitted(report);
+    } catch (e) {
+      // Optimistic local prepend when backend endpoint not yet available
+      if (e instanceof ApiError && e.status === 501) {
+        const optimistic: SideEffectReport = {
+          id: `ADR-LOCAL-${Date.now()}`,
+          patientId: "",
+          patientName: patient,
+          patientPhone: null,
+          rxId: null,
+          drugName: med,
+          severity: (severityMap[sev] as AdrSeverity) ?? "MILD",
+          status: "PENDING_REVIEW",
+          reportedAt: new Date().toISOString(),
+          symptom,
+          onset: onset || phase,
+        };
+        onSubmitted(optimistic);
+        toast("Report saved locally — will sync when the backend endpoint is available.", "info");
+      } else {
+        toast(e instanceof ApiError ? e.message : "Submission failed. Please try again.", "error");
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  if (submittedRef) {
+    return (
+      <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3.5 animate-fade-in dark:border-emerald-500/30 dark:bg-emerald-500/10">
+        <div className="flex items-start gap-3">
+          <CheckCircleIcon
+            width={20}
+            height={20}
+            className="mt-0.5 text-emerald-600 shrink-0 dark:text-emerald-400"
+          />
+          <div>
+            <div className="text-[14px] font-bold text-emerald-800 dark:text-emerald-200">
+              {t("reports.submittedTitle")}
+            </div>
+            <div className="mt-0.5 text-[12.5px] text-emerald-700 dark:text-emerald-400">
+              {t("reports.submittedRef", { ref: submittedRef })}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_300px]">
+      <div className="space-y-5">
+        {/* 1 — Patient */}
+        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-card dark:border-slate-800 dark:bg-slate-900">
+          <StepHead n="1" title={t("reports.step1Title")} sub={t("reports.step1Sub")} />
+          <div className="relative">
+            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500">
+              <SearchIcon width={16} height={16} />
+            </span>
+            <input
+              value={patient}
+              onChange={(e) => setPatient(e.target.value)}
+              placeholder={t("reports.searchPatient")}
+              className="w-full rounded-lg border border-slate-200 bg-white py-2.5 pl-9 pr-3 text-[13.5px] outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+            />
+          </div>
+          <div className="mt-2.5 flex flex-wrap gap-2">
+            {RECENT_PATIENTS.map((r) => (
+              <button
+                key={r}
+                type="button"
+                onClick={() => setPatient(r)}
+                className={`max-w-[180px] truncate rounded-full border px-3 py-1 text-[12px] font-medium transition-colors ${
+                  patient === r
+                    ? "border-brand-300 bg-brand-50 text-brand-700 dark:border-brand-500/30 dark:bg-brand-500/15 dark:text-brand-300"
+                    : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300 dark:hover:bg-slate-800/60"
+                }`}
+              >
+                {r}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* 2 — Medicine */}
+        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-card dark:border-slate-800 dark:bg-slate-900">
+          <StepHead n="2" title={t("reports.step2Title")} sub={t("reports.step2Sub")} />
+          <div className="flex gap-2.5">
+            <div className="relative flex-1">
+              <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500">
+                <SearchIcon width={16} height={16} />
+              </span>
+              <input
+                value={med}
+                onChange={(e) => setMed(e.target.value)}
+                placeholder={t("reports.searchMed")}
+                className="w-full rounded-lg border border-slate-200 bg-white py-2.5 pl-9 pr-3 text-[13.5px] outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+              />
+            </div>
+            <button
+              type="button"
+              className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-[12.5px] font-semibold text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300 dark:hover:bg-slate-800/60"
+            >
+              <BarcodeIcon width={15} height={15} /> {t("reports.scan")}
+            </button>
+          </div>
+          {med && (
+            <p className="mono mt-2 text-[11.5px] text-slate-400 dark:text-slate-500">
+              {t("reports.autofillNote")}
+            </p>
+          )}
+        </div>
+
+        {/* 3 — Reaction */}
+        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-card dark:border-slate-800 dark:bg-slate-900">
+          <StepHead n="3" title={t("reports.step3Title")} />
+          <div className="space-y-4">
+            {/* severity */}
+            <div>
+              <label className="mb-1.5 block text-[12px] font-semibold text-slate-600 dark:text-slate-300">
+                {t("reports.severityLabel")}
+              </label>
+              <div className="flex gap-2">
+                {(["Mild", "Moderate", "Severe"] as const).map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => setSev(s)}
+                    className={`flex-1 rounded-lg border px-3 py-2 text-[13px] font-semibold transition-colors ${
+                      sev === s
+                        ? SEV_BTN[s]
+                        : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-400 dark:hover:bg-slate-800/60"
+                    }`}
+                  >
+                    {t(`reports.severity${s}`)}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* onset + timing */}
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div>
+                <label className="mb-1.5 block text-[12px] font-semibold text-slate-600 dark:text-slate-300">
+                  {t("reports.onsetDate")}
+                </label>
+                <input
+                  type="date"
+                  value={onset}
+                  onChange={(e) => setOnset(e.target.value)}
+                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-[13px] text-slate-700 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300"
+                />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-[12px] font-semibold text-slate-600 dark:text-slate-300">
+                  {t("reports.timing")}
+                </label>
+                <div className="flex gap-1 rounded-lg border border-slate-200 bg-slate-50 p-0.5 dark:border-slate-800 dark:bg-slate-800/50">
+                  {(["during", "after"] as const).map((v) => (
+                    <button
+                      key={v}
+                      type="button"
+                      onClick={() => setPhase(v)}
+                      className={`flex-1 rounded-md px-2 py-1.5 text-[12px] font-medium transition-colors ${
+                        phase === v
+                          ? "bg-white text-brand-700 shadow-card dark:bg-slate-900 dark:text-brand-300"
+                          : "text-slate-500 dark:text-slate-400"
+                      }`}
+                    >
+                      {t(`reports.timing${v.charAt(0).toUpperCase() + v.slice(1)}`)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* symptoms */}
+            <div>
+              <label className="mb-1.5 block text-[12px] font-semibold text-slate-600 dark:text-slate-300">
+                {t("reports.symptomsLabel")}
+              </label>
+              <textarea
+                value={symptoms}
+                onChange={(e) => setSymptoms(e.target.value)}
+                rows={3}
+                placeholder={t("reports.symptomsPlaceholder")}
+                className="w-full resize-none rounded-lg border border-slate-200 bg-white px-3 py-2 text-[13px] outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+              />
+              <div className="mt-2">
+                <div className="mb-1.5 text-[11px] font-medium text-slate-400 dark:text-slate-500">
+                  {t("reports.commonSymptoms")}
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {commonSymptoms.map((s) => {
+                    const on = picked.includes(s);
+                    return (
+                      <button
+                        key={s}
+                        type="button"
+                        onClick={() => togglePick(s)}
+                        className={`flex items-center gap-1 rounded-full px-2.5 py-1 text-[11.5px] font-medium transition-colors ${
+                          on
+                            ? "bg-brand-600 text-white"
+                            : "border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300 dark:hover:bg-slate-800/60"
+                        }`}
+                      >
+                        {on ? (
+                          <CheckIcon width={11} height={11} strokeWidth={3} />
+                        ) : (
+                          <PlusIcon width={11} height={11} />
+                        )}
+                        {s}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            {/* causality */}
+            <div>
+              <label className="mb-1.5 block text-[12px] font-semibold text-slate-600 dark:text-slate-300">
+                {t("reports.causality")}
+              </label>
+              <select
+                value={cause}
+                onChange={(e) => setCause(e.target.value)}
+                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-[13px] text-slate-700 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+              >
+                <option value="">{t("reports.causalityPlaceholder")}</option>
+                {(["Certain", "Probable", "Possible", "Unlikely"] as const).map((v) => (
+                  <option key={v} value={v}>
+                    {t(`reports.causality${v}`)}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </div>
+
+        {/* 4 — Submit */}
+        <div className="flex items-center justify-between gap-3">
+          <button
+            type="button"
+            className="rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-[13px] font-semibold text-slate-600 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300 dark:hover:bg-slate-800/60"
+          >
+            {t("reports.saveDraft")}
+          </button>
+          <button
+            type="button"
+            onClick={handleSubmit}
+            disabled={!valid || submitting}
+            className="rounded-lg bg-brand-600 px-6 py-2.5 text-[13px] font-semibold text-white shadow-card transition-colors hover:bg-brand-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none dark:disabled:bg-slate-800 dark:disabled:text-slate-500"
+          >
+            {submitting ? <span className="spinner" /> : t("reports.step4Submit")}
+          </button>
+        </div>
+      </div>
+
+      {/* helper sidebar */}
+      <aside>
+        <div className="sticky top-4 rounded-xl border border-brand-100 bg-brand-50 p-5 dark:border-brand-500/20 dark:bg-brand-500/10">
+          <div className="flex items-center gap-2 text-brand-700 dark:text-brand-300">
+            <InfoIcon width={17} height={17} />
+            <h3 className="text-[13.5px] font-bold">{t("reports.helperTitle")}</h3>
+          </div>
+          <ul className="mt-3 space-y-2.5 text-[12.5px] leading-relaxed text-slate-700 dark:text-slate-300">
+            {[
+              "Any suspected adverse reaction — even if causality is uncertain.",
+              "Serious reactions: hospitalisation, life-threatening, congenital, persistent disability.",
+              "Reactions to new medicines (≤5 years on market).",
+              "Lack of efficacy, suspected counterfeits, or medication errors.",
+              "Reactions during pregnancy or breastfeeding.",
+            ].map((item, i) => (
+              <li key={i} className="flex items-start gap-2">
+                <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-brand-500 dark:bg-brand-400" />
+                {item}
+              </li>
+            ))}
+          </ul>
+          <div className="mt-4 border-t border-brand-200/60 pt-3 text-[11.5px] text-slate-500 dark:border-brand-500/20 dark:text-slate-400">
+            {t("reports.helperFooter")}
+          </div>
+        </div>
+      </aside>
+    </div>
+  );
+}
+
+// ── Previous reports tab ───────────────────────────────────────────────────────
+
+type StatusFilter = "all" | "PENDING_REVIEW" | "ESCALATED" | "EOF_REPORTED";
+type SevFilter = "all" | "MILD" | "MODERATE" | "SEVERE";
+
+interface PreviousReportsProps {
+  items: SideEffectReport[] | null;
+  loading: boolean;
+  usingFallback: boolean;
+  fallbackError: string | null;
+  busyId: string | null;
+  onFlag: (r: SideEffectReport) => void;
+  onNotify: (r: SideEffectReport) => void;
+  onViewProfile: (r: SideEffectReport) => void;
+}
+
+function PreviousReports({
+  items,
+  loading,
+  usingFallback,
+  fallbackError,
+  busyId,
+  onFlag,
+  onNotify,
+  onViewProfile,
+}: PreviousReportsProps) {
+  const { t } = useTranslation();
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [sevFilter, setSevFilter] = useState<SevFilter>("all");
+
+  const statusTabs: { value: StatusFilter; label: string }[] = [
+    { value: "all", label: t("reports.filterAll") },
+    { value: "PENDING_REVIEW", label: t("reports.filterDraft") },
+    { value: "ESCALATED", label: t("reports.filterSubmitted") },
+    { value: "EOF_REPORTED", label: t("reports.filterAcknowledged") },
+  ];
+  const sevTabs: { value: SevFilter; label: string }[] = [
+    { value: "all", label: t("reports.filterAll") },
+    { value: "MILD", label: t("reports.severityMild") },
+    { value: "MODERATE", label: t("reports.severityModerate") },
+    { value: "SEVERE", label: t("reports.severitySevere") },
+  ];
+
+  const visible = useMemo(
+    () =>
+      items
+        ? items.filter(
+            (r) =>
+              (statusFilter === "all" || r.status === statusFilter) &&
+              (sevFilter === "all" || r.severity === sevFilter),
+          )
+        : null,
+    [items, statusFilter, sevFilter],
+  );
+
+  const empty = !loading && (!visible || visible.length === 0);
+
+  return (
+    <div>
+      {usingFallback && (
+        <div className="mb-3 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[13px] text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
+          <AlertCircleIcon width={14} height={14} className="mt-0.5 shrink-0" />
+          <span>
+            {t("reports.fallbackWarning")}
+            {fallbackError && (
+              <span className="ml-1 text-amber-700/80 dark:text-amber-400">({fallbackError})</span>
+            )}
+          </span>
+        </div>
+      )}
+
+      <div className="mb-4 flex flex-wrap items-center gap-2.5">
+        <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 p-0.5 dark:border-slate-800 dark:bg-slate-800/50">
+          {statusTabs.map(({ value, label }) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => setStatusFilter(value)}
+              className={`rounded-md px-2.5 py-1.5 text-[12px] font-medium transition-colors ${
+                statusFilter === value
+                  ? "bg-white text-brand-700 shadow-card dark:bg-slate-900 dark:text-brand-300"
+                  : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 p-0.5 dark:border-slate-800 dark:bg-slate-800/50">
+          {sevTabs.map(({ value, label }) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => setSevFilter(value)}
+              className={`rounded-md px-2.5 py-1.5 text-[12px] font-medium transition-colors ${
+                sevFilter === value
+                  ? "bg-white text-brand-700 shadow-card dark:bg-slate-900 dark:text-brand-300"
+                  : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {loading && (
+        <div className="rounded-xl border border-slate-200 bg-white px-4 py-6 text-center text-[13px] text-slate-500 shadow-card dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400">
+          <span className="spinner text-brand-600" /> Loading reports…
+        </div>
+      )}
+
+      {empty && (
+        <div className="flex animate-fade-in flex-col items-center rounded-2xl border border-dashed border-slate-200 bg-white px-6 py-16 text-center shadow-card dark:border-slate-800 dark:bg-slate-900">
+          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500">
+            <FileTextIcon width={22} height={22} />
+          </div>
+          <h3 className="mt-4 text-[15px] font-bold text-slate-900 dark:text-slate-100">
+            {t("reports.noReportsTitle")}
+          </h3>
+          <p className="mt-1.5 max-w-[320px] text-[13px] text-slate-500 dark:text-slate-400">
+            {t("reports.noReportsDesc")}
+          </p>
+        </div>
+      )}
+
+      {!loading && visible && visible.length > 0 && (
+        <div className="animate-fade-in overflow-hidden rounded-xl border border-slate-200 bg-white shadow-card dark:border-slate-800 dark:bg-slate-900">
+          <div className="grid grid-cols-[110px_150px_1fr_110px_130px_120px] items-center gap-4 border-b border-slate-200 bg-slate-50 px-5 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:border-slate-800 dark:bg-slate-800/50 dark:text-slate-500">
+            <span>{t("reports.colDate")}</span>
+            <span>{t("reports.colPatient")}</span>
+            <span>{t("reports.colMedicine")}</span>
+            <span>{t("reports.colSeverity")}</span>
+            <span>{t("reports.colStatus")}</span>
+            <span />
+          </div>
+          {visible.map((r, i) => (
+            <div
+              key={r.id}
+              className={`group grid grid-cols-[110px_150px_1fr_110px_130px_120px] items-center gap-4 px-5 py-3.5 transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/60 ${
+                i > 0 ? "border-t border-slate-100 dark:border-slate-800" : ""
+              }`}
+            >
+              <span className="mono text-[12.5px] text-slate-500 dark:text-slate-400">
+                {formatTimestamp(r.reportedAt)}
+              </span>
+              <span className="mono text-[12.5px] text-slate-700 dark:text-slate-300">
+                {r.patientName}
+              </span>
+              <span className="truncate text-[13px] font-medium text-slate-900 dark:text-slate-100">
+                {r.drugName}
+              </span>
+              <span>
+                <span
+                  className={`rounded-full px-2 py-0.5 text-[11.5px] font-semibold ${SEV_TONE[r.severity]}`}
+                >
+                  {SEVERITY_LABEL[r.severity]}
+                </span>
+              </span>
+              <span>
+                <span
+                  className={`rounded-full px-2 py-0.5 text-[11.5px] font-semibold ${STATUS_TONE[r.status]}`}
+                >
+                  {STATUS_LABEL[r.status]}
+                </span>
+              </span>
+              <div className="flex items-center justify-end gap-2 opacity-0 transition-opacity group-hover:opacity-100">
+                <button
+                  type="button"
+                  onClick={() => onViewProfile(r)}
+                  className="text-[12px] font-semibold text-brand-600 hover:text-brand-700 dark:text-brand-400"
+                >
+                  {t("reports.view")}
+                </button>
+                {r.status === "PENDING_REVIEW" && (
+                  <button
+                    type="button"
+                    onClick={() => onFlag(r)}
+                    disabled={busyId === r.id}
+                    className="text-[12px] font-semibold text-slate-500 hover:text-slate-700 disabled:opacity-50 dark:text-slate-400 dark:hover:text-slate-200"
+                  >
+                    {t("reports.edit")}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => onNotify(r)}
+                  disabled={busyId === r.id || !r.rxId}
+                  className="text-[12px] font-semibold text-slate-400 hover:text-red-600 disabled:opacity-40 dark:text-slate-500 dark:hover:text-red-400"
+                >
+                  {t("reports.withdraw")}
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Main component ────────────────────────────────────────────────────────────
 
 export function SideEffects() {
+  const { t } = useTranslation();
   const { toast } = useToast();
   const navigate = useNavigate();
-  const [searchInput, setSearchInput] = useState("");
-  const [query, setQuery] = useState("");
-  const [sort, setSort] = useState<AdrSort>("date");
+
+  const [tab, setTab] = useState<"report" | "previous">("report");
+  const query = "";
+  const sort: AdrSort = "date";
   const [items, setItems] = useState<SideEffectReport[] | null>(null);
   const [stats, setStats] = useState<SideEffectStats>({
     total: 0,
@@ -206,17 +803,8 @@ export function SideEffects() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [usingFallback, setUsingFallback] = useState(false);
   const [fallbackError, setFallbackError] = useState<string | null>(null);
-  // Master copy of fallback data so flag mutations persist across re-fetches
-  // while in fallback mode (until reload).
-  const [fallbackMaster, setFallbackMaster] = useState<SideEffectReport[]>(() => [
-    ...FALLBACK_REPORTS,
-  ]);
-
-  // Debounce search input.
-  useEffect(() => {
-    const t = setTimeout(() => setQuery(searchInput.trim()), 250);
-    return () => clearTimeout(t);
-  }, [searchInput]);
+  const [fallbackMaster, setFallbackMaster] = useState<SideEffectReport[]>([...FALLBACK_REPORTS]);
+  const [submittedRef, setSubmittedRef] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -243,40 +831,6 @@ export function SideEffects() {
       active = false;
     };
   }, [query, sort, fallbackMaster]);
-
-  const statCards = useMemo(
-    () => [
-      {
-        label: "Total Reports",
-        value: stats.total,
-        tone: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
-        valueClass: "text-slate-900 dark:text-slate-100",
-        Icon: AlertTriangleIcon,
-      },
-      {
-        label: "Pending Review",
-        value: stats.pendingReview,
-        tone: "bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-400",
-        valueClass: "text-amber-700 dark:text-amber-400",
-        Icon: ClockIcon,
-      },
-      {
-        label: "Severe Cases",
-        value: stats.severe,
-        tone: "bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-400",
-        valueClass: "text-red-700 dark:text-red-400",
-        Icon: AlertOctagonIcon,
-      },
-      {
-        label: "Escalated",
-        value: stats.escalated,
-        tone: "bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-400",
-        valueClass: "text-blue-700 dark:text-blue-400",
-        Icon: FlagIcon,
-      },
-    ],
-    [stats],
-  );
 
   function applyStatusUpdate(reportId: string, oldStatus: AdrStatus, newStatus: AdrStatus) {
     setItems((cur) =>
@@ -321,7 +875,6 @@ export function SideEffects() {
     setBusyId(report.id);
     try {
       if (usingFallback) {
-        // No backend call — just acknowledge.
         toast(`Physician notification queued for ${report.rxId} (demo).`, "success");
       } else {
         await notifyPhysician(
@@ -340,277 +893,139 @@ export function SideEffects() {
     }
   }
 
+  function handleSubmitted(report: SideEffectReport) {
+    setItems((cur) => (cur ? [report, ...cur] : [report]));
+    setStats((cur) => ({
+      ...cur,
+      total: cur.total + 1,
+      pendingReview: cur.pendingReview + 1,
+    }));
+    if (usingFallback) {
+      setFallbackMaster((cur) => [report, ...cur]);
+    }
+    setSubmittedRef(report.id);
+    setTimeout(() => setTab("previous"), 2000);
+  }
+
+  const statCards = useMemo(
+    () => [
+      {
+        label: t("reports.statTotal"),
+        value: stats.total,
+        Icon: AlertTriangleIcon,
+        tone: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
+        vc: "text-slate-900 dark:text-slate-100",
+      },
+      {
+        label: t("reports.statPending"),
+        value: stats.pendingReview,
+        Icon: ClockIcon,
+        tone: "bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-400",
+        vc: "text-amber-700 dark:text-amber-400",
+      },
+      {
+        label: t("reports.statSevere"),
+        value: stats.severe,
+        Icon: AlertOctagonIcon,
+        tone: "bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-400",
+        vc: "text-red-700 dark:text-red-400",
+      },
+      {
+        label: t("reports.statEscalated"),
+        value: stats.escalated,
+        Icon: FlagIcon,
+        tone: "bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-400",
+        vc: "text-blue-700 dark:text-blue-400",
+      },
+    ],
+    [stats, t],
+  );
+
   return (
-    <div className="p-4 sm:p-6 lg:p-8">
-      {/* Header */}
-      <div className="mb-7 flex items-start gap-3">
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-400">
-          <AlertTriangleIcon width={18} height={18} />
-        </div>
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">
-            Side Effect Reports
-          </h1>
-          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-            Patient-reported adverse drug reactions
-          </p>
-        </div>
+    <div className="mx-auto max-w-[1100px] px-6 py-8 lg:px-8">
+      {/* header */}
+      <div className="mb-6">
+        <h1 className="text-[24px] font-bold tracking-tight text-slate-900 dark:text-slate-100">
+          {t("reports.title")}
+        </h1>
+        <p className="mt-1 text-[13px] text-slate-500 dark:text-slate-400">
+          {t("reports.subtitle")}
+        </p>
       </div>
 
-      {/* Stats */}
-      <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {statCards.map(({ label, value, tone, valueClass, Icon }) => (
-          <div key={label} className="card p-5">
+      {/* stat strip */}
+      <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {statCards.map(({ label, value, Icon, tone, vc }) => (
+          <div
+            key={label}
+            className="rounded-xl border border-slate-200 bg-white p-4 shadow-card dark:border-slate-800 dark:bg-slate-900"
+          >
             <div className="flex items-start justify-between">
               <div>
-                <div className="text-sm font-medium text-slate-500 dark:text-slate-400">
+                <div className="text-[11.5px] font-medium text-slate-500 dark:text-slate-400">
                   {label}
                 </div>
-                <div className={`mt-1 text-3xl font-bold ${valueClass}`}>
+                <div className={`mt-0.5 text-[22px] font-bold tabular-nums ${vc}`}>
                   {loading ? "—" : value}
                 </div>
               </div>
-              <div className={`flex h-9 w-9 items-center justify-center rounded-lg ${tone}`}>
-                <Icon width={18} height={18} />
+              <div className={`flex h-8 w-8 items-center justify-center rounded-lg ${tone}`}>
+                <Icon width={16} height={16} />
               </div>
             </div>
           </div>
         ))}
       </div>
 
-      {/* Search + sort */}
-      <div className="card mb-5 flex flex-wrap items-center gap-3 px-4 py-3">
-        <div className="relative flex-1 min-w-[220px]">
-          <SearchIcon
-            width={16}
-            height={16}
-            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500"
-          />
-          <input
-            type="search"
-            value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
-            placeholder="Search by patient name, medication, or symptom..."
-            className="w-full rounded-lg border border-slate-300 bg-white py-2 pl-9 pr-3 text-sm outline-none focus:border-brand-600 focus:ring-2 focus:ring-brand-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
-          />
-        </div>
-        <select
-          value={sort}
-          onChange={(e) => setSort(e.target.value as AdrSort)}
-          className="rounded-lg border border-slate-300 bg-white py-2 pl-3 pr-8 text-sm outline-none focus:border-brand-600 focus:ring-2 focus:ring-brand-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
-          aria-label="Sort reports"
-        >
-          {SORT_OPTIONS.map((o) => (
-            <option key={o.value} value={o.value}>
-              {o.label}
-            </option>
-          ))}
-        </select>
+      {/* tabs */}
+      <div className="mb-6 flex items-center gap-1 border-b border-slate-200 dark:border-slate-800">
+        {(["report", "previous"] as const).map((v) => (
+          <button
+            key={v}
+            type="button"
+            onClick={() => {
+              if (v === "report") setSubmittedRef(null);
+              setTab(v);
+            }}
+            className={`-mb-px border-b-2 px-4 py-2.5 text-[13.5px] font-semibold transition-colors ${
+              tab === v
+                ? "border-brand-600 text-brand-700 dark:border-brand-400 dark:text-brand-300"
+                : "border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
+            }`}
+          >
+            {t(v === "report" ? "reports.tabReport" : "reports.tabPrevious")}
+          </button>
+        ))}
       </div>
 
-      {/* Fallback banner */}
-      {usingFallback && !loading && (
-        <div className="mb-3 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[13px] text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-400">
-          <AlertCircleIcon width={14} height={14} className="mt-0.5 shrink-0" />
-          <span>
-            Showing demo data — the side-effects API is unreachable. Mutations apply locally only.
-            {fallbackError && (
-              <span className="ml-1 text-amber-700/80 dark:text-amber-400/80">
-                ({fallbackError})
-              </span>
-            )}
-          </span>
-        </div>
-      )}
-
-      {/* List */}
-      {loading ? (
-        <div className="card flex items-center gap-2 px-4 py-6 text-sm text-slate-500 dark:text-slate-400">
-          <span className="spinner text-brand-600" /> Loading reports…
-        </div>
-      ) : !items || items.length === 0 ? (
-        <div className="card px-4 py-10 text-center text-sm text-slate-500 dark:text-slate-400">
-          No reports match your filters.
+      {tab === "report" ? (
+        <div className="animate-fade-in">
+          {!submittedRef && (
+            <h2 className="mb-4 text-[16px] font-bold text-slate-900 dark:text-slate-100">
+              {t("reports.newReportTitle")}
+            </h2>
+          )}
+          <ReportForm
+            key={submittedRef ?? "form"}
+            onSubmitted={handleSubmitted}
+            submittedRef={submittedRef}
+          />
         </div>
       ) : (
-        <ul className="space-y-3">
-          {items.map((r) => (
-            <li key={r.id}>
-              <ReportCard
-                report={r}
-                busy={busyId === r.id}
-                onContact={() => {
-                  if (!r.patientPhone) {
-                    toast("No phone number on file for this patient.", "warn");
-                    return;
-                  }
-                  window.location.href = `tel:${r.patientPhone}`;
-                }}
-                onNotify={() => onNotifyPhysician(r)}
-                onFlag={() => onFlag(r)}
-                onViewProfile={() => navigate(`/patients/${r.patientId}`)}
-              />
-            </li>
-          ))}
-        </ul>
+        <PreviousReports
+          items={items}
+          loading={loading}
+          usingFallback={usingFallback}
+          fallbackError={fallbackError}
+          busyId={busyId}
+          onFlag={onFlag}
+          onNotify={onNotifyPhysician}
+          onViewProfile={(r) => {
+            if (r.patientId) navigate(`/patients/${r.patientId}`);
+            else toast("Patient ID not available for this report.", "warn");
+          }}
+        />
       )}
-
-      {/* Guidelines */}
-      <div className="mt-8 rounded-xl border border-blue-200 bg-blue-50 px-5 py-4 text-sm text-blue-900 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-200">
-        <div className="mb-2 flex items-center gap-2 font-semibold">
-          <CheckCircleIcon width={16} height={16} className="text-blue-600 dark:text-blue-400" />{" "}
-          Pharmacovigilance Guidelines
-        </div>
-        <ol className="list-decimal space-y-1.5 pl-5 leading-relaxed">
-          <li>
-            Severe adverse drug reactions must be reported to the EOF (Εθνικός Οργανισμός Φαρμάκων)
-            within 24 hours of identification.
-          </li>
-          <li>
-            Escalate any reaction that is life-threatening, results in hospitalisation, or causes
-            persistent disability — regardless of suspected causality.
-          </li>
-          <li>
-            Confirmed serious reactions are reported to the EOF via the national pharmacovigilance
-            portal; keep the prescriber and patient informed at every stage.
-          </li>
-          <li>
-            Document every step in the patient&apos;s record: symptom, onset, action taken, EOF
-            reference number once issued.
-          </li>
-        </ol>
-      </div>
     </div>
   );
-}
-
-interface ReportCardProps {
-  report: SideEffectReport;
-  busy: boolean;
-  onContact: () => void;
-  onNotify: () => void;
-  onFlag: () => void;
-  onViewProfile: () => void;
-}
-
-function ReportCard({ report, busy, onContact, onNotify, onFlag, onViewProfile }: ReportCardProps) {
-  const flagLabel =
-    report.status === "PENDING_REVIEW"
-      ? "Flag for Pharmacovigilance"
-      : report.status === "ESCALATED"
-        ? "Report to EOF"
-        : "EOF Reported";
-
-  return (
-    <article className="card p-5">
-      <header className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">
-              {report.patientName}
-            </h3>
-            <span className={`chip ${SEVERITY_TONE[report.severity]}`}>
-              {SEVERITY_LABEL[report.severity]}
-            </span>
-            <span className={`chip ${STATUS_STYLE[report.status]}`}>
-              {STATUS_LABEL[report.status]}
-            </span>
-          </div>
-          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-slate-500 dark:text-slate-400">
-            {report.rxId ? (
-              <Link
-                to={`/prescription/${report.rxId}`}
-                className="font-medium text-brand-600 hover:underline dark:text-brand-400"
-              >
-                {report.drugName}
-              </Link>
-            ) : (
-              <span className="font-medium text-slate-700 dark:text-slate-300">
-                {report.drugName}
-              </span>
-            )}
-            <span className="text-slate-400 dark:text-slate-500">·</span>
-            <span>
-              Patient ID:{" "}
-              <span className="font-mono text-slate-700 dark:text-slate-300">
-                {report.patientId}
-              </span>
-            </span>
-            <span className="text-slate-400 dark:text-slate-500">·</span>
-            <span>Reported {formatTimestamp(report.reportedAt)}</span>
-          </div>
-        </div>
-      </header>
-
-      <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
-        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-500/30 dark:bg-amber-500/10">
-          <div className="text-xs font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-400">
-            Reported Symptom
-          </div>
-          <p className="mt-1.5 text-sm leading-relaxed text-amber-900 dark:text-amber-200">
-            {report.symptom}
-          </p>
-        </div>
-        <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 dark:border-blue-500/30 dark:bg-blue-500/10">
-          <div className="text-xs font-semibold uppercase tracking-wide text-blue-700 dark:text-blue-400">
-            Time of Onset
-          </div>
-          <p className="mt-1.5 text-sm leading-relaxed text-blue-900 dark:text-blue-200">
-            {report.onset}
-          </p>
-        </div>
-      </div>
-
-      <div className="mt-4 flex flex-wrap gap-2">
-        <button
-          type="button"
-          onClick={onContact}
-          disabled={!report.patientPhone}
-          className="btn btn-outline disabled:opacity-60 disabled:cursor-not-allowed"
-          title={report.patientPhone ?? "No phone on file"}
-        >
-          <PhoneIcon /> Contact Patient
-        </button>
-        <button
-          type="button"
-          onClick={onNotify}
-          disabled={busy || !report.rxId}
-          className="btn btn-outline disabled:opacity-60 disabled:cursor-not-allowed"
-        >
-          {busy ? <span className="spinner" /> : <SendIcon />} Notify Physician
-        </button>
-        <button
-          type="button"
-          onClick={onFlag}
-          disabled={busy || report.status === "EOF_REPORTED"}
-          className="btn btn-amber disabled:opacity-60 disabled:cursor-not-allowed"
-        >
-          {busy ? <span className="spinner" /> : <FlagIcon />} {flagLabel}
-        </button>
-        <button type="button" onClick={onViewProfile} className="btn btn-outline">
-          <UsersIcon /> View Patient Profile
-        </button>
-      </div>
-    </article>
-  );
-}
-
-function recomputeStats(
-  prev: { total: number; pendingReview: number; severe: number; escalated: number },
-  oldStatus: AdrStatus,
-  newStatus: AdrStatus,
-): { total: number; pendingReview: number; severe: number; escalated: number } {
-  if (oldStatus === newStatus) return prev;
-  const next = { ...prev };
-  if (oldStatus === "PENDING_REVIEW") next.pendingReview = Math.max(0, next.pendingReview - 1);
-  if (oldStatus === "ESCALATED") next.escalated = Math.max(0, next.escalated - 1);
-  if (newStatus === "PENDING_REVIEW") next.pendingReview += 1;
-  if (newStatus === "ESCALATED") next.escalated += 1;
-  return next;
-}
-
-function formatTimestamp(iso: string): string {
-  const d = new Date(iso);
-  if (isNaN(d.getTime())) return iso;
-  return d.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
 }

@@ -9,6 +9,7 @@ import { SideEffects } from "./pages/SideEffects";
 import { Patients } from "./pages/Patients";
 import { PatientProfile } from "./pages/PatientProfile";
 import { Instructions } from "./pages/Instructions";
+import { Settings } from "./pages/Settings";
 
 export function App() {
   return (
@@ -24,6 +25,7 @@ export function App() {
         <Route path="/patients" element={<Patients />} />
         <Route path="/patients/:id" element={<PatientProfile />} />
         <Route path="/instructions" element={<Instructions />} />
+        <Route path="/settings" element={<Settings />} />
       </Route>
       <Route path="/" element={<Navigate to="/dashboard" replace />} />
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
