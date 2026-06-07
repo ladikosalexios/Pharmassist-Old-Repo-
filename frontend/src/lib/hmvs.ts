@@ -70,6 +70,12 @@ type HmvsOp = "verification" | "decommission" | "reactivation";
  * `/pharmapi/hmvs/product/gs1/{GTIN}/pack/{serial}?batch={batch}&expiry={YYMMDD}`,
  * and `fetch` it (GET for verify, PATCH with `body` otherwise) using
  * `credentials: "include"`, routing the response through lib/api.ts's `handle`.
+ *
+ * `qr` arrives from the dispense wizard in one of two shapes the decoder must
+ * handle (see DispenseWizard.tsx handleVerify):
+ *   • scan mode   — the raw GS1 DataMatrix payload read off the carton;
+ *   • manual mode — a colon-delimited string
+ *     `${scheme}:${productCode}:${serial}:${batch}:${expiry}`, scheme "GS1" | "PPN".
  */
 function hmvsRequest(op: HmvsOp, qr: string, body?: HmvsStateChangeBody): never {
   if (!qr) {

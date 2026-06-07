@@ -195,6 +195,11 @@ export function DispenseWizard({
     setDispenseErrorDetail(null);
     try {
       const result = await approvePrescription(rxId);
+      // TODO(H6): once the /pharmapi/hmvs proxy lands, decommission the verified
+      // pack here on success via hmvsDecommission(packPayload, reason) — the pack
+      // scanned in step 1 must be retained from handleVerify and passed in. Until
+      // then the wizard records approval only; the pack is NOT decommissioned,
+      // despite the step-2 copy. See docs/hmvs-scope.md.
       const execNo = result.executionNo ?? null;
       setExecutionNo(execNo);
       setView("s2-success");
