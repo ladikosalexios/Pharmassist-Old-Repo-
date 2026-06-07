@@ -100,7 +100,7 @@ export function History() {
     try {
       await exportDocumentation({ q: query || undefined, method, format: "csv" });
     } catch {
-      toast("Export failed. Please try again.", "error");
+      toast(t("history.exportFailedRetry"), "error");
     } finally {
       setExporting(false);
     }
@@ -339,7 +339,7 @@ export function History() {
                   type="button"
                   onClick={() => {
                     exportDocumentationRecord(r.id, "pdf").catch(() =>
-                      toast("Export failed.", "error"),
+                      toast(t("history.exportFailed"), "error"),
                     );
                   }}
                   className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11.5px] font-semibold text-slate-600 shadow-card hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800/60"

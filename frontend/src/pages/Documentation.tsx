@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import {
   ClipboardIcon,
@@ -24,11 +25,11 @@ import type {
   DocumentationRecord,
 } from "../types";
 
-const METHOD_OPTIONS: { value: DeliveryMethodFilter; label: string }[] = [
-  { value: "ALL", label: "All Methods" },
-  { value: "PRINT", label: "Print" },
-  { value: "DIGITAL", label: "Digital" },
-  { value: "BOTH", label: "Both" },
+const METHOD_OPTIONS: { value: DeliveryMethodFilter; labelKey: string }[] = [
+  { value: "ALL", labelKey: "documentation.methodAll" },
+  { value: "PRINT", labelKey: "documentation.methodPrint" },
+  { value: "DIGITAL", labelKey: "documentation.methodDigital" },
+  { value: "BOTH", labelKey: "documentation.methodBoth" },
 ];
 
 const METHOD_TONE: Record<DeliveryMethod, string> = {
@@ -37,10 +38,10 @@ const METHOD_TONE: Record<DeliveryMethod, string> = {
   BOTH: "bg-violet-100 text-violet-800 dark:bg-violet-500/15 dark:text-violet-400",
 };
 
-const METHOD_LABEL: Record<DeliveryMethod, string> = {
-  PRINT: "Print",
-  DIGITAL: "Digital",
-  BOTH: "Print + Digital",
+const METHOD_LABEL_KEY: Record<DeliveryMethod, string> = {
+  PRINT: "documentation.deliveryPrint",
+  DIGITAL: "documentation.deliveryDigital",
+  BOTH: "documentation.deliveryBoth",
 };
 
 const SETTING_TONE: Record<DocumentationRecord["setting"], string> = {
@@ -51,6 +52,7 @@ const SETTING_TONE: Record<DocumentationRecord["setting"], string> = {
 };
 
 export function Documentation() {
+  const { t } = useTranslation();
   const { toast } = useToast();
   const [searchInput, setSearchInput] = useState("");
   const [query, setQuery] = useState("");
@@ -78,7 +80,7 @@ export function Documentation() {
       })
       .catch((e: unknown) => {
         if (!active) return;
-        setError(e instanceof ApiError ? e.message : "Could not load documentation records.");
+        setError(e instanceof ApiError ? e.message : t("documentation.loadError"));
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -86,45 +88,50 @@ export function Documentation() {
     return () => {
       active = false;
     };
-  }, [query, method]);
+  }, [query, method, t]);
 
   const statCards = useMemo(() => {
     const stats = data?.stats ?? { total: 0, print: 0, digital: 0, both: 0 };
     return [
       {
-        label: "Total Records",
+        label: t("documentation.statTotal"),
         value: stats.total,
         tone: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
         valueClass: "text-slate-900 dark:text-slate-100",
       },
       {
-        label: "Print Delivery",
+        label: t("documentation.statPrint"),
         value: stats.print,
         tone: "bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-400",
         valueClass: "text-blue-700 dark:text-blue-400",
       },
       {
-        label: "Digital Delivery",
+        label: t("documentation.statDigital"),
         value: stats.digital,
         tone: "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400",
         valueClass: "text-emerald-700 dark:text-emerald-400",
       },
       {
-        label: "Both Methods",
+        label: t("documentation.statBoth"),
         value: stats.both,
         tone: "bg-violet-100 text-violet-700 dark:bg-violet-500/15 dark:text-violet-400",
         valueClass: "text-violet-700 dark:text-violet-400",
       },
     ];
-  }, [data]);
+  }, [data, t]);
 
   async function onExportAll() {
     setExportingAll(true);
     try {
       await exportDocumentation({ q: query || undefined, method });
-      toast("Documentation log exported", "success");
+      toast(t("documentation.exportSuccess"), "success");
     } catch (e) {
-      toast(e instanceof ApiError ? `Export failed: ${e.message}` : "Export failed.", "error");
+      toast(
+        e instanceof ApiError
+          ? t("documentation.exportFailedDetail", { detail: e.message })
+          : t("documentation.exportFailed"),
+        "error",
+      );
     } finally {
       setExportingAll(false);
     }
@@ -134,9 +141,14 @@ export function Documentation() {
     setExportingId(id);
     try {
       await exportDocumentationRecord(id);
-      toast(`Exported ${id}`, "success");
+      toast(t("documentation.exportedRecord", { id }), "success");
     } catch (e) {
-      toast(e instanceof ApiError ? `Export failed: ${e.message}` : "Export failed.", "error");
+      toast(
+        e instanceof ApiError
+          ? t("documentation.exportFailedDetail", { detail: e.message })
+          : t("documentation.exportFailed"),
+        "error",
+      );
     } finally {
       setExportingId(null);
     }
@@ -148,10 +160,10 @@ export function Documentation() {
       <div className="mb-7 flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">
-            Documentation &amp; Legal Log
+            {t("documentation.title")}
           </h1>
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-            Record of patient counseling and medication dispensing
+            {t("documentation.subtitle")}
           </p>
         </div>
         <button
@@ -161,7 +173,7 @@ export function Documentation() {
           className="btn btn-primary disabled:opacity-60 disabled:cursor-not-allowed"
         >
           {exportingAll ? <span className="spinner" /> : <DownloadIcon />}
-          {exportingAll ? "Exporting…" : "Export Report"}
+          {exportingAll ? t("documentation.exporting") : t("documentation.exportReport")}
         </button>
       </div>
 
@@ -198,7 +210,7 @@ export function Documentation() {
             type="search"
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
-            placeholder="Search by patient name or prescription code..."
+            placeholder={t("documentation.searchPlaceholder")}
             className="w-full rounded-lg border border-slate-300 bg-white py-2 pl-9 pr-3 text-sm outline-none focus:border-brand-600 focus:ring-2 focus:ring-brand-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
           />
         </div>
@@ -212,11 +224,11 @@ export function Documentation() {
             value={method}
             onChange={(e) => setMethod(e.target.value as DeliveryMethodFilter)}
             className="rounded-lg border border-slate-300 bg-white py-2 pl-9 pr-8 text-sm outline-none focus:border-brand-600 focus:ring-2 focus:ring-brand-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
-            aria-label="Filter by delivery method"
+            aria-label={t("documentation.filterAria")}
           >
             {METHOD_OPTIONS.map((o) => (
               <option key={o.value} value={o.value}>
-                {o.label}
+                {t(o.labelKey)}
               </option>
             ))}
           </select>
@@ -231,11 +243,11 @@ export function Documentation() {
         </div>
       ) : loading ? (
         <div className="card flex items-center gap-2 px-4 py-6 text-sm text-slate-500 dark:text-slate-400">
-          <span className="spinner text-brand-600" /> Loading records…
+          <span className="spinner text-brand-600" /> {t("documentation.loading")}
         </div>
       ) : !data || data.items.length === 0 ? (
         <div className="card px-4 py-10 text-center text-sm text-slate-500 dark:text-slate-400">
-          No records match your filters.
+          {t("documentation.empty")}
         </div>
       ) : (
         <ul className="space-y-3">
@@ -256,14 +268,9 @@ export function Documentation() {
       <div className="mt-8 rounded-xl border border-blue-200 bg-blue-50 px-5 py-4 text-sm text-blue-900 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-200">
         <div className="mb-1 flex items-center gap-2 font-semibold">
           <CheckCircleIcon width={16} height={16} className="text-blue-600 dark:text-blue-400" />{" "}
-          Legal Compliance
+          {t("documentation.legalTitle")}
         </div>
-        <p className="leading-relaxed">
-          All documentation records are maintained in compliance with pharmacy regulations and HIPAA
-          requirements. Records are retained for the legally required period and are accessible for
-          audits and inspections. Each entry includes pharmacist signature, timestamp, and delivery
-          confirmation.
-        </p>
+        <p className="leading-relaxed">{t("documentation.legalBody")}</p>
       </div>
 
       <DocumentationDetailModal
@@ -283,6 +290,7 @@ interface RecordCardProps {
 }
 
 function RecordCard({ record, exporting, onView, onExport }: RecordCardProps) {
+  const { t } = useTranslation();
   return (
     <article className="card p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -294,9 +302,11 @@ function RecordCard({ record, exporting, onView, onExport }: RecordCardProps) {
             <span className="chip border border-brand-100 bg-brand-50 font-mono text-brand-700 dark:border-brand-500/20 dark:bg-brand-500/15 dark:text-brand-300">
               {record.rxId}
             </span>
-            <span className={`chip border ${SETTING_TONE[record.setting]}`}>{record.setting}</span>
+            <span className={`chip border ${SETTING_TONE[record.setting]}`}>
+              {t(`documentation.setting${record.setting}`)}
+            </span>
             <span className={`chip ${METHOD_TONE[record.deliveryMethod]}`}>
-              {METHOD_LABEL[record.deliveryMethod]}
+              {t(METHOD_LABEL_KEY[record.deliveryMethod])}
             </span>
           </div>
 
@@ -309,7 +319,7 @@ function RecordCard({ record, exporting, onView, onExport }: RecordCardProps) {
 
           <div className="mt-3">
             <div className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-              Information Provided
+              {t("documentation.informationProvided")}
             </div>
             <p className="mt-1 text-sm leading-relaxed text-slate-700 dark:text-slate-300">
               {record.informationProvided}
@@ -318,17 +328,19 @@ function RecordCard({ record, exporting, onView, onExport }: RecordCardProps) {
 
           <div className="mt-3 grid grid-cols-1 gap-1.5 text-[13px] text-slate-600 dark:text-slate-300 sm:grid-cols-2">
             <div>
-              <span className="font-medium text-slate-500 dark:text-slate-400">Language:</span>{" "}
+              <span className="font-medium text-slate-500 dark:text-slate-400">
+                {t("documentation.languageLabel")}
+              </span>{" "}
               {record.language}
             </div>
             <div>
               <span className="font-medium text-slate-500 dark:text-slate-400">
-                Delivery Method:
+                {t("documentation.deliveryMethodLabel")}
               </span>{" "}
-              {METHOD_LABEL[record.deliveryMethod]}
+              {t(METHOD_LABEL_KEY[record.deliveryMethod])}
             </div>
             <div className="sm:col-span-2 mt-1 text-xs text-slate-500 dark:text-slate-400">
-              Dispensed by:{" "}
+              {t("documentation.dispensedByLabel")}{" "}
               <span className="font-medium text-slate-700 dark:text-slate-300">
                 PharmD {record.pharmacistName}
               </span>{" "}
@@ -339,7 +351,7 @@ function RecordCard({ record, exporting, onView, onExport }: RecordCardProps) {
 
         <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
           <button type="button" onClick={onView} className="btn btn-outline">
-            <FileTextIcon /> View Details
+            <FileTextIcon /> {t("documentation.viewDetails")}
           </button>
           <button
             type="button"
@@ -348,7 +360,7 @@ function RecordCard({ record, exporting, onView, onExport }: RecordCardProps) {
             className="btn btn-outline disabled:opacity-60 disabled:cursor-not-allowed"
           >
             {exporting ? <span className="spinner" /> : <DownloadIcon />}
-            {exporting ? "Exporting…" : "Export"}
+            {exporting ? t("documentation.exporting") : t("documentation.export")}
           </button>
         </div>
       </div>

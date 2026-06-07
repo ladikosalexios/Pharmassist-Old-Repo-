@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import { createPortal } from "react-dom";
+import { useTranslation } from "react-i18next";
 import { CheckIcon } from "./Icons";
 import { useModalRegistration } from "../lib/keyboard";
 
@@ -27,6 +28,7 @@ export function ApproveConfirmModal({
   onConfirm,
 }: ApproveConfirmModalProps) {
   useModalRegistration(open);
+  const { t } = useTranslation();
   const titleId = useId();
   const [confirmed, setConfirmed] = useState(false);
   const checkboxRef = useRef<HTMLInputElement | null>(null);
@@ -75,20 +77,19 @@ export function ApproveConfirmModal({
           </div>
           <div className="flex-1">
             <h2 id={titleId} className="text-base font-semibold text-slate-900 dark:text-slate-100">
-              Confirm Prescription Approval
+              {t("approve.title")}
             </h2>
             <p className="text-xs text-slate-500 dark:text-slate-400">
-              <span className="font-mono">{rxId}</span> — once approved, the prescription is
-              recorded.
+              <span className="font-mono">{rxId}</span> — {t("approve.subtitle")}
             </p>
           </div>
         </div>
 
         <form onSubmit={onSubmit} className="px-6 py-5">
           <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-800/50">
-            <Row label="Patient" value={patientName} />
-            <Row label="Drug" value={drugName} />
-            <Row label="Dose" value={dose} last />
+            <Row label={t("approve.patient")} value={patientName} />
+            <Row label={t("approve.drug")} value={drugName} />
+            <Row label={t("approve.dose")} value={dose} last />
           </div>
 
           {error && (
@@ -105,7 +106,7 @@ export function ApproveConfirmModal({
               onChange={(e) => setConfirmed(e.target.checked)}
               className="mt-0.5 h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-100 dark:border-slate-700"
             />
-            <span>I confirm I have reviewed all safety checks and patient information</span>
+            <span>{t("approve.confirmCheckbox")}</span>
           </label>
 
           <div className="mt-6 flex justify-end gap-2">
@@ -115,7 +116,7 @@ export function ApproveConfirmModal({
               disabled={submitting}
               className="btn btn-outline disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              Cancel
+              {t("approve.cancel")}
             </button>
             <button
               type="submit"
@@ -123,7 +124,7 @@ export function ApproveConfirmModal({
               className="btn btn-success disabled:opacity-60 disabled:cursor-not-allowed"
             >
               {submitting ? <span className="spinner" /> : <CheckIcon />}
-              {submitting ? "Approving…" : "Confirm Approval"}
+              {submitting ? t("approve.approving") : t("approve.confirmApproval")}
             </button>
           </div>
         </form>

@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import { ApiError, getSpc } from "../lib/api";
 import type { Prescription, SpcDetails } from "../types";
 
@@ -8,10 +10,10 @@ const STATUS_CHIP: Record<string, string> = {
   FLAGGED: "bg-red-100 text-red-800",
 };
 
-const STATUS_LABEL: Record<string, string> = {
-  PENDING: "Pending",
-  COMPLETED: "Completed",
-  FLAGGED: "Flagged",
+const STATUS_LABEL_KEY: Record<string, string> = {
+  PENDING: "rxDetails.statusPending",
+  COMPLETED: "rxDetails.statusCompleted",
+  FLAGGED: "rxDetails.statusFlagged",
 };
 
 interface PrescriptionDetailsCardProps {
@@ -19,6 +21,7 @@ interface PrescriptionDetailsCardProps {
 }
 
 export function PrescriptionDetailsCard({ rx }: PrescriptionDetailsCardProps) {
+  const { t } = useTranslation();
   const [spc, setSpc] = useState<SpcDetails | null>(null);
   const atcCode = rx.medication.atcCode;
 
@@ -39,24 +42,27 @@ export function PrescriptionDetailsCard({ rx }: PrescriptionDetailsCardProps) {
     };
   }, [atcCode]);
 
-  const versionInfo = computeVersionInfo(rx.spcVersion, spc, rx.dateIssued);
+  const versionInfo = computeVersionInfo(rx.spcVersion, spc, rx.dateIssued, t);
 
   return (
     <section className="card p-5">
-      <h2 className="mb-3 text-base font-semibold text-slate-900">Prescription Details</h2>
+      <h2 className="mb-3 text-base font-semibold text-slate-900">{t("rxDetails.title")}</h2>
       <dl className="space-y-3">
-        <Row label="Prescription Code" value={<span className="font-mono">{rx.code}</span>} />
-        <Row label="Date Issued" value={rx.dateIssued} />
         <Row
-          label="Status"
+          label={t("rxDetails.prescriptionCode")}
+          value={<span className="font-mono">{rx.code}</span>}
+        />
+        <Row label={t("rxDetails.dateIssued")} value={rx.dateIssued} />
+        <Row
+          label={t("rxDetails.status")}
           value={
             <span className={`chip ${STATUS_CHIP[rx.status] ?? "bg-slate-100 text-slate-800"}`}>
-              {STATUS_LABEL[rx.status] ?? rx.status}
+              {STATUS_LABEL_KEY[rx.status] ? t(STATUS_LABEL_KEY[rx.status]) : rx.status}
             </span>
           }
         />
         <Row
-          label="SPC Version"
+          label={t("rxDetails.spcVersion")}
           value={
             <span
               title={versionInfo.tooltip ?? undefined}
@@ -85,6 +91,7 @@ function computeVersionInfo(
   fallbackVersion: string | undefined,
   spc: SpcDetails | null,
   dateIssued: string,
+  t: TFunction,
 ): VersionInfo {
   if (!spc) {
     return { label: fallbackVersion ?? "—", outdated: false, tooltip: null };
@@ -94,9 +101,9 @@ function computeVersionInfo(
   const outdated = !!(updated && issued && updated.getTime() > issued.getTime());
   const dateLabel = updated ? formatDate(updated) : spc.updatedAt;
   return {
-    label: `${spc.version} (Updated: ${dateLabel})`,
+    label: `${spc.version} (${t("rxDetails.updatedLabel")}: ${dateLabel})`,
     outdated,
-    tooltip: outdated ? "SPC updated after prescription date — review recommended" : null,
+    tooltip: outdated ? t("rxDetails.outdatedTooltip") : null,
   };
 }
 

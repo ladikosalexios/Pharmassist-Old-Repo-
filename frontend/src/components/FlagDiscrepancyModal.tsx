@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import { createPortal } from "react-dom";
+import { useTranslation } from "react-i18next";
 import { FlagIcon } from "./Icons";
 import { ApiError, notifyPhysician, patchPrescription, type DiscrepancyType } from "../lib/api";
 import { useToast } from "./Toast";
@@ -12,16 +13,16 @@ interface FlagDiscrepancyModalProps {
   onFlagged?: (status: string) => void;
 }
 
-const DISCREPANCY_OPTIONS: { value: DiscrepancyType; label: string }[] = [
-  { value: "dose_error", label: "Dose error" },
-  { value: "drug_drug_interaction", label: "Drug-drug interaction" },
-  { value: "missing_info", label: "Missing info" },
-  { value: "suspected_forgery", label: "Suspected forgery" },
-  { value: "other", label: "Other" },
+const DISCREPANCY_OPTIONS: { value: DiscrepancyType; labelKey: string }[] = [
+  { value: "dose_error", labelKey: "flag.typeDoseError" },
+  { value: "drug_drug_interaction", labelKey: "flag.typeDrugDrugInteraction" },
+  { value: "missing_info", labelKey: "flag.typeMissingInfo" },
+  { value: "suspected_forgery", labelKey: "flag.typeSuspectedForgery" },
+  { value: "other", labelKey: "flag.typeOther" },
 ];
 
-const TYPE_LABEL: Record<DiscrepancyType, string> = Object.fromEntries(
-  DISCREPANCY_OPTIONS.map((o) => [o.value, o.label]),
+const TYPE_LABEL_KEY: Record<DiscrepancyType, string> = Object.fromEntries(
+  DISCREPANCY_OPTIONS.map((o) => [o.value, o.labelKey]),
 ) as Record<DiscrepancyType, string>;
 
 export function FlagDiscrepancyModal({
@@ -31,6 +32,7 @@ export function FlagDiscrepancyModal({
   onFlagged,
 }: FlagDiscrepancyModalProps) {
   useModalRegistration(open);
+  const { t } = useTranslation();
   const titleId = useId();
   const [discrepancyType, setDiscrepancyType] = useState<DiscrepancyType | "">("");
   const [notes, setNotes] = useState("");
@@ -68,11 +70,11 @@ export function FlagDiscrepancyModal({
     event.preventDefault();
     setErr(null);
     if (!discrepancyType) {
-      setErr("Please select a discrepancy type.");
+      setErr(t("flag.errSelectType"));
       return;
     }
     if (!notes.trim()) {
-      setErr("Please describe the discrepancy.");
+      setErr(t("flag.errDescribe"));
       return;
     }
     setSubmitting(true);
@@ -89,23 +91,27 @@ export function FlagDiscrepancyModal({
         try {
           await notifyPhysician(
             rxId,
-            `Prescription ${rxId} flagged: ${TYPE_LABEL[discrepancyType as DiscrepancyType]}. ${notes.trim()}`,
+            t("flag.notifyMessage", {
+              rxId,
+              type: t(TYPE_LABEL_KEY[discrepancyType as DiscrepancyType]),
+              notes: notes.trim(),
+            }),
           );
         } catch (e) {
           toast(
             e instanceof ApiError
-              ? `Flagged, but physician notification failed: ${e.message}`
-              : "Flagged, but physician notification failed.",
+              ? t("flag.notifyFailedReason", { reason: e.message })
+              : t("flag.notifyFailed"),
             "warn",
           );
         }
       }
 
-      toast(`Prescription ${rxId} has been flagged`, "success");
+      toast(t("flag.flaggedSuccess", { rxId }), "success");
       onFlagged?.(result.status);
       onClose();
     } catch (e) {
-      setErr(e instanceof ApiError ? e.message : "Could not flag this prescription.");
+      setErr(e instanceof ApiError ? e.message : t("flag.errCouldNotFlag"));
     } finally {
       setSubmitting(false);
     }
@@ -132,10 +138,10 @@ export function FlagDiscrepancyModal({
           </div>
           <div className="flex-1">
             <h2 id={titleId} className="text-base font-semibold text-slate-900 dark:text-slate-100">
-              Flag Prescription Discrepancy
+              {t("flag.title")}
             </h2>
             <p className="text-xs text-slate-500 dark:text-slate-400">
-              <span className="font-mono">{rxId}</span> — describe the issue and submit for review.
+              <span className="font-mono">{rxId}</span> — {t("flag.subtitle")}
             </p>
           </div>
         </div>
@@ -151,7 +157,7 @@ export function FlagDiscrepancyModal({
             htmlFor="discrepancyType"
             className="block text-[13px] font-medium text-slate-600 dark:text-slate-300"
           >
-            Discrepancy Type
+            {t("flag.discrepancyType")}
           </label>
           <select
             id="discrepancyType"
@@ -161,11 +167,11 @@ export function FlagDiscrepancyModal({
             className="mt-1.5 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-brand-600 focus:ring-2 focus:ring-brand-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
           >
             <option value="" disabled>
-              Select a type…
+              {t("flag.selectType")}
             </option>
             {DISCREPANCY_OPTIONS.map((o) => (
               <option key={o.value} value={o.value}>
-                {o.label}
+                {t(o.labelKey)}
               </option>
             ))}
           </select>
@@ -174,13 +180,13 @@ export function FlagDiscrepancyModal({
             htmlFor="notes"
             className="mt-4 block text-[13px] font-medium text-slate-600 dark:text-slate-300"
           >
-            Notes / Description
+            {t("flag.notes")}
           </label>
           <textarea
             id="notes"
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
-            placeholder="Describe what looks wrong and any context the prescriber will need."
+            placeholder={t("flag.notesPlaceholder")}
             className="mt-1.5 w-full min-h-[110px] resize-vertical rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-brand-600 focus:ring-2 focus:ring-brand-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
           />
 
@@ -191,7 +197,7 @@ export function FlagDiscrepancyModal({
               onChange={(e) => setNotifyPhysicianFlag(e.target.checked)}
               className="mt-0.5 h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-100 dark:border-slate-700"
             />
-            <span>Notify prescribing physician immediately</span>
+            <span>{t("flag.notifyPhysician")}</span>
           </label>
 
           <div className="mt-6 flex justify-end gap-2">
@@ -201,7 +207,7 @@ export function FlagDiscrepancyModal({
               disabled={submitting}
               className="btn btn-outline disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              Cancel
+              {t("flag.cancel")}
             </button>
             <button
               type="submit"
@@ -209,7 +215,7 @@ export function FlagDiscrepancyModal({
               className="btn btn-amber disabled:opacity-60 disabled:cursor-not-allowed"
             >
               {submitting ? <span className="spinner" /> : <FlagIcon />}
-              {submitting ? "Submitting…" : "Submit Flag"}
+              {submitting ? t("flag.submitting") : t("flag.submitFlag")}
             </button>
           </div>
         </form>

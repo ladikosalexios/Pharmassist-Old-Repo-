@@ -1,26 +1,29 @@
+import { useTranslation } from "react-i18next";
+
 interface Shortcut {
+  id: string;
   keys: string[];
-  description: string;
 }
 
 const SHORTCUTS: Shortcut[] = [
-  { keys: ["D"], description: "Go to dashboard" },
-  { keys: ["P"], description: "Open next pending prescription" },
-  { keys: ["C"], description: "Confirm approval (on a prescription)" },
-  { keys: ["F"], description: "Flag discrepancy (on a prescription)" },
-  { keys: ["Esc"], description: "Close any open modal or drawer" },
+  { id: "dashboard", keys: ["D"] },
+  { id: "nextPending", keys: ["P"] },
+  { id: "confirm", keys: ["C"] },
+  { id: "flag", keys: ["F"] },
+  { id: "closeModal", keys: ["Esc"] },
 ];
 
 export function KeyboardShortcutsCard() {
+  const { t } = useTranslation();
   return (
     <section className="card p-5">
       <h2 className="mb-3 text-base font-semibold text-slate-900 dark:text-slate-100">
-        Keyboard Shortcuts
+        {t("shortcuts.title")}
       </h2>
       <ul className="space-y-2">
         {SHORTCUTS.map((s) => (
           <li
-            key={s.description}
+            key={s.id}
             className="flex items-center justify-between gap-3 text-[13px] text-slate-700 dark:text-slate-300"
           >
             <span className="flex items-center gap-1">
@@ -28,13 +31,13 @@ export function KeyboardShortcutsCard() {
                 <Key key={k} label={k} />
               ))}
             </span>
-            <span className="text-right text-slate-600 dark:text-slate-400">{s.description}</span>
+            <span className="text-right text-slate-600 dark:text-slate-400">
+              {t(`shortcuts.${s.id}`)}
+            </span>
           </li>
         ))}
       </ul>
-      <p className="mt-3 text-[11px] text-slate-500 dark:text-slate-400">
-        Shortcuts pause while an input is focused or a dialog is open.
-      </p>
+      <p className="mt-3 text-[11px] text-slate-500 dark:text-slate-400">{t("shortcuts.note")}</p>
     </section>
   );
 }
