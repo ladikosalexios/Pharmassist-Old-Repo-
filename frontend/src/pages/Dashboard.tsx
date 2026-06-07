@@ -27,8 +27,8 @@ const STATUS_LABEL_KEY: Record<QueueItem["status"], string> = {
 };
 
 export function Dashboard() {
-  const { t } = useTranslation();
-  const today = new Date().toLocaleDateString("en-GB", {
+  const { t, i18n } = useTranslation();
+  const today = new Date().toLocaleDateString(i18n.language?.startsWith("en") ? "en-GB" : "el-GR", {
     weekday: "long",
     year: "numeric",
     month: "long",

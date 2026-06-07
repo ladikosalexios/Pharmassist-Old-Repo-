@@ -376,6 +376,7 @@ MOCK_PRESCRIPTIONS: dict = {
         "medication": {
             "drugName": "Amoxicillin",
             "atcCode": "J01CA04",
+            "nhrn": "5201234500024",
             "dose": "250 mg / 5 mL suspension",
             "form": "Oral suspension",
             "route": "Oral",

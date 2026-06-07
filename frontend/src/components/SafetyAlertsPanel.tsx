@@ -172,7 +172,11 @@ function AlertCard({ alert, isNew }: { alert: ActiveAlert; isNew: boolean }) {
           {alert.type.toUpperCase()}
         </span>
         <span className="ml-auto text-[11px] font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
-          {t(v.severity === "Critical" ? "severityCritical" : "severityReview")}
+          {t(
+            v.severity === "Critical"
+              ? "safetyAlerts.severityCritical"
+              : "safetyAlerts.severityReview",
+          )}
         </span>
       </div>
       <p className="mt-1.5 text-[13px] leading-relaxed text-slate-700 dark:text-slate-300">
