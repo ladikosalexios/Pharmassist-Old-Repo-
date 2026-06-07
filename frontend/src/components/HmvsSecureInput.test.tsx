@@ -51,6 +51,14 @@ function pressKeyWithCaps(input: HTMLElement, capsOn: boolean) {
 }
 
 describe("HmvsSecureInput", () => {
+  it("resolves the hmvs.* keys to the required Greek copy", () => {
+    // The constants below pin the exact spec'd wording; this also proves the
+    // keys exist in el.json. If the locale drifts, it fails loudly here rather
+    // than as a vague text-not-found error in the rendering tests.
+    expect(i18n.t("hmvs.capsLockWarning")).toBe(CAPS_WARNING);
+    expect(i18n.t("hmvs.layoutWarning")).toBe(LAYOUT_WARNING);
+  });
+
   it("blocks and warns when Caps Lock is on", () => {
     const onBlock = vi.fn();
     render(<Harness onBlock={onBlock} />);

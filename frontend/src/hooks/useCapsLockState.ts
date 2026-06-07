@@ -32,6 +32,10 @@ export function useCapsLockState(ref: RefObject<HTMLElement>): boolean {
       el.removeEventListener("keydown", sync);
       el.removeEventListener("keyup", sync);
     };
+    // `ref` is a RefObject — stable for the element's lifetime — so this is
+    // effectively a `[]` effect: bind once on mount, unbind on unmount. (If this
+    // hook is ever reused where the element is conditionally rendered, the
+    // `if (!el) return` guard above would need a retry path.)
   }, [ref]);
 
   return capsLockOn;

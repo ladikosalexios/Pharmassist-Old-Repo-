@@ -1,7 +1,13 @@
 import { useMemo } from "react";
 
-// Any code point outside 7-bit ASCII (>= U+0080). A Greek — or otherwise
-// non-Latin — character in the field is our proxy for "the OS keyboard layout
+// Detects any code point outside 7-bit ASCII (>= U+0080). Strictly this is a
+// *non-ASCII* test, which is broader than "non-Latin" — `é`, `ü`, `ñ` are Latin
+// yet non-ASCII. For HMVS pack codes, which are ASCII alphanumeric, the
+// distinction is moot: any non-ASCII character is equally a wrong-layout signal.
+// (The hook keeps the name `useNonLatinInputDetector` because that's its
+// agreed call-site contract.)
+//
+// A non-ASCII character in the field is our proxy for "the OS keyboard layout
 // isn't English". Browsers expose no dependable way to read the active input
 // language: navigator.keyboard.getLayoutMap() is Chromium-only, permission-
 // adjacent, and reports the *physical* key layout rather than the language the

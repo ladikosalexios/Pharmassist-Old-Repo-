@@ -7,7 +7,7 @@ import { useNonLatinInputDetector } from "../hooks/useNonLatinInputDetector";
 /**
  * Why a pending submit is blocked. `null` means the field is clean.
  * - "caps-lock"        Caps Lock is on
- * - "keyboard-layout"  a non-Latin character is present (wrong OS layout)
+ * - "keyboard-layout"  a non-ASCII character is present, e.g. Greek (wrong OS layout)
  * - "both"             both conditions are true at once
  */
 export type HmvsBlockReason = "caps-lock" | "keyboard-layout" | "both" | null;
@@ -15,7 +15,11 @@ export type HmvsBlockReason = "caps-lock" | "keyboard-layout" | "both" | null;
 export interface HmvsSecureInputProps {
   value: string;
   onChange: (value: string) => void;
-  /** Fired whenever the block reason changes; emits `null` once the field clears. */
+  /**
+   * Fired whenever the block reason changes — including once on mount with the
+   * initial reason (`null`, or `"keyboard-layout"` if `value` starts non-ASCII).
+   * Emits `null` once the field clears.
+   */
   onBlock: (reason: HmvsBlockReason) => void;
   label: string;
   placeholder?: string;
