@@ -12,7 +12,8 @@ import {
   PrinterIcon,
   AlertCircleIcon,
 } from "./Icons";
-import { ApiError, approvePrescription, verifyPack } from "../lib/api";
+import { ApiError, approvePrescription } from "../lib/api";
+import { hmvsVerify } from "../lib/hmvs";
 import { useModalRegistration } from "../lib/keyboard";
 
 type WizardView =
@@ -162,12 +163,12 @@ export function DispenseWizard({
   async function handleVerify() {
     setView("s1-verifying");
     setVerifyError(null);
-    // In manual mode, assemble GS1/PPN fields into the payload string sent to verifyPack
+    // In manual mode, assemble GS1/PPN fields into the payload string sent to hmvsVerify
     const effectivePayload = manual
       ? `${scheme}:${manualProductCode}:${manualSerial}:${manualBatch}:${manualExpiry}`
       : payload;
     try {
-      await verifyPack(effectivePayload);
+      await hmvsVerify(effectivePayload);
       setPackVerified(true);
       setView("s2-idle");
     } catch (e) {

@@ -162,19 +162,8 @@ export async function approvePrescription(
   return handle(r) as Promise<{ success: boolean; status: string; executionNo?: string }>;
 }
 
-// TODO: FR-0.5 #3 — HMVS/FMD pack verification not yet wired on the backend.
-export async function verifyPack(
-  _payload: string, // eslint-disable-line @typescript-eslint/no-unused-vars
-): Promise<{ status: "active" | "dispensed"; packCode: string }> {
-  throw new ApiError(501, "Pack verification not yet available");
-}
-
-// TODO: FR-0.5 #5 — FMD pack decommission not yet wired on the backend.
-export async function decommissionPack(
-  _payload: string, // eslint-disable-line @typescript-eslint/no-unused-vars
-): Promise<{ success: boolean }> {
-  throw new ApiError(501, "Pack decommission not yet available");
-}
+// HMVS/FMD pack verification & decommission live in lib/hmvs.ts (the single
+// dispense-only gateway for /pharmapi/hmvs/*). See docs/hmvs-scope.md.
 
 export type DiscrepancyType =
   | "dose_error"
