@@ -20,18 +20,15 @@ export function AppShell() {
         navigate("/dashboard");
       },
       p: async () => {
-        toast("Opening next prescription…", "info");
+        toast(t("shell.openingPrescription"), "info");
         try {
           const next = await getNextPrescription();
           navigate(`/prescription/${next.rxId}`);
         } catch (e) {
           if (e instanceof ApiError && e.status === 404) {
-            toast("No pending prescriptions in the queue.", "info");
+            toast(t("shell.noPending"), "info");
           } else {
-            toast(
-              e instanceof ApiError ? e.message : "Could not load the next prescription.",
-              "error",
-            );
+            toast(e instanceof ApiError ? e.message : t("shell.loadNextFailed"), "error");
           }
         }
       },

@@ -31,6 +31,7 @@ MOCK_PRESCRIPTIONS: dict = {
         "medication": {
             "drugName": "Warfarin",
             "atcCode": "B01AA03",
+            "nhrn": "5201234500017",
             "dose": "5 mg",
             "form": "Tablet",
             "route": "Oral",
@@ -87,6 +88,7 @@ MOCK_PRESCRIPTIONS: dict = {
         "medication": {
             "drugName": "Amoxicillin",
             "atcCode": "J01CA04",
+            "nhrn": "5201234500024",
             "dose": "500 mg",
             "form": "Capsule",
             "route": "Oral",
@@ -131,6 +133,7 @@ MOCK_PRESCRIPTIONS: dict = {
         "medication": {
             "drugName": "Warfarin",
             "atcCode": "B01AA03",
+            "nhrn": "5201234500017",
             "dose": "7.5 mg",
             "form": "Tablet",
             "route": "Oral",
@@ -181,6 +184,7 @@ MOCK_PRESCRIPTIONS: dict = {
         "medication": {
             "drugName": "Lisinopril",
             "atcCode": "C09AA03",
+            "nhrn": "5201234500031",
             "dose": "10 mg",
             "form": "Tablet",
             "route": "Oral",
@@ -226,6 +230,7 @@ MOCK_PRESCRIPTIONS: dict = {
         "medication": {
             "drugName": "Metformin",
             "atcCode": "A10BA02",
+            "nhrn": "5201234500048",
             "dose": "850 mg",
             "form": "Tablet",
             "route": "Oral",
@@ -278,6 +283,7 @@ MOCK_PRESCRIPTIONS: dict = {
         "medication": {
             "drugName": "Atorvastatin",
             "atcCode": "C10AA05",
+            "nhrn": "5201234500055",
             "dose": "40 mg",
             "form": "Tablet",
             "route": "Oral",
@@ -325,6 +331,7 @@ MOCK_PRESCRIPTIONS: dict = {
         "medication": {
             "drugName": "Clopidogrel",
             "atcCode": "B01AC04",
+            "nhrn": "5201234500062",
             "dose": "75 mg",
             "form": "Tablet",
             "route": "Oral",
@@ -369,6 +376,7 @@ MOCK_PRESCRIPTIONS: dict = {
         "medication": {
             "drugName": "Amoxicillin",
             "atcCode": "J01CA04",
+            "nhrn": "5201234500024",
             "dose": "250 mg / 5 mL suspension",
             "form": "Oral suspension",
             "route": "Oral",

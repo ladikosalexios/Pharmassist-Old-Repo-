@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   CheckCircleIcon,
   AlertTriangleIcon,
@@ -14,7 +15,8 @@ interface SevStyle {
   iconClass: string;
   icon: React.ReactNode;
   tag: string;
-  tagLabel: string;
+  /** i18n key (within the "safetyChecks" namespace) for the severity tag label. */
+  tagLabelKey: string;
   titleClass: string;
   detailClass: string;
   /** Border for the recommended-action inner box (kept neutral of the tint). */
@@ -28,7 +30,7 @@ const SEV: Record<CheckStatus, SevStyle> = {
     iconClass: "text-red-600 dark:text-red-400",
     icon: <AlertOctagonIcon width={16} height={16} />,
     tag: "bg-red-600 text-white",
-    tagLabel: "CRITICAL",
+    tagLabelKey: "safetyChecks.tagCritical",
     titleClass: "text-red-800 dark:text-red-400",
     detailClass: "text-slate-700 dark:text-slate-300",
     actionBox: "border-red-200 dark:border-red-500/30",
@@ -39,7 +41,7 @@ const SEV: Record<CheckStatus, SevStyle> = {
     iconClass: "text-amber-600 dark:text-amber-400",
     icon: <AlertTriangleIcon width={16} height={16} />,
     tag: "bg-amber-500 text-white",
-    tagLabel: "REVIEW",
+    tagLabelKey: "safetyChecks.tagReview",
     titleClass: "text-amber-800 dark:text-amber-400",
     detailClass: "text-slate-700 dark:text-slate-300",
     actionBox: "border-amber-200 dark:border-amber-500/30",
@@ -50,7 +52,7 @@ const SEV: Record<CheckStatus, SevStyle> = {
     iconClass: "text-emerald-600 dark:text-emerald-400",
     icon: <CheckCircleIcon width={16} height={16} />,
     tag: "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400",
-    tagLabel: "OK",
+    tagLabelKey: "safetyChecks.tagOk",
     titleClass: "text-slate-700 dark:text-slate-300",
     detailClass: "text-slate-500 dark:text-slate-400",
     actionBox: "border-emerald-200 dark:border-emerald-500/30",
@@ -75,6 +77,7 @@ export function SafetyChecksPanel({
   onBlockChange,
   onLoadingChange,
 }: SafetyChecksPanelProps) {
+  const { t } = useTranslation();
   const [checks, setChecks] = useState<SafetyCheck[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -92,7 +95,7 @@ export function SafetyChecksPanel({
       })
       .catch((e: unknown) => {
         if (!active) return;
-        setError(e instanceof ApiError ? e.message : "Could not load safety checks.");
+        setError(e instanceof ApiError ? e.message : t("safetyChecks.loadError"));
         onBlockChange?.(false);
       })
       .finally(() => {
@@ -110,7 +113,7 @@ export function SafetyChecksPanel({
       {/* header */}
       <div className="mb-3 flex items-center justify-between">
         <h2 className="text-[12px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-          Automated Safety Checks
+          {t("safetyChecks.title")}
         </h2>
         {!error && (
           <span className="flex items-center gap-1.5 text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
@@ -118,7 +121,7 @@ export function SafetyChecksPanel({
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />
               <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
             </span>
-            live
+            {t("safetyChecks.live")}
           </span>
         )}
       </div>
@@ -131,7 +134,7 @@ export function SafetyChecksPanel({
             height={12}
             className="text-emerald-500 dark:text-emerald-400"
           />{" "}
-          ok
+          {t("safetyChecks.legendOk")}
         </span>
         <span className="flex items-center gap-1">
           <AlertTriangleIcon
@@ -139,11 +142,11 @@ export function SafetyChecksPanel({
             height={12}
             className="text-amber-500 dark:text-amber-400"
           />{" "}
-          review
+          {t("safetyChecks.legendReview")}
         </span>
         <span className="flex items-center gap-1">
           <AlertOctagonIcon width={12} height={12} className="text-red-500 dark:text-red-400" />{" "}
-          immediate action
+          {t("safetyChecks.legendImmediateAction")}
         </span>
       </div>
 
@@ -173,6 +176,7 @@ export function SafetyChecksPanel({
 }
 
 function CheckRow({ check }: { check: SafetyCheck }) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(check.status === "block");
   const s = SEV[check.status];
   const expandable = check.status !== "ok";
@@ -185,7 +189,7 @@ function CheckRow({ check }: { check: SafetyCheck }) {
           <div className="flex items-center gap-2">
             <span className={`text-[13px] font-bold ${s.titleClass}`}>{check.name}</span>
             <span className={`rounded px-1.5 py-0.5 text-[10px] font-bold tracking-wide ${s.tag}`}>
-              {s.tagLabel}
+              {t(s.tagLabelKey)}
             </span>
           </div>
           {expandable && (
@@ -215,7 +219,7 @@ function CheckRow({ check }: { check: SafetyCheck }) {
               onClick={() => setOpen((o) => !o)}
               className={`mt-1.5 flex items-center gap-0.5 text-[11.5px] font-semibold ${s.iconClass}`}
             >
-              Details{" "}
+              {t("safetyChecks.details")}{" "}
               <span className={`transition-transform ${open ? "rotate-180" : ""}`}>
                 <ChevronDownIcon width={13} height={13} />
               </span>

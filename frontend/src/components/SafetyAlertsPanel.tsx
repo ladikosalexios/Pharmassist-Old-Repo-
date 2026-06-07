@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import {
   AlertCircleIcon,
@@ -68,6 +69,7 @@ interface SafetyAlertsPanelProps {
 }
 
 export function SafetyAlertsPanel({ maxHeightClass = "max-h-96" }: SafetyAlertsPanelProps) {
+  const { t } = useTranslation();
   const [alerts, setAlerts] = useState<ActiveAlert[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -84,7 +86,7 @@ export function SafetyAlertsPanel({ maxHeightClass = "max-h-96" }: SafetyAlertsP
       })
       .catch((e: unknown) => {
         if (!active) return;
-        setError(e instanceof ApiError ? e.message : "Could not load active alerts.");
+        setError(e instanceof ApiError ? e.message : t("safetyAlerts.loadError"));
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -92,6 +94,7 @@ export function SafetyAlertsPanel({ maxHeightClass = "max-h-96" }: SafetyAlertsP
     return () => {
       active = false;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const counts = countSeverities(alerts ?? []);
@@ -101,18 +104,18 @@ export function SafetyAlertsPanel({ maxHeightClass = "max-h-96" }: SafetyAlertsP
       <header className="flex items-center gap-2 border-b border-slate-200 px-5 py-4 dark:border-slate-800">
         <AlertCircleIcon width={16} height={16} className="text-red-600 dark:text-red-400" />
         <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">
-          Safety Alerts
+          {t("safetyAlerts.title")}
         </h2>
         {alerts && (
           <span className="ml-auto text-xs font-medium text-slate-500 dark:text-slate-400">
-            {alerts.length} active
+            {t("safetyAlerts.activeCount", { count: alerts.length })}
           </span>
         )}
       </header>
 
       {loading ? (
         <div className="flex items-center gap-2 px-5 py-6 text-sm text-slate-500 dark:text-slate-400">
-          <span className="spinner text-brand-600" /> Loading alerts…
+          <span className="spinner text-brand-600" /> {t("safetyAlerts.loading")}
         </div>
       ) : error ? (
         <div className="m-4 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-400">
@@ -121,7 +124,7 @@ export function SafetyAlertsPanel({ maxHeightClass = "max-h-96" }: SafetyAlertsP
         </div>
       ) : !alerts || alerts.length === 0 ? (
         <div className="px-5 py-8 text-center text-sm text-slate-500 dark:text-slate-400">
-          No active alerts.
+          {t("safetyAlerts.empty")}
         </div>
       ) : (
         <div className={`space-y-3 overflow-y-auto p-4 ${maxHeightClass}`}>
@@ -135,11 +138,19 @@ export function SafetyAlertsPanel({ maxHeightClass = "max-h-96" }: SafetyAlertsP
 
       <footer className="border-t border-slate-200 bg-slate-50 px-5 py-4 dark:border-slate-800 dark:bg-slate-800/40">
         <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-          Alert Summary
+          {t("safetyAlerts.summaryTitle")}
         </div>
         <ul className="space-y-1 text-xs">
-          <SummaryRow label="Critical" count={counts.Critical} color={SEVERITY_COLOR.Critical} />
-          <SummaryRow label="Review" count={counts.Review} color={SEVERITY_COLOR.Review} />
+          <SummaryRow
+            label={t("safetyAlerts.severityCritical")}
+            count={counts.Critical}
+            color={SEVERITY_COLOR.Critical}
+          />
+          <SummaryRow
+            label={t("safetyAlerts.severityReview")}
+            count={counts.Review}
+            color={SEVERITY_COLOR.Review}
+          />
         </ul>
       </footer>
     </section>
@@ -147,6 +158,7 @@ export function SafetyAlertsPanel({ maxHeightClass = "max-h-96" }: SafetyAlertsP
 }
 
 function AlertCard({ alert, isNew }: { alert: ActiveAlert; isNew: boolean }) {
+  const { t } = useTranslation();
   const v = STATUS_VISUAL[alert.status] ?? STATUS_VISUAL.review;
   const Icon = TYPE_ICON[alert.type] ?? AlertTriangleIcon;
   return (
@@ -160,7 +172,11 @@ function AlertCard({ alert, isNew }: { alert: ActiveAlert; isNew: boolean }) {
           {alert.type.toUpperCase()}
         </span>
         <span className="ml-auto text-[11px] font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
-          {v.severity}
+          {t(
+            v.severity === "Critical"
+              ? "safetyAlerts.severityCritical"
+              : "safetyAlerts.severityReview",
+          )}
         </span>
       </div>
       <p className="mt-1.5 text-[13px] leading-relaxed text-slate-700 dark:text-slate-300">
@@ -171,7 +187,7 @@ function AlertCard({ alert, isNew }: { alert: ActiveAlert; isNew: boolean }) {
           to={`/prescription/${alert.rxId}`}
           className="mt-2 inline-flex items-center gap-1 text-[12px] font-semibold text-brand-600 hover:underline dark:text-brand-400"
         >
-          View Prescription <ChevronRightIcon width={12} height={12} />
+          {t("safetyAlerts.viewPrescription")} <ChevronRightIcon width={12} height={12} />
         </Link>
       )}
     </article>

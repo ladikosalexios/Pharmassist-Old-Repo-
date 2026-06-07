@@ -12,6 +12,7 @@ import {
   PrinterIcon,
   AlertCircleIcon,
 } from "./Icons";
+import { useTranslation } from "react-i18next";
 import { ApiError, approvePrescription } from "../lib/api";
 import { hmvsVerify } from "../lib/hmvs";
 import { useModalRegistration } from "../lib/keyboard";
@@ -32,6 +33,7 @@ interface DispenseWizardProps {
   barcode: string;
   patientName: string;
   drugName: string;
+  nhrn?: string;
   onClose: () => void;
   onDispensed: (status: string) => void;
 }
@@ -53,6 +55,7 @@ function Spinner({ size = 16 }: { size?: number }) {
 }
 
 function StepDots({ step }: { step: 1 | 2 }) {
+  const { t } = useTranslation();
   return (
     <div className="flex items-center gap-2">
       <span
@@ -65,7 +68,7 @@ function StepDots({ step }: { step: 1 | 2 }) {
         className={`h-2 w-2 rounded-full transition-colors ${step >= 2 ? "bg-brand-600" : "bg-slate-300 dark:bg-slate-600"}`}
       />
       <span className="ml-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
-        Step {step}/2
+        {t("dispense.stepIndicator", { step })}
       </span>
     </div>
   );
@@ -98,9 +101,11 @@ export function DispenseWizard({
   barcode,
   patientName,
   drugName,
+  nhrn,
   onClose,
   onDispensed,
 }: DispenseWizardProps) {
+  const { t } = useTranslation();
   useModalRegistration(open);
 
   const titleId = useId();
@@ -178,7 +183,7 @@ export function DispenseWizard({
         setVerifyError(e.message);
         setView("s1-failed");
       } else {
-        setVerifyError("Verification failed. Please try again.");
+        setVerifyError(t("dispense.verifyGenericError"));
         setView("s1-failed");
       }
     }
@@ -206,17 +211,15 @@ export function DispenseWizard({
       onDispensed(result.status);
     } catch (e) {
       if (e instanceof ApiError && e.status === 501) {
-        setDispenseError(
-          "Live dispense not yet wired — ΗΔΥΚΑ execution endpoint returns HTTP 501.",
-        );
+        setDispenseError(t("dispense.dispenseNotWired"));
         setDispenseErrorDetail(
           `rxId: ${rxId}\nstatus: 501 Not Implemented\nLive dispense is mock-only today.`,
         );
       } else if (e instanceof ApiError) {
-        setDispenseError(`ΗΔΥΚΑ rejected the dispense: ${e.message}`);
+        setDispenseError(t("dispense.dispenseRejected", { message: e.message }));
         setDispenseErrorDetail(`rxId: ${rxId}\nstatus: ${e.status}\n${e.message}`);
       } else {
-        setDispenseError("Dispense failed. Please try again.");
+        setDispenseError(t("dispense.dispenseGenericError"));
         setDispenseErrorDetail(null);
       }
       setView("s2-failure");
@@ -251,7 +254,7 @@ export function DispenseWizard({
                 type="button"
                 onClick={onClose}
                 disabled={view === "s2-submitting"}
-                aria-label="Cancel"
+                aria-label={t("dispense.cancel")}
                 className="rounded-lg p-1.5 text-slate-400 dark:text-slate-500 transition-colors hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-600 dark:hover:text-slate-300 disabled:opacity-40"
               >
                 <XIcon width={18} height={18} />
@@ -263,14 +266,21 @@ export function DispenseWizard({
           {step === 1 && (
             <div className="px-6 py-6">
               <h2 id={titleId} className="text-[18px] font-bold text-slate-900 dark:text-slate-100">
-                Verify medicine pack
+                {t("dispense.step1Title")}
               </h2>
               <p className="mt-1.5 text-[13px] leading-relaxed text-slate-500 dark:text-slate-400">
-                Scan the DataMatrix on the back of the{" "}
+                {t("dispense.step1DescBefore")}{" "}
                 <span className="font-semibold text-slate-700 dark:text-slate-300">{drugName}</span>{" "}
-                box. This confirms the pack is genuine and decommissions it from the EU FMD
-                registry.
+                {t("dispense.step1DescAfter")}
               </p>
+
+              {nhrn && (
+                <div className="mt-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 px-4 py-1.5">
+                  <SummaryRow label={t("dispense.nhrnLabel")}>
+                    <span className="mono">{nhrn}</span>
+                  </SummaryRow>
+                </div>
+              )}
 
               {/* s1-unavailable — stub not wired */}
               {view === "s1-unavailable" && (
@@ -283,12 +293,10 @@ export function DispenseWizard({
                     />
                     <div className="flex-1">
                       <div className="text-[13.5px] font-bold text-amber-800 dark:text-amber-400">
-                        Pack verification not yet available
+                        {t("dispense.unavailableTitle")}
                       </div>
                       <p className="mt-1 text-[12.5px] text-amber-700/90 dark:text-amber-400/90">
-                        The HMVS/FMD verification endpoint is not yet wired. You may proceed to
-                        dispense approval only — the pack will not be decommissioned from the EU FMD
-                        registry automatically.
+                        {t("dispense.unavailableBody")}
                       </p>
                     </div>
                   </div>
@@ -306,10 +314,10 @@ export function DispenseWizard({
                     />
                     <div className="flex-1">
                       <div className="text-[14px] font-bold text-red-800 dark:text-red-400">
-                        {verifyError ?? "Pack verification failed"}
+                        {verifyError ?? t("dispense.verifyFailedTitle")}
                       </div>
                       <p className="mt-1 text-[12.5px] text-red-700/90 dark:text-red-400/90">
-                        Use a different pack or contact your HMVS administrator.
+                        {t("dispense.verifyFailedBody")}
                       </p>
                     </div>
                   </div>
@@ -328,7 +336,7 @@ export function DispenseWizard({
                               <Spinner size={30} />
                             </span>
                             <p className="mt-3 text-[13px] font-medium text-slate-600 dark:text-slate-300">
-                              Querying the HMVS registry…
+                              {t("dispense.queryingHmvs")}
                             </p>
                           </>
                         ) : (
@@ -337,7 +345,7 @@ export function DispenseWizard({
                               <BarcodeIcon width={38} height={38} />
                             </span>
                             <p className="mt-2.5 text-[13px] font-medium text-slate-500 dark:text-slate-400">
-                              Scan or type the DataMatrix payload
+                              {t("dispense.scanPrompt")}
                             </p>
                           </>
                         )}
@@ -360,14 +368,14 @@ export function DispenseWizard({
                         disabled={view === "s1-verifying"}
                         className="mt-2.5 text-[12.5px] font-medium text-brand-600 dark:text-brand-400 hover:text-brand-700 disabled:opacity-50"
                       >
-                        Skip — manual entry
+                        {t("dispense.skipManualEntry")}
                       </button>
                     </div>
                   ) : (
                     <div className="mt-5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 p-4">
                       <div className="mb-3 flex items-center justify-between">
                         <span className="text-[12px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                          Manual entry
+                          {t("dispense.manualEntry")}
                         </span>
                         <div className="flex items-center gap-1 rounded-full border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-0.5">
                           {(["GS1", "PPN"] as const).map((s) => (
@@ -386,14 +394,14 @@ export function DispenseWizard({
                         {(
                           [
                             [
-                              "Product code",
+                              t("dispense.productCode"),
                               "05700123456789",
                               manualProductCode,
                               setManualProductCode,
                             ],
-                            ["Serial number", "9d8X7p17", manualSerial, setManualSerial],
-                            ["Batch", "B-4471", manualBatch, setManualBatch],
-                            ["Expiry (YYMMDD)", "270531", manualExpiry, setManualExpiry],
+                            [t("dispense.serialNumber"), "9d8X7p17", manualSerial, setManualSerial],
+                            [t("dispense.batch"), "B-4471", manualBatch, setManualBatch],
+                            [t("dispense.expiry"), "270531", manualExpiry, setManualExpiry],
                           ] as [string, string, string, (v: string) => void][]
                         ).map(([label, ph, val, setter]) => (
                           <label key={label} className="block">
@@ -414,7 +422,7 @@ export function DispenseWizard({
                         onClick={() => setManual(false)}
                         className="mt-3 text-[12px] font-medium text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
                       >
-                        ← Back to scan
+                        {t("dispense.backToScan")}
                       </button>
                     </div>
                   )}
@@ -428,7 +436,7 @@ export function DispenseWizard({
                   onClick={onClose}
                   className="rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-2 text-[13px] font-semibold text-slate-600 dark:text-slate-300 transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/60"
                 >
-                  Cancel
+                  {t("dispense.cancel")}
                 </button>
 
                 {view === "s1-failed" ? (
@@ -441,7 +449,7 @@ export function DispenseWizard({
                     }}
                     className="rounded-lg bg-brand-600 px-4 py-2 text-[13px] font-semibold text-white transition-colors hover:bg-brand-700"
                   >
-                    Scan another pack
+                    {t("dispense.scanAnotherPack")}
                   </button>
                 ) : view === "s1-unavailable" ? (
                   <button
@@ -449,7 +457,7 @@ export function DispenseWizard({
                     onClick={proceedWithoutVerification}
                     className="flex items-center gap-1.5 rounded-lg bg-brand-600 px-4 py-2 text-[13px] font-semibold text-white transition-colors hover:bg-brand-700"
                   >
-                    Proceed to confirm <ChevronRightIcon width={15} height={15} />
+                    {t("dispense.proceedToConfirm")} <ChevronRightIcon width={15} height={15} />
                   </button>
                 ) : (
                   <button
@@ -464,11 +472,11 @@ export function DispenseWizard({
                   >
                     {view === "s1-verifying" ? (
                       <>
-                        <Spinner size={15} /> Verifying…
+                        <Spinner size={15} /> {t("dispense.verifying")}
                       </>
                     ) : (
                       <>
-                        Verify pack <ChevronRightIcon width={15} height={15} />
+                        {t("dispense.verifyPack")} <ChevronRightIcon width={15} height={15} />
                       </>
                     )}
                   </button>
@@ -481,35 +489,41 @@ export function DispenseWizard({
           {step === 2 && !success && (
             <div className="px-6 py-6">
               <h2 id={titleId} className="text-[18px] font-bold text-slate-900 dark:text-slate-100">
-                Confirm dispense
+                {t("dispense.step2Title")}
               </h2>
 
               {packVerified ? (
                 <div className="mt-4 flex items-center gap-2.5 rounded-lg border border-emerald-200 dark:border-emerald-500/30 bg-emerald-50 dark:bg-emerald-500/10 px-3.5 py-3 text-[13px] font-medium text-emerald-700 dark:text-emerald-400">
-                  <CheckCircleIcon width={18} height={18} /> Pack verified — Active in the HMVS
-                  registry
+                  <CheckCircleIcon width={18} height={18} /> {t("dispense.packVerifiedBanner")}
                 </div>
               ) : (
                 <div className="mt-4 flex items-center gap-2.5 rounded-lg border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 px-3.5 py-3 text-[13px] font-medium text-amber-700 dark:text-amber-400">
-                  <AlertCircleIcon width={18} height={18} /> Pack verification skipped — proceeding
-                  on approval only
+                  <AlertCircleIcon width={18} height={18} /> {t("dispense.packSkippedBanner")}
                 </div>
               )}
 
               <div className="mt-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 px-4 py-1.5">
-                <SummaryRow label="Patient">{patientName}</SummaryRow>
+                <SummaryRow label={t("dispense.patient")}>{patientName}</SummaryRow>
                 <div className="border-t border-slate-200/70 dark:border-slate-800" />
-                <SummaryRow label="Medicine">{drugName}</SummaryRow>
+                <SummaryRow label={t("dispense.medicine")}>{drugName}</SummaryRow>
+                {nhrn && (
+                  <>
+                    <div className="border-t border-slate-200/70 dark:border-slate-800" />
+                    <SummaryRow label={t("dispense.nhrnLabel")}>
+                      <span className="mono">{nhrn}</span>
+                    </SummaryRow>
+                  </>
+                )}
               </div>
 
               {!packVerified && (
                 <p className="mt-2.5 text-[12px] text-slate-500 dark:text-slate-400">
-                  Pack decommission from the FMD registry will not occur automatically.
+                  {t("dispense.decommissionSkippedNote")}
                 </p>
               )}
               {packVerified && (
                 <p className="mt-2.5 text-[12px] text-slate-500 dark:text-slate-400">
-                  The pack will be decommissioned from the FMD registry on confirm.
+                  {t("dispense.decommissionNote")}
                 </p>
               )}
 
@@ -522,7 +536,7 @@ export function DispenseWizard({
                   className="h-4 w-4 rounded border-slate-300 dark:border-slate-700 text-brand-600 focus:ring-brand-500"
                 />
                 <span className="text-[13px] text-slate-600 dark:text-slate-300">
-                  Generate counseling instructions after dispense
+                  {t("dispense.generateCounseling")}
                 </span>
               </label>
 
@@ -550,7 +564,7 @@ export function DispenseWizard({
                             >
                               <ChevronDownIcon width={13} height={13} />
                             </span>{" "}
-                            Show diagnostic
+                            {t("dispense.showDiagnostic")}
                           </button>
                           {showDetails && (
                             <pre className="mono mt-2 whitespace-pre-wrap rounded-lg bg-red-100/60 dark:bg-red-500/10 p-3 text-[11px] leading-relaxed text-red-800 dark:text-red-300">
@@ -573,7 +587,7 @@ export function DispenseWizard({
                   }}
                   className="flex items-center gap-1 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-2 text-[13px] font-semibold text-slate-600 dark:text-slate-300 transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/60"
                 >
-                  <ChevronLeftIcon width={15} height={15} /> Back
+                  <ChevronLeftIcon width={15} height={15} /> {t("dispense.back")}
                 </button>
                 <button
                   type="button"
@@ -583,12 +597,12 @@ export function DispenseWizard({
                 >
                   {view === "s2-submitting" ? (
                     <>
-                      <Spinner size={15} /> Submitting to ΗΔΥΚΑ…
+                      <Spinner size={15} /> {t("dispense.submittingToHdyka")}
                     </>
                   ) : view === "s2-failure" ? (
-                    "Retry dispense"
+                    t("dispense.retryDispense")
                   ) : (
-                    "Confirm dispense"
+                    t("dispense.confirmDispense")
                   )}
                 </button>
               </div>
@@ -605,23 +619,23 @@ export function DispenseWizard({
                 id={titleId}
                 className="mt-5 text-[20px] font-bold text-slate-900 dark:text-slate-100"
               >
-                Dispensed successfully
+                {t("dispense.successTitle")}
               </h2>
               <p className="mt-1.5 text-[13px] text-slate-500 dark:text-slate-400">
                 {packVerified
-                  ? "The dispense was recorded in ΗΔΥΚΑ and the pack decommissioned."
-                  : "The dispense was recorded in ΗΔΥΚΑ. Pack decommission was not performed."}
+                  ? t("dispense.successBodyVerified")
+                  : t("dispense.successBodySkipped")}
               </p>
               <div className="mx-auto mt-5 max-w-[360px] rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 px-4 py-1.5 text-left">
                 {executionNo && (
                   <>
-                    <SummaryRow label="Execution No">
+                    <SummaryRow label={t("dispense.executionNo")}>
                       <span className="mono">{executionNo}</span>
                     </SummaryRow>
                     <div className="border-t border-slate-200/70 dark:border-slate-800" />
                   </>
                 )}
-                <SummaryRow label="Prescription">
+                <SummaryRow label={t("dispense.prescription")}>
                   <span className="mono">{barcode}</span>
                 </SummaryRow>
               </div>
@@ -631,14 +645,14 @@ export function DispenseWizard({
                   onClick={() => window.print()}
                   className="flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-2 text-[13px] font-semibold text-slate-600 dark:text-slate-300 transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/60"
                 >
-                  <PrinterIcon width={15} height={15} /> Print receipt
+                  <PrinterIcon width={15} height={15} /> {t("dispense.printReceipt")}
                 </button>
                 <button
                   type="button"
                   onClick={onClose}
                   className="rounded-lg bg-brand-600 px-5 py-2 text-[13px] font-semibold text-white transition-colors hover:bg-brand-700"
                 >
-                  Back to counter
+                  {t("dispense.backToCounter")}
                 </button>
               </div>
             </div>

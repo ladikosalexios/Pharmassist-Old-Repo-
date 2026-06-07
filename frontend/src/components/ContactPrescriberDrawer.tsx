@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { createPortal } from "react-dom";
+import { useTranslation } from "react-i18next";
 import { PhoneIcon, MailIcon, SendIcon, MessageIcon, XIcon, AlertCircleIcon } from "./Icons";
 import { ApiError, getMessages, sendMessage } from "../lib/api";
 import { useToast } from "./Toast";
@@ -22,6 +23,7 @@ export function ContactPrescriberDrawer({
   onClose,
 }: ContactPrescriberDrawerProps) {
   useModalRegistration(open);
+  const { t } = useTranslation();
   const [messages, setMessages] = useState<PrescriptionMessage[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [body, setBody] = useState("");
@@ -43,12 +45,12 @@ export function ContactPrescriberDrawer({
       })
       .catch((e: unknown) => {
         if (!active) return;
-        setLoadError(e instanceof ApiError ? e.message : "Could not load message thread.");
+        setLoadError(e instanceof ApiError ? e.message : t("contact.errLoadThread"));
       });
     return () => {
       active = false;
     };
-  }, [open, rxId]);
+  }, [open, rxId, t]);
 
   // Close on Escape, focus the close button on open.
   useEffect(() => {
@@ -74,13 +76,13 @@ export function ContactPrescriberDrawer({
 
   const mailtoHref =
     `mailto:${encodeURIComponent(prescriber.email)}` +
-    `?subject=${encodeURIComponent(`Re: Prescription ${rxId} - ${patientName}`)}`;
+    `?subject=${encodeURIComponent(t("contact.emailSubject", { rxId, patientName }))}`;
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
     if (sending) return;
     if (!body.trim()) {
-      setSendError("Message cannot be empty.");
+      setSendError(t("contact.errEmpty"));
       return;
     }
     setSending(true);
@@ -89,9 +91,9 @@ export function ContactPrescriberDrawer({
       const newMsg = await sendMessage(prescriber.licenceId, rxId, body.trim());
       setMessages((cur) => (cur ? [...cur, newMsg] : [newMsg]));
       setBody("");
-      toast(`Message sent to ${prescriber.name}`, "success");
+      toast(t("contact.sentToast", { name: prescriber.name }), "success");
     } catch (e) {
-      setSendError(e instanceof ApiError ? e.message : "Could not send the message.");
+      setSendError(e instanceof ApiError ? e.message : t("contact.errSend"));
     } finally {
       setSending(false);
     }
@@ -110,13 +112,13 @@ export function ContactPrescriberDrawer({
       <aside
         role="dialog"
         aria-modal="true"
-        aria-label="Contact Prescriber"
+        aria-label={t("contact.title")}
         className="absolute right-0 top-0 flex h-full w-full max-w-md flex-col bg-white dark:bg-slate-900 shadow-cardLg animate-slide-in-right"
       >
         <header className="flex items-start justify-between gap-3 border-b border-slate-200 dark:border-slate-800 px-5 py-4">
           <div>
             <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">
-              Contact Prescriber
+              {t("contact.title")}
             </h2>
             <p className="text-xs text-slate-500 dark:text-slate-400">
               <span className="font-mono">{rxId}</span> — {patientName}
@@ -128,7 +130,7 @@ export function ContactPrescriberDrawer({
             onClick={onClose}
             disabled={sending}
             className="rounded-lg p-1.5 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
-            aria-label="Close contact panel"
+            aria-label={t("contact.closePanel")}
           >
             <XIcon />
           </button>
@@ -146,11 +148,11 @@ export function ContactPrescriberDrawer({
               </div>
               <dl className="mt-3 space-y-2 text-[13px]">
                 <Field
-                  label="Licence / ID"
+                  label={t("contact.licenceId")}
                   value={<span className="font-mono">{prescriber.licenceId}</span>}
                 />
                 <Field
-                  label="Phone"
+                  label={t("contact.phone")}
                   value={
                     <a
                       href={`tel:${prescriber.contact}`}
@@ -161,7 +163,7 @@ export function ContactPrescriberDrawer({
                   }
                 />
                 <Field
-                  label="Email"
+                  label={t("contact.email")}
                   value={
                     <a
                       href={mailtoHref}
@@ -177,10 +179,10 @@ export function ContactPrescriberDrawer({
             {/* Quick actions */}
             <div className="mt-4 grid grid-cols-3 gap-2">
               <a href={`tel:${prescriber.contact}`} className="btn btn-outline justify-center">
-                <PhoneIcon /> Call
+                <PhoneIcon /> {t("contact.call")}
               </a>
               <a href={mailtoHref} className="btn btn-outline justify-center">
-                <MailIcon /> Email
+                <MailIcon /> {t("contact.emailAction")}
               </a>
               <a
                 href="#compose"
@@ -190,7 +192,7 @@ export function ContactPrescriberDrawer({
                 }}
                 className="btn btn-primary justify-center"
               >
-                <MessageIcon /> Message
+                <MessageIcon /> {t("contact.messageAction")}
               </a>
             </div>
           </section>
@@ -199,11 +201,11 @@ export function ContactPrescriberDrawer({
           <section className="px-5 py-4">
             <div className="mb-3 flex items-center justify-between">
               <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                Message History
+                {t("contact.messageHistory")}
               </h3>
               {messages && (
                 <span className="text-xs text-slate-500 dark:text-slate-400">
-                  {messages.length} message{messages.length === 1 ? "" : "s"}
+                  {t("contact.messageCount", { count: messages.length })}
                 </span>
               )}
             </div>
@@ -215,11 +217,12 @@ export function ContactPrescriberDrawer({
               </div>
             ) : !messages ? (
               <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
-                <span className="spinner text-brand-600 dark:text-brand-400" /> Loading messages…
+                <span className="spinner text-brand-600 dark:text-brand-400" />{" "}
+                {t("contact.loadingMessages")}
               </div>
             ) : messages.length === 0 ? (
               <div className="rounded-lg border border-dashed border-slate-200 dark:border-slate-800 px-4 py-6 text-center text-sm text-slate-500 dark:text-slate-400">
-                No messages yet. Start the thread below.
+                {t("contact.noMessages")}
               </div>
             ) : (
               <ul className="space-y-3">
@@ -244,13 +247,13 @@ export function ContactPrescriberDrawer({
             </div>
           )}
           <label htmlFor="compose-textarea" className="sr-only">
-            New message
+            {t("contact.newMessage")}
           </label>
           <textarea
             id="compose-textarea"
             value={body}
             onChange={(e) => setBody(e.target.value)}
-            placeholder={`Write a message to ${prescriber.name}…`}
+            placeholder={t("contact.composePlaceholder", { name: prescriber.name })}
             className="w-full min-h-[88px] resize-vertical rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 dark:text-slate-100 px-3 py-2 text-sm outline-none focus:border-brand-600 focus:ring-2 focus:ring-brand-100"
           />
           <div className="mt-2 flex justify-end">
@@ -260,7 +263,7 @@ export function ContactPrescriberDrawer({
               className="btn btn-primary disabled:opacity-60 disabled:cursor-not-allowed"
             >
               {sending ? <span className="spinner" /> : <SendIcon />}
-              {sending ? "Sending…" : "Send Message"}
+              {sending ? t("contact.sending") : t("contact.sendMessage")}
             </button>
           </div>
         </form>

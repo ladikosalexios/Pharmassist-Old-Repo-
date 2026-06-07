@@ -310,9 +310,9 @@ function ReportForm({ onSubmitted, submittedRef }: ReportFormProps) {
           onset: onset || phase,
         };
         onSubmitted(optimistic);
-        toast("Report saved locally — will sync when the backend endpoint is available.", "info");
+        toast(t("reports.savedLocally"), "info");
       } else {
-        toast(e instanceof ApiError ? e.message : "Submission failed. Please try again.", "error");
+        toast(e instanceof ApiError ? e.message : t("reports.submitFailed"), "error");
       }
     } finally {
       setSubmitting(false);
@@ -846,7 +846,7 @@ export function SideEffects() {
 
   async function onFlag(report: SideEffectReport) {
     if (report.status === "EOF_REPORTED") {
-      toast(`${report.id} is already EOF reported.`, "info");
+      toast(t("reports.alreadyEofReported", { id: report.id }), "info");
       return;
     }
     setBusyId(report.id);
@@ -854,14 +854,22 @@ export function SideEffects() {
       if (usingFallback) {
         const advanced = nextStatus(report.status);
         applyStatusUpdate(report.id, report.status, advanced);
-        toast(`${report.id}: ${STATUS_LABEL[advanced]} (demo)`, "success");
+        toast(t("reports.flagDemo", { id: report.id, status: STATUS_LABEL[advanced] }), "success");
       } else {
         const result = await flagSideEffect(report.id);
         applyStatusUpdate(report.id, report.status, result.status);
-        toast(`${report.id}: ${STATUS_LABEL[result.status]}`, "success");
+        toast(
+          t("reports.flagDone", { id: report.id, status: STATUS_LABEL[result.status] }),
+          "success",
+        );
       }
     } catch (e) {
-      toast(e instanceof ApiError ? `Flag failed: ${e.message}` : "Flag failed.", "error");
+      toast(
+        e instanceof ApiError
+          ? t("reports.flagFailedReason", { reason: e.message })
+          : t("reports.flagFailed"),
+        "error",
+      );
     } finally {
       setBusyId(null);
     }
@@ -869,23 +877,25 @@ export function SideEffects() {
 
   async function onNotifyPhysician(report: SideEffectReport) {
     if (!report.rxId) {
-      toast(`No prescription is linked to ${report.id}; cannot notify the physician.`, "warn");
+      toast(t("reports.noRxLinked", { id: report.id }), "warn");
       return;
     }
     setBusyId(report.id);
     try {
       if (usingFallback) {
-        toast(`Physician notification queued for ${report.rxId} (demo).`, "success");
+        toast(t("reports.physicianQueuedDemo", { rxId: report.rxId }), "success");
       } else {
         await notifyPhysician(
           report.rxId,
           `Adverse reaction reported (${report.id}, severity ${SEVERITY_LABEL[report.severity]}): ${report.symptom} (onset ${report.onset}).`,
         );
-        toast(`Physician notified for ${report.rxId}.`, "success");
+        toast(t("reports.physicianNotified", { rxId: report.rxId }), "success");
       }
     } catch (e) {
       toast(
-        e instanceof ApiError ? `Notification failed: ${e.message}` : "Notification failed.",
+        e instanceof ApiError
+          ? t("reports.notifyFailedReason", { reason: e.message })
+          : t("reports.notifyFailed"),
         "error",
       );
     } finally {
@@ -1022,7 +1032,7 @@ export function SideEffects() {
           onNotify={onNotifyPhysician}
           onViewProfile={(r) => {
             if (r.patientId) navigate(`/patients/${r.patientId}`);
-            else toast("Patient ID not available for this report.", "warn");
+            else toast(t("reports.noPatientId"), "warn");
           }}
         />
       )}

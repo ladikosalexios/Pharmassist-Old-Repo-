@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import {
   ClockIcon,
@@ -19,14 +20,15 @@ const STATUS_CHIP: Record<QueueItem["status"], string> = {
   COMPLETED: "bg-emerald-100 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-400",
 };
 
-const STATUS_LABEL: Record<QueueItem["status"], string> = {
-  PENDING: "Pending",
-  FLAGGED: "Flagged",
-  COMPLETED: "Completed",
+const STATUS_LABEL_KEY: Record<QueueItem["status"], string> = {
+  PENDING: "dashboard.statusPending",
+  FLAGGED: "dashboard.statusFlagged",
+  COMPLETED: "dashboard.statusCompleted",
 };
 
 export function Dashboard() {
-  const today = new Date().toLocaleDateString("en-GB", {
+  const { t, i18n } = useTranslation();
+  const today = new Date().toLocaleDateString(i18n.language?.startsWith("en") ? "en-GB" : "el-GR", {
     weekday: "long",
     year: "numeric",
     month: "long",
@@ -44,7 +46,7 @@ export function Dashboard() {
       })
       .catch((e: unknown) => {
         if (!active) return;
-        setQueueError(e instanceof ApiError ? e.message : "Could not load the prescription queue.");
+        setQueueError(e instanceof ApiError ? e.message : t("dashboard.queueLoadError"));
       });
     // Critical Alerts mirrors the block-severity count in SafetyAlertsPanel.
     // Both fetch /alerts/active independently for now — fine until a shared
@@ -59,7 +61,7 @@ export function Dashboard() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [t]);
 
   const counts = useMemo(() => {
     const c = { PENDING: 0, FLAGGED: 0, COMPLETED: 0 };
@@ -74,28 +76,28 @@ export function Dashboard() {
 
   const stats = [
     {
-      label: "Pending Verification",
+      label: t("dashboard.pendingVerification"),
       value: counts.PENDING,
       ready: queue !== null,
       Icon: ClockIcon,
       tone: "bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-400",
     },
     {
-      label: "Flagged Issues",
+      label: t("dashboard.flaggedIssues"),
       value: counts.FLAGGED,
       ready: queue !== null,
       Icon: FlagIcon,
       tone: "bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-400",
     },
     {
-      label: "Completed",
+      label: t("dashboard.completed"),
       value: counts.COMPLETED,
       ready: queue !== null,
       Icon: CheckIcon,
       tone: "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400",
     },
     {
-      label: "Critical Alerts",
+      label: t("dashboard.criticalAlerts"),
       value: criticalCount,
       ready: alerts !== null,
       Icon: AlertCircleIcon,
@@ -107,7 +109,7 @@ export function Dashboard() {
     <div className="p-4 sm:p-6 lg:p-8">
       <div className="mb-7">
         <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">
-          Pharmacist Dashboard
+          {t("dashboard.title")}
         </h1>
         <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{today}</p>
       </div>
@@ -136,7 +138,7 @@ export function Dashboard() {
         <div className="card lg:col-span-2">
           <div className="border-b border-slate-200 px-6 py-4 dark:border-slate-800">
             <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">
-              Prescription Queue
+              {t("dashboard.prescriptionQueue")}
             </h2>
           </div>
           {queueError ? (
@@ -146,11 +148,11 @@ export function Dashboard() {
             </div>
           ) : !queue ? (
             <div className="px-6 py-8 text-sm text-slate-500 dark:text-slate-400">
-              <span className="spinner text-brand-600" /> Loading queue…
+              <span className="spinner text-brand-600" /> {t("dashboard.loadingQueue")}
             </div>
           ) : queue.length === 0 ? (
             <div className="px-6 py-8 text-center text-sm text-slate-500 dark:text-slate-400">
-              No prescriptions in the queue.
+              {t("dashboard.queueEmpty")}
             </div>
           ) : (
             <ul>
@@ -166,30 +168,30 @@ export function Dashboard() {
                           {rx.patientName}
                         </span>
                         <span className={`chip ${STATUS_CHIP[rx.status]}`}>
-                          {STATUS_LABEL[rx.status]}
+                          {t(STATUS_LABEL_KEY[rx.status])}
                         </span>
                       </div>
                       <div className="mt-1 grid grid-cols-1 gap-x-6 gap-y-1 text-xs text-slate-500 dark:text-slate-400 sm:grid-cols-2">
                         <span>
-                          Code:{" "}
+                          {t("dashboard.code")}:{" "}
                           <span className="font-medium text-slate-700 dark:text-slate-300">
                             {rx.rxId}
                           </span>
                         </span>
                         <span>
-                          Physician:{" "}
+                          {t("dashboard.physician")}:{" "}
                           <span className="font-medium text-slate-700 dark:text-slate-300">
                             {rx.physician}
                           </span>
                         </span>
                         <span>
-                          Medication:{" "}
+                          {t("dashboard.medication")}:{" "}
                           <span className="font-medium text-slate-700 dark:text-slate-300">
                             {rx.medication}
                           </span>
                         </span>
                         <span>
-                          Date:{" "}
+                          {t("dashboard.date")}:{" "}
                           <span className="font-medium text-slate-700 dark:text-slate-300">
                             {rx.date}
                           </span>
@@ -207,13 +209,13 @@ export function Dashboard() {
         <div className="self-start space-y-6">
           <section className="card p-5">
             <h2 className="mb-3 text-base font-semibold text-slate-900 dark:text-slate-100">
-              Quick Actions
+              {t("dashboard.quickActions")}
             </h2>
             <Link to="/instructions" className="btn btn-primary w-full justify-center">
-              <FileTextIcon /> Generate Instructions
+              <FileTextIcon /> {t("dashboard.generateInstructions")}
             </Link>
             <p className="mt-2 text-[12px] text-slate-500 dark:text-slate-400">
-              Compose patient counselling notes for an approved prescription.
+              {t("dashboard.generateInstructionsDesc")}
             </p>
           </section>
           <SafetyAlertsPanel />

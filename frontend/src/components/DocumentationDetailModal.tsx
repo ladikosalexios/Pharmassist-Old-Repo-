@@ -1,5 +1,6 @@
 import { useEffect, useId, useState } from "react";
 import { createPortal } from "react-dom";
+import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import { CheckCircleIcon, DownloadIcon, XIcon, AlertCircleIcon, FileTextIcon } from "./Icons";
 import { ApiError, exportDocumentationRecord, getDocumentationRecord } from "../lib/api";
@@ -19,10 +20,10 @@ const METHOD_TONE: Record<DeliveryMethod, string> = {
   BOTH: "bg-violet-100 text-violet-800 dark:bg-violet-500/15 dark:text-violet-400",
 };
 
-const METHOD_LABEL: Record<DeliveryMethod, string> = {
-  PRINT: "Print",
-  DIGITAL: "Digital",
-  BOTH: "Print + Digital",
+const METHOD_LABEL_KEY: Record<DeliveryMethod, string> = {
+  PRINT: "docModal.methodPrint",
+  DIGITAL: "docModal.methodDigital",
+  BOTH: "docModal.methodBoth",
 };
 
 export function DocumentationDetailModal({
@@ -31,6 +32,7 @@ export function DocumentationDetailModal({
   onClose,
 }: DocumentationDetailModalProps) {
   useModalRegistration(open);
+  const { t } = useTranslation();
   const titleId = useId();
   const { toast } = useToast();
   const [record, setRecord] = useState<DocumentationRecord | null>(null);
@@ -50,7 +52,7 @@ export function DocumentationDetailModal({
       })
       .catch((e: unknown) => {
         if (!active) return;
-        setError(e instanceof ApiError ? e.message : "Could not load this record.");
+        setError(e instanceof ApiError ? e.message : t("docModal.errLoad"));
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -58,7 +60,7 @@ export function DocumentationDetailModal({
     return () => {
       active = false;
     };
-  }, [open, recordId]);
+  }, [open, recordId, t]);
 
   useEffect(() => {
     if (!open) return;
@@ -76,9 +78,14 @@ export function DocumentationDetailModal({
     setExporting(true);
     try {
       await exportDocumentationRecord(record.id);
-      toast(`Exported ${record.id}`, "success");
+      toast(t("docModal.exportedToast", { id: record.id }), "success");
     } catch (e) {
-      toast(e instanceof ApiError ? `Export failed: ${e.message}` : "Export failed.", "error");
+      toast(
+        e instanceof ApiError
+          ? t("docModal.exportFailedReason", { reason: e.message })
+          : t("docModal.exportFailed"),
+        "error",
+      );
     } finally {
       setExporting(false);
     }
@@ -108,7 +115,7 @@ export function DocumentationDetailModal({
                 id={titleId}
                 className="text-base font-semibold text-slate-900 dark:text-slate-100"
               >
-                Documentation Record
+                {t("docModal.title")}
               </h2>
               <p className="text-xs text-slate-500 dark:text-slate-400">
                 {record?.id ? <span className="font-mono">{record.id}</span> : recordId}
@@ -119,7 +126,7 @@ export function DocumentationDetailModal({
             type="button"
             onClick={onClose}
             disabled={exporting}
-            aria-label="Close detail"
+            aria-label={t("docModal.closeDetail")}
             className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-60 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"
           >
             <XIcon />
@@ -129,7 +136,7 @@ export function DocumentationDetailModal({
         <div className="flex-1 overflow-y-auto px-6 py-5">
           {loading ? (
             <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
-              <span className="spinner text-brand-600" /> Loading record…
+              <span className="spinner text-brand-600" /> {t("docModal.loadingRecord")}
             </div>
           ) : error ? (
             <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-400">
@@ -139,13 +146,13 @@ export function DocumentationDetailModal({
           ) : record ? (
             <div className="space-y-5">
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <Field label="Patient" value={record.patientName} />
+                <Field label={t("docModal.patient")} value={record.patientName} />
                 <Field
-                  label="Prescription Code"
+                  label={t("docModal.prescriptionCode")}
                   value={<span className="font-mono">{record.rxId}</span>}
                 />
                 <Field
-                  label="Drug"
+                  label={t("docModal.drug")}
                   value={
                     <Link
                       to={`/prescription/${record.rxId}`}
@@ -155,13 +162,13 @@ export function DocumentationDetailModal({
                     </Link>
                   }
                 />
-                <Field label="Setting" value={record.setting} />
-                <Field label="Language" value={record.language} />
+                <Field label={t("docModal.setting")} value={record.setting} />
+                <Field label={t("docModal.language")} value={record.language} />
                 <Field
-                  label="Delivery Method"
+                  label={t("docModal.deliveryMethod")}
                   value={
                     <span className={`chip ${METHOD_TONE[record.deliveryMethod]}`}>
-                      {METHOD_LABEL[record.deliveryMethod]}
+                      {t(METHOD_LABEL_KEY[record.deliveryMethod])}
                     </span>
                   }
                 />
@@ -169,7 +176,7 @@ export function DocumentationDetailModal({
 
               <div>
                 <div className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                  Information Provided
+                  {t("docModal.informationProvided")}
                 </div>
                 <p className="mt-2 rounded-lg bg-slate-50 p-4 text-sm leading-relaxed text-slate-700 whitespace-pre-wrap dark:bg-slate-800/50 dark:text-slate-300">
                   {record.informationProvided}
@@ -178,24 +185,32 @@ export function DocumentationDetailModal({
 
               <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-800/50">
                 <div className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                  Pharmacist Signature
+                  {t("docModal.pharmacistSignature")}
                 </div>
                 <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <Field label="Dispensed By" value={`PharmD ${record.pharmacistName}`} />
                   <Field
-                    label="Licence"
+                    label={t("docModal.dispensedBy")}
+                    value={`PharmD ${record.pharmacistName}`}
+                  />
+                  <Field
+                    label={t("docModal.licence")}
                     value={<span className="font-mono">{record.pharmacistLicense}</span>}
                   />
-                  <Field label="Dispensed At" value={formatTimestamp(record.dispensedAt)} />
                   <Field
-                    label="Signature"
+                    label={t("docModal.dispensedAt")}
+                    value={formatTimestamp(record.dispensedAt)}
+                  />
+                  <Field
+                    label={t("docModal.signature")}
                     value={
                       record.signatureConfirmed ? (
                         <span className="inline-flex items-center gap-1 text-emerald-700 dark:text-emerald-400">
-                          <CheckCircleIcon width={14} height={14} /> Confirmed
+                          <CheckCircleIcon width={14} height={14} /> {t("docModal.confirmed")}
                         </span>
                       ) : (
-                        <span className="text-amber-700 dark:text-amber-400">Pending</span>
+                        <span className="text-amber-700 dark:text-amber-400">
+                          {t("docModal.pending")}
+                        </span>
                       )
                     }
                   />
@@ -212,7 +227,7 @@ export function DocumentationDetailModal({
             disabled={exporting}
             className="btn btn-outline disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            Close
+            {t("docModal.close")}
           </button>
           <button
             type="button"
@@ -221,7 +236,7 @@ export function DocumentationDetailModal({
             className="btn btn-primary disabled:opacity-60 disabled:cursor-not-allowed"
           >
             {exporting ? <span className="spinner" /> : <DownloadIcon />}
-            {exporting ? "Exporting…" : "Export Record"}
+            {exporting ? t("docModal.exporting") : t("docModal.exportRecord")}
           </button>
         </div>
       </div>

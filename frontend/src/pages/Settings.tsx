@@ -199,7 +199,7 @@ function PwModal({ onClose }: { onClose: () => void }) {
           <button
             type="button"
             onClick={() => {
-              toast("Password update is coming soon.", "info");
+              toast(t("settings.pwComingSoon"), "info");
               onClose();
             }}
             disabled={!current || !next || next !== confirm}
@@ -429,10 +429,10 @@ function TeamPage({
     setInviting(true);
     try {
       await onInvite(inviteEmail.trim());
-      toast(`Invite sent to ${inviteEmail}`, "success");
+      toast(t("settings.inviteSent", { email: inviteEmail }), "success");
       setInviteEmail("");
     } catch (e) {
-      toast(e instanceof ApiError ? e.message : "Invite failed.", "error");
+      toast(e instanceof ApiError ? e.message : t("settings.inviteFailed"), "error");
     } finally {
       setInviting(false);
     }
@@ -681,7 +681,7 @@ export function Settings() {
   useEffect(() => {
     me()
       .then(setProfile)
-      .catch(() => toast("Could not load profile.", "error"));
+      .catch(() => toast(t("settings.loadProfileFailed"), "error"));
   }, [toast]);
 
   const SUBNAV: {
@@ -746,7 +746,7 @@ export function Settings() {
           {page === "profile" && (
             <ProfilePage
               profile={profile}
-              onSave={() => toast("Coming soon — profile editing is not yet available.", "info")}
+              onSave={() => toast(t("settings.profileEditComingSoon"), "info")}
             />
           )}
           {page === "credentials" && (
@@ -763,7 +763,7 @@ export function Settings() {
           )}
           {page === "audit" && <AuditPage />}
           {page === "danger" && (
-            <DangerPage onSignOutAll={() => toast("Signed out on all other devices.", "success")} />
+            <DangerPage onSignOutAll={() => toast(t("settings.signedOutAll"), "success")} />
           )}
         </div>
       </div>
