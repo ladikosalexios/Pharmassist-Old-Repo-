@@ -372,5 +372,9 @@
     "toastSaved": "Saved to documentation log ({{id}}).",
     "toastSaveFailed": "Save failed: {{error}}",
     "toastSaveFailedGeneric": "Save failed."
+  },
+  "hmvs": {
+    "capsLockWarning": "Turn off Caps Lock before continuing",
+    "layoutWarning": "Switch your keyboard language to English before continuing"
   }
 }
