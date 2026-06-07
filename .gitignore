@@ -18,3 +18,5 @@ backend/.env
 CLAUDE.MD
 .vscode
 *.code-workspace
+# macOS Finder junk (matches at any depth)
+.DS_Store
