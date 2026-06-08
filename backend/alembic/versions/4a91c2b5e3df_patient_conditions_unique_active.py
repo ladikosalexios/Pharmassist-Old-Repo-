@@ -15,6 +15,10 @@ is retained.
 The unique key spans amka + condition_code only (no pharmacy_id): a single
 patient should have one canonical active record of a given condition across
 the system, mirroring the safety engine's de-duplication by condition_code.
+
+NOTE: downgrade() drops the index only — rows soft-deleted by upgrade()'s
+cleanup pass remain inactive after a downgrade. The data side is one-way;
+they were duplicates and were chosen for deactivation by recency.
 """
 
 from typing import Sequence, Union

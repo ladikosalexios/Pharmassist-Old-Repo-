@@ -32,6 +32,7 @@ os.environ.setdefault(
 
 from unittest.mock import patch  # noqa: E402
 
+import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 from sqlalchemy.exc import IntegrityError  # noqa: E402
 from sqlalchemy.sql.elements import BindParameter  # noqa: E402
@@ -386,44 +387,58 @@ def test_cross_pharmacy_patch_returns_404():
         app.dependency_overrides.clear()
 
 
+def _dup_integrity_error() -> IntegrityError:
+    return IntegrityError(
+        "INSERT INTO patient_conditions ...",
+        {},
+        Exception(
+            "duplicate key value violates unique constraint "
+            '"uq_patient_conditions_amka_condition_active"'
+        ),
+    )
+
+
 class _UniqueEnforcingSession(_CrudSession):
     """Simulates Postgres's `uq_patient_conditions_amka_condition_active`
-    partial unique index: a second add() of an active row with an existing
-    (amka, condition_code) defers an IntegrityError to the next commit()."""
+    partial unique index. The check runs at commit() so it catches both an
+    INSERT collision (create path) and an in-place mutation that creates a
+    collision (PATCH of condition_code on an existing row).
+
+    Pending rows added via add() but not yet successfully committed are tracked
+    so a failed commit can drop them — mirroring Postgres rollback semantics
+    for the create path. PATCH callers don't rely on revert; they only assert
+    the 409 response.
+    """
 
     def __init__(self):
         super().__init__()
-        self._pending_dup = False
+        self._pending: list = []
 
     def add(self, obj):
-        if isinstance(obj, PatientCondition) and obj.active:
-            for existing in self.rows:
-                if (
-                    isinstance(existing, PatientCondition)
-                    and existing.active
-                    and existing.amka == obj.amka
-                    and existing.condition_code == obj.condition_code
-                ):
-                    # Mirror Postgres: the failing INSERT is never persisted.
-                    self._pending_dup = True
-                    return
         super().add(obj)
+        self._pending.append(obj)
 
     async def commit(self):
-        if self._pending_dup:
-            self._pending_dup = False
-            raise IntegrityError(
-                "INSERT INTO patient_conditions ...",
-                {},
-                Exception(
-                    "duplicate key value violates unique constraint "
-                    '"uq_patient_conditions_amka_condition_active"'
-                ),
-            )
+        seen: dict[tuple, object] = {}
+        for r in self.rows:
+            if not (isinstance(r, PatientCondition) and r.active):
+                continue
+            key = (r.amka, r.condition_code)
+            if key in seen:
+                for p in self._pending:
+                    if p in self.rows:
+                        self.rows.remove(p)
+                self._pending.clear()
+                raise _dup_integrity_error()
+            seen[key] = r
+        self._pending.clear()
         await super().commit()
 
     async def rollback(self):
-        pass
+        for p in self._pending:
+            if p in self.rows:
+                self.rows.remove(p)
+        self._pending.clear()
 
 
 def test_post_duplicate_returns_409():
@@ -449,6 +464,65 @@ def test_post_duplicate_returns_409():
             assert listing.status_code == 200
             rows = [c for c in listing.json() if c["conditionCode"] == "E11.9"]
             assert len(rows) == 1
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_patch_to_existing_condition_code_returns_409():
+    pid = uuid.uuid4()
+    session = _UniqueEnforcingSession()
+    client = _client(session, pid)
+    try:
+        with _patched(_FakePharmacy(pid)):
+            a = client.post(
+                f"/patients/{ROUTER_AMKA}/conditions",
+                json={"conditionCode": "RENAL_SEVERE", "name": "Renal"},
+            )
+            assert a.status_code == 201, a.text
+            b = client.post(
+                f"/patients/{ROUTER_AMKA}/conditions",
+                json={"conditionCode": "G6PD", "name": "G6PD Deficiency"},
+            )
+            assert b.status_code == 201, b.text
+
+            # PATCH the second row's condition_code to collide with the first.
+            r = client.patch(
+                f"/patients/{ROUTER_AMKA}/conditions/{b.json()['id']}",
+                json={"conditionCode": "RENAL_SEVERE"},
+            )
+            assert r.status_code == 409, r.text
+            assert "already recorded" in r.json()["detail"].lower()
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_post_non_duplicate_integrity_error_propagates():
+    """A non-duplicate IntegrityError (FK / NOT NULL) must not be silently
+    converted to 409. The service re-raises; production FastAPI returns 500.
+    TestClient surfaces the raw exception, so assert on that."""
+
+    class _BrokenSession(_CrudSession):
+        async def commit(self):
+            raise IntegrityError(
+                "INSERT INTO patient_conditions ...",
+                {},
+                Exception(
+                    'insert or update on table "patient_conditions" violates '
+                    'foreign key constraint "fk_patient_conditions_pharmacy_id_pharmacies"'
+                ),
+            )
+
+        async def rollback(self):
+            pass
+
+    pid = uuid.uuid4()
+    client = _client(_BrokenSession(), pid)
+    try:
+        with _patched(_FakePharmacy(pid)), pytest.raises(IntegrityError):
+            client.post(
+                f"/patients/{ROUTER_AMKA}/conditions",
+                json={"conditionCode": "RENAL_SEVERE", "name": "Renal"},
+            )
     finally:
         app.dependency_overrides.clear()
 
