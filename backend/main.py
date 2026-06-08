@@ -44,6 +44,7 @@ from app.routers import (
     auth,
     documentation,
     health,
+    hmvs,
     instructions,
     messages,
     notifications,
@@ -54,6 +55,7 @@ from app.routers import (
     side_effects,
     spc,
 )
+from app.services.audit import _background_tasks
 from app.services.pharmapi import keepalive_loop, pharmapi_check_version
 from app.utils.environment import is_mock_pharmapi
 
@@ -82,6 +84,10 @@ async def lifespan(_app: FastAPI):
             keepalive_task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
                 await keepalive_task
+        # Drain in-flight fire-and-forget audit tasks so a graceful restart
+        # doesn't drop a pharmacist's last logged action (e.g. an HMVS supply).
+        if _background_tasks:
+            await asyncio.gather(*_background_tasks, return_exceptions=True)
 
 
 # Order doesn't affect routing (each router has its own prefix), but include
@@ -92,6 +98,7 @@ _ROUTER_MODULES = (
     auth,
     admin,
     pharmapi,
+    hmvs,
     prescriptions,
     safety_checks,
     spc,
