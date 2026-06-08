@@ -1,0 +1,9 @@
+# Keep the build context (and the resulting image layers) lean and reproducible.
+# node_modules is reinstalled from the lockfile via `npm ci` inside the image.
+node_modules
+dist
+npm-debug.log*
+.vite
+.DS_Store
+.env
+.env.*

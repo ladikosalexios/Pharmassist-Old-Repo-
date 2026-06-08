@@ -1,0 +1,93 @@
+# Production-flavour stack for the internal mock pilot.
+#
+# Boot it with an env file that holds the required secrets (see
+# .env.prod.example):
+#
+#   docker compose -f compose.prod.yaml --env-file .env.prod up -d --build
+#
+# How this differs from compose.yaml (dev):
+#   • No source bind mounts — code is baked into the images; nothing is mounted
+#     from the host, so what you test is what ships.
+#   • Secrets are env-driven (${VAR:?...}); compose refuses to start if unset.
+#   • ENV=production → main.py's guard enforces COOKIE_SECURE=true.
+#   • PHARMAPI_MOCK=true → the app serves mock upstream data at runtime (no live
+#     ΗΔΥΚΑ calls). NOTE: scripts/seed still authenticates against live Pharmapi
+#     to materialise the pharmacy/pharmacist — see docs/pilot-runbook.md.
+#   • The Postgres port is NOT published; only Caddy (80/443) faces the host.
+name: pharmassist-pilot
+
+services:
+  # Caddy: serves the compiled SPA and reverse-proxies the API to backend:8000.
+  frontend:
+    image: pharmassist/frontend:prod
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.prod
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      # Public hostname → auto-HTTPS. Leave as localhost for a local-cert smoke
+      # test. See the Caddyfile / runbook §6.
+      PILOT_DOMAIN: ${PILOT_DOMAIN:-localhost}
+      # "tls internal" for a Tailscale-only deployment; empty = auto-HTTPS.
+      CADDY_TLS: ${CADDY_TLS:-}
+    depends_on:
+      backend:
+        condition: service_healthy
+    volumes:
+      # Persist issued certs + ACME account across restarts. Without this Caddy
+      # re-requests on every boot and can hit Let's Encrypt rate limits.
+      - caddy_data:/data
+      - caddy_config:/config
+
+  backend:
+    image: pharmassist/backend:prod
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.prod
+    restart: unless-stopped
+    # Host port intentionally NOT published — Caddy reaches it as backend:8000
+    # over the compose network. `expose` documents the port without binding it
+    # to the host (which would bypass TLS + the cookie-secure boundary).
+    expose:
+      - "8000"
+    environment:
+      DATABASE_URL: postgresql+asyncpg://pharmassist:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@db:5432/pharmassist
+      # Production guard (main.py): ENV=production REQUIRES COOKIE_SECURE=true.
+      ENV: production
+      COOKIE_SECURE: "true"
+      # Mock pilot: serve synthetic upstream data at runtime.
+      PHARMAPI_MOCK: "true"
+      # ── Required secrets — no in-code fallback; compose fails fast if unset ──
+      SECRET_KEY: ${SECRET_KEY:?set SECRET_KEY}
+      CREDENTIAL_ENCRYPTION_KEY: ${CREDENTIAL_ENCRYPTION_KEY:?set CREDENTIAL_ENCRYPTION_KEY}
+      PHARMAPI_USERNAME: ${PHARMAPI_USERNAME:?set PHARMAPI_USERNAME}
+      PHARMAPI_PASSWORD: ${PHARMAPI_PASSWORD:?set PHARMAPI_PASSWORD}
+      PHARMAPI_API_KEY: ${PHARMAPI_API_KEY:?set PHARMAPI_API_KEY}
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: pharmassist
+      POSTGRES_USER: pharmassist
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+    # Port intentionally NOT published — the DB is reachable only on the compose
+    # network. Use the runbook's `compose exec db …` recipes for dumps/restores.
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pharmassist -d pharmassist"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  pgdata:
+  caddy_data:
+  caddy_config:
