@@ -15,6 +15,7 @@ import asyncio
 import base64
 import os
 import uuid
+from datetime import UTC, datetime
 
 os.environ["ENV"] = "test"
 os.environ["PHARMAPI_MOCK"] = "true"
@@ -29,14 +30,22 @@ os.environ.setdefault(
     "postgresql+asyncpg://pharmassist:pharmassist_dev@localhost:5432/pharmassist_test",
 )
 
+from unittest.mock import patch  # noqa: E402
+
+from fastapi.testclient import TestClient  # noqa: E402
+from sqlalchemy.sql.elements import BindParameter  # noqa: E402
+
 from app.constants import AdrSeverity, AlertStatus, CheckType  # noqa: E402
 from app.db.models.patient_condition import PatientCondition  # noqa: E402
 from app.db.models.safety_rule import SafetyRule  # noqa: E402
+from app.db.session import get_session  # noqa: E402
+from app.deps import get_current_user  # noqa: E402
 from app.services.patients import (  # noqa: E402
     create_condition,
     deactivate_condition,
 )
 from app.services.safety_engine import evaluate_safety  # noqa: E402
+from main import app  # noqa: E402
 
 PHARMACY_ID = uuid.uuid4()
 PHARMACIST_ID = uuid.uuid4()
@@ -166,3 +175,237 @@ def test_soft_deleted_condition_stops_firing():
         assert not any(c.check_type == CheckType.CONTRAINDICATIONS for c in after.checks)
 
     asyncio.run(_run())
+
+
+# ── HTTP router-layer tests ───────────────────────────────────────────────────
+# TestClient + a fake session that filters PatientCondition rows by the WHERE
+# equality binds (always enforcing active=True), plus monkeypatched resolve /
+# find_pharmacy_by_name. Covers the validation + multi-tenancy contract the
+# service-level tests above don't reach.
+
+ROUTER_AMKA = "11122233344"
+
+
+class _AllResult:
+    def __init__(self, rows):
+        self._rows = rows
+
+    def all(self):
+        return self._rows
+
+    def one_or_none(self):
+        return self._rows[0] if self._rows else None
+
+
+def _eq_binds(stmt) -> dict:
+    where = stmt.whereclause
+    binds: dict = {}
+    if where is None:
+        return binds
+    clauses = list(where.clauses) if hasattr(where, "clauses") else [where]
+    for clause in clauses:
+        left = getattr(clause, "left", None)
+        right = getattr(clause, "right", None)
+        key = getattr(left, "key", None)
+        if key and isinstance(right, BindParameter):
+            binds[key] = right.value
+    return binds
+
+
+class _CrudSession:
+    """Serves PatientCondition queries from memory by matching the WHERE
+    equality binds; the `active IS TRUE` clause (not a bind) is enforced
+    manually. Supports the create/get/update/deactivate service paths."""
+
+    def __init__(self):
+        self.rows: list = []
+
+    def add(self, obj):
+        self.rows.append(obj)
+
+    async def commit(self):
+        pass
+
+    async def flush(self):
+        pass
+
+    async def refresh(self, obj):
+        # Mirror the server-side defaults the response_model serializer requires.
+        if getattr(obj, "id", None) is None:
+            obj.id = uuid.uuid4()
+        now = datetime.now(UTC)
+        if getattr(obj, "created_at", None) is None:
+            obj.created_at = now
+        obj.updated_at = now
+
+    async def scalars(self, stmt):
+        binds = _eq_binds(stmt)
+        rows = [
+            r
+            for r in self.rows
+            if isinstance(r, PatientCondition)
+            and r.active
+            and all(getattr(r, k) == v for k, v in binds.items())
+        ]
+        return _AllResult(rows)
+
+
+class _FakePharmacy:
+    def __init__(self, pharmacy_id):
+        self.id = pharmacy_id
+
+
+async def _fake_resolve(_patient_id):
+    return {"id": ROUTER_AMKA, "amka": ROUTER_AMKA}
+
+
+def _client(session, pharmacy_id):
+    async def _fake_session():
+        yield session
+
+    async def _fake_user():
+        return {
+            "pharmacist_id": str(uuid.uuid4()),
+            "pharmacy_id": str(pharmacy_id),
+            "pharmacy": "Test Pharmacy",
+            "email": "rx@example.gr",
+            "full_name": "Rx",
+            "eof_licence_no": "EOF-1",
+        }
+
+    app.dependency_overrides[get_session] = _fake_session
+    app.dependency_overrides[get_current_user] = _fake_user
+    return TestClient(app)
+
+
+def _patched(pharmacy):
+    async def _fake_find(_session, _name):
+        return pharmacy
+
+    return patch.multiple(
+        "app.routers.patients",
+        resolve=_fake_resolve,
+        find_pharmacy_by_name=_fake_find,
+    )
+
+
+def test_post_missing_field_returns_422():
+    pid = uuid.uuid4()
+    client = _client(_CrudSession(), pid)
+    try:
+        with _patched(_FakePharmacy(pid)):
+            r = client.post(f"/patients/{ROUTER_AMKA}/conditions", json={"name": "Renal"})
+        assert r.status_code == 422, r.text
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_post_blank_name_returns_422():
+    pid = uuid.uuid4()
+    client = _client(_CrudSession(), pid)
+    try:
+        with _patched(_FakePharmacy(pid)):
+            r = client.post(
+                f"/patients/{ROUTER_AMKA}/conditions",
+                json={"conditionCode": "RENAL_SEVERE", "name": "   "},
+            )
+        assert r.status_code == 422, r.text
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_patch_null_name_returns_422():
+    pid = uuid.uuid4()
+    client = _client(_CrudSession(), pid)
+    try:
+        with _patched(_FakePharmacy(pid)):
+            r = client.patch(
+                f"/patients/{ROUTER_AMKA}/conditions/{uuid.uuid4()}",
+                json={"name": None},
+            )
+        assert r.status_code == 422, r.text
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_create_then_get_roundtrip():
+    pid = uuid.uuid4()
+    session = _CrudSession()
+    client = _client(session, pid)
+    try:
+        with _patched(_FakePharmacy(pid)):
+            r = client.post(
+                f"/patients/{ROUTER_AMKA}/conditions",
+                json={
+                    "conditionCode": "RENAL_SEVERE",
+                    "name": "  Severe renal  ",
+                    "severity": "SEVERE",
+                },
+            )
+            assert r.status_code == 201, r.text
+            body = r.json()
+            assert body["name"] == "Severe renal"  # server trimmed
+            assert body["conditionCode"] == "RENAL_SEVERE"
+            assert body["active"] is True
+            listing = client.get(f"/patients/{ROUTER_AMKA}/conditions")
+            assert listing.status_code == 200
+            assert any(c["id"] == body["id"] for c in listing.json())
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_cross_pharmacy_patch_returns_404():
+    pharmacy_a = uuid.uuid4()
+    pharmacy_b = uuid.uuid4()
+    session = _CrudSession()
+    # A condition that belongs to pharmacy B.
+    other = PatientCondition(
+        id=uuid.uuid4(),
+        amka=ROUTER_AMKA,
+        condition_code="RENAL_SEVERE",
+        name="Renal",
+        severity="SEVERE",
+        notes=None,
+        recorded_by=uuid.uuid4(),
+        pharmacy_id=pharmacy_b,
+        active=True,
+    )
+    session.add(other)
+    # ...requested by a pharmacist signed in at pharmacy A.
+    client = _client(session, pharmacy_a)
+    try:
+        with _patched(_FakePharmacy(pharmacy_a)):
+            r = client.patch(
+                f"/patients/{ROUTER_AMKA}/conditions/{other.id}",
+                json={"name": "hijacked"},
+            )
+        assert r.status_code == 404, r.text
+        assert other.name == "Renal"  # untouched
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_delete_then_patch_returns_404():
+    pid = uuid.uuid4()
+    session = _CrudSession()
+    client = _client(session, pid)
+    try:
+        with _patched(_FakePharmacy(pid)):
+            created = client.post(
+                f"/patients/{ROUTER_AMKA}/conditions",
+                json={"conditionCode": "RENAL_SEVERE", "name": "Renal"},
+            ).json()
+            assert (
+                client.request(
+                    "DELETE", f"/patients/{ROUTER_AMKA}/conditions/{created['id']}"
+                ).status_code
+                == 200
+            )
+            # Deleted (active=false) -> no longer addressable.
+            again = client.patch(
+                f"/patients/{ROUTER_AMKA}/conditions/{created['id']}",
+                json={"name": "x"},
+            )
+            assert again.status_code == 404, again.text
+    finally:
+        app.dependency_overrides.clear()

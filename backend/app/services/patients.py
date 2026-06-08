@@ -620,11 +620,13 @@ async def conditions(session: AsyncSession, amka: str, pharmacy_id: uuid.UUID) -
     """
     return (
         await session.scalars(
-            select(PatientCondition).where(
+            select(PatientCondition)
+            .where(
                 PatientCondition.amka == amka,
                 PatientCondition.pharmacy_id == pharmacy_id,
                 PatientCondition.active.is_(True),
             )
+            .order_by(PatientCondition.created_at.desc())
         )
     ).all()
 

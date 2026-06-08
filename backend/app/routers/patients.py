@@ -75,6 +75,8 @@ async def get_patient_conditions(
     if profile is None:
         raise HTTPException(status_code=404, detail=f"Patient {patient_id} not found")
     pharmacy = await find_pharmacy_by_name(session, current["pharmacy"])
+    if pharmacy is None:
+        raise HTTPException(status_code=403, detail="Pharmacy not found")
     return await conditions(session, profile["amka"], pharmacy.id)
 
 
@@ -99,6 +101,8 @@ async def create_patient_condition(
     if profile is None:
         raise HTTPException(status_code=404, detail=f"Patient {patient_id} not found")
     pharmacy = await find_pharmacy_by_name(session, current["pharmacy"])
+    if pharmacy is None:
+        raise HTTPException(status_code=403, detail="Pharmacy not found")
     return await create_condition(
         session,
         amka=profile["amka"],
@@ -127,6 +131,8 @@ async def update_patient_condition(
     if profile is None:
         raise HTTPException(status_code=404, detail=f"Patient {patient_id} not found")
     pharmacy = await find_pharmacy_by_name(session, current["pharmacy"])
+    if pharmacy is None:
+        raise HTTPException(status_code=403, detail="Pharmacy not found")
     condition = await get_condition(session, condition_id, profile["amka"], pharmacy.id)
     if condition is None:
         raise HTTPException(status_code=404, detail=f"Condition {condition_id} not found")
@@ -152,6 +158,8 @@ async def delete_patient_condition(
     if profile is None:
         raise HTTPException(status_code=404, detail=f"Patient {patient_id} not found")
     pharmacy = await find_pharmacy_by_name(session, current["pharmacy"])
+    if pharmacy is None:
+        raise HTTPException(status_code=403, detail="Pharmacy not found")
     condition = await get_condition(session, condition_id, profile["amka"], pharmacy.id)
     if condition is None:
         raise HTTPException(status_code=404, detail=f"Condition {condition_id} not found")
