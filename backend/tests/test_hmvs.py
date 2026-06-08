@@ -435,7 +435,9 @@ def test_replay_pending_marks_completed_failed_and_keeps_throttled(monkeypatch):
 def test_token_endpoint_non_200_raises_httpstatuserror():
     """Non-2xx from the IDP (revoked creds, 401, 500…) must raise — the router
     catches HTTPStatusError to map it to 502 ``HMVS auth failed`` plus an audit
-    row, instead of letting it surface as an opaque 500."""
+    row, instead of letting it surface as an opaque 500. The exception must
+    surface the upstream status but never echo the form body (it carries the
+    client secret)."""
     state = {
         "token_calls": 0,
         "token_status": 401,
@@ -444,22 +446,9 @@ def test_token_endpoint_non_200_raises_httpstatuserror():
     }
     _install(state)
 
-    with pytest.raises(httpx.HTTPStatusError):
+    with pytest.raises(httpx.HTTPStatusError, match="401") as exc_info:
         asyncio.run(hmvs.verify("G", "S", "B", "260101", client_id=CID, client_secret=SECRET))
-
-    # And the error must not echo the form body (would leak the secret).
-    state2 = {
-        "token_calls": 0,
-        "token_status": 401,
-        "verify": (200, {}),
-        "patch": (200, {}),
-    }
-    _install(state2)
-    try:
-        asyncio.run(hmvs.verify("G", "S", "B", "260101", client_id=CID, client_secret=SECRET))
-    except httpx.HTTPStatusError as exc:
-        assert SECRET not in str(exc)
-        assert "401" in str(exc)
+    assert SECRET not in str(exc_info.value)
 
 
 # ── F2: 429 Retry-After is parsed, persisted, and surfaced ────────────────────

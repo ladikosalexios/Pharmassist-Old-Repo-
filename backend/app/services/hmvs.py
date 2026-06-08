@@ -136,8 +136,6 @@ def _parse_retry_after(value: str | None) -> int | None:
         dt = parsedate_to_datetime(s)
     except (TypeError, ValueError):
         return None
-    if dt is None:
-        return None
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=UTC)
     return max(0, int((dt - datetime.now(UTC)).total_seconds()))
