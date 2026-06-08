@@ -6,7 +6,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, text
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Integer, String, text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -15,6 +15,11 @@ from ..base import Base, TimestampMixin
 
 class HmvsOperation(Base, TimestampMixin):
     __tablename__ = "hmvs_operations"
+    # Enforce the status enum at the DB level too — raw SQL / admin tools must
+    # not be able to write a value the idempotency logic doesn't understand.
+    __table_args__ = (
+        CheckConstraint("status IN ('pending', 'completed', 'failed')", name="status_valid"),
+    )
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         primary_key=True,

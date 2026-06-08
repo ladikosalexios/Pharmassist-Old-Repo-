@@ -67,6 +67,10 @@ def upgrade() -> None:
             ["pharmacies.id"],
             name=op.f("fk_hmvs_operations_pharmacy_id_pharmacies"),
         ),
+        sa.CheckConstraint(
+            "status IN ('pending', 'completed', 'failed')",
+            name=op.f("ck_hmvs_operations_status_valid"),
+        ),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_hmvs_operations")),
         sa.UniqueConstraint("idempotency_key", name=op.f("uq_hmvs_operations_idempotency_key")),
     )

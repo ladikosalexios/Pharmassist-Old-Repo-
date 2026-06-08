@@ -30,6 +30,7 @@ os.environ.setdefault(
 
 import httpx  # noqa: E402
 import pytest  # noqa: E402
+from sqlalchemy.exc import IntegrityError  # noqa: E402
 
 from app.services import hmvs  # noqa: E402
 
@@ -234,25 +235,67 @@ def test_mock_mode_returns_canned_results(monkeypatch):
 # ── Idempotency guard (double-supply prevention) ──────────────────────────────
 
 
-class _FakeHmvsSession:
-    """In-memory stand-in for the AsyncSession: stores the single operation in
-    play and serves it back. Enough for the guard's load → add → reload path."""
+class _FakeNested:
+    """Async CM standing in for session.begin_nested() — propagates exceptions
+    (so a flush IntegrityError surfaces) instead of suppressing them."""
 
-    def __init__(self):
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *_exc):
+        return False
+
+
+class _FakeHmvsSession:
+    """In-memory stand-in for the AsyncSession covering the guard's
+    load → add → flush → commit path, plus the lost-insert-race branch (flush
+    raises IntegrityError, reload returns the concurrent winner's row)."""
+
+    def __init__(self, *, winner=None, raise_on_flush=False):
         self._op = None
+        self._winner = winner
+        self._raise_on_flush = raise_on_flush
+        self._raced = False
         self.commits = 0
 
     async def scalar(self, _stmt):
-        return self._op
+        return self._winner if self._raced else self._op
 
     def add(self, obj):
         self._op = obj
 
     async def flush(self):
-        pass
+        if self._raise_on_flush:
+            self._raced = True
+            raise IntegrityError("duplicate idempotency_key", None, Exception("dup"))
 
-    async def rollback(self):
-        pass
+    async def execute(self, _stmt):
+        return None
+
+    async def commit(self):
+        self.commits += 1
+
+    def begin_nested(self):
+        return _FakeNested()
+
+
+class _FakeScalars:
+    def __init__(self, rows):
+        self._rows = rows
+
+    def all(self):
+        return self._rows
+
+
+class _FakeReplaySession:
+    """Serves a fixed list of pending ops to replay_pending and records commits."""
+
+    def __init__(self, rows):
+        self._rows = rows
+        self.commits = 0
+
+    async def scalars(self, _stmt):
+        return _FakeScalars(self._rows)
 
     async def commit(self):
         self.commits += 1
@@ -287,3 +330,97 @@ def test_idempotent_supply_does_not_double_supply(monkeypatch):
     assert r1.ok and r1.state == "Supplied"
     assert r2.ok and r2.state == "Supplied"  # cached, reconstructed from the row
     assert calls["n"] == 1  # the second supply NEVER hit the registry
+
+
+def test_lost_insert_race_returns_concurrent_winner(monkeypatch):
+    calls = {"n": 0}
+
+    async def _counting_change_state(*_a, **_k):
+        calls["n"] += 1
+        return hmvs.HmvsResult(ok=True, http_status=200, state="Supplied")
+
+    monkeypatch.setattr(hmvs, "change_state", _counting_change_state)
+
+    # A concurrent identical PATCH already completed: our flush hits the UNIQUE
+    # constraint, and the post-savepoint reload returns the winner's row.
+    winner_snapshot = hmvs.HmvsResult(
+        ok=True, http_status=200, operation_code="NMVS_OK", state="Supplied"
+    ).to_dict()
+    winner = hmvs.HmvsOperation(
+        idempotency_key="G:S:B:Supplied",
+        target_state="Supplied",
+        status="completed",
+        operation_code="NMVS_OK",
+        response_json=winner_snapshot,
+    )
+    session = _FakeHmvsSession(winner=winner, raise_on_flush=True)
+
+    r = asyncio.run(
+        hmvs.change_state_idempotent(
+            session,
+            pharmacist_id=uuid.uuid4(),
+            pharmacy_id=uuid.uuid4(),
+            gtin="G",
+            serial="S",
+            batch="B",
+            expiry="260101",
+            target_state="Supplied",
+            client_id=CID,
+            client_secret=SECRET,
+        )
+    )
+
+    assert r.ok and r.state == "Supplied"
+    assert calls["n"] == 0  # the winner's row short-circuited; we never PATCHed
+
+
+def test_replay_pending_marks_completed_failed_and_keeps_throttled(monkeypatch):
+    op_ok = hmvs.HmvsOperation(
+        idempotency_key="G:OK:B:Supplied",
+        gtin="G",
+        serial="OK",
+        batch="B",
+        expiry="260101",
+        target_state="Supplied",
+        status="pending",
+        attempts=0,
+    )
+    op_fail = hmvs.HmvsOperation(
+        idempotency_key="G:FAIL:B:Supplied",
+        gtin="G",
+        serial="FAIL",
+        batch="B",
+        expiry="260101",
+        target_state="Supplied",
+        status="pending",
+        attempts=0,
+    )
+    op_throttle = hmvs.HmvsOperation(
+        idempotency_key="G:THR:B:Supplied",
+        gtin="G",
+        serial="THR",
+        batch="B",
+        expiry="260101",
+        target_state="Supplied",
+        status="pending",
+        attempts=0,
+    )
+
+    async def _change_state(_gtin, serial, *_a, **_k):
+        if serial == "OK":
+            return hmvs.HmvsResult(
+                ok=True, http_status=200, operation_code="NMVS_OK", state="Supplied"
+            )
+        if serial == "THR":
+            return hmvs.HmvsResult(ok=False, http_status=429)  # throttled → stays pending
+        return hmvs.HmvsResult(ok=False, http_status=404, operation_code="NMVS_NC_PCK_22")
+
+    monkeypatch.setattr(hmvs, "change_state", _change_state)
+    session = _FakeReplaySession([op_ok, op_fail, op_throttle])
+
+    completed = asyncio.run(hmvs.replay_pending(session, client_id=CID, client_secret=SECRET))
+
+    assert completed == 1
+    assert op_ok.status == "completed"
+    assert op_fail.status == "failed"
+    assert op_throttle.status == "pending"  # 429 left pending for the next pass

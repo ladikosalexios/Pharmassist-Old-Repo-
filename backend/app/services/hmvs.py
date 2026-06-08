@@ -34,7 +34,7 @@ from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 
 import httpx
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -170,6 +170,10 @@ async def _get_token(client_id: str, client_secret: str) -> str:
     token = payload["access_token"]
     expires_in = int(payload.get("expires_in", 3600))
     _token_cache[client_id] = {"access_token": token, "expires_at_ts": now + expires_in}
+    # Evict any expired entries so the cache can't grow unboundedly across
+    # distinct client_ids (per-pharmacy IQE creds path).
+    for stale in [c for c, v in _token_cache.items() if v["expires_at_ts"] <= now]:
+        del _token_cache[stale]
     logger.info("[HMVS] OAuth2 token refreshed (expires in %ss)", expires_in)
     return token
 
@@ -277,11 +281,13 @@ async def change_state_idempotent(
             target_state=target_state,
             status="pending",
         )
-        session.add(op)
         try:
-            await session.flush()
+            # Savepoint so a lost insert race rolls back ONLY this row, not any
+            # other uncommitted work the request may hold on this session.
+            async with session.begin_nested():
+                session.add(op)
+                await session.flush()
         except IntegrityError:
-            await session.rollback()
             op = await session.scalar(
                 select(HmvsOperation).where(HmvsOperation.idempotency_key == key)
             )
@@ -314,6 +320,19 @@ async def change_state_idempotent(
         op.operation_code = result.operation_code
         op.response_json = result.to_dict()
         op.completed_at = datetime.now(UTC)
+        # The pack is now in target_state, so any prior completed intent for a
+        # DIFFERENT state on the same pack is stale and must not short-circuit a
+        # future change — otherwise supply → reactivate → re-supply would return
+        # the first supply's cached result instead of re-hitting the registry.
+        await session.execute(
+            delete(HmvsOperation).where(
+                HmvsOperation.gtin == gtin,
+                HmvsOperation.serial == serial,
+                HmvsOperation.batch == batch,
+                HmvsOperation.target_state != target_state,
+                HmvsOperation.status == "completed",
+            )
+        )
     elif result.http_status == 429:
         # Throttled — leave pending so replay re-issues after backoff.
         op.status = "pending"
@@ -337,7 +356,10 @@ async def replay_pending(
     """
     pending = (
         await session.scalars(
-            select(HmvsOperation).where(HmvsOperation.status == "pending").limit(limit)
+            select(HmvsOperation)
+            .where(HmvsOperation.status == "pending")
+            .order_by(HmvsOperation.created_at)  # oldest-first, deterministic FIFO
+            .limit(limit)
         )
     ).all()
     completed = 0
