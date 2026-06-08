@@ -30,8 +30,34 @@ from fastapi.testclient import TestClient  # noqa: E402
 from app.deps import get_current_user  # noqa: E402
 from main import create_app  # noqa: E402
 
-# Matches a seeded pharmacy so find_pharmacy_by_name resolves for /alerts.
-SEEDED_PHARMACY = "ΦΑΡΜΑΚΕΙΟ Fedra"
+
+# The seed pulls the pharmacy name from live ΗΔΥΚΑ /user/me, so it drifts with
+# the account — resolve it from the dev DB instead of hardcoding, so the
+# /alerts lookup (find_pharmacy_by_name) always matches what's actually seeded.
+def _seeded_pharmacy_name() -> str:
+    import asyncio
+
+    from sqlalchemy import text
+    from sqlalchemy.ext.asyncio import create_async_engine
+
+    async def _run() -> str | None:
+        # Throwaway engine created + disposed in its own loop, so it never
+        # touches the module engine the TestClient drives (see client fixture).
+        eng = create_async_engine(os.environ["DATABASE_URL"])
+        try:
+            async with eng.begin() as conn:
+                row = (await conn.execute(text("select name from pharmacies limit 1"))).first()
+                return row[0] if row else None
+        finally:
+            await eng.dispose()
+
+    try:
+        return asyncio.run(_run()) or "ΦΑΡΜΑΚΕΙΟ Fedra"
+    except Exception:
+        return "ΦΑΡΜΑΚΕΙΟ Fedra"
+
+
+SEEDED_PHARMACY = _seeded_pharmacy_name()
 # A seeded mock patient AMKA (Maria Stavrou) for the /patients lookup.
 MOCK_PATIENT_AMKA = "15031962456"
 
