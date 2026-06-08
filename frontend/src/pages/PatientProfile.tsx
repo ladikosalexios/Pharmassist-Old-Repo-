@@ -18,10 +18,13 @@ import {
 } from "../components/Icons";
 import {
   ApiError,
+  createPatientCondition,
+  deletePatientCondition,
   getPatient,
   getPatientConditions,
   getPatientPrescriptions,
   getPatientSideEffects,
+  updatePatientCondition,
 } from "../lib/api";
 import { fallbackForPatient, isProfileShapeIncomplete } from "../lib/patientFallback";
 import {
@@ -100,18 +103,61 @@ function Field({
   );
 }
 
-// ── Add Condition Modal ───────────────────────────────────────────────────────
+// ── Condition Modal (add / edit) ──────────────────────────────────────────────
 
-function AddConditionModal({ amka, onClose }: { amka: string; onClose: () => void }) {
+const CONDITION_CODES = ["G6PD", "PREGNANCY", "RENAL_SEVERE", "HEPATIC"] as const;
+const CONDITION_SEVERITIES = ["MILD", "MODERATE", "SEVERE"] as const;
+
+function ConditionModal({
+  patientId,
+  existing,
+  onClose,
+  onSaved,
+}: {
+  patientId: string;
+  existing: PatientCondition | null;
+  onClose: () => void;
+  onSaved: (saved: PatientCondition) => void;
+}) {
   const { t } = useTranslation();
-  const [type, setType] = useState("chronic");
-  const [desc, setDesc] = useState("");
-  const [notes, setNotes] = useState("");
+  const [conditionCode, setConditionCode] = useState(existing?.conditionCode ?? CONDITION_CODES[0]);
+  const [name, setName] = useState(existing?.name ?? "");
+  const [severity, setSeverity] = useState(existing?.severity ?? "");
+  const [notes, setNotes] = useState(existing?.notes ?? "");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  function handleSave() {
-    // TODO: wire to createPatientCondition API when available
-    void amka;
-    onClose();
+  // Seeded conditions may carry a code outside our known list — keep it
+  // selectable so editing them doesn't silently rewrite the code.
+  const codeOptions: string[] = CONDITION_CODES.includes(
+    conditionCode as (typeof CONDITION_CODES)[number],
+  )
+    ? [...CONDITION_CODES]
+    : [conditionCode, ...CONDITION_CODES];
+  const codeLabel = (code: string) =>
+    CONDITION_CODES.includes(code as (typeof CONDITION_CODES)[number])
+      ? t(`patientProfile.conditionCode${code}`)
+      : code;
+
+  async function handleSave() {
+    setSaving(true);
+    setError(null);
+    try {
+      const payload = {
+        conditionCode,
+        name: name.trim(),
+        severity: severity || null,
+        notes: notes.trim() || null,
+      };
+      const saved = existing
+        ? await updatePatientCondition(patientId, existing.id, payload)
+        : await createPatientCondition(patientId, payload);
+      onSaved(saved);
+      onClose();
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : t("patientProfile.conditionSaveError"));
+      setSaving(false);
+    }
   }
 
   return createPortal(
@@ -124,7 +170,9 @@ function AddConditionModal({ amka, onClose }: { amka: string; onClose: () => voi
       <div className="relative w-full max-w-[440px] animate-modal-in rounded-2xl bg-white p-6 shadow-modal dark:bg-slate-900">
         <div className="flex items-center justify-between">
           <h3 className="text-[16px] font-bold text-slate-900 dark:text-slate-100">
-            {t("patientProfile.addConditionTitle")}
+            {existing
+              ? t("patientProfile.editConditionTitle")
+              : t("patientProfile.addConditionTitle")}
           </h3>
           <button
             type="button"
@@ -141,16 +189,18 @@ function AddConditionModal({ amka, onClose }: { amka: string; onClose: () => voi
         <div className="mt-4 space-y-3">
           <label className="block">
             <span className="mb-1 block text-[12px] font-semibold text-slate-600 dark:text-slate-300">
-              {t("patientProfile.conditionType")}
+              {t("patientProfile.conditionCode")}
             </span>
             <select
-              value={type}
-              onChange={(e) => setType(e.target.value)}
+              value={conditionCode}
+              onChange={(e) => setConditionCode(e.target.value)}
               className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-[13px] outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
             >
-              <option value="chronic">{t("patientProfile.conditionTypeChronic")}</option>
-              <option value="allergy">{t("patientProfile.conditionTypeAllergy")}</option>
-              <option value="protocol">{t("patientProfile.conditionTypeProtocol")}</option>
+              {codeOptions.map((code) => (
+                <option key={code} value={code}>
+                  {codeLabel(code)}
+                </option>
+              ))}
             </select>
           </label>
           <label className="block">
@@ -158,11 +208,28 @@ function AddConditionModal({ amka, onClose }: { amka: string; onClose: () => voi
               {t("patientProfile.conditionDesc")}
             </span>
             <input
-              value={desc}
-              onChange={(e) => setDesc(e.target.value)}
-              placeholder="e.g. Χρόνια νεφρική νόσος"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder={t("patientProfile.conditionDescPlaceholder")}
               className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-[13px] outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
             />
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-[12px] font-semibold text-slate-600 dark:text-slate-300">
+              {t("patientProfile.conditionSeverity")}
+            </span>
+            <select
+              value={severity}
+              onChange={(e) => setSeverity(e.target.value)}
+              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-[13px] outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+            >
+              <option value="">{t("patientProfile.conditionSeverityNone")}</option>
+              {CONDITION_SEVERITIES.map((s) => (
+                <option key={s} value={s}>
+                  {t(`patientProfile.conditionSeverity${s}`)}
+                </option>
+              ))}
+            </select>
           </label>
           <label className="block">
             <span className="mb-1 block text-[12px] font-semibold text-slate-600 dark:text-slate-300">
@@ -176,11 +243,12 @@ function AddConditionModal({ amka, onClose }: { amka: string; onClose: () => voi
             />
           </label>
         </div>
-        {/* TODO: remove this notice when createPatientCondition API is wired */}
-        <p className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11.5px] text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-400">
-          {t("patientProfile.conditionsSaveNotice")}
-        </p>
-        <div className="mt-3 flex justify-end gap-2.5">
+        {error && (
+          <p className="mt-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-[11.5px] text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-400">
+            {error}
+          </p>
+        )}
+        <div className="mt-4 flex justify-end gap-2.5">
           <button
             type="button"
             onClick={onClose}
@@ -191,7 +259,7 @@ function AddConditionModal({ amka, onClose }: { amka: string; onClose: () => voi
           <button
             type="button"
             onClick={handleSave}
-            disabled={!desc.trim()}
+            disabled={!name.trim() || saving}
             className="rounded-lg bg-brand-600 px-4 py-2 text-[13px] font-semibold text-white hover:bg-brand-700 disabled:opacity-60"
           >
             {t("patientProfile.save")}
@@ -308,8 +376,40 @@ export function PatientProfile() {
   const [conditionsError, setConditionsError] = useState<string | null>(null);
 
   const [usingFallback, setUsingFallback] = useState(false);
-  const [addOpen, setAddOpen] = useState(false);
+  // null = closed; { existing: null } = add; { existing: c } = edit
+  const [conditionModal, setConditionModal] = useState<{
+    existing: PatientCondition | null;
+  } | null>(null);
+  const [removingConditionId, setRemovingConditionId] = useState<string | null>(null);
   const [historyFilter, setHistoryFilter] = useState<FilterKey>("all");
+
+  function handleConditionSaved(saved: PatientCondition) {
+    setConditions((prev) => {
+      const list = prev ?? [];
+      const idx = list.findIndex((c) => c.id === saved.id);
+      if (idx >= 0) {
+        const next = list.slice();
+        next[idx] = saved;
+        return next;
+      }
+      return [saved, ...list];
+    });
+  }
+
+  async function handleRemoveCondition(condition: PatientCondition) {
+    setRemovingConditionId(condition.id);
+    setConditionsError(null);
+    try {
+      await deletePatientCondition(id, condition.id);
+      setConditions((prev) => (prev ?? []).filter((c) => c.id !== condition.id));
+    } catch (e) {
+      setConditionsError(
+        e instanceof ApiError ? e.message : t("patientProfile.removeConditionError"),
+      );
+    } finally {
+      setRemovingConditionId(null);
+    }
+  }
 
   useEffect(() => {
     let active = true;
@@ -440,7 +540,14 @@ export function PatientProfile() {
 
   return (
     <div className="mx-auto max-w-[1100px] px-6 py-6 lg:px-8">
-      {addOpen && <AddConditionModal amka={amka} onClose={() => setAddOpen(false)} />}
+      {conditionModal && (
+        <ConditionModal
+          patientId={id}
+          existing={conditionModal.existing}
+          onClose={() => setConditionModal(null)}
+          onSaved={handleConditionSaved}
+        />
+      )}
 
       {/* back link */}
       {fromRx ? (
@@ -660,7 +767,7 @@ export function PatientProfile() {
             right={
               <button
                 type="button"
-                onClick={() => setAddOpen(true)}
+                onClick={() => setConditionModal({ existing: null })}
                 className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[12px] font-semibold text-brand-600 transition-colors hover:bg-brand-50 dark:border-slate-800 dark:bg-slate-900 dark:text-brand-400 dark:hover:bg-brand-500/10"
               >
                 <PlusIcon width={13} height={13} /> {t("patientProfile.addCondition")}
@@ -715,6 +822,7 @@ export function PatientProfile() {
                   <div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
                     <button
                       type="button"
+                      onClick={() => setConditionModal({ existing: c })}
                       className="rounded p-1.5 text-slate-400 hover:bg-white hover:text-brand-600 dark:text-slate-500 dark:hover:bg-slate-800 dark:hover:text-brand-400"
                       aria-label={t("patientProfile.editCondition")}
                     >
@@ -722,7 +830,9 @@ export function PatientProfile() {
                     </button>
                     <button
                       type="button"
-                      className="rounded p-1.5 text-slate-400 hover:bg-white hover:text-red-600 dark:text-slate-500 dark:hover:bg-slate-800 dark:hover:text-red-400"
+                      onClick={() => handleRemoveCondition(c)}
+                      disabled={removingConditionId === c.id}
+                      className="rounded p-1.5 text-slate-400 hover:bg-white hover:text-red-600 disabled:opacity-40 dark:text-slate-500 dark:hover:bg-slate-800 dark:hover:text-red-400"
                       aria-label={t("patientProfile.removeCondition")}
                     >
                       <TrashIcon width={14} height={14} />

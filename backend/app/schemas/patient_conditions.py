@@ -1,6 +1,8 @@
 import uuid
 from datetime import datetime
 
+from pydantic import Field
+
 from .base import AppSchema
 
 
@@ -16,3 +18,21 @@ class PatientConditionPayload(AppSchema):
     active: bool
     created_at: datetime
     updated_at: datetime
+
+
+class PatientConditionCreate(AppSchema):
+    """Request body for POST /patients/{id}/conditions (camelCase in)."""
+
+    condition_code: str = Field(min_length=1)
+    name: str = Field(min_length=1)
+    severity: str | None = None
+    notes: str | None = None
+
+
+class PatientConditionUpdate(AppSchema):
+    """Request body for PATCH — every field optional; only those sent are applied."""
+
+    condition_code: str | None = Field(default=None, min_length=1)
+    name: str | None = Field(default=None, min_length=1)
+    severity: str | None = None
+    notes: str | None = None
