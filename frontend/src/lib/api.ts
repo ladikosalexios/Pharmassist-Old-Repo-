@@ -25,9 +25,23 @@ export class ApiError extends Error {
   constructor(
     public status: number,
     message: string,
+    /** Optional machine-readable error code from the backend, for i18n lookup. */
+    public code?: string,
   ) {
     super(message);
   }
+}
+
+/**
+ * i18n key list for surfacing an API error to the user. Resolves to
+ * `errors.<code>` when the backend supplied a code, otherwise `errors.generic`;
+ * `errors.generic` is always the final fallback. Pass the result to `t(...)`
+ * (i18next picks the first key that resolves). `err.message` stays for console
+ * logging only — it is the raw/technical text, not localized.
+ */
+export function apiErrorI18nKey(e: unknown): string[] {
+  const code = e instanceof ApiError ? e.code : undefined;
+  return code ? [`errors.${code}`, "errors.generic"] : ["errors.generic"];
 }
 
 interface PydanticError {
@@ -64,10 +78,9 @@ export function errorMessageFromDetail(status: number, detail: unknown): string 
 async function handle(r: Response): Promise<unknown> {
   const data = await r.json().catch(() => ({}));
   if (!r.ok) {
-    throw new ApiError(
-      r.status,
-      errorMessageFromDetail(r.status, (data as { detail?: unknown }).detail),
-    );
+    const body = data as { detail?: unknown; code?: unknown };
+    const code = typeof body.code === "string" ? body.code : undefined;
+    throw new ApiError(r.status, errorMessageFromDetail(r.status, body.detail), code);
   }
   return data;
 }

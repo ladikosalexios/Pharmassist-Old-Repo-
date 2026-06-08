@@ -190,7 +190,7 @@ export function DocumentationDetailModal({
                 <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <Field
                     label={t("docModal.dispensedBy")}
-                    value={`PharmD ${record.pharmacistName}`}
+                    value={`${t("documentation.pharmacistTitle")} ${record.pharmacistName}`}
                   />
                   <Field
                     label={t("docModal.licence")}

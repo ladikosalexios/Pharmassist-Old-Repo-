@@ -342,7 +342,7 @@ function RecordCard({ record, exporting, onView, onExport }: RecordCardProps) {
             <div className="sm:col-span-2 mt-1 text-xs text-slate-500 dark:text-slate-400">
               {t("documentation.dispensedByLabel")}{" "}
               <span className="font-medium text-slate-700 dark:text-slate-300">
-                PharmD {record.pharmacistName}
+                {t("documentation.pharmacistTitle")} {record.pharmacistName}
               </span>{" "}
               · {formatTimestamp(record.dispensedAt)}
             </div>

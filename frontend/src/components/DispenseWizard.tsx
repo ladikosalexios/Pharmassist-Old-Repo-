@@ -213,7 +213,7 @@ export function DispenseWizard({
       if (e instanceof ApiError && e.status === 501) {
         setDispenseError(t("dispense.dispenseNotWired"));
         setDispenseErrorDetail(
-          `rxId: ${rxId}\nstatus: 501 Not Implemented\nLive dispense is mock-only today.`,
+          `rxId: ${rxId}\nstatus: 501 Not Implemented\n${t("dispense.diagnosticMockOnly")}`,
         );
       } else if (e instanceof ApiError) {
         setDispenseError(t("dispense.dispenseRejected", { message: e.message }));

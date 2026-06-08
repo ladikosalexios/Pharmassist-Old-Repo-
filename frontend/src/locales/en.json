@@ -5,7 +5,9 @@
     "privacy": "privacy",
     "terms": "terms",
     "showPassword": "Show password",
-    "hidePassword": "Hide password"
+    "hidePassword": "Hide password",
+    "dismiss": "Dismiss",
+    "loading": "Loading…"
   },
   "nav": {
     "counter": "Counter",
@@ -108,7 +110,10 @@
     "inviteFailed": "Invite failed.",
     "loadProfileFailed": "Could not load profile.",
     "profileEditComingSoon": "Coming soon — profile editing is not yet available.",
-    "signedOutAll": "Signed out on all other devices."
+    "signedOutAll": "Signed out on all other devices.",
+    "auditActionDispense": "Dispense executed",
+    "auditActionAccess": "Patient data accessed",
+    "auditActionLogin": "Login"
   },
   "reports": {
     "title": "Reports",
@@ -191,7 +196,13 @@
     "physicianNotified": "Physician notified for {{rxId}}.",
     "notifyFailedReason": "Notification failed: {{reason}}",
     "notifyFailed": "Notification failed.",
-    "noPatientId": "Patient ID not available for this report."
+    "noPatientId": "Patient ID not available for this report.",
+    "reportable1": "Any suspected adverse reaction — even if causality is uncertain.",
+    "reportable2": "Serious reactions: hospitalisation, life-threatening, congenital, persistent disability.",
+    "reportable3": "Reactions to new medicines (≤5 years on market).",
+    "reportable4": "Lack of efficacy, suspected counterfeits, or medication errors.",
+    "reportable5": "Reactions during pregnancy or breastfeeding.",
+    "loadingReports": "Loading reports…"
   },
   "history": {
     "title": "Dispense history",
@@ -239,7 +250,9 @@
     "retry": "Retry",
     "nameSearchNote": "Name search only covers patients previously served at this pharmacy (upstream ΗΔΥΚΑ has no name search endpoint).",
     "intolerancesOnFile": "Intolerances on file",
-    "lastVisit": "Last visit"
+    "lastVisit": "Last visit",
+    "yearsSuffix": "yrs",
+    "clearSearch": "Clear search"
   },
   "patientProfile": {
     "backToPatients": "Back to patients",
@@ -305,7 +318,8 @@
     "conditionSaveError": "Could not save condition.",
     "removeConditionError": "Could not remove condition.",
     "editCondition": "Edit",
-    "removeCondition": "Remove"
+    "removeCondition": "Remove",
+    "profileUnavailable": "Patient profile not available."
   },
   "login": {
     "tagline": "Prescription verification & dispensing for Greek pharmacies.",
@@ -512,7 +526,8 @@
     "executionNo": "Execution No",
     "prescription": "Prescription",
     "printReceipt": "Print receipt",
-    "backToCounter": "Back to counter"
+    "backToCounter": "Back to counter",
+    "diagnosticMockOnly": "Live dispense is mock-only today."
   },
   "docModal": {
     "title": "Documentation Record",
@@ -577,7 +592,8 @@
     "dispensedByLabel": "Dispensed by:",
     "viewDetails": "View Details",
     "legalTitle": "Legal Compliance",
-    "legalBody": "All documentation records are maintained in compliance with pharmacy regulations and HIPAA requirements. Records are retained for the legally required period and are accessible for audits and inspections. Each entry includes pharmacist signature, timestamp, and delivery confirmation."
+    "legalBody": "All documentation records are maintained in compliance with pharmacy regulations and HIPAA requirements. Records are retained for the legally required period and are accessible for audits and inspections. Each entry includes pharmacist signature, timestamp, and delivery confirmation.",
+    "pharmacistTitle": "PharmD"
   },
   "flag": {
     "title": "Flag Prescription Discrepancy",
@@ -702,5 +718,8 @@
     "fullSpcTextUnavailable": "Full SPC text is not available in this build.",
     "openOnEof": "Open on EOF.gr",
     "close": "Close"
+  },
+  "errors": {
+    "generic": "Something went wrong. Please try again."
   }
 }

@@ -10,7 +10,7 @@ import {
   ChevronRightIcon,
   AlertTriangleIcon,
 } from "../components/Icons";
-import { ApiError, getPatient, searchPatients } from "../lib/api";
+import { ApiError, apiErrorI18nKey, getPatient, searchPatients } from "../lib/api";
 import type { PatientProfile } from "../types";
 
 type SearchState = "empty" | "searching" | "results" | "none" | "error" | "name-stub";
@@ -82,7 +82,8 @@ function ResultRow({ p, index }: { p: PatientProfile; index: number }) {
       </div>
       {typeof p.age === "number" && (
         <div className="hidden w-24 shrink-0 text-[12.5px] text-slate-500 sm:block dark:text-slate-400">
-          {p.age} yrs{p.sex ? ` · ${p.sex}` : ""}
+          {p.age} {t("patients.yearsSuffix")}
+          {p.sex ? ` · ${p.sex}` : ""}
         </div>
       )}
       <span className="text-slate-300 transition-all group-hover:translate-x-0.5 group-hover:text-brand-600 dark:group-hover:text-brand-400">
@@ -138,7 +139,8 @@ export function Patients() {
           if (e instanceof ApiError && e.status === 404) {
             setState("none");
           } else {
-            setErrorMsg(e instanceof ApiError ? e.message : "Unexpected error.");
+            console.error(e);
+            setErrorMsg(t(apiErrorI18nKey(e)));
             setState("error");
           }
         }
@@ -158,7 +160,8 @@ export function Patients() {
           if (e instanceof ApiError && e.status === 501) {
             setState("name-stub");
           } else {
-            setErrorMsg(e instanceof ApiError ? e.message : "Unexpected error.");
+            console.error(e);
+            setErrorMsg(t(apiErrorI18nKey(e)));
             setState("error");
           }
         }
@@ -204,7 +207,7 @@ export function Patients() {
             type="button"
             onClick={() => handleInput("")}
             className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-1 text-slate-300 hover:bg-slate-100 hover:text-slate-500 dark:hover:bg-slate-800"
-            aria-label="Clear search"
+            aria-label={t("patients.clearSearch")}
           >
             <XIcon width={16} height={16} />
           </button>

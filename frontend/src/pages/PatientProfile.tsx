@@ -18,6 +18,7 @@ import {
 } from "../components/Icons";
 import {
   ApiError,
+  apiErrorI18nKey,
   createPatientCondition,
   deletePatientCondition,
   getPatient,
@@ -440,7 +441,8 @@ export function PatientProfile() {
           setProfile(fb.profile);
           setUsingFallback(true);
         } else {
-          setProfileError(e instanceof ApiError ? e.message : "Could not load patient profile.");
+          console.error(e);
+          setProfileError(t(apiErrorI18nKey(e)));
         }
       })
       .finally(() => {
@@ -457,7 +459,8 @@ export function PatientProfile() {
           setRxHistory(fb.rxHistory);
           setUsingFallback(true);
         } else {
-          setRxError(e instanceof ApiError ? e.message : "Could not load prescription history.");
+          console.error(e);
+          setRxError(t(apiErrorI18nKey(e)));
         }
       });
 
@@ -484,16 +487,15 @@ export function PatientProfile() {
           setConditions(fb.conditions);
           setUsingFallback(true);
         } else {
-          setConditionsError(
-            e instanceof ApiError ? e.message : "Could not load patient conditions.",
-          );
+          console.error(e);
+          setConditionsError(t(apiErrorI18nKey(e)));
         }
       });
 
     return () => {
       active = false;
     };
-  }, [id]);
+  }, [id, t]);
 
   // ── early states ──
   if (profileLoading) {
@@ -525,7 +527,7 @@ export function PatientProfile() {
         <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-5 dark:border-red-500/30 dark:bg-red-500/10">
           <div className="flex items-start gap-2 text-red-700 dark:text-red-400">
             <AlertCircleIcon className="mt-0.5 shrink-0" />
-            <span>{profileError ?? "Patient profile not available."}</span>
+            <span>{profileError ?? t("patientProfile.profileUnavailable")}</span>
           </div>
         </div>
       </div>

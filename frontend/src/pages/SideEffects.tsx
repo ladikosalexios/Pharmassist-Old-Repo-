@@ -18,6 +18,7 @@ import {
 import { useToast } from "../components/Toast";
 import {
   ApiError,
+  apiErrorI18nKey,
   createSideEffect,
   flagSideEffect,
   listSideEffects,
@@ -207,15 +208,17 @@ const STATUS_TONE: Record<AdrStatus, string> = {
   ESCALATED: "bg-brand-50 text-brand-700 dark:bg-brand-500/15 dark:text-brand-300",
   EOF_REPORTED: "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400",
 };
+// i18n keys (resolved with t() at every render/toast site — these maps are
+// module-level so t() isn't available here).
 const STATUS_LABEL: Record<AdrStatus, string> = {
-  PENDING_REVIEW: "Draft",
-  ESCALATED: "Submitted",
-  EOF_REPORTED: "Acknowledged",
+  PENDING_REVIEW: "reports.filterDraft",
+  ESCALATED: "reports.filterSubmitted",
+  EOF_REPORTED: "reports.filterAcknowledged",
 };
 const SEVERITY_LABEL: Record<AdrSeverity, string> = {
-  MILD: "Mild",
-  MODERATE: "Moderate",
-  SEVERE: "Severe",
+  MILD: "reports.severityMild",
+  MODERATE: "reports.severityModerate",
+  SEVERE: "reports.severitySevere",
 };
 
 // ── Step head ─────────────────────────────────────────────────────────────────
@@ -562,15 +565,15 @@ function ReportForm({ onSubmitted, submittedRef }: ReportFormProps) {
           </div>
           <ul className="mt-3 space-y-2.5 text-[12.5px] leading-relaxed text-slate-700 dark:text-slate-300">
             {[
-              "Any suspected adverse reaction — even if causality is uncertain.",
-              "Serious reactions: hospitalisation, life-threatening, congenital, persistent disability.",
-              "Reactions to new medicines (≤5 years on market).",
-              "Lack of efficacy, suspected counterfeits, or medication errors.",
-              "Reactions during pregnancy or breastfeeding.",
-            ].map((item, i) => (
-              <li key={i} className="flex items-start gap-2">
+              "reports.reportable1",
+              "reports.reportable2",
+              "reports.reportable3",
+              "reports.reportable4",
+              "reports.reportable5",
+            ].map((key) => (
+              <li key={key} className="flex items-start gap-2">
                 <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-brand-500 dark:bg-brand-400" />
-                {item}
+                {t(key)}
               </li>
             ))}
           </ul>
@@ -691,7 +694,7 @@ function PreviousReports({
 
       {loading && (
         <div className="rounded-xl border border-slate-200 bg-white px-4 py-6 text-center text-[13px] text-slate-500 shadow-card dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400">
-          <span className="spinner text-brand-600" /> Loading reports…
+          <span className="spinner text-brand-600" /> {t("reports.loadingReports")}
         </div>
       )}
 
@@ -739,14 +742,14 @@ function PreviousReports({
                 <span
                   className={`rounded-full px-2 py-0.5 text-[11.5px] font-semibold ${SEV_TONE[r.severity]}`}
                 >
-                  {SEVERITY_LABEL[r.severity]}
+                  {t(SEVERITY_LABEL[r.severity])}
                 </span>
               </span>
               <span>
                 <span
                   className={`rounded-full px-2 py-0.5 text-[11.5px] font-semibold ${STATUS_TONE[r.status]}`}
                 >
-                  {STATUS_LABEL[r.status]}
+                  {t(STATUS_LABEL[r.status])}
                 </span>
               </span>
               <div className="flex items-center justify-end gap-2 opacity-0 transition-opacity group-hover:opacity-100">
@@ -821,8 +824,9 @@ export function SideEffects() {
       })
       .catch((e: unknown) => {
         if (!active) return;
+        console.error(e);
         setUsingFallback(true);
-        setFallbackError(e instanceof ApiError ? e.message : "API unreachable.");
+        setFallbackError(t(apiErrorI18nKey(e)));
         setItems(applyFallbackFilters(fallbackMaster, query, sort));
         setStats(computeFallbackStats(fallbackMaster));
       })
@@ -832,7 +836,7 @@ export function SideEffects() {
     return () => {
       active = false;
     };
-  }, [query, sort, fallbackMaster]);
+  }, [query, sort, fallbackMaster, t]);
 
   function applyStatusUpdate(reportId: string, oldStatus: AdrStatus, newStatus: AdrStatus) {
     setItems((cur) =>
@@ -856,12 +860,15 @@ export function SideEffects() {
       if (usingFallback) {
         const advanced = nextStatus(report.status);
         applyStatusUpdate(report.id, report.status, advanced);
-        toast(t("reports.flagDemo", { id: report.id, status: STATUS_LABEL[advanced] }), "success");
+        toast(
+          t("reports.flagDemo", { id: report.id, status: t(STATUS_LABEL[advanced]) }),
+          "success",
+        );
       } else {
         const result = await flagSideEffect(report.id);
         applyStatusUpdate(report.id, report.status, result.status);
         toast(
-          t("reports.flagDone", { id: report.id, status: STATUS_LABEL[result.status] }),
+          t("reports.flagDone", { id: report.id, status: t(STATUS_LABEL[result.status]) }),
           "success",
         );
       }
@@ -889,7 +896,7 @@ export function SideEffects() {
       } else {
         await notifyPhysician(
           report.rxId,
-          `Adverse reaction reported (${report.id}, severity ${SEVERITY_LABEL[report.severity]}): ${report.symptom} (onset ${report.onset}).`,
+          `Adverse reaction reported (${report.id}, severity ${report.severity}): ${report.symptom} (onset ${report.onset}).`,
         );
         toast(t("reports.physicianNotified", { rxId: report.rxId }), "success");
       }

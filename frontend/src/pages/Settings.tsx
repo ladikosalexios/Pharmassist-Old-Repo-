@@ -439,7 +439,7 @@ function TeamPage({
   }
 
   const teamMembers = profile
-    ? [{ name: profile.name, email: profile.email, role: "Admin", you: true }]
+    ? [{ name: profile.name, email: profile.email, role: t("settings.adminBadge"), you: true }]
     : [];
 
   return (
@@ -466,7 +466,7 @@ function TeamPage({
       <div className="overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800">
         {teamMembers.length === 0 ? (
           <div className="px-4 py-6 text-center text-[13px] text-slate-500 dark:text-slate-400">
-            <span className="spinner text-brand-600" /> Loading…
+            <span className="spinner text-brand-600" /> {t("common.loading")}
           </div>
         ) : (
           teamMembers.map((m, i) => (
@@ -500,25 +500,27 @@ function TeamPage({
   );
 }
 
+// `action` holds an i18n key (resolved with t() at the render site — this is
+// module-level mock data, so t() isn't available here).
 const MOCK_AUDIT = [
   {
     ts: "31/05/2026 14:31:08",
     actor: "—",
-    action: "Dispense executed",
+    action: "settings.auditActionDispense",
     target: "barcode …",
     type: "dispense",
   },
   {
     ts: "31/05/2026 13:58:12",
     actor: "—",
-    action: "Patient data accessed",
+    action: "settings.auditActionAccess",
     target: "AMKA ••••",
     type: "access",
   },
   {
     ts: "31/05/2026 09:02:41",
     actor: "—",
-    action: "Login",
+    action: "settings.auditActionLogin",
     target: "IP 79.x.x.x",
     type: "login",
   },
@@ -588,12 +590,12 @@ function AuditPage() {
           >
             <span className="mono text-[12px] text-slate-500 dark:text-slate-400">{a.ts}</span>
             <span className="text-[12.5px] text-slate-700 dark:text-slate-300">{a.actor}</span>
-            <span className="text-[12.5px] text-slate-900 dark:text-slate-100">{a.action}</span>
+            <span className="text-[12.5px] text-slate-900 dark:text-slate-100">{t(a.action)}</span>
             <span>
               <span
-                className={`rounded-full px-2 py-0.5 text-[11px] font-semibold capitalize ${TYPE_TONE[a.type]}`}
+                className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${TYPE_TONE[a.type]}`}
               >
-                {a.type}
+                {t(`settings.audit${a.type.charAt(0).toUpperCase()}${a.type.slice(1)}`)}
               </span>
             </span>
           </div>
@@ -682,7 +684,7 @@ export function Settings() {
     me()
       .then(setProfile)
       .catch(() => toast(t("settings.loadProfileFailed"), "error"));
-  }, [toast]);
+  }, [toast, t]);
 
   const SUBNAV: {
     id: SubPage;
