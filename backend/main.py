@@ -29,6 +29,7 @@ Project layout:
 
 import asyncio
 import contextlib
+import logging
 import os
 import sys
 from contextlib import asynccontextmanager
@@ -38,6 +39,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 import app.db.models  # noqa — registers all SQLAlchemy models at startup
 from app.config import Settings, get_settings
+from app.observability import configure_logging, configure_sentry, install_rate_limiter
 from app.routers import (
     admin,
     alerts,
@@ -56,14 +58,24 @@ from app.routers import (
     spc,
 )
 from app.services.audit import _background_tasks
+from app.services.hmvs import probe_developer_tls
 from app.services.pharmapi import keepalive_loop, pharmapi_check_version
-from app.utils.environment import is_mock_pharmapi
+from app.utils.environment import is_mock_hmvs, is_mock_pharmapi
+
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     if not is_mock_pharmapi():
         await pharmapi_check_version()
+
+    # Startup TLS probe — only when HMVS is live. Cheap (one HEAD) and never
+    # blocks the boot: it logs a distinct [HMVS][TLS] error and returns, so an
+    # unknown-CA situation surfaces in the boot logs rather than at the first
+    # dispense. Skip in mock mode (no upstream, no chain to validate).
+    if not is_mock_hmvs():
+        await probe_developer_tls()
 
     # Proactive ΗΔΥΚΑ session keep-alive (opt-in via PHARMAPI_KEEPALIVE_ENABLED).
     # Guarantees a /user/me call well within the 24h window so the upstream
@@ -130,6 +142,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 "Set COOKIE_SECURE=false only in local dev .env."
             )
 
+    # Logging + Sentry — both honour env vars, both safe no-ops when unset:
+    # LOG_FORMAT=json swaps to a single-line JSON formatter (compose.test.yaml
+    # sets it; dev keeps the human-readable default). SENTRY_DSN unset → no
+    # init, no overhead, no network. Configure these BEFORE create_app's
+    # routers register so import-time logs come through the chosen formatter.
+    configure_logging()
+    configure_sentry()
+
     app = FastAPI(
         title=settings.app_title,
         description=settings.app_description,
@@ -144,6 +164,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         allow_methods=settings.cors_allow_methods,
         allow_headers=settings.cors_allow_headers,
     )
+
+    # slowapi limiter wired to /auth/login (see app/observability.py). Must be
+    # installed BEFORE include_router so the decorated handler picks it up.
+    install_rate_limiter(app)
 
     for module in _ROUTER_MODULES:
         app.include_router(module.router)

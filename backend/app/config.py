@@ -59,6 +59,32 @@ def _env_required(key: str) -> str:
     return value
 
 
+def _validate_hmvs_identity_url(url: str, *, hmvs_mock: bool) -> None:
+    """Fail-fast on the common HMVS_IDENTITY_URL foot-gun.
+
+    services/hmvs.py assembles the token URL as
+    ``{HMVS_IDENTITY_URL}/identity/connect/token`` — so setting
+    ``HMVS_IDENTITY_URL=https://api-ite.nmvo.eu/identity`` (matching the NMVO
+    Postman env, which lists identity + verification symmetrically) yields a
+    double ``/identity/identity/...`` path that 404s every token mint. The
+    smoke script's (c) assertion catches it at first verify, but by then the
+    stack is already accepting traffic. Catch it at boot instead.
+
+    Skipped in mock mode — the token URL is never built there, so a
+    cosmetically wrong env var can't cause a runtime failure."""
+    if hmvs_mock:
+        return
+    normalized = url.rstrip("/").lower()
+    if normalized.endswith("/identity") or "/connect/token" in normalized:
+        raise RuntimeError(
+            f"HMVS_IDENTITY_URL={url!r} looks wrong: the code appends "
+            "'/identity/connect/token' itself, so the env var must be the IDP "
+            "host WITHOUT the '/identity' suffix (e.g. "
+            "'https://api-ite.nmvo.eu'). See docs/test-env-runbook.md §2 — "
+            "this is the no-/identity-suffix caveat."
+        )
+
+
 class Settings(BaseModel):
     # ── App metadata ────────────────────────────────────────────────────────
     app_title: str
@@ -110,6 +136,9 @@ class Settings(BaseModel):
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
+    hmvs_mock = _env_bool("HMVS_MOCK", True)
+    hmvs_identity_url = os.getenv("HMVS_IDENTITY_URL", "https://api-ite.nmvo.eu")
+    _validate_hmvs_identity_url(hmvs_identity_url, hmvs_mock=hmvs_mock)
     return Settings(
         app_title=os.getenv("APP_TITLE", "PharmAssist POC"),
         app_description=os.getenv(
@@ -136,9 +165,11 @@ def get_settings() -> Settings:
             "PHARMAPI_KEEPALIVE_INTERVAL_SECONDS",
             12 * 3600,  # 12h — comfortably within the 24h ΗΔΥΚΑ window
         ),
-        hmvs_mock=_env_bool("HMVS_MOCK", True),
-        # Token host: POST {hmvs_identity_url}/identity/connect/token.
-        hmvs_identity_url=os.getenv("HMVS_IDENTITY_URL", "https://api-ite.nmvo.eu"),
+        hmvs_mock=hmvs_mock,
+        # Token host: POST {hmvs_identity_url}/identity/connect/token. The
+        # /identity suffix is appended by services/hmvs.py — NEVER put it in
+        # this env var. _validate_hmvs_identity_url enforces that at boot.
+        hmvs_identity_url=hmvs_identity_url,
         # Verify/state-change base: {hmvs_verification_url}/product/gs1/...
         hmvs_verification_url=os.getenv(
             "HMVS_VERIFICATION_URL", "https://api-ite.nmvo.eu/verification"

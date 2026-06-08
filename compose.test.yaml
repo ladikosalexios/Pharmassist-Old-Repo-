@@ -1,0 +1,160 @@
+# PharmAssist test-environment stack — a second production-flavour deploy that
+# points at the REAL upstream test systems (ΗΔΥΚΑ testeps + NMVO ITE for HMVS).
+#
+# Boot it with an env file that holds the test secrets (see .env.test.example):
+#
+#   docker compose -f compose.test.yaml --env-file .env.test up -d --build
+#
+# How this differs from compose.prod.yaml:
+#   • PHARMAPI_MOCK=false — every Pharmapi call goes to testeps.e-prescription.gr
+#     for real. PHARMAPI_USERNAME/PASSWORD/API_KEY must be a working ΗΔΥΚΑ
+#     account on testeps.
+#   • HMVS_MOCK=false — every pack verify/state-change goes to the NMVO ITE
+#     sandbox. HMVS_CLIENT_ID/SECRET are the PharmAssist-IQE-1 equipment
+#     creds (our own equipment, not the shared Test-Book pair — this feeds
+#     qualification evidence later).
+#   • Distinct compose `name`, pgdata volume, and DB hostname so the test stack
+#     can sit alongside the mock-pilot stack on the same host without colliding.
+#
+# Project namespacing — compose prefixes every resource (container, volume,
+# network) with the project name, so `db` here resolves to `pharmassist-test_db`
+# and never sees `pharmassist-pilot_db`. Same applies to `pgdata_test` below.
+name: pharmassist-test
+
+# Cap container log growth — same rationale as the prod compose: a long-running
+# single-box stack can't fill the host disk with the default unbounded driver.
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "50m"
+    max-file: "5"
+
+services:
+  # Caddy: serves the compiled SPA and reverse-proxies the API to backend:8000.
+  frontend:
+    image: pharmassist/frontend:test
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.prod
+    restart: unless-stopped
+    logging: *default-logging
+    networks:
+      - web
+    ports:
+      # Host ports are env-overridable so the test stack can coexist with the
+      # mock pilot on a single host — both default to 80/443, so set
+      # TEST_HTTP_PORT=8080 + TEST_HTTPS_PORT=8443 in .env.test if you're
+      # running them side by side. See docs/test-env-runbook.md §8.
+      - "${TEST_HTTP_PORT:-80}:80"
+      - "${TEST_HTTPS_PORT:-443}:443"
+    environment:
+      PILOT_DOMAIN: ${PILOT_DOMAIN:-localhost}
+      # "tls internal" for a Tailscale-only deployment; empty = auto-HTTPS.
+      CADDY_TLS: ${CADDY_TLS:-}
+    depends_on:
+      backend:
+        condition: service_healthy
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+
+  backend:
+    image: pharmassist/backend:test
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.prod
+    restart: unless-stopped
+    logging: *default-logging
+    networks:
+      - web
+      - data
+    expose:
+      - "8000"
+    # uvicorn --workers 1 is pinned in Dockerfile.prod CMD. Do NOT bump this on
+    # the test stack: the ΗΔΥΚΑ 24h session tracker (services/pharmapi.py
+    # `pharmapi_session` dict) is per-process in-memory state — a second worker
+    # would hold a divergent session window and racy keep-alive. Moving the
+    # session store to Redis is tracked under B4 (post-pilot scale-out); only
+    # then can workers go above 1 here.
+    environment:
+      DATABASE_URL: postgresql+asyncpg://pharmassist:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@db:5432/pharmassist
+      # Production-grade hardening even though upstream is test: secure cookies,
+      # the main.py guard, real CORS pin. We're hitting real test systems with
+      # real-looking creds — the stack itself must not be lax.
+      ENV: production
+      COOKIE_SECURE: "true"
+
+      # ── ΗΔΥΚΑ Pharmapi (testeps) ────────────────────────────────────────────
+      # Live test endpoint. The 24h session rule still applies — see the runbook
+      # §HΔΥΚΑ smoke. PHARMAPI_BASE is set explicitly (config.py defaults to the
+      # same value today, but pin it here so a future default flip can't move
+      # this stack onto prod ΗΔΥΚΑ silently).
+      PHARMAPI_MOCK: "false"
+      PHARMAPI_BASE: ${PHARMAPI_BASE:-https://testeps.e-prescription.gr/pharmapiv2}
+      PHARMAPI_USERNAME: ${PHARMAPI_USERNAME:?set PHARMAPI_USERNAME}
+      PHARMAPI_PASSWORD: ${PHARMAPI_PASSWORD:?set PHARMAPI_PASSWORD}
+      PHARMAPI_API_KEY: ${PHARMAPI_API_KEY:?set PHARMAPI_API_KEY}
+      PHARMAPI_KEEPALIVE_ENABLED: ${PHARMAPI_KEEPALIVE_ENABLED:-true}
+
+      # ── HMVS (NMVO ITE sandbox) ─────────────────────────────────────────────
+      # Confirmed against backend/app/config.py:140-141 + services/hmvs.py:192 —
+      # the token URL is assembled as `{HMVS_IDENTITY_URL}/identity/connect/token`.
+      # So HMVS_IDENTITY_URL must NOT include the `/identity` suffix, or the
+      # request goes to `.../identity/identity/connect/token` and 404s.
+      # Verification is assembled as `{HMVS_VERIFICATION_URL}/product/gs1/...`
+      # so the `/verification` suffix DOES belong here.
+      HMVS_MOCK: "false"
+      HMVS_IDENTITY_URL: ${HMVS_IDENTITY_URL:-https://api-ite.nmvo.eu}
+      HMVS_VERIFICATION_URL: ${HMVS_VERIFICATION_URL:-https://api-ite.nmvo.eu/verification}
+      # Equipment creds for PharmAssist-IQE-1 (our own ITE equipment, not the
+      # shared Test-Book pair). Required-var pattern: a forgotten secret aborts
+      # compose-up rather than 503-ing every pack verify at runtime.
+      HMVS_CLIENT_ID: ${HMVS_CLIENT_ID:?set HMVS_CLIENT_ID}
+      HMVS_CLIENT_SECRET: ${HMVS_CLIENT_SECRET:?set HMVS_CLIENT_SECRET}
+
+      # Pin CORS to the test origin (defence-in-depth; the SPA is same-origin).
+      CORS_ALLOW_ORIGINS: "https://${PILOT_DOMAIN:-localhost}"
+
+      # ── Required app secrets ────────────────────────────────────────────────
+      SECRET_KEY: ${SECRET_KEY:?set SECRET_KEY}
+      CREDENTIAL_ENCRYPTION_KEY: ${CREDENTIAL_ENCRYPTION_KEY:?set CREDENTIAL_ENCRYPTION_KEY}
+
+      # ── Observability ───────────────────────────────────────────────────────
+      # SENTRY_DSN is optional — main.py initialises sentry-sdk only when set.
+      # ENVIRONMENT tags every event so test-stack errors don't pollute prod.
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT:-test}
+      LOG_FORMAT: json
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    logging: *default-logging
+    networks:
+      - data
+    environment:
+      POSTGRES_DB: pharmassist
+      POSTGRES_USER: pharmassist
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+    volumes:
+      # Separate named volume from the mock-pilot's `pgdata` so the two stacks
+      # never share rows. Compose namespacing makes this `pharmassist-test_pgdata_test`.
+      - pgdata_test:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pharmassist -d pharmassist"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+volumes:
+  pgdata_test:
+  caddy_data:
+  caddy_config:
+
+networks:
+  web:
+  data:
