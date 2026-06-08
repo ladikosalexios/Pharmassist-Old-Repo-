@@ -705,6 +705,26 @@ async def deactivate_condition(
     return condition
 
 
+def recent_patients(limit: int = 6) -> list[dict]:
+    """Recently-seen patients for the Patients landing-page chips.
+
+    Mock-only: derived from PATIENT_PROFILES. Live mode has no upstream
+    "recent" feed, so this returns an empty list and the UI hides the rail.
+    """
+    if not is_mock_pharmapi():
+        return []
+    return [
+        {
+            "amka": p.get("amka"),
+            "name": p.get("name"),
+            "age": p.get("age"),
+            "sex": p.get("sex"),
+            "intolerances": p.get("intolerances", []),
+        }
+        for p in list(PATIENT_PROFILES.values())[:limit]
+    ]
+
+
 async def resolve(patient_key: str) -> dict | None:
     """
     Look up a patient from the third party service that provides their info.

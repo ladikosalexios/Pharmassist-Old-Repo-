@@ -116,7 +116,9 @@ export function History() {
   const stats = useMemo(() => {
     const s = data?.stats;
     return {
-      today: s ? (s.print + s.digital + s.both).toString() : "—",
+      today: s ? String(s.today) : "—",
+      thisWeek: s ? String(s.thisWeek) : "—",
+      thisMonth: s ? String(s.thisMonth) : "—",
       total: data?.total ?? 0,
     };
   }, [data]);
@@ -161,7 +163,7 @@ export function History() {
         <span className="h-8 w-px bg-slate-200 dark:bg-slate-800" />
         <div className="flex items-baseline gap-2">
           <span className="text-[20px] font-bold tabular-nums text-slate-900 dark:text-slate-100">
-            —
+            {stats.thisWeek}
           </span>
           <span className="text-[12px] font-medium text-slate-500 dark:text-slate-400">
             {t("history.statWeek")}
@@ -170,7 +172,7 @@ export function History() {
         <span className="h-8 w-px bg-slate-200 dark:bg-slate-800" />
         <div className="flex items-baseline gap-2">
           <span className="text-[20px] font-bold tabular-nums text-slate-900 dark:text-slate-100">
-            —
+            {stats.thisMonth}
           </span>
           <span className="text-[12px] font-medium text-slate-500 dark:text-slate-400">
             {t("history.statMonth")}

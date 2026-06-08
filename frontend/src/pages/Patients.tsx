@@ -10,8 +10,14 @@ import {
   ChevronRightIcon,
   AlertTriangleIcon,
 } from "../components/Icons";
-import { ApiError, apiErrorI18nKey, getPatient, searchPatients } from "../lib/api";
-import type { PatientProfile } from "../types";
+import {
+  ApiError,
+  apiErrorI18nKey,
+  getPatient,
+  getRecentPatients,
+  searchPatients,
+} from "../lib/api";
+import type { PatientProfile, RecentPatient } from "../types";
 
 type SearchState = "empty" | "searching" | "results" | "none" | "error" | "name-stub";
 
@@ -103,12 +109,21 @@ export function Patients() {
   const [state, setState] = useState<SearchState>("empty");
   const [results, setResults] = useState<PatientProfile[]>([]);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [recent, setRecent] = useState<RecentPatient[]>([]);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     inputRef.current?.focus();
+  }, []);
+
+  useEffect(() => {
+    getRecentPatients()
+      .then(setRecent)
+      .catch(() => {
+        /* recent chips are non-critical; hide the rail on failure */
+      });
   }, []);
 
   function runSearch(q: string) {
@@ -214,6 +229,24 @@ export function Patients() {
         )}
       </div>
 
+      {/* recent chips */}
+      {recent.length > 0 && (
+        <div className="mt-3.5 flex flex-wrap items-center gap-2">
+          <span className="text-[12px] font-medium text-slate-400 dark:text-slate-500">
+            {t("patients.recentToday")}
+          </span>
+          {recent.map((r) => (
+            <Link
+              key={r.amka}
+              to={`/patients/${r.amka}`}
+              className="max-w-[200px] truncate rounded-full border border-slate-200 bg-white px-3 py-1 text-[12px] font-medium text-slate-600 transition-colors hover:border-brand-200 hover:bg-brand-50 hover:text-brand-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-brand-500/40 dark:hover:bg-brand-500/10 dark:hover:text-brand-300"
+            >
+              {r.name}
+            </Link>
+          ))}
+        </div>
+      )}
+
       {/* results area */}
       <div className="mt-7">
         {state === "empty" && (
@@ -232,6 +265,12 @@ export function Patients() {
             <p className="mt-1.5 max-w-[340px] text-[13px] leading-relaxed text-slate-500 dark:text-slate-400">
               {t("patients.lookUpDesc")}
             </p>
+            <Link
+              to="/dashboard"
+              className="mt-4 text-[13px] font-medium text-brand-600 hover:text-brand-700 dark:text-brand-400"
+            >
+              {t("patients.orScanLink")}
+            </Link>
           </div>
         )}
 

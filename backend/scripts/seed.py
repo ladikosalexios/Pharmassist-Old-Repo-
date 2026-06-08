@@ -27,7 +27,7 @@ import uuid
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 
 import bcrypt
 from sqlalchemy import text
@@ -36,6 +36,7 @@ from sqlalchemy.dialects.postgresql import insert
 from app.config import get_settings
 from app.crypto import encrypt_credential
 from app.db.models.adr_report import AdrReport
+from app.db.models.documentation_log import DocumentationLog
 from app.db.models.drug_catalog import DrugCatalog
 from app.db.models.patient_condition import PatientCondition
 from app.db.models.pharmacist import Pharmacist
@@ -56,6 +57,31 @@ settings = get_settings()
 # Local PharmAssist login password for the seeded pharmacist account.
 # DISTINCT from the Pharmapi password — see module docstring.
 LOCAL_LOGIN_PASSWORD = b"test1234"
+
+# Past dispense records for the Dispense-history page. Spread across today /
+# this week / this month / older so the History stats strip shows real,
+# windowed figures. (name, amka, barcode, drug, method, days_ago, hh, mm)
+SEED_DOCUMENTATION = [
+    ("Maria Stavrou", "15031962456", "2605292031642", "Atorvastatin 20mg", "DIGITAL", 0, 14, 31),
+    ("Eleni Papadopoulos", "08111974201", "2605291890713", "Glucophage 850mg", "PRINT", 0, 13, 58),
+    ("Sofia Ioannidou", "04092017819", "2605294412088", "Salbutamol inhaler", "BOTH", 0, 11, 15),
+    ("Nikos Vlachos", "27021982557", "2605292238401", "Bisoprolol 2.5mg", "PRINT", 0, 9, 47),
+    ("Anna Kostas", "12101948112", "2605297790233", "Esomeprazole 20mg", "DIGITAL", 1, 18, 4),
+    ("James Martinez", "03091954221", "2605290034517", "Clopidogrel 75mg", "PRINT", 1, 10, 52),
+    ("Maria Garcia", "19011968147", "2605298811240", "Augmentin 1g", "DIGITAL", 2, 16, 9),
+    ("Andreas Vasilakis", "14081996228", "2605294471902", "Amlodipine 5mg", "BOTH", 3, 12, 20),
+    ("Eleni Demetriou", "26061980554", "2605290552318", "Levothyroxine 100mcg", "PRINT", 4, 9, 35),
+    ("Dimitrios Konstantinou", "03051961334", "2605293390075", "Nexium 40mg", "DIGITAL", 5, 17, 12),
+    ("Nikos Papadopoulos", "08111947033", "2605291122984", "Warfarin 5mg", "PRINT", 6, 15, 40),
+    ("Sarah Johnson", "22071993789", "2605297654310", "Amoxicillin 500mg", "DIGITAL", 7, 11, 28),
+    ("Maria Stavrou", "15031962456", "2605298003471", "Ramipril 5mg", "BOTH", 9, 13, 5),
+    ("Sofia Ioannidou", "04092017819", "2605293318820", "Pantoprazole 40mg", "DIGITAL", 12, 10, 41),
+    ("Anna Kostas", "12101948112", "2605299076512", "Metformin 1000mg", "PRINT", 15, 16, 53),
+    ("James Martinez", "03091954221", "2605291447309", "Xarelto 20mg", "DIGITAL", 20, 12, 18),
+    ("Eleni Papadopoulos", "08111974201", "2605290998123", "Concor 5mg", "PRINT", 27, 9, 9),
+    ("Nikos Vlachos", "27021982557", "2605294550271", "Pradaxa 110mg", "BOTH", 34, 14, 47),
+    ("Maria Garcia", "19011968147", "2605292210668", "Lipitor 20mg", "DIGITAL", 41, 10, 2),
+]
 
 
 @dataclass(frozen=True)
@@ -150,7 +176,7 @@ async def seed():
         # patient_conditions, pharmacist_pharmacies via FK chains.
         await db.execute(
             text(
-                "TRUNCATE pharmacist_pharmacies, patient_conditions, pharmacists, pharmacies, adr_reports RESTART IDENTITY CASCADE"  # noqa: E501
+                "TRUNCATE pharmacist_pharmacies, patient_conditions, pharmacists, pharmacies, adr_reports, documentation_logs RESTART IDENTITY CASCADE"  # noqa: E501
             )
         )
 
@@ -224,6 +250,31 @@ async def seed():
             adr_report = seed_adr_report(report, pharmacist.id, pharmacy.id)
             db.add(adr_report)
 
+        await db.commit()
+
+        # Past dispense records so the History page + stats strip have data.
+        now = datetime.now(UTC)
+        for name, amka, barcode, drug, method, days_ago, hh, mm in SEED_DOCUMENTATION:
+            dispensed_at = (now - timedelta(days=days_ago)).replace(
+                hour=hh, minute=mm, second=0, microsecond=0
+            )
+            db.add(
+                DocumentationLog(
+                    pharmacist_id=pharmacist.id,
+                    pharmacy_id=pharmacy.id,
+                    action_type="APPROVE",
+                    prescription_barcode=barcode,
+                    patient_amka=amka,
+                    patient_name=name,
+                    medicine_name=drug,
+                    info_provided="Δοσολογία, παρενέργειες, αλληλεπιδράσεις",
+                    language="el",
+                    delivery_method=method,
+                    safety_check_snapshot=[],
+                    dispensed_at=dispensed_at,
+                    pharmacist_signature=f"seed:{barcode}",
+                )
+            )
         await db.commit()
 
         print("✓ Seed complete (sourced from Pharmapi /user/me)")

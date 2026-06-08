@@ -10,6 +10,7 @@ import type {
   PatientCondition,
   PatientProfile,
   PatientRxHistoryRow,
+  RecentPatient,
   Prescription,
   PrescriptionMessage,
   QueueItem,
@@ -437,6 +438,14 @@ export async function getPatient(patientId: string): Promise<PatientProfile> {
     credentials: "include",
   });
   return handle(r) as Promise<PatientProfile>;
+}
+
+// Recently-seen patients for the Patients landing-page chips. Empty in live
+// mode (no upstream "recent" feed) — callers should hide the rail when empty.
+export async function getRecentPatients(): Promise<RecentPatient[]> {
+  const r = await fetch(`${API_BASE}/patients/recent`, { credentials: "include" });
+  const data = await handle(r);
+  return Array.isArray(data) ? (data as RecentPatient[]) : [];
 }
 
 // TODO: FR-0.5 #2 — Name search not possible via ΗΔΥΚΑ (no upstream endpoint).

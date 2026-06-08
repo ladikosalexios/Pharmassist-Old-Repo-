@@ -29,6 +29,7 @@ from ..services.patients import (
     create_condition,
     deactivate_condition,
     get_condition,
+    recent_patients,
     resolve,
     rx_history_page,
     update_condition,
@@ -177,6 +178,16 @@ async def get_patient_insurances(patient_id: str, current: dict = Depends(get_cu
         amka=profile.get("amka"),
         ekaa=profile.get("ekaa"),
     )
+
+
+@router.get("/recent")
+async def get_recent_patients(current: dict = Depends(get_current_user)):
+    """Recently-seen patients for the Patients landing-page chips.
+
+    Declared before ``/{patient_id}`` so the static path wins over the
+    catch-all profile fetch. Empty in live mode (no upstream feed).
+    """
+    return recent_patients()
 
 
 @router.get("/{patient_id}")

@@ -140,6 +140,17 @@ export interface DocumentationStats {
   print: number;
   digital: number;
   both: number;
+  today: number;
+  thisWeek: number;
+  thisMonth: number;
+}
+
+export interface RecentPatient {
+  amka: string;
+  name: string;
+  age?: number;
+  sex?: "F" | "M" | string;
+  intolerances?: string[];
 }
 
 export interface DocumentationListResponse {

@@ -8,7 +8,7 @@ import asyncio
 import csv
 import hashlib
 import io
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Literal
 
 from fastapi import HTTPException
@@ -85,13 +85,9 @@ def get_documentation_log_dict(doc_log: DocumentationLog) -> dict:
 
 
 async def stats(session: AsyncSession) -> dict:
-    # TODO (backend PR): extend return value with date-windowed counts so the
-    # History page stats strip can show real figures:
-    #   "today":  COUNT WHERE dispensed_at >= start of current UTC day
-    #   "week":   COUNT WHERE dispensed_at >= start of current ISO week (Monday)
-    #   "month":  COUNT WHERE dispensed_at >= first day of current UTC month
-    # Frontend keys: history.statToday / history.statWeek / history.statMonth.
-    # The DocumentationLog.dispensed_at column is already available for filtering.
+    # Method breakdown (drives the legend) + date-windowed counts for the
+    # History stats strip. Frontend keys: history.statToday / statWeek /
+    # statMonth / statTotal.
     rows = (
         await session.execute(
             select(DocumentationLog.delivery_method, func.count().label("n")).group_by(
@@ -109,6 +105,26 @@ async def stats(session: AsyncSession) -> dict:
             s["digital"] = r.n
         elif m == DeliveryMethod.BOTH:
             s["both"] = r.n
+
+    # Date-windowed counts (UTC): today = since 00:00, this week = since
+    # Monday 00:00, this month = since the 1st 00:00.
+    now = datetime.now(UTC)
+    start_today = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    start_week = start_today - timedelta(days=now.weekday())
+    start_month = start_today.replace(day=1)
+
+    async def _count_since(start: datetime) -> int:
+        return (
+            await session.execute(
+                select(func.count())
+                .select_from(DocumentationLog)
+                .where(DocumentationLog.dispensed_at >= start)
+            )
+        ).scalar_one()
+
+    s["today"] = await _count_since(start_today)
+    s["thisWeek"] = await _count_since(start_week)
+    s["thisMonth"] = await _count_since(start_month)
     return s
 
 
