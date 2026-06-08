@@ -10,9 +10,10 @@ from datetime import UTC, datetime
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.db.models.adr_event import AdrEvent
 from app.db.models.adr_report import AdrReport
 
-from ..constants import AdrCausality, AdrSeverity, AdrStatus
+from ..constants import AdrCausality, AdrEventType, AdrSeverity, AdrStatus
 
 MOCK_SIDE_EFFECTS: list = [
     {
@@ -132,11 +133,11 @@ def next_status(current_status: str) -> str:
 def get_adr_report_dict(adr_report: AdrReport) -> dict:
     """Returns a dict representation of the given AdrReport class object."""
     return {
-        "id": adr_report.id,
+        "id": str(adr_report.id),
         "patientId": adr_report.patient_amka,
         "patientName": adr_report.patient_name,
         "patientPhone": None,
-        "rxId": None,
+        "rxId": adr_report.rx_id,
         "drugName": adr_report.medicine_name,
         "severity": adr_report.severity,
         "status": adr_report.status,
@@ -223,3 +224,52 @@ def create_mock_side_effect(
     }
     MOCK_SIDE_EFFECTS.append(record)
     return record
+
+
+async def create_live_side_effect(
+    session: AsyncSession,
+    *,
+    pharmacist_id: str,
+    pharmacy_id: str,
+    patient_id: str | None,
+    patient_name: str,
+    rx_id: str | None,
+    drug_name: str,
+    severity: str,
+    symptom: str,
+    onset: str,
+    causality: str | None,
+) -> dict:
+    """Persist a new ADR report + a REPORT_CREATED audit event in one transaction.
+
+    Mirrors create_mock_side_effect for the live (Postgres) bridge mode and
+    returns the same camelCase SideEffectReport shape.
+    """
+    report = AdrReport(
+        pharmacist_id=pharmacist_id,
+        pharmacy_id=pharmacy_id,
+        patient_amka=patient_id,
+        patient_name=patient_name,
+        rx_id=rx_id,
+        medicine_name=drug_name,
+        symptom_description=symptom,
+        onset_timing=onset,
+        severity=severity,
+        causality=causality,
+        status=AdrStatus.PENDING_REVIEW,
+    )
+    session.add(report)
+    await session.flush()  # populate report.id (+ server-default reported_at) for the event
+
+    session.add(
+        AdrEvent(
+            adr_id=report.id,
+            actor_id=pharmacist_id,
+            event_type=AdrEventType.REPORT_CREATED,
+            from_status=None,
+            to_status=AdrStatus.PENDING_REVIEW,
+        )
+    )
+    await session.commit()
+    await session.refresh(report)
+    return get_adr_report_dict(report)

@@ -18,12 +18,13 @@ from app.db.models.pharmacist import Pharmacist
 from app.db.session import get_session
 from app.utils.environment import is_mock_pharmapi
 
-from ..constants import AdrEventType, AdrStatus
+from ..constants import AdrEventType
 from ..deps import get_current_user
-from ..schemas.side_effects import CreateSideEffectBody
+from ..schemas.side_effects import CreateSideEffectBody, SideEffectReportOut
 from ..services.side_effects import (
     SEVERITY_RANK,
     STATUS_RANK,
+    create_live_side_effect,
     create_mock_side_effect,
     get_adr_report_dict,
     mock_stats,
@@ -77,7 +78,7 @@ async def list_side_effects(
     }
 
 
-@router.post("", status_code=201)
+@router.post("", status_code=201, response_model=SideEffectReportOut)
 async def create_side_effect(
     body: CreateSideEffectBody,
     current: dict = Depends(get_current_user),
@@ -101,34 +102,19 @@ async def create_side_effect(
             causality=body.causality,
         )
 
-    # Live mode: persist the report and an audit event in one transaction.
-    report = AdrReport(
+    return await create_live_side_effect(
+        session,
         pharmacist_id=current["pharmacist_id"],
         pharmacy_id=current["pharmacy_id"],
-        patient_amka=body.patientId,
+        patient_id=body.patientId,
         patient_name=body.patientName,
-        medicine_name=body.drugName,
-        symptom_description=body.symptom,
-        onset_timing=body.onset,
+        rx_id=body.rxId,
+        drug_name=body.drugName,
         severity=body.severity,
+        symptom=body.symptom,
+        onset=body.onset,
         causality=body.causality,
-        status=AdrStatus.PENDING_REVIEW,
     )
-    session.add(report)
-    await session.flush()  # populate report.id (+ server-default reported_at) for the event
-
-    session.add(
-        AdrEvent(
-            adr_id=report.id,
-            actor_id=current["pharmacist_id"],
-            event_type=AdrEventType.REPORT_CREATED,
-            from_status=None,
-            to_status=AdrStatus.PENDING_REVIEW,
-        )
-    )
-    await session.commit()
-    await session.refresh(report)
-    return get_adr_report_dict(report)
 
 
 @router.post("/{report_id}/flag")

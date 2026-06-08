@@ -309,6 +309,7 @@ function ReportForm({ onSubmitted, submittedRef }: ReportFormProps) {
           reportedAt: new Date().toISOString(),
           symptom,
           onset: onset || phase,
+          causality: cause || null,
         };
         onSubmitted(optimistic);
         toast(t("reports.savedLocally"), "info");

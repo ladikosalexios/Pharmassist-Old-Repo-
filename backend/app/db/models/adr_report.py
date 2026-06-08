@@ -25,6 +25,7 @@ class AdrReport(Base, TimestampMixin):
     )
     patient_amka: Mapped[str | None] = mapped_column(String)
     patient_name: Mapped[str | None] = mapped_column(String)
+    rx_id: Mapped[str | None] = mapped_column(String)  # ΗΔΥΚΑ prescription barcode, if any
     medicine_barcode: Mapped[str | None] = mapped_column(String)
     medicine_name: Mapped[str | None] = mapped_column(String)
     atc_code: Mapped[str | None] = mapped_column(String)
