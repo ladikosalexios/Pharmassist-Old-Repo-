@@ -44,6 +44,10 @@ class HmvsOperation(Base, TimestampMixin):
     status: Mapped[str] = mapped_column(String, nullable=False, server_default=text("'pending'"))
     operation_code: Mapped[str | None] = mapped_column(String)
     response_json: Mapped[dict | None] = mapped_column(JSONB)
+    # Throttle hint captured from the upstream 429 Retry-After header. The
+    # replay loop consults this so it never re-hits the registry before the
+    # window expires (an ITE compliance requirement).
+    retry_after_seconds: Mapped[int | None] = mapped_column(Integer)
     # default=0 (Python-side) so the attribute is concrete right after flush —
     # avoids a sync lazy-load of the server_default in async context; the
     # server_default covers rows written by raw SQL.

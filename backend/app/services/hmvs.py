@@ -32,6 +32,7 @@ import time
 import uuid
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
+from email.utils import parsedate_to_datetime
 
 import httpx
 from sqlalchemy import delete, select
@@ -88,6 +89,10 @@ class HmvsResult:
     information: str | None = None
     warning: str | None = None
     queued: bool = False
+    # Throttle hint from a 429 Retry-After header — seconds the caller should
+    # back off before retrying. None for any non-throttled response or when
+    # the header was absent / unparseable.
+    retry_after_seconds: int | None = None
     raw: dict = field(default_factory=dict)
 
     def to_dict(self) -> dict:
@@ -108,6 +113,32 @@ class HmvsResult:
             state=op.target_state,
             raw=snapshot,
         )
+
+
+def _parse_retry_after(value: str | None) -> int | None:
+    """Decode a Retry-After header into seconds-to-back-off.
+
+    RFC 7231 allows two shapes — bare ``delay-seconds`` or an HTTP-date. ITE has
+    been observed to use both. Clamps at zero (a date in the past becomes "retry
+    now") and returns ``None`` for absent / unparseable values rather than
+    raising, so a malformed throttle hint never crashes the dispense path.
+    """
+    if value is None:
+        return None
+    s = value.strip()
+    if not s:
+        return None
+    try:
+        return max(0, int(s))
+    except ValueError:
+        pass
+    try:
+        dt = parsedate_to_datetime(s)
+    except (TypeError, ValueError):
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=UTC)
+    return max(0, int((dt - datetime.now(UTC)).total_seconds()))
 
 
 def _map_response(r: httpx.Response) -> HmvsResult:
@@ -134,8 +165,16 @@ def _map_response(r: httpx.Response) -> HmvsResult:
     if r.status_code == 409:
         # Invalid transition — the registry returns the pack's current state.
         return HmvsResult(ok=False, http_status=409, current_state=body.get("state"), **base)
-    # 403 / 404 (incl. batch/expiry mismatch) / 422 / 429 / anything else: not ok.
-    # 429 specifically is a throttle the caller should back off / queue on.
+    if r.status_code == 429:
+        # Throttled — surface Retry-After so the caller can schedule its backoff.
+        return HmvsResult(
+            ok=False,
+            http_status=429,
+            state=body.get("state"),
+            retry_after_seconds=_parse_retry_after(r.headers.get("Retry-After")),
+            **base,
+        )
+    # 403 / 404 (incl. batch/expiry mismatch) / 422 / anything else: not ok.
     return HmvsResult(ok=False, http_status=r.status_code, state=body.get("state"), **base)
 
 
@@ -334,8 +373,11 @@ async def change_state_idempotent(
             )
         )
     elif result.http_status == 429:
-        # Throttled — leave pending so replay re-issues after backoff.
+        # Throttled — leave pending so replay re-issues after backoff. Persist
+        # the Retry-After hint so replay_pending can honour the window and the
+        # FE can surface "try again in N seconds" instead of a blind retry.
         op.status = "pending"
+        op.retry_after_seconds = result.retry_after_seconds
         result.queued = True
     else:
         op.status = "failed"
@@ -383,7 +425,11 @@ async def replay_pending(
             op.response_json = result.to_dict()
             op.completed_at = datetime.now(UTC)
             completed += 1
-        elif result.http_status != 429:
+        elif result.http_status == 429:
+            # Still throttled — refresh the Retry-After hint so the next replay
+            # sees the latest window instead of a stale one from the original 429.
+            op.retry_after_seconds = result.retry_after_seconds
+        else:
             op.status = "failed"
             op.operation_code = result.operation_code
             op.response_json = result.to_dict()
