@@ -7,6 +7,7 @@ immediately in a patient's history.
 
 import asyncio
 import logging
+import uuid
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -611,14 +612,97 @@ def adr_history(patient_id: str) -> list:
     return rows
 
 
-async def conditions(session: AsyncSession, amka: str, pharmacy_id: str) -> list:
+async def conditions(session: AsyncSession, amka: str, pharmacy_id: uuid.UUID) -> list:
+    """Active conditions recorded for a patient at this pharmacy.
+
+    Soft-deleted rows (active=false) are excluded so a removed condition stops
+    powering both this list and the safety engine's contraindication checks.
+    """
+    return (
+        await session.scalars(
+            select(PatientCondition)
+            .where(
+                PatientCondition.amka == amka,
+                PatientCondition.pharmacy_id == pharmacy_id,
+                PatientCondition.active.is_(True),
+            )
+            .order_by(PatientCondition.created_at.desc())
+        )
+    ).all()
+
+
+async def get_condition(
+    session: AsyncSession,
+    condition_id: uuid.UUID,
+    amka: str,
+    pharmacy_id: uuid.UUID,
+) -> PatientCondition | None:
+    """Fetch a single active condition scoped to the patient + pharmacy.
+
+    Scoping by amka + pharmacy_id stops one pharmacy editing or removing a
+    condition that belongs to another pharmacy's record for the same patient.
+    """
     return (
         await session.scalars(
             select(PatientCondition).where(
-                PatientCondition.amka == amka, PatientCondition.pharmacy_id == pharmacy_id
+                PatientCondition.id == condition_id,
+                PatientCondition.amka == amka,
+                PatientCondition.pharmacy_id == pharmacy_id,
+                PatientCondition.active.is_(True),
             )
         )
-    ).all()
+    ).one_or_none()
+
+
+async def create_condition(
+    session: AsyncSession,
+    *,
+    amka: str,
+    condition_code: str,
+    name: str,
+    severity: str | None,
+    notes: str | None,
+    recorded_by: uuid.UUID,
+    pharmacy_id: uuid.UUID,
+) -> PatientCondition:
+    condition = PatientCondition(
+        amka=amka,
+        condition_code=condition_code,
+        name=name,
+        severity=severity,
+        notes=notes,
+        recorded_by=recorded_by,
+        pharmacy_id=pharmacy_id,
+        active=True,
+    )
+    session.add(condition)
+    await session.commit()
+    await session.refresh(condition)
+    return condition
+
+
+async def update_condition(
+    session: AsyncSession,
+    condition: PatientCondition,
+    *,
+    fields: dict,
+) -> PatientCondition:
+    """Apply a partial update. `fields` holds only the keys the caller sent."""
+    for key, value in fields.items():
+        setattr(condition, key, value)
+    await session.commit()
+    await session.refresh(condition)
+    return condition
+
+
+async def deactivate_condition(
+    session: AsyncSession, condition: PatientCondition
+) -> PatientCondition:
+    """Soft delete: keep the row for audit, flip active=false."""
+    condition.active = False
+    await session.commit()
+    await session.refresh(condition)
+    return condition
 
 
 async def resolve(patient_key: str) -> dict | None:

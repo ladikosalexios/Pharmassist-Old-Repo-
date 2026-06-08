@@ -433,6 +433,54 @@ export async function getPatientConditions(patientId: string): Promise<PatientCo
   return data as PatientCondition[];
 }
 
+export interface PatientConditionInput {
+  conditionCode: string;
+  name: string;
+  severity?: string | null;
+  notes?: string | null;
+}
+
+export async function createPatientCondition(
+  patientId: string,
+  body: PatientConditionInput,
+): Promise<PatientCondition> {
+  const r = await fetch(`${API_BASE}/patients/${encodeURIComponent(patientId)}/conditions`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify(body),
+  });
+  return handle(r) as Promise<PatientCondition>;
+}
+
+export async function updatePatientCondition(
+  patientId: string,
+  conditionId: string,
+  body: Partial<PatientConditionInput>,
+): Promise<PatientCondition> {
+  const r = await fetch(
+    `${API_BASE}/patients/${encodeURIComponent(patientId)}/conditions/${encodeURIComponent(conditionId)}`,
+    {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify(body),
+    },
+  );
+  return handle(r) as Promise<PatientCondition>;
+}
+
+export async function deletePatientCondition(
+  patientId: string,
+  conditionId: string,
+): Promise<PatientCondition> {
+  const r = await fetch(
+    `${API_BASE}/patients/${encodeURIComponent(patientId)}/conditions/${encodeURIComponent(conditionId)}`,
+    { method: "DELETE", credentials: "include" },
+  );
+  return handle(r) as Promise<PatientCondition>;
+}
+
 export async function generateInstructions(
   rxId: string,
   language: string,

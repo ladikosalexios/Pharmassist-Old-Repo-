@@ -5,10 +5,16 @@ Order matters: ``/{patient_id}/prescriptions`` and
 sub-resource paths win over the catch-all profile fetch.
 """
 
+import uuid
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.schemas.patient_conditions import PatientConditionPayload
+from app.schemas.patient_conditions import (
+    PatientConditionCreate,
+    PatientConditionPayload,
+    PatientConditionUpdate,
+)
 from app.schemas.patient_insurances import PatientInsurancePayload
 from app.schemas.patients import RxHistoryPage
 from app.services.pharmacy import find_pharmacy_by_name
@@ -17,7 +23,16 @@ from app.utils.environment import is_mock_pharmapi
 
 from ..db.session import get_session
 from ..deps import get_current_user
-from ..services.patients import adr_history, conditions, resolve, rx_history_page
+from ..services.patients import (
+    adr_history,
+    conditions,
+    create_condition,
+    deactivate_condition,
+    get_condition,
+    resolve,
+    rx_history_page,
+    update_condition,
+)
 
 router = APIRouter(prefix="/patients", tags=["patients"])
 
@@ -60,7 +75,95 @@ async def get_patient_conditions(
     if profile is None:
         raise HTTPException(status_code=404, detail=f"Patient {patient_id} not found")
     pharmacy = await find_pharmacy_by_name(session, current["pharmacy"])
+    if pharmacy is None:
+        raise HTTPException(status_code=403, detail="Pharmacy not found")
     return await conditions(session, profile["amka"], pharmacy.id)
+
+
+@router.post(
+    "/{patient_id}/conditions",
+    response_model=PatientConditionPayload,
+    status_code=201,
+)
+async def create_patient_condition(
+    patient_id: str,
+    body: PatientConditionCreate,
+    current: dict = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """Record a new condition for a patient at the current pharmacy.
+
+    `recordedBy` is the signed-in pharmacist; `pharmacyId` comes from the
+    session (resolved the same way GET does), so the created row is visible to
+    the GET list and picked up by the safety engine on the next evaluation.
+    """
+    profile = await resolve(patient_id)
+    if profile is None:
+        raise HTTPException(status_code=404, detail=f"Patient {patient_id} not found")
+    pharmacy = await find_pharmacy_by_name(session, current["pharmacy"])
+    if pharmacy is None:
+        raise HTTPException(status_code=403, detail="Pharmacy not found")
+    return await create_condition(
+        session,
+        amka=profile["amka"],
+        condition_code=body.condition_code,
+        name=body.name,
+        severity=body.severity,
+        notes=body.notes,
+        recorded_by=uuid.UUID(current["pharmacist_id"]),
+        pharmacy_id=pharmacy.id,
+    )
+
+
+@router.patch(
+    "/{patient_id}/conditions/{condition_id}",
+    response_model=PatientConditionPayload,
+)
+async def update_patient_condition(
+    patient_id: str,
+    condition_id: uuid.UUID,
+    body: PatientConditionUpdate,
+    current: dict = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """Partial update — only the fields present in the body are changed."""
+    profile = await resolve(patient_id)
+    if profile is None:
+        raise HTTPException(status_code=404, detail=f"Patient {patient_id} not found")
+    pharmacy = await find_pharmacy_by_name(session, current["pharmacy"])
+    if pharmacy is None:
+        raise HTTPException(status_code=403, detail="Pharmacy not found")
+    condition = await get_condition(session, condition_id, profile["amka"], pharmacy.id)
+    if condition is None:
+        raise HTTPException(status_code=404, detail=f"Condition {condition_id} not found")
+    fields = body.model_dump(exclude_unset=True)
+    if not fields:
+        return condition
+    return await update_condition(session, condition, fields=fields)
+
+
+@router.delete(
+    "/{patient_id}/conditions/{condition_id}",
+    response_model=PatientConditionPayload,
+)
+async def delete_patient_condition(
+    patient_id: str,
+    condition_id: uuid.UUID,
+    current: dict = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """Soft delete — flips active=false so the row stays for audit but drops
+    out of the GET list and the safety engine."""
+    profile = await resolve(patient_id)
+    if profile is None:
+        raise HTTPException(status_code=404, detail=f"Patient {patient_id} not found")
+    pharmacy = await find_pharmacy_by_name(session, current["pharmacy"])
+    if pharmacy is None:
+        raise HTTPException(status_code=403, detail="Pharmacy not found")
+    condition = await get_condition(session, condition_id, profile["amka"], pharmacy.id)
+    if condition is None:
+        raise HTTPException(status_code=404, detail=f"Condition {condition_id} not found")
+    return await deactivate_condition(session, condition)
 
 
 @router.get("/{patient_id}/insurances", response_model=list[PatientInsurancePayload])
