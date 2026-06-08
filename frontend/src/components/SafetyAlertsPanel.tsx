@@ -66,9 +66,11 @@ const SEVERITY_COLOR: Record<Severity, string> = {
 interface SafetyAlertsPanelProps {
   /** Cap the visible scroll area; defaults to 24rem. */
   maxHeightClass?: string;
+  /** Header label; defaults to the generic "Safety Alerts" string. */
+  title?: string;
 }
 
-export function SafetyAlertsPanel({ maxHeightClass = "max-h-96" }: SafetyAlertsPanelProps) {
+export function SafetyAlertsPanel({ maxHeightClass = "max-h-96", title }: SafetyAlertsPanelProps) {
   const { t } = useTranslation();
   const [alerts, setAlerts] = useState<ActiveAlert[] | null>(null);
   const [loading, setLoading] = useState(true);
@@ -104,7 +106,7 @@ export function SafetyAlertsPanel({ maxHeightClass = "max-h-96" }: SafetyAlertsP
       <header className="flex items-center gap-2 border-b border-slate-200 px-5 py-4 dark:border-slate-800">
         <AlertCircleIcon width={16} height={16} className="text-red-600 dark:text-red-400" />
         <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">
-          {t("safetyAlerts.title")}
+          {title ?? t("safetyAlerts.title")}
         </h2>
         {alerts && (
           <span className="ml-auto text-xs font-medium text-slate-500 dark:text-slate-400">
