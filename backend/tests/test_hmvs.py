@@ -47,6 +47,9 @@ def _make_transport(state: dict) -> httpx.MockTransport:
     def handler(request: httpx.Request) -> httpx.Response:
         if request.url.path.endswith("/identity/connect/token"):
             state["token_calls"] += 1
+            token_status = state.get("token_status", 200)
+            if token_status != 200:
+                return httpx.Response(token_status, json={"error": "invalid_client"})
             return httpx.Response(
                 200,
                 json={
@@ -57,10 +60,10 @@ def _make_transport(state: dict) -> httpx.MockTransport:
             )
         if request.method == "GET":
             status, body = state["verify"]
-            return httpx.Response(status, json=body)
+            return httpx.Response(status, json=body, headers=state.get("verify_headers", {}))
         if request.method == "PATCH":
             status, body = state["patch"]
-            return httpx.Response(status, json=body)
+            return httpx.Response(status, json=body, headers=state.get("patch_headers", {}))
         return httpx.Response(500, json={})
 
     return httpx.MockTransport(handler)
@@ -424,3 +427,144 @@ def test_replay_pending_marks_completed_failed_and_keeps_throttled(monkeypatch):
     assert op_ok.status == "completed"
     assert op_fail.status == "failed"
     assert op_throttle.status == "pending"  # 429 left pending for the next pass
+
+
+# ── F1: OAuth2 token endpoint failure surfaces as HTTPStatusError ─────────────
+
+
+def test_token_endpoint_non_200_raises_httpstatuserror():
+    """Non-2xx from the IDP (revoked creds, 401, 500…) must raise — the router
+    catches HTTPStatusError to map it to 502 ``HMVS auth failed`` plus an audit
+    row, instead of letting it surface as an opaque 500."""
+    state = {
+        "token_calls": 0,
+        "token_status": 401,
+        "verify": (200, {}),
+        "patch": (200, {}),
+    }
+    _install(state)
+
+    with pytest.raises(httpx.HTTPStatusError):
+        asyncio.run(hmvs.verify("G", "S", "B", "260101", client_id=CID, client_secret=SECRET))
+
+    # And the error must not echo the form body (would leak the secret).
+    state2 = {
+        "token_calls": 0,
+        "token_status": 401,
+        "verify": (200, {}),
+        "patch": (200, {}),
+    }
+    _install(state2)
+    try:
+        asyncio.run(hmvs.verify("G", "S", "B", "260101", client_id=CID, client_secret=SECRET))
+    except httpx.HTTPStatusError as exc:
+        assert SECRET not in str(exc)
+        assert "401" in str(exc)
+
+
+# ── F2: 429 Retry-After is parsed, persisted, and surfaced ────────────────────
+
+
+def test_retry_after_seconds_parsed_from_delay_header():
+    """RFC 7231 delay-seconds form: bare integer string."""
+    state = {
+        "token_calls": 0,
+        "verify": (200, {}),
+        "patch": (429, {"operationCode": "NMVS_NC_PCK_03"}),
+        "patch_headers": {"Retry-After": "42"},
+    }
+    _install(state)
+
+    r = asyncio.run(
+        hmvs.change_state(
+            "G", "S", "B", "260101", target_state="Supplied", client_id=CID, client_secret=SECRET
+        )
+    )
+
+    assert not r.ok and r.http_status == 429
+    assert r.retry_after_seconds == 42
+
+
+def test_retry_after_seconds_parsed_from_http_date_header():
+    """RFC 7231 HTTP-date form: e.g. ``Tue, 09 Jun 2126 12:00:00 GMT``.
+
+    Future date → positive seconds-to-back-off (clamped at zero for past dates)."""
+    state = {
+        "token_calls": 0,
+        "verify": (200, {}),
+        "patch": (429, {}),
+        # Far enough in the future that the diff stays positive regardless of
+        # when the test executes.
+        "patch_headers": {"Retry-After": "Tue, 09 Jun 2126 12:00:00 GMT"},
+    }
+    _install(state)
+
+    r = asyncio.run(
+        hmvs.change_state(
+            "G", "S", "B", "260101", target_state="Supplied", client_id=CID, client_secret=SECRET
+        )
+    )
+
+    assert r.http_status == 429
+    assert r.retry_after_seconds is not None and r.retry_after_seconds > 0
+
+
+def test_retry_after_seconds_absent_or_garbage_returns_none():
+    """No header → None; garbage header → None (never crash the dispense path)."""
+    # No header at all.
+    state = {"token_calls": 0, "verify": (200, {}), "patch": (429, {})}
+    _install(state)
+    r1 = asyncio.run(
+        hmvs.change_state(
+            "G", "S", "B", "260101", target_state="Supplied", client_id=CID, client_secret=SECRET
+        )
+    )
+    assert r1.http_status == 429 and r1.retry_after_seconds is None
+
+    # Garbage header value.
+    state2 = {
+        "token_calls": 0,
+        "verify": (200, {}),
+        "patch": (429, {}),
+        "patch_headers": {"Retry-After": "not-a-number-or-date"},
+    }
+    _install(state2)
+    r2 = asyncio.run(
+        hmvs.change_state(
+            "G", "S", "B", "260101", target_state="Supplied", client_id=CID, client_secret=SECRET
+        )
+    )
+    assert r2.http_status == 429 and r2.retry_after_seconds is None
+
+
+def test_change_state_idempotent_persists_retry_after_on_throttle(monkeypatch):
+    """The 429 path persists the Retry-After hint on the hmvs_operations row so
+    the FE can render "retry in N seconds" and a future replay loop honours the
+    window instead of hammering through it."""
+
+    async def _throttled_change_state(*_a, **_k):
+        return hmvs.HmvsResult(ok=False, http_status=429, retry_after_seconds=17)
+
+    monkeypatch.setattr(hmvs, "change_state", _throttled_change_state)
+    session = _FakeHmvsSession()
+
+    r = asyncio.run(
+        hmvs.change_state_idempotent(
+            session,
+            pharmacist_id=uuid.uuid4(),
+            pharmacy_id=uuid.uuid4(),
+            gtin="G",
+            serial="S",
+            batch="B",
+            expiry="260101",
+            target_state="Supplied",
+            client_id=CID,
+            client_secret=SECRET,
+        )
+    )
+
+    assert r.http_status == 429 and r.queued is True
+    assert r.retry_after_seconds == 17
+    # Persisted on the row for replay_pending + introspection.
+    assert session._op.retry_after_seconds == 17
+    assert session._op.status == "pending"

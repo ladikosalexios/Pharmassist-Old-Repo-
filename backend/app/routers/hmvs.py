@@ -61,6 +61,9 @@ def _body(result: HmvsResult, gtin: str, serial: str) -> dict:
         "warning": result.warning,
         "alertId": result.alert_id,
         "queued": result.queued,
+        # Throttle hint from a 429 Retry-After (seconds). None for any other
+        # response — the FE shows a "retry in N seconds" affordance when set.
+        "retryAfterSeconds": result.retry_after_seconds,
     }
 
 
@@ -94,14 +97,28 @@ async def verify_pack(
 ):
     """Confirm a scanned pack is genuine/active in the HMVS registry."""
     client_id, client_secret = await _resolve_credentials(db, current["pharmacist_id"])
+    path = f"/pharmapi/hmvs/product/gs1/{gtin}/pack/{serial}"
     try:
         result = await hmvs.verify(
             gtin, serial, batch, expiry, client_id=client_id, client_secret=client_secret
         )
     except (httpx.TimeoutException, httpx.TransportError) as exc:
         raise HTTPException(status_code=504, detail="HMVS registry unreachable") from exc
+    except httpx.HTTPStatusError as exc:
+        # OAuth2 token endpoint refused the IDP creds (typically 401/403). Without
+        # this branch the failure surfaced as an opaque 500 with no audit row —
+        # the dispense was silently un-attributable. Map to 502 (upstream rejected
+        # us) and still write the audit row so inspectors see the attempt.
+        fire_hmvs_audit(
+            pharmacist_id=uuid.UUID(current["pharmacist_id"]),
+            pharmacy_id=uuid.UUID(current["pharmacy_id"]),
+            action="HMVS_VERIFIED",
+            resource_id=serial,
+            pharmapi_path=path,
+            pharmapi_status=502,
+        )
+        raise HTTPException(status_code=502, detail="HMVS auth failed") from exc
 
-    path = f"/pharmapi/hmvs/product/gs1/{gtin}/pack/{serial}"
     fire_hmvs_audit(
         pharmacist_id=uuid.UUID(current["pharmacist_id"]),
         pharmacy_id=uuid.UUID(current["pharmacy_id"]),
@@ -132,21 +149,35 @@ async def change_pack_state(
     client retry after a timeout cannot double-supply.
     """
     client_id, client_secret = await _resolve_credentials(db, current["pharmacist_id"])
-    result = await hmvs.change_state_idempotent(
-        db,
-        pharmacist_id=uuid.UUID(current["pharmacist_id"]),
-        pharmacy_id=uuid.UUID(current["pharmacy_id"]),
-        gtin=gtin,
-        serial=serial,
-        batch=batch,
-        expiry=expiry,
-        target_state=body.state,
-        client_id=client_id,
-        client_secret=client_secret,
-    )
-
     path = f"/pharmapi/hmvs/product/gs1/{gtin}/pack/{serial}"
     action = "HMVS_DECOMMISSIONED" if body.state == hmvs.STATE_SUPPLIED else "HMVS_REACTIVATED"
+    try:
+        result = await hmvs.change_state_idempotent(
+            db,
+            pharmacist_id=uuid.UUID(current["pharmacist_id"]),
+            pharmacy_id=uuid.UUID(current["pharmacy_id"]),
+            gtin=gtin,
+            serial=serial,
+            batch=batch,
+            expiry=expiry,
+            target_state=body.state,
+            client_id=client_id,
+            client_secret=client_secret,
+        )
+    except httpx.HTTPStatusError as exc:
+        # Token-endpoint refusal during a state change. Mirrors verify_pack: 502
+        # with an audit row, never an opaque 500 — a failed decommission attempt
+        # has to be inspector-visible.
+        fire_hmvs_audit(
+            pharmacist_id=uuid.UUID(current["pharmacist_id"]),
+            pharmacy_id=uuid.UUID(current["pharmacy_id"]),
+            action=action,
+            resource_id=serial,
+            pharmapi_path=path,
+            pharmapi_status=502,
+        )
+        raise HTTPException(status_code=502, detail="HMVS auth failed") from exc
+
     fire_hmvs_audit(
         pharmacist_id=uuid.UUID(current["pharmacist_id"]),
         pharmacy_id=uuid.UUID(current["pharmacy_id"]),
