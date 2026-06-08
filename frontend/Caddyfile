@@ -34,7 +34,9 @@
 	# matches `/x/y` but NOT a bare `/x`, and several routers expose a bare-prefix
 	# route (e.g. GET /prescriptions — the queue, GET/POST /messages). Without the
 	# bare entry those would fall through to the SPA catch-all and 404 the API.
-	@api path /auth /auth/* /pharmapi /pharmapi/* /prescriptions /prescriptions/* /safety-checks /safety-checks/* /spc /spc/* /alerts /alerts/* /messages /messages/* /notifications /notifications/* /health /health/*
+	# /admin is included so the runbook's POST /admin/invite reaches the backend
+	# (file_server would otherwise 405 the POST).
+	@api path /auth /auth/* /admin /admin/* /pharmapi /pharmapi/* /prescriptions /prescriptions/* /safety-checks /safety-checks/* /spc /spc/* /alerts /alerts/* /messages /messages/* /notifications /notifications/* /health /health/*
 	handle @api {
 		reverse_proxy backend:8000
 	}

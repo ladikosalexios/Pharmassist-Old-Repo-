@@ -16,6 +16,14 @@
 #   • The Postgres port is NOT published; only Caddy (80/443) faces the host.
 name: pharmassist-pilot
 
+# Cap container log growth so a long-running single-box pilot can't fill the
+# host disk with the default unbounded json-file driver.
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "50m"
+    max-file: "5"
+
 services:
   # Caddy: serves the compiled SPA and reverse-proxies the API to backend:8000.
   frontend:
@@ -24,6 +32,9 @@ services:
       context: ./frontend
       dockerfile: Dockerfile.prod
     restart: unless-stopped
+    logging: *default-logging
+    networks:
+      - web
     ports:
       - "80:80"
       - "443:443"
@@ -51,6 +62,12 @@ services:
     # Host port intentionally NOT published — Caddy reaches it as backend:8000
     # over the compose network. `expose` documents the port without binding it
     # to the host (which would bypass TLS + the cookie-secure boundary).
+    logging: *default-logging
+    networks:
+      # Bridges the web tier (Caddy) and the data tier (db). Only this service
+      # sits on both, so Caddy has no route to Postgres.
+      - web
+      - data
     expose:
       - "8000"
     environment:
@@ -78,6 +95,10 @@ services:
   db:
     image: postgres:16-alpine
     restart: unless-stopped
+    logging: *default-logging
+    networks:
+      # Data tier only — not reachable from Caddy.
+      - data
     environment:
       POSTGRES_DB: pharmassist
       POSTGRES_USER: pharmassist
@@ -99,3 +120,8 @@ volumes:
   pgdata:
   caddy_data:
   caddy_config:
+
+networks:
+  # Two tiers so the database has no L2 path to the internet-facing proxy.
+  web:
+  data:
