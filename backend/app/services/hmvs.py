@@ -405,7 +405,7 @@ async def replay_pending(
         )
     ).all()
     completed = 0
-    for op in pending:
+    for idx, op in enumerate(pending):
         op.attempts = (op.attempts or 0) + 1
         try:
             result = await change_state(
@@ -419,6 +419,19 @@ async def replay_pending(
             )
         except (httpx.TimeoutException, httpx.TransportError):
             continue  # still unreachable — leave pending for the next pass
+        except httpx.HTTPStatusError as exc:
+            # Token endpoint refused the creds (revoked / 401). Every remaining
+            # op in this batch shares the same client_id, so spinning through
+            # them would hammer the IDP with identical failures. Bail out of the
+            # batch and let the next replay_pending pass try again — if the creds
+            # have been rotated back by then, the queue drains naturally; if not,
+            # one warning per pass beats N. Pending ops stay pending.
+            logger.warning(
+                "[HMVS] replay halted on auth failure (%s) — %d ops left pending",
+                exc,
+                len(pending) - idx - 1,
+            )
+            break
         if result.ok:
             op.status = "completed"
             op.operation_code = result.operation_code

@@ -557,3 +557,71 @@ def test_change_state_idempotent_persists_retry_after_on_throttle(monkeypatch):
     # Persisted on the row for replay_pending + introspection.
     assert session._op.retry_after_seconds == 17
     assert session._op.status == "pending"
+
+
+# ── replay_pending bail-out on token auth failure (PR #127) ───────────────────
+
+
+def test_replay_pending_halts_on_token_auth_failure_and_keeps_remaining_pending(monkeypatch):
+    """When ``_get_token`` raises HTTPStatusError (revoked / 401 IDP creds),
+    replay_pending must bail out of the batch — every remaining op shares the
+    same client_id and would hit the identical wall. The current op AND every
+    subsequent one stays ``pending`` so the next replay pass can drain them once
+    the creds are rotated back."""
+    op_first = hmvs.HmvsOperation(
+        idempotency_key="G:FIRST:B:Supplied",
+        gtin="G",
+        serial="FIRST",
+        batch="B",
+        expiry="260101",
+        target_state="Supplied",
+        status="pending",
+        attempts=0,
+    )
+    op_second = hmvs.HmvsOperation(
+        idempotency_key="G:SECOND:B:Supplied",
+        gtin="G",
+        serial="SECOND",
+        batch="B",
+        expiry="260101",
+        target_state="Supplied",
+        status="pending",
+        attempts=0,
+    )
+    op_third = hmvs.HmvsOperation(
+        idempotency_key="G:THIRD:B:Supplied",
+        gtin="G",
+        serial="THIRD",
+        batch="B",
+        expiry="260101",
+        target_state="Supplied",
+        status="pending",
+        attempts=0,
+    )
+
+    calls = {"n": 0}
+
+    async def _auth_failure(*_a, **_k):
+        calls["n"] += 1
+        # Build a real HTTPStatusError so the except branch sees the right shape.
+        req = httpx.Request("POST", "https://api-ite.nmvo.eu/identity/connect/token")
+        resp = httpx.Response(401, json={"error": "invalid_client"}, request=req)
+        raise httpx.HTTPStatusError("HMVS token endpoint returned 401", request=req, response=resp)
+
+    monkeypatch.setattr(hmvs, "change_state", _auth_failure)
+    session = _FakeReplaySession([op_first, op_second, op_third])
+
+    completed = asyncio.run(hmvs.replay_pending(session, client_id=CID, client_secret=SECRET))
+
+    assert completed == 0
+    # change_state called exactly once — the loop broke after the first failure
+    # instead of hammering the IDP with three identical token requests.
+    assert calls["n"] == 1
+    # First op's attempts counter advanced (the attempt happened) but it stays
+    # pending — creds may be rotated back before the next replay.
+    assert op_first.status == "pending" and op_first.attempts == 1
+    # Subsequent ops were skipped entirely (no attempt, no status change).
+    assert op_second.status == "pending" and op_second.attempts == 0
+    assert op_third.status == "pending" and op_third.attempts == 0
+    # And the session still committed once so op_first.attempts persists.
+    assert session.commits == 1
