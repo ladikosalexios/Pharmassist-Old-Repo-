@@ -429,6 +429,14 @@
     "capsLockWarning": "Turn off Caps Lock before continuing",
     "layoutWarning": "Switch your keyboard language to English before continuing"
   },
+  "hmvsCheck": {
+    "title": "HMVS code input check",
+    "subtitle": "Demo screen — mock data only.",
+    "inputLabel": "Pack code (HMVS / FMD)",
+    "submit": "Verify pack",
+    "accepted": "Accepted — code is valid to submit.",
+    "demoNote": "Caps Lock or a non-English keyboard layout shows a warning and blocks submission until the field is clean."
+  },
   "approve": {
     "title": "Confirm Prescription Approval",
     "subtitle": "once approved, the prescription is recorded.",
