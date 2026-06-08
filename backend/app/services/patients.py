@@ -9,7 +9,9 @@ import asyncio
 import logging
 import uuid
 
+from fastapi import HTTPException
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.patient_condition import PatientCondition
@@ -654,6 +656,18 @@ async def get_condition(
     ).one_or_none()
 
 
+_DUPLICATE_ACTIVE_CONDITION_CONSTRAINT = "uq_patient_conditions_amka_condition_active"
+
+
+def _is_duplicate_active_condition(exc: IntegrityError) -> bool:
+    """True only when the partial unique index on (amka, condition_code) fired.
+
+    Other IntegrityErrors (FK violations, NOT NULL, etc.) are server-side bugs
+    that should surface as 500, not be misreported as a duplicate condition.
+    """
+    return _DUPLICATE_ACTIVE_CONDITION_CONSTRAINT in str(exc.orig)
+
+
 async def create_condition(
     session: AsyncSession,
     *,
@@ -676,7 +690,21 @@ async def create_condition(
         active=True,
     )
     session.add(condition)
-    await session.commit()
+    try:
+        await session.commit()
+    except IntegrityError as exc:
+        await session.rollback()
+        if _is_duplicate_active_condition(exc):
+            logger.info(
+                "Duplicate active condition blocked: amka=%s code=%s",
+                amka,
+                condition_code,
+            )
+            raise HTTPException(
+                status_code=409,
+                detail="Condition already recorded for this patient",
+            ) from None
+        raise
     await session.refresh(condition)
     return condition
 
@@ -687,10 +715,33 @@ async def update_condition(
     *,
     fields: dict,
 ) -> PatientCondition:
-    """Apply a partial update. `fields` holds only the keys the caller sent."""
+    """Apply a partial update. `fields` holds only the keys the caller sent.
+
+    PATCHing ``condition_code`` to a value that already has an active row for
+    the same patient violates the partial unique index — translate that to 409
+    rather than the raw IntegrityError 500.
+    """
     for key, value in fields.items():
         setattr(condition, key, value)
-    await session.commit()
+    # Snapshot for the log before commit — rollback() detaches the instance,
+    # so a post-rollback attribute read would trigger a lazy load (greenlet).
+    amka_snapshot = condition.amka
+    code_snapshot = condition.condition_code
+    try:
+        await session.commit()
+    except IntegrityError as exc:
+        await session.rollback()
+        if _is_duplicate_active_condition(exc):
+            logger.info(
+                "Duplicate active condition blocked on PATCH: amka=%s code=%s",
+                amka_snapshot,
+                code_snapshot,
+            )
+            raise HTTPException(
+                status_code=409,
+                detail="Condition already recorded for this patient",
+            ) from None
+        raise
     await session.refresh(condition)
     return condition
 

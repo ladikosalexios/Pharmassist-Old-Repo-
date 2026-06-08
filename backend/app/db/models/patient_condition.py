@@ -12,6 +12,16 @@ class PatientCondition(Base, TimestampMixin):
     __tablename__ = "patient_conditions"
     __table_args__ = (
         Index("ix_patient_conditions_amka_active", "amka", postgresql_where=text("active = true")),
+        # Stop double-click duplicates on the Save-condition modal; one canonical
+        # active row per (amka, condition_code). Soft-deleted rows (active=false)
+        # stay for audit and are excluded by the partial predicate.
+        Index(
+            "uq_patient_conditions_amka_condition_active",
+            "amka",
+            "condition_code",
+            unique=True,
+            postgresql_where=text("active = true"),
+        ),
     )
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
