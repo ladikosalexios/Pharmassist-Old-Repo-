@@ -363,6 +363,8 @@ export function DispenseWizard({
                           value={payload}
                           onChange={setPayload}
                           onBlock={setHmvsBlock}
+                          mono
+                          ariaLabel={t("dispense.scanPrompt")}
                           disabled={view === "s1-verifying"}
                           onKeyDown={(e) => {
                             if (
@@ -378,7 +380,10 @@ export function DispenseWizard({
                       </div>
                       <button
                         type="button"
-                        onClick={() => setManual(true)}
+                        onClick={() => {
+                          setManual(true);
+                          setHmvsBlock(null);
+                        }}
                         disabled={view === "s1-verifying"}
                         className="mt-2.5 text-[12.5px] font-medium text-brand-600 dark:text-brand-400 hover:text-brand-700 disabled:opacity-50"
                       >

@@ -23,8 +23,12 @@ export interface HmvsSecureInputProps {
   onBlock: (reason: HmvsBlockReason) => void;
   /** Optional visible label; omit when the surrounding UI already labels the field. */
   label?: string;
+  /** Accessible name forwarded to the input — supply when `label` is omitted. */
+  ariaLabel?: string;
   placeholder?: string;
   disabled?: boolean;
+  /** Render the value in a monospace font (for fixed-width codes like GS1). */
+  mono?: boolean;
   onKeyDown?: KeyboardEventHandler<HTMLInputElement>;
   /**
    * External ref to the underlying input — used both for parent-driven focus
@@ -51,8 +55,10 @@ export function HmvsSecureInput({
   onChange,
   onBlock,
   label,
+  ariaLabel,
   placeholder,
   disabled,
+  mono,
   onKeyDown,
   inputRef,
 }: HmvsSecureInputProps) {
@@ -111,11 +117,13 @@ export function HmvsSecureInput({
         autoCapitalize="off"
         autoCorrect="off"
         spellCheck={false}
+        aria-label={label ? undefined : ariaLabel}
         aria-invalid={blocked}
         aria-describedby={blocked ? warningsId : undefined}
         className={[
           "w-full rounded-lg border bg-white px-3.5 py-2.5 text-[14px] text-slate-900 outline-none transition-colors",
           "placeholder:text-slate-400 disabled:opacity-60 dark:bg-slate-950 dark:text-slate-100",
+          mono ? "mono placeholder:font-sans" : "",
           blocked
             ? "border-red-500 focus:border-red-500 focus:ring-2 focus:ring-red-100 dark:border-red-500/60 dark:focus:ring-red-500/20"
             : "border-slate-200 focus:border-brand-500 focus:ring-2 focus:ring-brand-100 dark:border-slate-700",
