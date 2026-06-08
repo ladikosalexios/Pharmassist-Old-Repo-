@@ -16,6 +16,7 @@ import { useTranslation } from "react-i18next";
 import { ApiError, approvePrescription } from "../lib/api";
 import { hmvsVerify } from "../lib/hmvs";
 import { useModalRegistration } from "../lib/keyboard";
+import { HmvsSecureInput, type HmvsBlockReason } from "./HmvsSecureInput";
 
 type WizardView =
   | "s1-idle"
@@ -114,6 +115,8 @@ export function DispenseWizard({
   const [view, setView] = useState<WizardView>("s1-idle");
   const [manual, setManual] = useState(false);
   const [payload, setPayload] = useState("");
+  // Caps Lock / wrong-keyboard-layout guard for the scanned pack code (H1).
+  const [hmvsBlock, setHmvsBlock] = useState<HmvsBlockReason>(null);
   const [scheme, setScheme] = useState<"GS1" | "PPN">("GS1");
   // Controlled state for manual-entry fields
   const [manualProductCode, setManualProductCode] = useState("");
@@ -134,6 +137,7 @@ export function DispenseWizard({
     setView("s1-idle");
     setManual(false);
     setPayload("");
+    setHmvsBlock(null);
     setScheme("GS1");
     setManualProductCode("");
     setManualSerial("");
@@ -166,6 +170,9 @@ export function DispenseWizard({
   }, [open, view, onClose]);
 
   async function handleVerify() {
+    // Defence in depth: never verify a scanned code that the H1 guard flagged
+    // (Caps Lock / wrong layout), even if a caller bypasses the disabled button.
+    if (!manual && hmvsBlock !== null) return;
     setView("s1-verifying");
     setVerifyError(null);
     // In manual mode, assemble GS1/PPN fields into the payload string sent to hmvsVerify
@@ -350,18 +357,25 @@ export function DispenseWizard({
                           </>
                         )}
                       </div>
-                      <input
-                        ref={inputRef}
-                        value={payload}
-                        onChange={(e) => setPayload(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter" && payload.trim() && view === "s1-idle")
-                            handleVerify();
-                        }}
-                        disabled={view === "s1-verifying"}
-                        placeholder="01057001234567892..."
-                        className="mono mt-3 w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3.5 py-2.5 text-[13px] text-slate-900 dark:text-slate-100 outline-none placeholder:font-sans placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-brand-500 focus:ring-2 focus:ring-brand-100 disabled:bg-slate-50 dark:disabled:bg-slate-800"
-                      />
+                      <div className="mt-3">
+                        <HmvsSecureInput
+                          inputRef={inputRef}
+                          value={payload}
+                          onChange={setPayload}
+                          onBlock={setHmvsBlock}
+                          disabled={view === "s1-verifying"}
+                          onKeyDown={(e) => {
+                            if (
+                              e.key === "Enter" &&
+                              payload.trim() &&
+                              view === "s1-idle" &&
+                              hmvsBlock === null
+                            )
+                              handleVerify();
+                          }}
+                          placeholder="01057001234567892..."
+                        />
+                      </div>
                       <button
                         type="button"
                         onClick={() => setManual(true)}
@@ -445,6 +459,7 @@ export function DispenseWizard({
                     onClick={() => {
                       setView("s1-idle");
                       setPayload("");
+                      setHmvsBlock(null);
                       setShowDetails(false);
                     }}
                     className="rounded-lg bg-brand-600 px-4 py-2 text-[13px] font-semibold text-white transition-colors hover:bg-brand-700"
@@ -466,6 +481,7 @@ export function DispenseWizard({
                     disabled={
                       view === "s1-verifying" ||
                       (!manual && !payload.trim()) ||
+                      (!manual && hmvsBlock !== null) ||
                       (manual && !manualProductCode.trim())
                     }
                     className="flex items-center gap-1.5 rounded-lg bg-brand-600 px-4 py-2 text-[13px] font-semibold text-white transition-colors hover:bg-brand-700 disabled:bg-brand-600/70"
