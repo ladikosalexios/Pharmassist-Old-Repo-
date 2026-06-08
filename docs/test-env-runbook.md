@@ -217,9 +217,18 @@ Identical to the pilot runbook §8–§10 — substitute `compose.test.yaml` /
 `.env.test` everywhere `compose.prod.yaml` / `.env.prod` appears. The two
 stacks co-exist on the same host because the compose project names
 (`pharmassist-test` vs. `pharmassist-pilot`) and the pgdata volume names
-(`pgdata_test` vs. `pgdata`) are distinct. They **cannot run on the same
-ports at the same time** — bind only one of them to 443 unless you front
-both with a different Caddy.
+(`pgdata_test` vs. `pgdata`) are distinct.
+
+> ### ⚠️ Port collision when running side-by-side on one host
+> Both stacks default to host ports **80 / 443** — Docker's port binding is
+> exclusive, so the second `compose up` aborts with *"address already in
+> use"* before any container starts. Two ways out:
+> * Set `TEST_HTTP_PORT=8080` and `TEST_HTTPS_PORT=8443` in `.env.test`
+>   (the compose file exposes both as overridable variables). Testers then
+>   reach the stack at `https://<host>:8443/`. CORS / `PILOT_DOMAIN` follow
+>   the same hostname; no other changes needed.
+> * Or — the recommended deploy shape — give each stack its own host
+>   (or Tailscale node) so both can keep 443 and a real DNS name.
 
 ---
 

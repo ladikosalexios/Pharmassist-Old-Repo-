@@ -154,23 +154,12 @@ async def main() -> int:
         f"nhrn={result.nhrn} state={result.state}"
     )
 
-    # Fire the audit row that the router would write so assertion (b) has
-    # something to find. Using the same helper the router uses means we're
-    # exercising the actual fire-and-forget plumbing, not a synthetic insert.
-    fire_hmvs_audit(
-        pharmacist_id=pharmacist_id,
-        pharmacy_id=pharmacy_id,
-        action="HMVS_VERIFIED",
-        resource_id=args.serial,
-        pharmapi_path=f"/pharmapi/hmvs/product/gs1/{args.gtin}/pack/{args.serial}",
-        pharmapi_status=result.http_status,
-    )
-
     # ── Assertion (c): token came from /identity/connect/token ──────────────
     # _token_cache is keyed by client_id and populated only by _get_token, so
     # the presence of an entry with a non-empty access_token proves the IDP
-    # call succeeded. We check this BEFORE (a) so a misconfigured token URL
-    # surfaces with the most useful error.
+    # call succeeded. We check this BEFORE writing the audit row so a failed
+    # token check exits cleanly without leaving an orphan HMVS_VERIFIED row
+    # that a later re-run would mistake for (b) success.
     cached = hmvs._token_cache.get(settings.hmvs_client_id)
     if not cached or not cached.get("access_token"):
         return _fail(
@@ -179,6 +168,19 @@ async def main() -> int:
             "it; the code appends /identity/connect/token (see config.py:140-141)."
         )
     print("[test-env smoke] (c) OK — token minted via /identity/connect/token")
+
+    # Fire the audit row that the router would write so assertion (b) has
+    # something to find. Using the same helper the router uses means we're
+    # exercising the actual fire-and-forget plumbing, not a synthetic insert.
+    # Deliberately AFTER (c): a failed token mint must not leave an audit row.
+    fire_hmvs_audit(
+        pharmacist_id=pharmacist_id,
+        pharmacy_id=pharmacy_id,
+        action="HMVS_VERIFIED",
+        resource_id=args.serial,
+        pharmapi_path=f"/pharmapi/hmvs/product/gs1/{args.gtin}/pack/{args.serial}",
+        pharmapi_status=result.http_status,
+    )
 
     # ── Assertion (a): real nhrn (not the mock sentinel) ────────────────────
     # In live mode a 404 returns no nhrn; treat that as "wiring proved, but

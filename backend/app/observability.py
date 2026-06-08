@@ -29,6 +29,11 @@ from fastapi import FastAPI
 
 # ── JSON logging ────────────────────────────────────────────────────────────
 
+# Built-in LogRecord attributes — anything not in this set is treated as a
+# caller-supplied extra and copied into the JSON payload. Computed once at
+# module load so the formatter doesn't rebuild this on every single log line.
+_RESERVED_LOG_ATTRS = set(logging.LogRecord("", 0, "", 0, "", None, None).__dict__) | {"message"}
+
 
 class _JsonFormatter(logging.Formatter):
     """Minimal single-line JSON formatter — no extra dep.
@@ -46,11 +51,10 @@ class _JsonFormatter(logging.Formatter):
             "msg": record.getMessage(),
         }
         # Whitelist record-extras so we never accidentally leak credentials
-        # someone passed via ``extra={...}``. Reserved log-record attrs are
-        # filtered out; everything else stringifies.
-        _reserved = set(logging.LogRecord("", 0, "", 0, "", None, None).__dict__) | {"message"}
+        # someone passed via ``extra={...}``. Reserved attrs filtered out via
+        # the module-level set above.
         for k, v in record.__dict__.items():
-            if k in _reserved:
+            if k in _RESERVED_LOG_ATTRS:
                 continue
             try:
                 json.dumps(v)
