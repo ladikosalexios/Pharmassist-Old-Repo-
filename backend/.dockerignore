@@ -1,0 +1,14 @@
+# Never bake secrets or local caches into the prod image. scripts/ and alembic/
+# are intentionally NOT excluded — the runbook runs migrations and the seed
+# script inside this container.
+__pycache__/
+**/__pycache__/
+*.pyc
+.env
+.env.*
+.venv
+venv
+.pytest_cache
+.ruff_cache
+tests
+.DS_Store

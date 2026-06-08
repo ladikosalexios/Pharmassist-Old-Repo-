@@ -19,6 +19,7 @@ export default defineConfig({
     port: 5173,
     proxy: {
       "/auth": "http://backend:8000",
+      "/admin": "http://backend:8000",
       "/pharmapi": "http://backend:8000",
       "/prescriptions": "http://backend:8000",
       "/safety-checks": "http://backend:8000",

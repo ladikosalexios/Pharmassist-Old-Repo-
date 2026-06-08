@@ -1,0 +1,35 @@
+# Production image for the PharmAssist SPA: build the static bundle with Node,
+# then serve it (and reverse-proxy the API) with Caddy. Multi-stage so the
+# final image carries only Caddy + the compiled assets — no Node, no sources.
+#
+# Build:  docker build -f frontend/Dockerfile.prod -t pharmassist/frontend:prod ./frontend
+# (compose.prod.yaml builds it for you.)
+
+# syntax=docker/dockerfile:1
+
+# ─── Stage 1: build the SPA ──────────────────────────────────────────────────
+FROM node:26-bookworm-slim AS build
+WORKDIR /app
+
+# Copy manifests first so `npm ci` is cached until dependencies actually change.
+# `npm ci` installs exactly what's in package-lock.json — reproducible builds.
+COPY package.json package-lock.json ./
+RUN npm ci
+
+# Build the static bundle. `npm run build` == `tsc -b && vite build` → /app/dist.
+COPY . .
+RUN npm run build
+
+# ─── Stage 2: serve with Caddy ───────────────────────────────────────────────
+FROM caddy:2-alpine
+
+# Compiled SPA assets. The Caddyfile sets `root * /srv/dist`.
+COPY --from=build /app/dist /srv/dist
+# Site config: serves the SPA + reverse-proxies the API to backend:8000.
+COPY Caddyfile /etc/caddy/Caddyfile
+
+# 80 → ACME HTTP challenge + redirect to HTTPS; 443 → the app.
+EXPOSE 80 443
+
+# The base image's default entrypoint already runs:
+#   caddy run --config /etc/caddy/Caddyfile --adapter caddyfile

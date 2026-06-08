@@ -1,0 +1,41 @@
+# Production image for the PharmAssist FastAPI backend.
+#
+# Differences from the dev Dockerfile:
+#   • uvicorn runs WITHOUT --reload (no source bind mount, no file watcher).
+#   • A single worker — the 24h Pharmapi session tracker (pharmapi_session) is
+#     per-process in-memory state, so a second worker would hold a divergent
+#     session window. Scaling out requires moving that to Redis first.
+#   • Runs as a non-root user.
+#
+# Build:  docker build -f backend/Dockerfile.prod -t pharmassist/backend:prod ./backend
+# (compose.prod.yaml builds it for you.)
+
+# syntax=docker/dockerfile:1
+FROM python:3.13-slim
+
+# Don't buffer stdout/stderr (logs show up immediately) and don't write .pyc.
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1
+
+WORKDIR /usr/src/app
+
+# Install deps first for layer caching, then copy the app (incl. scripts/ and
+# alembic/ — the runbook runs migrations and the seed inside this container).
+COPY requirements.txt ./
+RUN pip install --no-cache-dir --upgrade -r requirements.txt
+COPY . .
+
+# Run as an unprivileged user. Created after COPY so the source is owned by it.
+RUN useradd --create-home --uid 10001 appuser \
+    && chown -R appuser:appuser /usr/src/app
+USER appuser
+
+EXPOSE 8000
+
+# Liveness probe — hits the public /health route (no auth required).
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+    CMD python -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health').status==200 else 1)"
+
+# Single worker, no reload. Bind all interfaces (compose network only — the
+# host port is deliberately NOT published in compose.prod.yaml).
+CMD ["python", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]

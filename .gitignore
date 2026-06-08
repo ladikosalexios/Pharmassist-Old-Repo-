@@ -1,5 +1,6 @@
 **/__pycache__/
 .env
+.env.prod
 backend/.env
 # Per-user / runtime Claude Code state — keep ignored
 .claude/settings.local.json

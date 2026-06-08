@@ -1,0 +1,71 @@
+# PharmAssist pilot — Caddy site config.
+#
+# Caddy plays the role Vite's dev server plays locally: it serves the compiled
+# SPA AND reverse-proxies the API to the backend. The proxy table below is the
+# production mirror of frontend/vite.config.ts `server.proxy` — keep the two in
+# lockstep when you add or rename a backend path.
+#
+# ── TLS — pick ONE mode (see docs/pilot-runbook.md §6) ───────────────────────
+#   • Public pilot  : set PILOT_DOMAIN=pilot.example.gr and leave CADDY_TLS
+#                     unset. Caddy provisions a real cert automatically over
+#                     ACME (Let's Encrypt / ZeroSSL). Ports 80+443 must be
+#                     reachable from the internet and the DNS A/AAAA record must
+#                     point here.
+#   • Tailscale-only: set CADDY_TLS="tls internal" for a cert from Caddy's own
+#                     internal CA — no public DNS or open ports needed. Testers
+#                     reach it over the tailnet at https://<tailscale-host> (the
+#                     stack publishes 443). Install Caddy's root CA on clients,
+#                     or set PILOT_DOMAIN to the node's MagicDNS name.
+# PILOT_DOMAIN defaults to localhost, which makes Caddy mint a local cert — handy
+# for a smoke test of this exact config on a dev box.
+
+{$PILOT_DOMAIN:localhost} {
+	# Expands to `tls internal` for tailnet deployments; empty (auto-HTTPS)
+	# otherwise. Env vars are substituted before the Caddyfile is parsed.
+	{$CADDY_TLS:}
+
+	encode zstd gzip
+	root * /srv/dist
+
+	# ── 1. Plain API prefixes ────────────────────────────────────────────────
+	# These never collide with a client-side route, so every method/Accept goes
+	# straight upstream. Mirrors the bare-string (prefix) entries in
+	# vite.config.ts. Each prefix is listed BOTH bare and as /*: Caddy's `/x/*`
+	# matches `/x/y` but NOT a bare `/x`, and several routers expose a bare-prefix
+	# route (e.g. GET /prescriptions — the queue, GET/POST /messages). Without the
+	# bare entry those would fall through to the SPA catch-all and 404 the API.
+	# /admin is included so the runbook's POST /admin/invite reaches the backend
+	# (file_server would otherwise 405 the POST).
+	@api path /auth /auth/* /admin /admin/* /pharmapi /pharmapi/* /prescriptions /prescriptions/* /safety-checks /safety-checks/* /spc /spc/* /alerts /alerts/* /messages /messages/* /notifications /notifications/* /health /health/*
+	handle @api {
+		reverse_proxy backend:8000
+	}
+
+	# ── 2. Overlap prefixes (SPA route AND API live under the same path) ─────
+	# This reproduces vite.config.ts `spaProxy`: a browser *navigation*
+	# (Accept: text/html) must render the SPA shell so client-side routing can
+	# take over; any other Accept (application/json, */*) is a data fetch and
+	# belongs to the backend. `handle` blocks are mutually exclusive and tried
+	# top-to-bottom, so the html case is matched first and the rest fall through.
+	@overlap_html {
+		path /documentation /documentation/* /side-effects /side-effects/* /patients /patients/* /instructions /instructions/*
+		header_regexp Accept text/html
+	}
+	handle @overlap_html {
+		rewrite * /index.html
+		file_server
+	}
+
+	@overlap_api path /documentation /documentation/* /side-effects /side-effects/* /patients /patients/* /instructions /instructions/*
+	handle @overlap_api {
+		reverse_proxy backend:8000
+	}
+
+	# ── 3. The SPA itself ────────────────────────────────────────────────────
+	# Serve the requested asset if it exists on disk, otherwise hand back
+	# index.html so deep links / refreshes (e.g. /login, /dashboard) don't 404.
+	handle {
+		try_files {path} /index.html
+		file_server
+	}
+}
