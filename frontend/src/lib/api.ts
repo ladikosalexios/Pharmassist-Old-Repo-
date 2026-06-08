@@ -30,10 +30,44 @@ export class ApiError extends Error {
   }
 }
 
+interface PydanticError {
+  loc?: (string | number)[];
+  msg?: string;
+}
+
+/**
+ * Build a human-readable message from a FastAPI error body's `detail`.
+ *
+ * `detail` is a plain string for app-raised HTTPExceptions, but an ARRAY of
+ * `{loc, msg, type}` objects for Pydantic 422 validation errors. Without this,
+ * the array stringifies to "[object Object]" in error banners. Falls back to
+ * `HTTP <status>` for empty or unexpected shapes.
+ */
+export function errorMessageFromDetail(status: number, detail: unknown): string {
+  if (typeof detail === "string" && detail.trim()) return detail;
+  if (Array.isArray(detail)) {
+    const parts = detail
+      .map((entry) => {
+        const err = entry as PydanticError;
+        if (!err || typeof err.msg !== "string") return "";
+        // Pydantic prefixes custom ValueErrors with "Value error, " — drop the noise.
+        const msg = err.msg.replace(/^Value error, /, "");
+        const field = Array.isArray(err.loc) ? err.loc[err.loc.length - 1] : undefined;
+        return field !== undefined ? `${field}: ${msg}` : msg;
+      })
+      .filter(Boolean);
+    if (parts.length) return parts.join("; ");
+  }
+  return `HTTP ${status}`;
+}
+
 async function handle(r: Response): Promise<unknown> {
   const data = await r.json().catch(() => ({}));
   if (!r.ok) {
-    throw new ApiError(r.status, (data as { detail?: string }).detail ?? `HTTP ${r.status}`);
+    throw new ApiError(
+      r.status,
+      errorMessageFromDetail(r.status, (data as { detail?: unknown }).detail),
+    );
   }
   return data;
 }
