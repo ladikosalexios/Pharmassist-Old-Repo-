@@ -23,6 +23,10 @@ services:
       # container itself; we want the `db` service on the compose network.
       DATABASE_URL: postgresql+asyncpg://pharmassist:pharmassist_dev@db:5432/pharmassist
       PHARMAPI_MOCK: "true"
+      # HMVS stays mocked in dev — canned ITE-style pack responses, no OAuth2
+      # token fetch. The client secret is NEVER inlined here (unlike PHARMAPI_*);
+      # live ITE runs set HMVS_MOCK=false + HMVS_CLIENT_ID/SECRET via env/SSM.
+      HMVS_MOCK: "true"
       # Tells the production guard in main.py not to fire when COOKIE_SECURE=false.
       # Production deployments must NOT set this (missing ENV defaults to "production").
       ENV: development

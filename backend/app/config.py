@@ -87,6 +87,18 @@ class Settings(BaseModel):
     pharmapi_keepalive_enabled: bool
     pharmapi_keepalive_interval_seconds: int
 
+    # ── HMVS (Hellenic Medicines Verification System / EU FMD) ──────────────
+    # OAuth2 client-credentials bridge to the ITE sandbox. None of these are
+    # fail-fast: HMVS_MOCK (default true) skips the live calls entirely, exactly
+    # like the Pharmapi mock branch. The client_id/secret are the ITE shared
+    # published credentials in dev and the IQE equipment creds (via SSM) in prod.
+    hmvs_mock: bool
+    hmvs_identity_url: str
+    hmvs_verification_url: str
+    hmvs_client_id: str
+    hmvs_client_secret: str
+    hmvs_token_skew_seconds: int
+
     # ── Cookie security ─────────────────────────────────────────────────────
     cookie_secure: bool
     cookie_httponly: bool
@@ -124,6 +136,16 @@ def get_settings() -> Settings:
             "PHARMAPI_KEEPALIVE_INTERVAL_SECONDS",
             12 * 3600,  # 12h — comfortably within the 24h ΗΔΥΚΑ window
         ),
+        hmvs_mock=_env_bool("HMVS_MOCK", True),
+        # Token host: POST {hmvs_identity_url}/identity/connect/token.
+        hmvs_identity_url=os.getenv("HMVS_IDENTITY_URL", "https://api-ite.nmvo.eu"),
+        # Verify/state-change base: {hmvs_verification_url}/product/gs1/...
+        hmvs_verification_url=os.getenv(
+            "HMVS_VERIFICATION_URL", "https://api-ite.nmvo.eu/verification"
+        ),
+        hmvs_client_id=os.getenv("HMVS_CLIENT_ID", ""),
+        hmvs_client_secret=os.getenv("HMVS_CLIENT_SECRET", ""),
+        hmvs_token_skew_seconds=_env_int("HMVS_TOKEN_SKEW_SECONDS", 60),
         cookie_secure=_env_bool("COOKIE_SECURE", True),
         cookie_httponly=_env_bool("COOKIE_HTTPONLY", True),
         cookie_samesite=os.getenv("COOKIE_SAMESITE", "strict"),
