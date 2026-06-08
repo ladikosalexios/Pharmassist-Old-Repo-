@@ -17,9 +17,15 @@ import {
   LockIcon,
   XIcon,
 } from "../components/Icons";
-import { ApiError, me, invitePharmacist } from "../lib/api";
+import {
+  ApiError,
+  me,
+  invitePharmacist,
+  getPharmapiStatus,
+  refreshPharmapiSession,
+} from "../lib/api";
 import { useToast } from "../components/Toast";
-import type { MeResponse } from "../lib/api";
+import type { MeResponse, PharmapiSessionStatus } from "../lib/api";
 
 type SubPage = "profile" | "credentials" | "pharmacy" | "team" | "audit" | "danger";
 
@@ -326,7 +332,41 @@ function CredentialsPage({
   profile: MeResponse | null;
   onUpdatePw: () => void;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const { toast } = useToast();
+  const [status, setStatus] = useState<PharmapiSessionStatus | null>(null);
+  const [loadingStatus, setLoadingStatus] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    getPharmapiStatus()
+      .then((s) => active && setStatus(s))
+      .catch(() => active && setStatus(null))
+      .finally(() => active && setLoadingStatus(false));
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  async function handleRefresh() {
+    setRefreshing(true);
+    try {
+      setStatus(await refreshPharmapiSession());
+      toast(t("settings.sessionRefreshed"), "success");
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : t("settings.sessionRefreshFailed"), "error");
+    } finally {
+      setRefreshing(false);
+    }
+  }
+
+  const connected = status?.pharmapi_connected ?? false;
+  const locale = i18n.language?.startsWith("en") ? "en-GB" : "el-GR";
+  const lastRefreshed = status?.connected_at
+    ? new Date(status.connected_at).toLocaleString(locale)
+    : null;
+
   return (
     <div className="space-y-5">
       <Card title={t("settings.credentialsTitle")} desc={t("settings.credentialsDesc")}>
@@ -337,7 +377,7 @@ function CredentialsPage({
             </>
           }
         >
-          <FieldInput value={profile?.pharmacist_id ?? "—"} readOnly mono />
+          <FieldInput value={profile?.pharmapi_username ?? "—"} readOnly mono />
         </Row>
         <Row label={t("settings.fieldPassword")} hint={t("settings.fieldPasswordHint")}>
           <button
@@ -353,20 +393,33 @@ function CredentialsPage({
       <Card title={t("settings.sessionTitle")} desc={t("settings.sessionDesc")}>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-2 text-[13px] text-slate-600 dark:text-slate-300">
-            <span className="relative flex h-2 w-2">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />
-              <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
-            </span>
-            {t("settings.sessionActive")}{" "}
-            <span className="mono">{new Date().toLocaleDateString()}</span>
+            {loadingStatus ? (
+              <>
+                <span className="spinner text-brand-600" /> {t("settings.sessionChecking")}
+              </>
+            ) : connected ? (
+              <>
+                <span className="relative flex h-2 w-2">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+                </span>
+                {t("settings.sessionActive")} <span className="mono">{lastRefreshed ?? "—"}</span>
+              </>
+            ) : (
+              <>
+                <span className="inline-flex h-2 w-2 rounded-full bg-amber-500" />
+                {t("settings.sessionExpired")}
+              </>
+            )}
           </div>
           <button
             type="button"
-            disabled
-            className="flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3.5 py-2 text-[13px] font-semibold text-brand-600 dark:text-brand-400 opacity-50 transition-colors hover:bg-brand-50 dark:hover:bg-brand-500/10"
+            onClick={handleRefresh}
+            disabled={refreshing}
+            className="flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3.5 py-2 text-[13px] font-semibold text-brand-600 dark:text-brand-400 transition-colors hover:bg-brand-50 dark:hover:bg-brand-500/10 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            <RefreshIcon width={15} height={15} /> {t("settings.refreshSession")}
-            <ComingSoonBadge />
+            <RefreshIcon width={15} height={15} className={refreshing ? "animate-spin" : ""} />
+            {refreshing ? t("settings.sessionRefreshing") : t("settings.refreshSession")}
           </button>
         </div>
       </Card>

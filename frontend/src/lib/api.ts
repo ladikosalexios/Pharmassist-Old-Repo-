@@ -117,11 +117,34 @@ export interface MeResponse {
   pharmacy: string;
   pharmacist_id: string;
   pharmacy_id: string;
+  pharmapi_username?: string | null;
 }
 
 export async function me(): Promise<MeResponse> {
   const r = await fetch(`${API_BASE}/auth/me`, { credentials: "include" });
   return handle(r) as Promise<MeResponse>;
+}
+
+export interface PharmapiSessionStatus {
+  pharmapi_connected: boolean;
+  connected_at: string | null;
+  session_age_minutes: number | null;
+  session_valid_for_minutes: number | null;
+}
+
+export async function getPharmapiStatus(): Promise<PharmapiSessionStatus> {
+  const r = await fetch(`${API_BASE}/pharmapi/status`, { credentials: "include" });
+  return handle(r) as Promise<PharmapiSessionStatus>;
+}
+
+// Re-establish the 24h ΗΔΥΚΑ session for the current pharmacist. Mock-aware on
+// the backend (synthetic profile in mock mode, real re-auth in live).
+export async function refreshPharmapiSession(): Promise<PharmapiSessionStatus> {
+  const r = await fetch(`${API_BASE}/auth/refresh-session`, {
+    method: "POST",
+    credentials: "include",
+  });
+  return handle(r) as Promise<PharmapiSessionStatus>;
 }
 
 export async function getPrescription(rxId: string): Promise<Prescription> {

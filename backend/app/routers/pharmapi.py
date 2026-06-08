@@ -1,6 +1,5 @@
 """Pharmapi (ΗΔΥΚΑ) bridge — connect, status, pharmacy lookup, prescription fetch."""
 
-import time
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -14,7 +13,7 @@ from ..services.pharmapi import (
     pharmapi_get_error_codes,
     pharmapi_search_prescriptions,
     pharmapi_session,
-    session_is_valid,
+    session_status,
 )
 
 router = APIRouter(prefix="/pharmapi", tags=["pharmapi"])
@@ -50,25 +49,7 @@ async def pharmapi_connect(current: dict = Depends(get_current_user)):
 @router.get("/status", response_model=SessionStatus)
 async def pharmapi_status(current: dict = Depends(get_current_user)):
     """Show current Pharmapi session state."""
-    if not pharmapi_session["connected"]:
-        return SessionStatus(
-            pharmapi_connected=False,
-            connected_at=None,
-            session_age_minutes=None,
-            session_valid_for_minutes=None,
-            pharmapi_user=None,
-        )
-
-    elapsed = time.time() - pharmapi_session["connected_at_ts"]
-    remaining = max(0.0, SESSION_WINDOW_SECONDS - elapsed)
-
-    return SessionStatus(
-        pharmapi_connected=session_is_valid(),
-        connected_at=pharmapi_session["connected_at"],
-        session_age_minutes=round(elapsed / 60, 1),
-        session_valid_for_minutes=round(remaining / 60, 1),
-        pharmapi_user=pharmapi_session["user_data"],
-    )
+    return SessionStatus(**session_status())
 
 
 @router.get("/pharmacy")

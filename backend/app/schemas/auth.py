@@ -23,6 +23,9 @@ class PharmacistMe(BaseModel):
     pharmacy: str
     pharmacist_id: str
     pharmacy_id: str
+    # Decrypted ΗΔΥΚΑ/Pharmapi login, shown read-only on Settings. None when
+    # the pharmacy link has no stored credential.
+    pharmapi_username: str | None = None
 
 
 class SessionStatus(BaseModel):

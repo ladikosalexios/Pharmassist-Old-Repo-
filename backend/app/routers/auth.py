@@ -5,6 +5,7 @@ returned in the response body. The response carries display fields
 (pharmacist_name, pharmacy, ids) the SPA needs to render its shell.
 """
 
+import uuid
 from datetime import UTC, datetime
 
 import bcrypt
@@ -26,9 +27,11 @@ from ..schemas.auth import (
     LoginRequest,
     LoginResponse,
     PharmacistMe,
+    SessionStatus,
 )
 from ..services.pharmapi import (
     _start_pharmapi_session,
+    session_status,
     verify_pharmapi_credentials_with_decrypted,
 )
 from ..services.security import TOKEN_EXPIRE_MIN, create_jwt
@@ -146,15 +149,55 @@ async def logout(
     return {"ok": True}
 
 
+async def _default_link(db: AsyncSession, pharmacist_id: str) -> PharmacistPharmacy | None:
+    """The current pharmacist's default pharmacy link (holds the encrypted creds)."""
+    return await db.scalar(
+        select(PharmacistPharmacy).where(
+            PharmacistPharmacy.pharmacist_id == uuid.UUID(pharmacist_id),
+            PharmacistPharmacy.is_default.is_(True),
+        )
+    )
+
+
 @router.get("/me", response_model=PharmacistMe)
-async def me(current: dict = Depends(get_current_user)) -> PharmacistMe:
+async def me(
+    current: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_session),
+) -> PharmacistMe:
+    link = await _default_link(db, current["pharmacist_id"])
+    pharmapi_username = (
+        decrypt_credential(link.pharmapi_username) if link and link.pharmapi_username else None
+    )
     return PharmacistMe(
         email=current["email"],
         name=current["name"],
         pharmacy=current["pharmacy"],
         pharmacist_id=current["pharmacist_id"],
         pharmacy_id=current["pharmacy_id"],
+        pharmapi_username=pharmapi_username,
     )
+
+
+@router.post("/refresh-session", response_model=SessionStatus)
+async def refresh_session(
+    current: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_session),
+) -> SessionStatus:
+    """Re-establish the 24h ΗΔΥΚΑ session for the logged-in pharmacist.
+
+    Reuses login's credential path: decrypt the stored creds and re-verify.
+    verify_pharmapi_credentials_with_decrypted honours PHARMAPI_MOCK, so this
+    works on the mock pilot (synthetic profile) and re-auths for real in live.
+    """
+    link = await _default_link(db, current["pharmacist_id"])
+    if link is None or not link.pharmapi_username or not link.pharmapi_password:
+        raise HTTPException(status_code=400, detail="No ΗΔΥΚΑ credentials linked")
+    profile = await verify_pharmapi_credentials_with_decrypted(
+        decrypt_credential(link.pharmapi_username),
+        decrypt_credential(link.pharmapi_password),
+    )
+    _start_pharmapi_session(profile)
+    return SessionStatus(**session_status())
 
 
 # TODO(security): token in the URL path lands in access logs / browser history.
