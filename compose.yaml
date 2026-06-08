@@ -33,6 +33,8 @@ services:
       PHARMAPI_USERNAME: medcare1pharmapi
       PHARMAPI_PASSWORD: "Aa900990099009!!"
       PHARMAPI_API_KEY: pi2jwygkd07yho3a4dw6jc55tg5ra3uc
+      # Keep the ΗΔΥΚΑ session warm so it never lapses (>=1 /user/me per 24h).
+      PHARMAPI_KEEPALIVE_ENABLED: "true"
     depends_on:
       - db
   db:

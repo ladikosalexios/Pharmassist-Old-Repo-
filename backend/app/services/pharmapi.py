@@ -6,6 +6,7 @@ just a per-process dict so a `uvicorn --reload` reset clears it.
 Pharmapi credentials are sourced from the centralised settings.
 """
 
+import asyncio
 import logging
 import os
 import re
@@ -83,6 +84,38 @@ def session_status() -> dict:
         "session_valid_for_minutes": round(remaining / 60, 1),
         "pharmapi_user": pharmapi_session["user_data"],
     }
+
+
+KEEPALIVE_RETRY_SECONDS = 600  # back off ~10 min after a failed refresh
+
+
+async def keepalive_loop(interval_seconds: int) -> None:
+    """Proactively re-pin the ΗΔΥΚΑ session so it never lapses (>=1 /user/me per
+    24h) even when the app is idle.
+
+    Hits LIVE Pharmapi even in mock mode — keeping the real upstream session
+    warm is the whole point (the seed and any live call depend on it). Failures
+    are logged and retried, never fatal. Started/cancelled by the FastAPI
+    lifespan and gated behind settings.pharmapi_keepalive_enabled (off in
+    tests/CI so no unattended upstream calls).
+    """
+    logger.info("[Pharmapi] keep-alive loop started (every %ss)", interval_seconds)
+    while True:
+        try:
+            profile = await verify_pharmapi_credentials(PHARMAPI_USER, PHARMAPI_PASS)
+            _start_pharmapi_session(profile)
+            logger.info("[Pharmapi] keep-alive: ΗΔΥΚΑ session refreshed")
+            await asyncio.sleep(interval_seconds)
+        except asyncio.CancelledError:
+            logger.info("[Pharmapi] keep-alive loop stopped")
+            raise
+        except Exception as exc:
+            logger.warning(
+                "[Pharmapi] keep-alive refresh failed: %s — retrying in %ss",
+                exc,
+                KEEPALIVE_RETRY_SECONDS,
+            )
+            await asyncio.sleep(KEEPALIVE_RETRY_SECONDS)
 
 
 def pharmapi_headers() -> dict:

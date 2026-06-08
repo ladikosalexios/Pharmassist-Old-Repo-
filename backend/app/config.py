@@ -81,6 +81,11 @@ class Settings(BaseModel):
     pharmapi_password: str
     pharmapi_api_key: str
     pharmapi_session_window_seconds: int
+    # Proactive keep-alive: ping ΗΔΥΚΑ /user/me on a timer so the 24h session
+    # never lapses, even when the app is idle. Opt-in (off by default so tests
+    # and CI never make live upstream calls); enabled in compose.
+    pharmapi_keepalive_enabled: bool
+    pharmapi_keepalive_interval_seconds: int
 
     # ── Cookie security ─────────────────────────────────────────────────────
     cookie_secure: bool
@@ -113,6 +118,11 @@ def get_settings() -> Settings:
         pharmapi_session_window_seconds=_env_int(
             "PHARMAPI_SESSION_WINDOW_SECONDS",
             23 * 3600,  # 23h (refresh before 24h hard limit)
+        ),
+        pharmapi_keepalive_enabled=_env_bool("PHARMAPI_KEEPALIVE_ENABLED", False),
+        pharmapi_keepalive_interval_seconds=_env_int(
+            "PHARMAPI_KEEPALIVE_INTERVAL_SECONDS",
+            12 * 3600,  # 12h — comfortably within the 24h ΗΔΥΚΑ window
         ),
         cookie_secure=_env_bool("COOKIE_SECURE", True),
         cookie_httponly=_env_bool("COOKIE_HTTPONLY", True),

@@ -88,6 +88,8 @@ services:
       PHARMAPI_USERNAME: ${PHARMAPI_USERNAME:?set PHARMAPI_USERNAME}
       PHARMAPI_PASSWORD: ${PHARMAPI_PASSWORD:?set PHARMAPI_PASSWORD}
       PHARMAPI_API_KEY: ${PHARMAPI_API_KEY:?set PHARMAPI_API_KEY}
+      # Keep the ΗΔΥΚΑ session warm so it never lapses (>=1 /user/me per 24h).
+      PHARMAPI_KEEPALIVE_ENABLED: ${PHARMAPI_KEEPALIVE_ENABLED:-true}
     depends_on:
       db:
         condition: service_healthy

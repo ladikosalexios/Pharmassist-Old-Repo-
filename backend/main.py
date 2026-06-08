@@ -27,7 +27,10 @@ Project layout:
   main.py        — create_app() factory; uvicorn entrypoint (this file)
 """
 
+import asyncio
+import contextlib
 import os
+import sys
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -51,7 +54,7 @@ from app.routers import (
     side_effects,
     spc,
 )
-from app.services.pharmapi import pharmapi_check_version
+from app.services.pharmapi import keepalive_loop, pharmapi_check_version
 from app.utils.environment import is_mock_pharmapi
 
 
@@ -59,7 +62,26 @@ from app.utils.environment import is_mock_pharmapi
 async def lifespan(_app: FastAPI):
     if not is_mock_pharmapi():
         await pharmapi_check_version()
-    yield
+
+    # Proactive ΗΔΥΚΑ session keep-alive (opt-in via PHARMAPI_KEEPALIVE_ENABLED).
+    # Guarantees a /user/me call well within the 24h window so the upstream
+    # session never lapses while idle.
+    settings = get_settings()
+    keepalive_task: asyncio.Task | None = None
+    # Never start the keep-alive under pytest — tests must not make unattended
+    # live ΗΔΥΚΑ calls, even when the container env enables it.
+    if settings.pharmapi_keepalive_enabled and "pytest" not in sys.modules:
+        keepalive_task = asyncio.create_task(
+            keepalive_loop(settings.pharmapi_keepalive_interval_seconds)
+        )
+
+    try:
+        yield
+    finally:
+        if keepalive_task is not None:
+            keepalive_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await keepalive_task
 
 
 # Order doesn't affect routing (each router has its own prefix), but include
