@@ -95,3 +95,98 @@ def test_pharmapi_errors_returns_list(client):
     r = client.get("/pharmapi/errors")
     assert r.status_code == 200, r.text
     assert isinstance(r.json(), list)
+
+
+# ── POST /side-effects (ADR create) ───────────────────────────────────────────
+
+
+def test_create_side_effect_mock_appears_in_get(client):
+    """Mock mode: a created report is appended to the in-memory list GET serves."""
+    payload = {
+        "patientName": "Test Patient Mock",
+        "drugName": "Ibuprofen 400 mg",
+        "severity": "MODERATE",
+        "symptom": "Stomach pain and nausea after dosing.",
+        "onset": "2 hours after first dose",
+        "causality": "Possible",
+    }
+    r = client.post("/side-effects", json=payload)
+    assert r.status_code == 201, r.text
+    created = r.json()
+    assert created["status"] == "PENDING_REVIEW"
+    assert created["patientName"] == "Test Patient Mock"
+    assert created["causality"] == "Possible"
+    assert created["reportedAt"]  # now (UTC), non-empty
+    new_id = created["id"]
+
+    listing = client.get("/side-effects")
+    assert listing.status_code == 200, listing.text
+    ids = [item["id"] for item in listing.json()["items"]]
+    assert new_id in ids
+
+
+def test_create_side_effect_live_persists(client):
+    """Live mode (PHARMAPI_MOCK=false): the report is written to adr_reports.
+
+    Reuses the module ``client`` (single event loop — the module DB engine's
+    pool binds connections to it; a second TestClient context would fail with
+    "attached to a different loop"). Needs a seeded pharmacist + pharmacy for
+    the FK columns; skips if the dev DB has neither.
+    """
+    import asyncio
+
+    from sqlalchemy import text
+    from sqlalchemy.ext.asyncio import create_async_engine
+
+    from app.deps import get_current_user
+
+    async def _ids() -> tuple[str, str] | None:
+        # Throwaway engine fully created + disposed inside this loop, so it
+        # never touches the module engine the TestClient drives.
+        eng = create_async_engine(os.environ["DATABASE_URL"])
+        try:
+            async with eng.connect() as conn:
+                pid = await conn.scalar(text("select id from pharmacists limit 1"))
+                yid = await conn.scalar(text("select id from pharmacies limit 1"))
+        finally:
+            await eng.dispose()
+        if pid is None or yid is None:
+            return None
+        return str(pid), str(yid)
+
+    ids = asyncio.run(_ids())
+    if ids is None:
+        pytest.skip("No seeded pharmacist/pharmacy — run `python -m scripts.seed` first.")
+    pharmacist_id, pharmacy_id = ids
+
+    def _real_current() -> dict:
+        return {**_fake_current(), "pharmacist_id": pharmacist_id, "pharmacy_id": pharmacy_id}
+
+    app.dependency_overrides[get_current_user] = _real_current
+    os.environ["PHARMAPI_MOCK"] = "false"
+    try:
+        r = client.post(
+            "/side-effects",
+            json={
+                "patientId": "99999999999",
+                "patientName": "Test Patient Live",
+                "drugName": "Naproxen 500 mg",
+                "severity": "SEVERE",
+                "symptom": "Severe epigastric pain, suspected GI bleed.",
+                "onset": "6 hours after dose",
+                "causality": "Probable",
+            },
+        )
+        assert r.status_code == 201, r.text
+        created = r.json()
+        assert created["status"] == "PENDING_REVIEW"
+        new_id = created["id"]
+
+        listing = client.get("/side-effects")
+        assert listing.status_code == 200, listing.text
+        match = [i for i in listing.json()["items"] if i["id"] == new_id]
+        assert match, "created report not found in live GET"
+        assert match[0]["causality"] == "Probable"
+    finally:
+        os.environ["PHARMAPI_MOCK"] = "true"
+        app.dependency_overrides[get_current_user] = _fake_current

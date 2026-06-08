@@ -22,7 +22,15 @@ class AdrSeverity:
 
 
 class AdrEventType:
+    REPORT_CREATED = "REPORT_CREATED"
     STATUS_CHANGED = "STATUS_CHANGED"
+
+
+class AdrCausality:
+    CERTAIN = "Certain"
+    PROBABLE = "Probable"
+    POSSIBLE = "Possible"
+    UNLIKELY = "Unlikely"
 
 
 class ActionType:

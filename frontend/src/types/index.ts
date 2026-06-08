@@ -164,6 +164,7 @@ export interface SideEffectReport {
   reportedAt: string;
   symptom: string;
   onset: string;
+  causality?: "Certain" | "Probable" | "Possible" | "Unlikely" | null;
   lastFlaggedAt?: string | null;
 }
 

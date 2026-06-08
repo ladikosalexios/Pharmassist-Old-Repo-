@@ -31,6 +31,9 @@ class AdrReport(Base, TimestampMixin):
     symptom_description: Mapped[str] = mapped_column(String, nullable=False)
     onset_timing: Mapped[str | None] = mapped_column(String)
     severity: Mapped[str | None] = mapped_column(String)  # MILD | MODERATE | SEVERE
+    causality: Mapped[str | None] = mapped_column(
+        String
+    )  # Certain | Probable | Possible | Unlikely
     status: Mapped[str] = mapped_column(
         String, nullable=False, default=AdrStatus.PENDING_REVIEW
     )  # PENDING_REVIEW | ESCALATED | EOF_REPORTED | CLOSED
