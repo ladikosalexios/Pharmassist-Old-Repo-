@@ -11,7 +11,7 @@ import {
   AlertCircleIcon,
 } from "../components/Icons";
 import {
-  ApiError,
+  apiErrorI18nKey,
   exportDocumentation,
   exportDocumentationRecord,
   listDocumentation,
@@ -85,7 +85,8 @@ export function History() {
       })
       .catch((e: unknown) => {
         if (!active) return;
-        setError(e instanceof ApiError ? e.message : "Could not load history.");
+        console.error(e);
+        setError(t(apiErrorI18nKey(e)));
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -93,7 +94,7 @@ export function History() {
     return () => {
       active = false;
     };
-  }, [query, method]);
+  }, [query, method, t]);
 
   async function handleExport() {
     setExporting(true);

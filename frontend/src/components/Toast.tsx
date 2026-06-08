@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 import { CheckCircleIcon, AlertTriangleIcon, AlertCircleIcon } from "./Icons";
 
 export type ToastVariant = "success" | "warn" | "error" | "info";
@@ -41,6 +42,8 @@ const TONE: Record<ToastVariant, { box: string; icon: ReactNode }> = {
 const DURATION_MS = 4000;
 
 export function ToastProvider({ children }: { children: ReactNode }) {
+  // Aliased: `t` is the per-toast loop variable in the render map below.
+  const { t: tr } = useTranslation();
   const [toasts, setToasts] = useState<Toast[]>([]);
 
   const dismiss = useCallback((id: number) => {
@@ -80,7 +83,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
                 type="button"
                 onClick={() => dismiss(t.id)}
                 className="ml-1 -mr-1 rounded p-0.5 text-slate-500 hover:bg-black/5 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-slate-100"
-                aria-label="Dismiss"
+                aria-label={tr("common.dismiss")}
               >
                 <svg
                   width={14}
