@@ -16,6 +16,7 @@
 #   • an IAM instance role with ssm:GetParameter (+ kms:Decrypt) on the prefix
 #   • secrets stored as SSM SecureString params under $SSM_PREFIX
 #   • a Tailscale auth key stored at $SSM_PREFIX/TS_AUTHKEY
+#   • a GitHub read-only fine-grained PAT at $SSM_PREFIX/GH_PAT (repo is private)
 set -euo pipefail
 
 # ── CONFIG — edit before pasting into the launch wizard ───────────────────────
@@ -75,12 +76,18 @@ done
 [ -n "$MAGICDNS" ] || { log "ERROR: could not resolve MagicDNS name"; exit 1; }
 log "MagicDNS: $MAGICDNS"
 
-log "Cloning $REPO_URL@$REPO_REF -> $APP_DIR..."
+log "Cloning $REPO_URL@$REPO_REF -> $APP_DIR (private repo; token from SSM)..."
+GH_PAT="$(ssm GH_PAT)"
+# Inject the token only for the network op; never leave it in .git/config.
+AUTH_URL="https://x-access-token:${GH_PAT}@${REPO_URL#https://}"
 if [ -d "$APP_DIR/.git" ]; then
-  git -C "$APP_DIR" fetch --depth 1 origin "$REPO_REF" && git -C "$APP_DIR" reset --hard FETCH_HEAD
+  git -C "$APP_DIR" fetch --depth 1 "$AUTH_URL" "$REPO_REF"
+  git -C "$APP_DIR" reset --hard FETCH_HEAD
 else
-  git clone --branch "$REPO_REF" --depth 1 "$REPO_URL" "$APP_DIR"
+  git clone --branch "$REPO_REF" --depth 1 "$AUTH_URL" "$APP_DIR"
+  git -C "$APP_DIR" remote set-url origin "$REPO_URL"   # scrub token from stored remote
 fi
+unset GH_PAT AUTH_URL
 
 log "Fetching secrets from SSM ($SSM_PREFIX/*)..."
 SECRET_KEY="$(ssm SECRET_KEY)"

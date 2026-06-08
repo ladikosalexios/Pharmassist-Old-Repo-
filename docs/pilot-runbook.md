@@ -332,15 +332,24 @@ put() { aws ssm put-parameter --type SecureString --name "$PREFIX/$1" --value "$
 
 put SECRET_KEY                "$(openssl rand -hex 32)"
 put CREDENTIAL_ENCRYPTION_KEY "$(python3 -c 'import secrets,base64;print(base64.b64encode(secrets.token_bytes(32)).decode())')"
-put POSTGRES_PASSWORD         "$(openssl rand -base64 24)"
+put POSTGRES_PASSWORD         "$(openssl rand -hex 24)"
 put PHARMAPI_USERNAME         'medcare1pharmapi'
 put PHARMAPI_PASSWORD         '<real ΗΔΥΚΑ password>'
 put PHARMAPI_API_KEY          '<real ΗΔΥΚΑ api key>'
 put TS_AUTHKEY                'tskey-auth-xxxxxxxx'
+put GH_PAT                    'github_pat_xxxxxxxx'   # fine-grained, Contents:read on this repo
 ```
 
 > The `PHARMAPI_*` values must be **real** — the seed authenticates against live
 > ΗΔΥΚΑ even though the app runs mocked (see §3).
+>
+> `POSTGRES_PASSWORD` uses **hex** (not base64): it is embedded in `DATABASE_URL`,
+> so it must avoid URL-reserved chars like `/` `+` `@`.
+>
+> `GH_PAT` is needed because the repo is **private** — the box clones it over
+> HTTPS with this token (used only for the fetch, then scrubbed from
+> `.git/config`). Create a fine-grained PAT scoped to just this repo with
+> **Contents: Read-only**.
 
 **c) IAM instance role** — attach a role with **`AmazonSSMManagedInstanceCore`**
 (for Session Manager shell access) plus this inline policy so the box can read
