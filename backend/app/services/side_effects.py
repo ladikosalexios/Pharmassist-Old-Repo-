@@ -4,12 +4,16 @@ Severity: MILD | MODERATE | SEVERE.
 Status:   PENDING_REVIEW | ESCALATED | EOF_REPORTED.
 """
 
+import uuid
+from datetime import UTC, datetime
+
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.db.models.adr_event import AdrEvent
 from app.db.models.adr_report import AdrReport
 
-from ..constants import AdrSeverity, AdrStatus
+from ..constants import AdrCausality, AdrEventType, AdrSeverity, AdrStatus
 
 MOCK_SIDE_EFFECTS: list = [
     {
@@ -24,6 +28,7 @@ MOCK_SIDE_EFFECTS: list = [
         "reportedAt": "2026-04-29T16:42:00+00:00",
         "symptom": "Dark stools, dizziness on standing, gum bleeding after brushing teeth.",
         "onset": "8 hours after the second dose",
+        "causality": AdrCausality.PROBABLE,
     },
     {
         "id": "ADR-2026-0008",
@@ -37,6 +42,7 @@ MOCK_SIDE_EFFECTS: list = [
         "reportedAt": "2026-04-28T11:05:00+00:00",
         "symptom": "Persistent nosebleeds and unusual bruising on forearms.",
         "onset": "Within 48 hours of dose increase",
+        "causality": AdrCausality.PROBABLE,
     },
     {
         "id": "ADR-2026-0007",
@@ -50,6 +56,7 @@ MOCK_SIDE_EFFECTS: list = [
         "reportedAt": "2026-04-26T08:20:00+00:00",
         "symptom": "Diffuse maculopapular rash on torso, no breathing difficulty.",
         "onset": "Day 3 of antibiotic course",
+        "causality": AdrCausality.POSSIBLE,
     },
     {
         "id": "ADR-2026-0006",
@@ -63,6 +70,7 @@ MOCK_SIDE_EFFECTS: list = [
         "reportedAt": "2026-04-22T19:14:00+00:00",
         "symptom": "Generalised muscle pain, dark urine, ALT 5x upper limit.",
         "onset": "Three weeks after starting therapy",
+        "causality": AdrCausality.PROBABLE,
     },
     {
         "id": "ADR-2026-0005",
@@ -76,6 +84,7 @@ MOCK_SIDE_EFFECTS: list = [
         "reportedAt": "2026-04-15T12:00:00+00:00",
         "symptom": "Two episodes of melena, mild dyspnoea on exertion.",
         "onset": "Two weeks into therapy",
+        "causality": AdrCausality.POSSIBLE,
     },
     {
         "id": "ADR-2026-0004",
@@ -89,6 +98,7 @@ MOCK_SIDE_EFFECTS: list = [
         "reportedAt": "2026-03-30T10:30:00+00:00",
         "symptom": "Mild gastrointestinal upset and metallic taste.",
         "onset": "First week of therapy",
+        "causality": AdrCausality.UNLIKELY,
     },
 ]
 
@@ -123,15 +133,143 @@ def next_status(current_status: str) -> str:
 def get_adr_report_dict(adr_report: AdrReport) -> dict:
     """Returns a dict representation of the given AdrReport class object."""
     return {
-        "id": adr_report.id,
+        "id": str(adr_report.id),
         "patientId": adr_report.patient_amka,
         "patientName": adr_report.patient_name,
         "patientPhone": None,
-        "rxId": None,
+        "rxId": adr_report.rx_id,
         "drugName": adr_report.medicine_name,
         "severity": adr_report.severity,
         "status": adr_report.status,
         "reportedAt": str(adr_report.reported_at),
         "symptom": adr_report.symptom_description,
         "onset": adr_report.onset_timing,
+        "causality": adr_report.causality,
     }
+
+
+def search_and_sort_mock(q: str | None, sort: str | None) -> list[dict]:
+    """Mock-mode equivalent of the DB query in list_side_effects.
+
+    Mirrors the live free-text search (patient/drug/symptom) and the
+    date|severity|status sort so both bridge modes return identical shapes.
+    """
+    items = list(MOCK_SIDE_EFFECTS)
+    if q:
+        needle = q.lower().strip()
+        items = [
+            r
+            for r in items
+            if needle in r["patientName"].lower()
+            or needle in r["drugName"].lower()
+            or needle in r["symptom"].lower()
+        ]
+    sort_key = (sort or "date").lower()
+    if sort_key == "severity":
+        items.sort(
+            key=lambda r: (SEVERITY_RANK.get(r["severity"], -1), r["reportedAt"]),
+            reverse=True,
+        )
+    elif sort_key == "status":
+        items.sort(
+            key=lambda r: (STATUS_RANK.get(r["status"], -1), r["reportedAt"]),
+            reverse=True,
+        )
+    else:
+        items.sort(key=lambda r: r["reportedAt"], reverse=True)
+    return items
+
+
+def mock_stats() -> dict:
+    """In-memory counterpart to stats() for mock mode."""
+    return {
+        "total": len(MOCK_SIDE_EFFECTS),
+        "pendingReview": sum(
+            1 for r in MOCK_SIDE_EFFECTS if r["status"] == AdrStatus.PENDING_REVIEW
+        ),
+        "severe": sum(1 for r in MOCK_SIDE_EFFECTS if r["severity"] == AdrSeverity.SEVERE),
+        "escalated": sum(1 for r in MOCK_SIDE_EFFECTS if r["status"] == AdrStatus.ESCALATED),
+    }
+
+
+def create_mock_side_effect(
+    *,
+    patient_id: str | None,
+    patient_name: str,
+    rx_id: str | None,
+    drug_name: str,
+    severity: str,
+    symptom: str,
+    onset: str,
+    causality: str | None,
+) -> dict:
+    """Append a new report to the in-memory list used by GET in mock mode.
+
+    Returns the exact camelCase SideEffectReport shape the list endpoint
+    returns, status PENDING_REVIEW and reportedAt = now (UTC).
+    """
+    record = {
+        "id": f"ADR-{uuid.uuid4().hex[:8].upper()}",
+        "patientId": patient_id,
+        "patientName": patient_name,
+        "patientPhone": None,
+        "rxId": rx_id,
+        "drugName": drug_name,
+        "severity": severity,
+        "status": AdrStatus.PENDING_REVIEW,
+        "reportedAt": datetime.now(UTC).isoformat(),
+        "symptom": symptom,
+        "onset": onset,
+        "causality": causality,
+    }
+    MOCK_SIDE_EFFECTS.append(record)
+    return record
+
+
+async def create_live_side_effect(
+    session: AsyncSession,
+    *,
+    pharmacist_id: str,
+    pharmacy_id: str,
+    patient_id: str | None,
+    patient_name: str,
+    rx_id: str | None,
+    drug_name: str,
+    severity: str,
+    symptom: str,
+    onset: str,
+    causality: str | None,
+) -> dict:
+    """Persist a new ADR report + a REPORT_CREATED audit event in one transaction.
+
+    Mirrors create_mock_side_effect for the live (Postgres) bridge mode and
+    returns the same camelCase SideEffectReport shape.
+    """
+    report = AdrReport(
+        pharmacist_id=pharmacist_id,
+        pharmacy_id=pharmacy_id,
+        patient_amka=patient_id,
+        patient_name=patient_name,
+        rx_id=rx_id,
+        medicine_name=drug_name,
+        symptom_description=symptom,
+        onset_timing=onset,
+        severity=severity,
+        causality=causality,
+        status=AdrStatus.PENDING_REVIEW,
+    )
+    session.add(report)
+    await session.flush()  # populate report.id (+ server-default reported_at) for the event
+
+    session.add(
+        AdrEvent(
+            adr_id=report.id,
+            actor_id=pharmacist_id,
+            event_type=AdrEventType.REPORT_CREATED,
+            from_status=None,
+            to_status=AdrStatus.PENDING_REVIEW,
+        )
+    )
+    await session.commit()
+    await session.refresh(report)
+    return get_adr_report_dict(report)

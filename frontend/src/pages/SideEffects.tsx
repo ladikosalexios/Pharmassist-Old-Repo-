@@ -251,7 +251,7 @@ function ReportForm({ onSubmitted, submittedRef }: ReportFormProps) {
   const [phase, setPhase] = useState<"during" | "after">("during");
   const [symptoms, setSymptoms] = useState("");
   const [picked, setPicked] = useState<string[]>([]);
-  const [cause, setCause] = useState("");
+  const [cause, setCause] = useState<"" | "Certain" | "Probable" | "Possible" | "Unlikely">("");
   const [submitting, setSubmitting] = useState(false);
 
   const commonSymptoms = useMemo(
@@ -291,6 +291,7 @@ function ReportForm({ onSubmitted, submittedRef }: ReportFormProps) {
         severity: severityMap[sev] ?? "MILD",
         symptom,
         onset: onset || phase,
+        causality: cause || null,
       });
       onSubmitted(report);
     } catch (e) {
@@ -308,6 +309,7 @@ function ReportForm({ onSubmitted, submittedRef }: ReportFormProps) {
           reportedAt: new Date().toISOString(),
           symptom,
           onset: onset || phase,
+          causality: cause || null,
         };
         onSubmitted(optimistic);
         toast(t("reports.savedLocally"), "info");
@@ -518,7 +520,7 @@ function ReportForm({ onSubmitted, submittedRef }: ReportFormProps) {
               </label>
               <select
                 value={cause}
-                onChange={(e) => setCause(e.target.value)}
+                onChange={(e) => setCause(e.target.value as typeof cause)}
                 className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-[13px] text-slate-700 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
               >
                 <option value="">{t("reports.causalityPlaceholder")}</option>

@@ -335,9 +335,9 @@ export interface CreateSideEffectPayload {
   symptom: string;
   onset: string;
   rxId?: string | null;
+  causality?: "Certain" | "Probable" | "Possible" | "Unlikely" | null;
 }
 
-// TODO: FR-0.5 #6 — POST /side-effects not yet implemented on the backend.
 export async function createSideEffect(
   payload: CreateSideEffectPayload,
 ): Promise<SideEffectReport> {

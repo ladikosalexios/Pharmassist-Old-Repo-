@@ -1,4 +1,12 @@
-"""Pharmacovigilance / adverse drug reaction reports."""
+"""Pharmacovigilance / adverse drug reaction reports.
+
+Bridge pattern (see CLAUDE.md): list + create branch on is_mock_pharmapi().
+
+  PHARMAPI_MOCK=true  (default) → in-memory MOCK_SIDE_EFFECTS
+  PHARMAPI_MOCK=false           → adr_reports / adr_events (Postgres)
+
+Both modes return the identical camelCase SideEffectReport shape.
+"""
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, select
@@ -8,14 +16,20 @@ from app.db.models.adr_event import AdrEvent
 from app.db.models.adr_report import AdrReport
 from app.db.models.pharmacist import Pharmacist
 from app.db.session import get_session
+from app.utils.environment import is_mock_pharmapi
 
 from ..constants import AdrEventType
 from ..deps import get_current_user
+from ..schemas.side_effects import CreateSideEffectBody, SideEffectReportOut
 from ..services.side_effects import (
     SEVERITY_RANK,
     STATUS_RANK,
+    create_live_side_effect,
+    create_mock_side_effect,
     get_adr_report_dict,
+    mock_stats,
     next_status,
+    search_and_sort_mock,
     stats,
 )
 
@@ -29,6 +43,12 @@ async def list_side_effects(
     current: dict = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ):
+    if is_mock_pharmapi():
+        return {
+            "items": search_and_sort_mock(q, sort),
+            "stats": mock_stats(),
+        }
+
     items = await AdrReport.get_all(session)
     if q:
         needle = q.lower().strip()
@@ -56,6 +76,45 @@ async def list_side_effects(
         "items": [get_adr_report_dict(i) for i in items],
         "stats": await stats(session),
     }
+
+
+@router.post("", status_code=201, response_model=SideEffectReportOut)
+async def create_side_effect(
+    body: CreateSideEffectBody,
+    current: dict = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """Create a new ADR report (status PENDING_REVIEW).
+
+    Returns the same camelCase SideEffectReport shape the list endpoint serves,
+    so the Reports form can prepend it directly. Mock mode appends to the
+    in-memory list GET reads; live mode persists adr_report + an adr_event.
+    """
+    if is_mock_pharmapi():
+        return create_mock_side_effect(
+            patient_id=body.patientId,
+            patient_name=body.patientName,
+            rx_id=body.rxId,
+            drug_name=body.drugName,
+            severity=body.severity,
+            symptom=body.symptom,
+            onset=body.onset,
+            causality=body.causality,
+        )
+
+    return await create_live_side_effect(
+        session,
+        pharmacist_id=current["pharmacist_id"],
+        pharmacy_id=current["pharmacy_id"],
+        patient_id=body.patientId,
+        patient_name=body.patientName,
+        rx_id=body.rxId,
+        drug_name=body.drugName,
+        severity=body.severity,
+        symptom=body.symptom,
+        onset=body.onset,
+        causality=body.causality,
+    )
 
 
 @router.post("/{report_id}/flag")
