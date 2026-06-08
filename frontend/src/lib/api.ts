@@ -448,12 +448,15 @@ export async function getRecentPatients(): Promise<RecentPatient[]> {
   return Array.isArray(data) ? (data as RecentPatient[]) : [];
 }
 
-// TODO: FR-0.5 #2 — Name search not possible via ΗΔΥΚΑ (no upstream endpoint).
-// When wired, this should query a local index of previously-served patients.
-export async function searchPatients(
-  _query: string, // eslint-disable-line @typescript-eslint/no-unused-vars
-): Promise<PatientProfile[]> {
-  throw new ApiError(501, "Name search not yet available");
+// Name / AMKA substring search. Backed by the mock patient directory; ΗΔΥΚΑ
+// has no name-search endpoint, so the backend returns 501 in live mode (which
+// surfaces as the "name search unavailable" note via apiErrorI18nKey).
+export async function searchPatients(query: string): Promise<PatientProfile[]> {
+  const r = await fetch(`${API_BASE}/patients/search?q=${encodeURIComponent(query)}`, {
+    credentials: "include",
+  });
+  const data = await handle(r);
+  return Array.isArray(data) ? (data as PatientProfile[]) : [];
 }
 
 export async function getPatientPrescriptions(patientId: string): Promise<PatientRxHistoryRow[]> {

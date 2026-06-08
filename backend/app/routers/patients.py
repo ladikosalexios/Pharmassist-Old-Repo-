@@ -32,6 +32,7 @@ from ..services.patients import (
     recent_patients,
     resolve,
     rx_history_page,
+    search_patients,
     update_condition,
 )
 
@@ -188,6 +189,19 @@ async def get_recent_patients(current: dict = Depends(get_current_user)):
     catch-all profile fetch. Empty in live mode (no upstream feed).
     """
     return recent_patients()
+
+
+@router.get("/search")
+async def search_patients_route(
+    q: str = Query(..., min_length=1),
+    current: dict = Depends(get_current_user),
+):
+    """Name / AMKA substring search. Mock-only — ΗΔΥΚΑ has no name search,
+    so live mode returns 501 and the UI shows the name-search-unavailable note.
+    """
+    if not is_mock_pharmapi():
+        raise HTTPException(status_code=501, detail="Name search not yet available")
+    return search_patients(q)
 
 
 @router.get("/{patient_id}")

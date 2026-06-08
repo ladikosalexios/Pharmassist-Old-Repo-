@@ -725,6 +725,23 @@ def recent_patients(limit: int = 6) -> list[dict]:
     ]
 
 
+def search_patients(q: str, limit: int = 20) -> list[dict]:
+    """Case-insensitive name / AMKA substring search over the mock directory.
+
+    ΗΔΥΚΑ exposes no name-search endpoint, so this is mock-only — the router
+    raises 501 in live mode rather than calling this.
+    """
+    ql = q.strip().lower()
+    if not ql:
+        return []
+    matches = [
+        p
+        for p in PATIENT_PROFILES.values()
+        if ql in (p.get("name") or "").lower() or ql in (p.get("amka") or "")
+    ]
+    return matches[:limit]
+
+
 async def resolve(patient_key: str) -> dict | None:
     """
     Look up a patient from the third party service that provides their info.
