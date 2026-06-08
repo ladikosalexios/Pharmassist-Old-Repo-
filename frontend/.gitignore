@@ -6,3 +6,6 @@ dist
 # tsc -b composite output for vite.config.ts
 vite.config.js
 vite.config.d.ts
+
+# redesign mockups (reference only — not part of the build)
+redesign-reference/
