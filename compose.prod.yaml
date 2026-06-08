@@ -83,8 +83,8 @@ services:
       # use the ${VAR:?msg} required-var pattern so a live flip without creds
       # fails at compose-up rather than at first dispense.
       HMVS_MOCK: ${HMVS_MOCK:-true}
-      HMVS_IDENTITY_URL: ${HMVS_IDENTITY_URL:-https://api-ite.nmvo.eu}
-      HMVS_VERIFICATION_URL: ${HMVS_VERIFICATION_URL:-https://api-ite.nmvo.eu/verification}
+      HMVS_IDENTITY_URL: ${HMVS_IDENTITY_URL:-https://api-gr-iqe.nmvo.eu}
+      HMVS_VERIFICATION_URL: ${HMVS_VERIFICATION_URL:-https://api-gr-iqe.nmvo.eu/verification}
       HMVS_CLIENT_ID: ${HMVS_CLIENT_ID:?set HMVS_CLIENT_ID}
       HMVS_CLIENT_SECRET: ${HMVS_CLIENT_SECRET:?set HMVS_CLIENT_SECRET}
       # Pin CORS to the pilot origin. The SPA is same-origin via Caddy, so this

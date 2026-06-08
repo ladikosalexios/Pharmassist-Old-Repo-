@@ -96,8 +96,12 @@ POSTGRES_PASSWORD="$(ssm POSTGRES_PASSWORD)"
 PHARMAPI_USERNAME="$(ssm PHARMAPI_USERNAME)"
 PHARMAPI_PASSWORD="$(ssm PHARMAPI_PASSWORD)"
 PHARMAPI_API_KEY="$(ssm PHARMAPI_API_KEY)"
-# HMVS (EU-FMD) OAuth2 client-credentials — the IQE equipment Client ID/Secret.
-# Stored as SSM SecureString (never inlined in compose/README, unlike dev PHARMAPI_*).
+# HMVS (EU-FMD) OAuth2 client-credentials + IQE base URLs. The Client Secret is
+# the only true secret of the four; URLs and Client ID are not, but they live in
+# SSM next to the secret so a host rotation (api-gr-iqe → api-gr → …) is a single
+# put-parameter, not a code change. All four use SecureString uniformly.
+HMVS_IDENTITY_URL="$(ssm HMVS_IDENTITY_URL)"
+HMVS_VERIFICATION_URL="$(ssm HMVS_VERIFICATION_URL)"
 HMVS_CLIENT_ID="$(ssm HMVS_CLIENT_ID)"
 HMVS_CLIENT_SECRET="$(ssm HMVS_CLIENT_SECRET)"
 
@@ -112,6 +116,9 @@ PHARMAPI_PASSWORD=$PHARMAPI_PASSWORD
 PHARMAPI_API_KEY=$PHARMAPI_API_KEY
 HMVS_CLIENT_ID=$HMVS_CLIENT_ID
 HMVS_CLIENT_SECRET=$HMVS_CLIENT_SECRET
+HMVS_IDENTITY_URL=$HMVS_IDENTITY_URL
+HMVS_VERIFICATION_URL=$HMVS_VERIFICATION_URL
+HMVS_MOCK=false
 PILOT_DOMAIN=$MAGICDNS
 CADDY_TLS=tls internal
 ENVEOF

@@ -336,6 +336,14 @@ put POSTGRES_PASSWORD         "$(openssl rand -hex 24)"
 put PHARMAPI_USERNAME         'medcare1pharmapi'
 put PHARMAPI_PASSWORD         '<real ΗΔΥΚΑ password>'
 put PHARMAPI_API_KEY          '<real ΗΔΥΚΑ api key>'
+# HMVS — registered IQE equipment "PharmAssist-IQE-1" against api-gr-iqe.nmvo.eu.
+# HMVS_CLIENT_SECRET is the only true secret of the four; the URLs and Client ID
+# are not, but we use SecureString uniformly so the put() helper stays one line
+# and a future host rotation is one put-parameter, not a code change.
+put HMVS_IDENTITY_URL         'https://api-gr-iqe.nmvo.eu'
+put HMVS_VERIFICATION_URL     'https://api-gr-iqe.nmvo.eu/verification'
+put HMVS_CLIENT_ID            '4ee0c800-35bc-4f02-94d5-560612ebebdc'
+put HMVS_CLIENT_SECRET        '<PharmAssist-IQE-1 secret from Solidsoft>'
 put TS_AUTHKEY                'tskey-auth-xxxxxxxx'
 put GH_PAT                    'github_pat_xxxxxxxx'   # fine-grained, Contents:read on this repo
 ```
