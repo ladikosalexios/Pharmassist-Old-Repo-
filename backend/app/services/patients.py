@@ -9,7 +9,9 @@ import asyncio
 import logging
 import uuid
 
+from fastapi import HTTPException
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.patient_condition import PatientCondition
@@ -676,7 +678,16 @@ async def create_condition(
         active=True,
     )
     session.add(condition)
-    await session.commit()
+    try:
+        await session.commit()
+    except IntegrityError:
+        # The (amka, condition_code) partial unique index fired — typical cause
+        # is an accidental double-click on the Save modal.
+        await session.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail="Condition already recorded for this patient",
+        ) from None
     await session.refresh(condition)
     return condition
 

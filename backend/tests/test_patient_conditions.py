@@ -33,6 +33,7 @@ os.environ.setdefault(
 from unittest.mock import patch  # noqa: E402
 
 from fastapi.testclient import TestClient  # noqa: E402
+from sqlalchemy.exc import IntegrityError  # noqa: E402
 from sqlalchemy.sql.elements import BindParameter  # noqa: E402
 
 from app.constants import AdrSeverity, AlertStatus, CheckType  # noqa: E402
@@ -381,6 +382,73 @@ def test_cross_pharmacy_patch_returns_404():
             )
         assert r.status_code == 404, r.text
         assert other.name == "Renal"  # untouched
+    finally:
+        app.dependency_overrides.clear()
+
+
+class _UniqueEnforcingSession(_CrudSession):
+    """Simulates Postgres's `uq_patient_conditions_amka_condition_active`
+    partial unique index: a second add() of an active row with an existing
+    (amka, condition_code) defers an IntegrityError to the next commit()."""
+
+    def __init__(self):
+        super().__init__()
+        self._pending_dup = False
+
+    def add(self, obj):
+        if isinstance(obj, PatientCondition) and obj.active:
+            for existing in self.rows:
+                if (
+                    isinstance(existing, PatientCondition)
+                    and existing.active
+                    and existing.amka == obj.amka
+                    and existing.condition_code == obj.condition_code
+                ):
+                    # Mirror Postgres: the failing INSERT is never persisted.
+                    self._pending_dup = True
+                    return
+        super().add(obj)
+
+    async def commit(self):
+        if self._pending_dup:
+            self._pending_dup = False
+            raise IntegrityError(
+                "INSERT INTO patient_conditions ...",
+                {},
+                Exception(
+                    "duplicate key value violates unique constraint "
+                    '"uq_patient_conditions_amka_condition_active"'
+                ),
+            )
+        await super().commit()
+
+    async def rollback(self):
+        pass
+
+
+def test_post_duplicate_returns_409():
+    pid = uuid.uuid4()
+    session = _UniqueEnforcingSession()
+    client = _client(session, pid)
+    try:
+        with _patched(_FakePharmacy(pid)):
+            body = {
+                "conditionCode": "E11.9",
+                "name": "Type 2 Diabetes Mellitus",
+                "severity": "MODERATE",
+            }
+            first = client.post(f"/patients/{ROUTER_AMKA}/conditions", json=body)
+            assert first.status_code == 201, first.text
+
+            second = client.post(f"/patients/{ROUTER_AMKA}/conditions", json=body)
+            assert second.status_code == 409, second.text
+            assert "already recorded" in second.json()["detail"].lower()
+
+            # GET still shows exactly one active row — the duplicate was rolled back.
+            listing = client.get(f"/patients/{ROUTER_AMKA}/conditions")
+            assert listing.status_code == 200
+            rows = [c for c in listing.json() if c["conditionCode"] == "E11.9"]
+            assert len(rows) == 1
     finally:
         app.dependency_overrides.clear()
 
