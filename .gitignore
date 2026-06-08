@@ -20,3 +20,5 @@ CLAUDE.MD
 *.code-workspace
 # macOS Finder junk (matches at any depth)
 .DS_Store
+# Local release-readiness audit reports (not for the repo)
+docs/release-readiness-audit-*.md
