@@ -29,8 +29,12 @@
 
 	# ── 1. Plain API prefixes ────────────────────────────────────────────────
 	# These never collide with a client-side route, so every method/Accept goes
-	# straight upstream. Mirrors the bare-string entries in vite.config.ts.
-	@api path /auth/* /pharmapi/* /prescriptions/* /safety-checks/* /spc/* /alerts/* /messages/* /notifications/* /health /health/*
+	# straight upstream. Mirrors the bare-string (prefix) entries in
+	# vite.config.ts. Each prefix is listed BOTH bare and as /*: Caddy's `/x/*`
+	# matches `/x/y` but NOT a bare `/x`, and several routers expose a bare-prefix
+	# route (e.g. GET /prescriptions — the queue, GET/POST /messages). Without the
+	# bare entry those would fall through to the SPA catch-all and 404 the API.
+	@api path /auth /auth/* /pharmapi /pharmapi/* /prescriptions /prescriptions/* /safety-checks /safety-checks/* /spc /spc/* /alerts /alerts/* /messages /messages/* /notifications /notifications/* /health /health/*
 	handle @api {
 		reverse_proxy backend:8000
 	}
@@ -42,7 +46,7 @@
 	# belongs to the backend. `handle` blocks are mutually exclusive and tried
 	# top-to-bottom, so the html case is matched first and the rest fall through.
 	@overlap_html {
-		path /documentation* /side-effects* /patients* /instructions*
+		path /documentation /documentation/* /side-effects /side-effects/* /patients /patients/* /instructions /instructions/*
 		header_regexp Accept text/html
 	}
 	handle @overlap_html {
@@ -50,7 +54,7 @@
 		file_server
 	}
 
-	@overlap_api path /documentation* /side-effects* /patients* /instructions*
+	@overlap_api path /documentation /documentation/* /side-effects /side-effects/* /patients /patients/* /instructions /instructions/*
 	handle @overlap_api {
 		reverse_proxy backend:8000
 	}

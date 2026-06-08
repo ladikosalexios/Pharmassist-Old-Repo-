@@ -60,6 +60,11 @@ services:
       COOKIE_SECURE: "true"
       # Mock pilot: serve synthetic upstream data at runtime.
       PHARMAPI_MOCK: "true"
+      # Pin CORS to the pilot origin. The SPA is same-origin via Caddy, so this
+      # is defence-in-depth — but config.py defaults to "*", which with
+      # credentials=True is a spec-invalid no-op. Follows PILOT_DOMAIN; for a
+      # different/extra origin, set CORS_ALLOW_ORIGINS (comma-separated) yourself.
+      CORS_ALLOW_ORIGINS: "https://${PILOT_DOMAIN:-localhost}"
       # ── Required secrets — no in-code fallback; compose fails fast if unset ──
       SECRET_KEY: ${SECRET_KEY:?set SECRET_KEY}
       CREDENTIAL_ENCRYPTION_KEY: ${CREDENTIAL_ENCRYPTION_KEY:?set CREDENTIAL_ENCRYPTION_KEY}
@@ -86,6 +91,9 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+      # Postgres initialises its data dir on first boot; don't count those
+      # seconds as failures.
+      start_period: 10s
 
 volumes:
   pgdata:

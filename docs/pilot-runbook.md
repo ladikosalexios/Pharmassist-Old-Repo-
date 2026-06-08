@@ -295,4 +295,3 @@ docker compose -f compose.prod.yaml --env-file .env.prod down -v
 - [ ] An engine Rx (`RX-ENGINE-001`) shows the contraindication alert
 - [ ] Hard-refresh on `https://<host>/documentation` renders the page (no 404)
 - [ ] An invited tester can open their `/accept-invite?token=…` link
-```
