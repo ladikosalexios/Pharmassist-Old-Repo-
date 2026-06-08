@@ -10,3 +10,9 @@ alembic
 cryptography
 bcrypt
 python-dotenv
+# Test-env observability — kept on the runtime requirements list because the
+# test/prod images need them; both are safe no-ops when their env config
+# (SENTRY_DSN, AUTH_LOGIN_RATE_LIMIT) is unset, so the dev compose stays
+# light. See app/observability.py for the wiring.
+sentry-sdk>=2.0.0
+slowapi>=0.1.9

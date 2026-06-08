@@ -9,7 +9,7 @@ import uuid
 from datetime import UTC, datetime
 
 import bcrypt
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -21,6 +21,7 @@ from ..db.models.pharmacist import Pharmacist
 from ..db.models.pharmacist_pharmacy import PharmacistPharmacy
 from ..db.session import get_session
 from ..deps import get_current_user
+from ..observability import auth_login_rate_limit
 from ..schemas.auth import (
     AcceptInviteRequest,
     InviteInfo,
@@ -55,7 +56,9 @@ _DUMMY_PASSWORD_HASH: str = bcrypt.hashpw(
 
 
 @router.post("/login", response_model=LoginResponse)
+@auth_login_rate_limit()
 async def login(
+    request: Request,  # required positional for slowapi (reads client IP)
     body: LoginRequest,
     response: Response,
     db: AsyncSession = Depends(get_session),

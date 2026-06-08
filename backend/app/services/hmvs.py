@@ -221,6 +221,45 @@ def hmvs_headers(token: str) -> dict:
     return {"Authorization": f"Bearer {token}", "Accept": "application/json"}
 
 
+# Startup TLS probe target — the NMVO developer portal, which fronts the IDP
+# certificate chain we'll need at runtime (the H-cert requirement, R18 of the
+# qualification checklist). A handshake failure here is the canonical signal
+# that the host trust store doesn't include the NMVO CA, and it surfaces hours
+# before the first dispense rather than at the dispense itself.
+_TLS_PROBE_URL = "https://developer-ite.nmvo.eu/"
+
+
+async def probe_developer_tls() -> bool:
+    """HEAD the NMVO developer-ite host to confirm the TLS chain validates.
+
+    Returns True on any successful handshake (regardless of HTTP status — 405,
+    404 etc. all prove the chain is good). On a handshake failure logs a
+    distinct ``[HMVS][TLS]`` error and returns False; never raises, so a
+    transient network blip cannot stop the app from booting.
+    """
+    try:
+        async with _client() as client:
+            r = await client.head(_TLS_PROBE_URL)
+        logger.info("[HMVS][TLS] developer-ite reachable (http=%s)", r.status_code)
+        return True
+    except (httpx.ConnectError, httpx.ReadError) as exc:
+        # httpx wraps the SSL error in ConnectError; the cause carries the
+        # underlying ssl.SSLCertVerificationError. Log both so an operator can
+        # tell "unknown CA" from "expired cert" from "wrong hostname".
+        cause = exc.__cause__ or exc.__context__
+        logger.error(
+            "[HMVS][TLS] handshake to %s FAILED — %s (cause=%r). "
+            "Host trust store likely missing the NMVO CA (R18 H-cert).",
+            _TLS_PROBE_URL,
+            exc,
+            cause,
+        )
+        return False
+    except httpx.HTTPError as exc:
+        logger.warning("[HMVS][TLS] probe to %s unreachable: %s", _TLS_PROBE_URL, exc)
+        return False
+
+
 def _pack_url(gtin: str, serial: str) -> str:
     settings = get_settings()
     return f"{settings.hmvs_verification_url}/product/gs1/{gtin}/pack/{serial}"
