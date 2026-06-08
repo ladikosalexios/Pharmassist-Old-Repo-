@@ -295,3 +295,146 @@ docker compose -f compose.prod.yaml --env-file .env.prod down -v
 - [ ] An engine Rx (`RX-ENGINE-001`) shows the contraindication alert
 - [ ] Hard-refresh on `https://<host>/documentation` renders the page (no 404)
 - [ ] An invited tester can open their `/accept-invite?token=…` link
+
+---
+
+## 12. Deploy to AWS (single EC2 box, Tailscale-only)
+
+For an internal pilot, run the whole `compose.prod.yaml` stack on **one EC2
+instance** reachable **only over your tailnet** — no public DNS, no open ports,
+no ACME. This matches the app's single-worker design (the in-process Pharmapi
+session can't be load-balanced anyway) and keeps the attack surface at zero.
+
+```
+  testers ── tailnet ──▶  EC2 (eu-central-1)
+                          ├─ Caddy  (tls internal)  :443
+                          ├─ backend (uvicorn, 1 worker)
+                          └─ Postgres (pgdata on EBS)
+  Security group: DENY all inbound from the internet.
+```
+
+`deploy/aws/user-data.sh` automates the box: it installs Docker + Tailscale,
+joins the tailnet, pulls secrets from SSM, and `compose up`s with
+`CADDY_TLS="tls internal"`. The sections below are the one-time setup around it.
+
+### 12.1 One-time prerequisites
+
+**a) Tailscale auth key** — in the Tailscale admin console (Settings → Keys),
+generate a key (reusable or single-use; tag it e.g. `tag:pilot`). You'll store
+it in SSM below.
+
+**b) Secrets in SSM Parameter Store** — store every secret (plus the auth key)
+as a `SecureString` under one prefix. From a workstation with AWS creds:
+
+```bash
+PREFIX=/pharmassist/pilot
+put() { aws ssm put-parameter --type SecureString --name "$PREFIX/$1" --value "$2" --overwrite; }
+
+put SECRET_KEY                "$(openssl rand -hex 32)"
+put CREDENTIAL_ENCRYPTION_KEY "$(python3 -c 'import secrets,base64;print(base64.b64encode(secrets.token_bytes(32)).decode())')"
+put POSTGRES_PASSWORD         "$(openssl rand -hex 24)"
+put PHARMAPI_USERNAME         'medcare1pharmapi'
+put PHARMAPI_PASSWORD         '<real ΗΔΥΚΑ password>'
+put PHARMAPI_API_KEY          '<real ΗΔΥΚΑ api key>'
+put TS_AUTHKEY                'tskey-auth-xxxxxxxx'
+put GH_PAT                    'github_pat_xxxxxxxx'   # fine-grained, Contents:read on this repo
+```
+
+> The `PHARMAPI_*` values must be **real** — the seed authenticates against live
+> ΗΔΥΚΑ even though the app runs mocked (see §3).
+>
+> `POSTGRES_PASSWORD` uses **hex** (not base64): it is embedded in `DATABASE_URL`,
+> so it must avoid URL-reserved chars like `/` `+` `@`.
+>
+> `GH_PAT` is needed because the repo is **private** — the box clones it over
+> HTTPS with this token (used only for the fetch, then scrubbed from
+> `.git/config`). Create a fine-grained PAT scoped to just this repo with
+> **Contents: Read-only**.
+
+**c) IAM instance role** — attach a role with **`AmazonSSMManagedInstanceCore`**
+(for Session Manager shell access) plus this inline policy so the box can read
+its secrets:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    { "Effect": "Allow", "Action": "ssm:GetParameter", "Resource": "arn:aws:ssm:*:*:parameter/pharmassist/pilot/*" },
+    { "Effect": "Allow", "Action": "kms:Decrypt", "Resource": "*" }
+  ]
+}
+```
+
+### 12.2 Launch the instance
+
+| Setting | Value |
+|---|---|
+| AMI | Amazon Linux 2023 |
+| Type | `t3.medium` (4 GB — the on-box `npm run build` needs headroom). `t3.small` is fine if you build images in CI and pull instead. |
+| Storage | 30 GB gp3 (holds the `pgdata` + `caddy_data` volumes) |
+| IAM role | the one from 12.1c |
+| Security group | **No inbound rules.** Egress: allow all. (Optional: allow inbound **UDP 41641** for direct Tailscale; without it traffic is DERP-relayed, which still works.) |
+| User data | paste `deploy/aws/user-data.sh`, editing the `CONFIG` block at the top (repo ref, `TS_HOSTNAME`, `SSM_PREFIX`) |
+
+Tailscale needs **no** inbound SG rule — it dials out and relays, so the box
+stays invisible to the internet.
+
+### 12.3 First boot → migrate + seed
+
+The script brings the stack up but stops short of seeding (it needs a live ΗΔΥΚΑ
+session). Shell in — either **SSM Session Manager** (console → Connect) or, since
+the script enabled Tailscale SSH, `tailscale ssh ec2-user@pharmassist-pilot` —
+then:
+
+```bash
+cd /opt/pharmassist
+# Log into https://test.e-prescription.gr/epregen2/ with the ΗΔΥΚΑ account first
+# so the 24h session is live, then:
+docker compose -f compose.prod.yaml --env-file .env.prod exec backend alembic upgrade head
+docker compose -f compose.prod.yaml --env-file .env.prod exec backend python -m scripts.seed
+```
+
+Record the `Local login:` email the seed prints; testers reach the pilot at
+**`https://pharmassist-pilot`** (or the full MagicDNS name in `.env.prod`'s
+`PILOT_DOMAIN`).
+
+### 12.4 Certificates
+
+`tls internal` means Caddy serves a cert from its **own CA**, so browsers show a
+warning until that CA is trusted. Either:
+
+- **Accept the warning** (fine for an internal pilot), or
+- **Install Caddy's root CA** on tester machines:
+  ```bash
+  docker compose -f compose.prod.yaml --env-file .env.prod exec frontend \
+    cat /data/caddy/pki/authorities/local/root.crt
+  ```
+- **No-warning upgrade:** enable HTTPS in the tailnet admin and use Tailscale's
+  Let's Encrypt certs (`tailscale cert <magicdns>`), pointing Caddy at the issued
+  files instead of `tls internal`. Browser-trusted, no CA install.
+
+### 12.5 Backups to S3
+
+Extend the §8 nightly cron to push each dump off-box (grant the role
+`s3:PutObject` on the bucket):
+
+```cron
+0 2 * * * cd /opt/pharmassist && /usr/bin/docker compose -f compose.prod.yaml --env-file .env.prod exec -T db pg_dump -U pharmassist -d pharmassist | gzip | aws s3 cp - s3://YOUR-BUCKET/pharmassist/pharmassist-$(date +\%F).sql.gz
+```
+
+### 12.6 Update / redeploy
+
+```bash
+cd /opt/pharmassist && git pull
+docker compose -f compose.prod.yaml --env-file .env.prod up -d --build
+docker compose -f compose.prod.yaml --env-file .env.prod exec backend alembic upgrade head
+```
+
+Containers use `restart: unless-stopped` and Docker is enabled at boot, so the
+stack survives instance reboots on its own.
+
+### 12.7 Teardown
+
+Terminate the instance (the EBS volume and its `pgdata`/`caddy_data` go with it —
+take a final dump first if you want to keep the data). Then delete the SSM
+parameters and revoke the Tailscale key in the admin console.
