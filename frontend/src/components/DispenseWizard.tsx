@@ -36,16 +36,18 @@ import { parseGs1, isCompletePack } from "../lib/gs1";
 // blocked     — HMVS returned a non-Active response (recalled, withdrawn,
 //               expired, suspended, already supplied). ``warning`` carries
 //               the upstream copy so the pharmacist sees WHY.
-// malformed   — payload could not be parsed into the four GS1 AIs we need.
 // supplying   — PATCH Supplied in flight.
 // supplied    — PATCH Supplied returned ok.
 // supply-failed — PATCH Supplied failed (or returned ok=false).
+//
+// Malformed payloads do NOT enter this list — onPackScanned surfaces them via
+// `scanError` and never adds the entry, so the pharmacist re-scans before the
+// pack reaches the registry.
 type PackStatus =
   | "pending"
   | "verifying"
   | "verified"
   | "blocked"
-  | "malformed"
   | "supplying"
   | "supplied"
   | "supply-failed";
@@ -268,7 +270,13 @@ export function DispenseWizard({
         key: fields,
         status: "verifying",
       };
-      // Kick off verify against the soon-to-be-updated list.
+      // Kick off verify against the soon-to-be-updated list. Known limitation:
+      // bulk-by-inference (verifyPack) requires the sibling pack's status to be
+      // "verified" already, so two packs scanned in quick succession both hit
+      // the registry on the wire — the second's siblings snapshot only sees the
+      // first as "verifying". This is intentional: serialising on a sibling we
+      // haven't actually verified would let a single bad-state response taint
+      // the whole batch. Sequential-scan is the documented usage.
       queueMicrotask(() => verifyPack(entry, [...cur, entry]));
       return [...cur, entry];
     });
@@ -353,6 +361,7 @@ export function DispenseWizard({
     // Walk every pack we've already moved to Supplied and PATCH back to Active.
     // Each reactivate is idempotency-guarded by the backend so a partial first
     // rollback can be safely retried.
+    let anyFailed = false;
     for (const p of packs) {
       if (p.status !== "supplied" || !p.key) continue;
       try {
@@ -360,16 +369,28 @@ export function DispenseWizard({
         if (result.ok || result.queued) {
           setPack(p.id, { status: "verified", supply: undefined, error: undefined });
         } else {
+          anyFailed = true;
           setPack(p.id, {
             error: result.warning ?? result.information ?? t("dispense.reactivateFailed"),
           });
         }
       } catch (e) {
+        anyFailed = true;
         const msg = e instanceof ApiError ? e.message : t("dispense.reactivateFailed");
         setPack(p.id, { error: msg });
       }
     }
-    setView("failure");
+    if (anyFailed) {
+      // A reactivate failed → leave the failure banner up so the pharmacist
+      // sees that some packs are stuck Supplied and can retry.
+      setView("failure");
+    } else {
+      // Clean rollback — drop the prior failure banner and send the wizard back
+      // to step 1 so the pharmacist can re-scan / re-confirm cleanly.
+      setDispenseError(null);
+      setDispenseErrorDetail(null);
+      setView("verify");
+    }
   }
 
   if (!open) return null;
@@ -451,7 +472,11 @@ export function DispenseWizard({
 
               {/* Pack list */}
               {packs.length > 0 && (
-                <ul className="mt-5 space-y-2">
+                <ul
+                  className="mt-5 space-y-2"
+                  aria-live="polite"
+                  aria-label={t("dispense.packListLabel")}
+                >
                   {packs.map((p) => (
                     <PackRow key={p.id} pack={p} onRemove={removePack} onRetry={retryVerify} />
                   ))}
@@ -514,6 +539,10 @@ export function DispenseWizard({
                 {t("dispense.decommissionNote")}
               </p>
 
+              {/* TODO(FR-3): pass `counsel` to approvePrescription once the
+                  /prescriptions/{id}/approve body accepts a counseling flag.
+                  For now the checkbox records intent only — the post-dispense
+                  Instructions flow remains the canonical counselling surface. */}
               <label className="mt-3 flex cursor-pointer items-center gap-2.5">
                 <input
                   type="checkbox"
@@ -759,12 +788,6 @@ function PackStatusBadge({ pack }: { pack: PackEntry }) {
       return (
         <Badge tone="red">
           <AlertOctagonIcon width={11} height={11} /> {t("dispense.statusBlocked")}
-        </Badge>
-      );
-    case "malformed":
-      return (
-        <Badge tone="amber">
-          <AlertCircleIcon width={11} height={11} /> {t("dispense.statusMalformed")}
         </Badge>
       );
     case "supplying":

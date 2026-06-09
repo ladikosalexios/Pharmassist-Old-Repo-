@@ -79,10 +79,17 @@ function findFnc1(s: string, from: number): number {
   return s.length;
 }
 
+// GS1 spec says AIs (01) and (17) are digit-only. A scan that produces letters
+// in those positions is corrupt — accepting it would round-trip to the registry
+// for a 404/422 that we can catch locally.
+const DIGITS = /^[0-9]+$/;
+
 function assign(out: Gs1Fields, ai: string, val: string): void {
-  if (ai === "01") out.gtin = val;
-  else if (ai === "17") out.expiry = val;
-  else if (ai === "10") out.batch = val;
+  if (ai === "01") {
+    if (DIGITS.test(val)) out.gtin = val;
+  } else if (ai === "17") {
+    if (DIGITS.test(val)) out.expiry = val;
+  } else if (ai === "10") out.batch = val;
   else if (ai === "21") out.serial = val;
 }
 

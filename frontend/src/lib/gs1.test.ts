@@ -48,6 +48,23 @@ describe("parseGs1", () => {
     expect(parseGs1(payload).serial).toBeUndefined();
   });
 
+  it("rejects non-digit characters in fixed-length AIs (01, 17)", () => {
+    // A garbled GTIN with a letter — the upstream would 404 / 422 the lookup.
+    // The parser drops the field locally so isCompletePack stays false and the
+    // scanner shows "scanMalformed" without a phone-home round-trip.
+    expect(parseGs1("0105700X23456789").gtin).toBeUndefined();
+    expect(parseGs1("17270A31").expiry).toBeUndefined();
+  });
+
+  it("tolerates the combined AIM prefix + leading FNC1 (Zebra style)", () => {
+    // Some Zebra-class scanners emit `]d2` then a stray FNC1 before the first AI.
+    const payload = `]d2${GS}010570012345678921ABC123${GS}17260101`;
+    const out = parseGs1(payload);
+    expect(out.gtin).toBe("05700123456789");
+    expect(out.serial).toBe("ABC123");
+    expect(out.expiry).toBe("260101");
+  });
+
   it("isCompletePack flips only when all four AIs are present", () => {
     expect(isCompletePack({ gtin: "g", serial: "s", batch: "b", expiry: "e" })).toBe(true);
     expect(isCompletePack({ gtin: "g", serial: "s", batch: "b" })).toBe(false);

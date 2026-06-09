@@ -31,6 +31,7 @@ import logging
 import time
 import uuid
 from dataclasses import asdict, dataclass, field
+from dataclasses import fields as dataclass_fields
 from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
 
@@ -109,8 +110,12 @@ class HmvsResult:
         """Rebuild the result of an already-``completed`` operation from its row."""
         snapshot = op.response_json or {}
         # response_json was written by to_dict(), so it round-trips field-for-field.
+        # Filter to known fields so a row written by a NEWER version of the code
+        # (extra keys) can still be replayed by an older deploy without raising
+        # ``TypeError: unexpected keyword argument``.
         if "ok" in snapshot:
-            return cls(**snapshot)
+            known = {f.name for f in dataclass_fields(cls)}
+            return cls(**{k: v for k, v in snapshot.items() if k in known})
         # Defensive fallback if a row predates the snapshot column.
         return cls(
             ok=True,

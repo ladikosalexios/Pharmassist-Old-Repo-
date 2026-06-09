@@ -71,7 +71,13 @@ export function DataMatrixScanner({ onScan, disabled, onBlockChange }: DataMatri
         }
       })
       .catch((e: unknown) => {
-        setCameraError(e instanceof Error ? e.message : t("dispense.cameraUnavailable"));
+        // A `NotAllowedError` from getUserMedia means the browser denied (or
+        // the user blocked) camera permission — that's a different failure
+        // mode than missing hardware and deserves its own end-user copy.
+        const denied = e instanceof Error && e.name === "NotAllowedError";
+        setCameraError(
+          denied ? t("dispense.cameraPermissionDenied") : t("dispense.cameraUnavailable"),
+        );
         setMode("input");
       });
 
@@ -128,7 +134,7 @@ export function DataMatrixScanner({ onScan, disabled, onBlockChange }: DataMatri
           {cameraError && (
             <p className="mt-2 flex items-center gap-1.5 text-[12px] text-amber-700 dark:text-amber-400">
               <AlertTriangleIcon width={13} height={13} className="shrink-0" />
-              {t("dispense.cameraUnavailable")}
+              {cameraError}
             </p>
           )}
         </>
