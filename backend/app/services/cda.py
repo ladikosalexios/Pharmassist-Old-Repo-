@@ -109,11 +109,10 @@ class DispensedRx:
     response_cda: str = field(repr=False)  # raw XML for the receipt column
 
     def to_envelope(self) -> dict:
-        """Shape the live + mock branches both return to the router.
+        """Shape both pharmapi_dispense mock and live branches return.
 
-        Mirrors the legacy ``pharmapi_execute_prescription`` mock dict so
-        downstream call-sites stay one mode-branch off the env var. ``executed_at``
-        is converted to ISO-8601 for the JSON receipt.
+        ``executed_at`` is converted to ISO-8601 for the JSON receipt; raw
+        spec timestamps are YYYYMMDD or YYYYMMDDHHMMSS.
         """
         # Spec timestamps are yyyymmdd (date) or yyyymmddHHMMSS — normalise to ISO.
         ts_iso = _normalise_response_timestamp(self.executed_at)

@@ -15,8 +15,12 @@ class ApproveResponse(BaseModel):
     rxId: str
     status: str
     completedAt: str
-    execId: str  # ΗΔΥΚΑ exec_ref returned by the (fake) dispense POST
+    execId: str  # ΗΔΥΚΑ exec_ref — kept for back-compat with older callers
+    # `executionNo` is the field the frontend (DispenseWizard) reads; same
+    # value as `execId`. Both populated to make the wire contract explicit.
+    executionNo: str
     documentationLogId: str  # documentation_logs.id
+    dispenseLogId: str  # dispense_logs.id — the upstream-receipt audit row
 
 
 class PatchResponse(BaseModel):

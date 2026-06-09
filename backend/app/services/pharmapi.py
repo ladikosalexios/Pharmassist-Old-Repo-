@@ -438,31 +438,6 @@ async def pharmapi_check_version() -> None:
         logger.warning("Pharmapi version check failed — %s", exc)
 
 
-async def pharmapi_execute_prescription(
-    barcode: str,
-    eof_licence_no: str,
-) -> dict:
-    """Pretend-POST a dispense to ΗΔΥΚΑ. Mock-only for now.
-
-    In mock mode (PHARMAPI_MOCK=true, default) returns a synthetic exec_ref
-    immediately — no network. This is what the approve flow persists on
-    documentation_logs.pharmapi_exec_ref so the row carries a plausible
-    "we told ΗΔΥΚΑ this was dispensed" reference.
-
-    In live mode this would POST to the ΗΔΥΚΑ dispense endpoint; that wiring
-    isn't in place yet (live approve still 501s upstream of this call).
-    """
-    if os.getenv("PHARMAPI_MOCK", "true").lower() not in ("false", "0", "no"):
-        return {
-            "exec_ref": f"MOCK-EXEC-{uuid.uuid4().hex[:12].upper()}",
-            "executed_at": datetime.now(UTC).isoformat(),
-            "status": "EXECUTED",
-            "barcode": barcode,
-            "eof_licence_no": eof_licence_no,
-        }
-    raise HTTPException(501, "Live ΗΔΥΚΑ dispense POST not yet implemented")
-
-
 # ── eDispensation POST (P3 — POST /prescriptions/{rx}/approve live wiring) ───
 PHARMAPI_DISPENSE_PATH = "/api/v1/prescriptions/dispense"
 # Spec: Accept: "application/x-hl7, application/xml", Content-Type: application/x-hl7.

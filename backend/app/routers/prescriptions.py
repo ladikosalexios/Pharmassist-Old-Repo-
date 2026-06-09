@@ -15,6 +15,7 @@ before the bare ``/{rx_id}``.
 """
 
 import ipaddress
+import uuid
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -23,16 +24,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.utils.environment import is_mock_pharmapi
 
 from ..constants import ActionType, DeliveryMethod, PrescriptionStatus
+from ..db.models.dispense_log import DispenseLog
 from ..db.session import get_session
 from ..deps import get_current_user
 from ..schemas.prescriptions import ApproveResponse, PatchResponse, PrescriptionPatch
+from ..services.cda import DispenseItem, build_dispense_cda
 from ..services.documentation import record_prescription_action
 from ..services.drug_catalog import atc_codes_for_barcodes
 from ..services.pharmacy import find_pharmacy_by_name
-from ..services.pharmapi import (
-    pharmapi_execute_prescription,
-    pharmapi_search_prescriptions,
-)
+from ..services.pharmapi import pharmapi_dispense, pharmapi_search_prescriptions
 from ..services.prescriptions import MOCK_PRESCRIPTIONS, MOCK_QUEUE_BASE
 from ..services.safety_engine import checks_for_prescription, live_rx_to_engine_shape
 
@@ -149,11 +149,65 @@ async def get_prescription_for_verification(
 
 
 # ── Actions (approve / flag / patch) ────────────────────────────────────────
-# Approve: POSTs (fake) to ΗΔΥΚΑ for an exec_ref, then writes a documentation_logs
-# row (action_type=APPROVE) with the safety-check snapshot. Mock-only.
-# Flag: PATCH with status=FLAGGED writes a documentation_logs row (action_type=FLAG)
-# with the snapshot + discrepancy fields. No ΗΔΥΚΑ call (not a dispense).
-# Both fail closed in live mode until real ΗΔΥΚΑ dispense wiring lands.
+# Approve flow (mock + live; identical control flow, branch only at the
+# pharmapi_dispense call):
+#   1. resolve the rx (mock map or pharmapi search)
+#   2. build the eDispensation request CDA via services.cda.build_dispense_cda
+#   3. POST it via services.pharmapi.pharmapi_dispense (mock parity envelope)
+#   4. on success → write dispense_log (upstream receipt audit) + a
+#      documentation_logs row (counselling / legal record). Never persist
+#      either row when pharmapi_dispense raises — we only audit real dispenses.
+#   5. return ApproveResponse with execRef + the two log ids.
+# Flag: PATCH with status=FLAGGED writes a documentation_logs row only — no
+# ΗΔΥΚΑ call because flagging is internal triage, not a dispense.
+
+
+def _rx_to_dispense_items(rx: dict) -> list[DispenseItem]:
+    """Map a prescription dict to one or more DispenseItems for the CDA.
+
+    The mock fixtures carry a single ``medication`` object; live mode shapes
+    will eventually grow a per-line list (see TODOs in services.pharmapi).
+    For now we emit one line per Rx using the EAN/NHRN as the medicine
+    barcode and a synthetic per-Rx therapy id so the upstream POST has a
+    well-formed (if synthetic) ``id[@root='1.21.1']`` field.
+
+    TODO(P3-followup): in live mode therapy_line_id MUST come from the
+    upstream search response's per-medicine lineId — sending a synthetic id
+    would let ΗΔΥΚΑ accept a malformed dispense. Until that wiring lands the
+    live mode is intended for the manual test against pharmacy 70014 only.
+    """
+    medication = rx.get("medication", {}) or {}
+    medicine_barcode = rx.get("medicineBarcode") or medication.get("nhrn") or ""
+    return [
+        DispenseItem(
+            therapy_line_id=f"{rx['rxId']}-L1",
+            medicine_barcode=medicine_barcode,
+            # TODO(P3-followup): real ΕΟΦ strip / HMVS QR id from the
+            # pack-verify step (services.hmvs verify). The 12-zero placeholder
+            # keeps the CDA schema-valid for the mock round-trip.
+            lot_number="000000000000",
+            consent=1,
+            dispense_mode=0,
+        )
+    ]
+
+
+async def _resolve_rx_for_dispense(session: AsyncSession, rx_id: str, current: dict) -> dict:
+    """Return the rx dict the dispense flow operates on.
+
+    Mock branch: look up MOCK_PRESCRIPTIONS by rxId. Live branch: search
+    Pharmapi by barcode (single-result query).
+    """
+    if is_mock_pharmapi():
+        rx = MOCK_PRESCRIPTIONS.get(rx_id)
+        if not rx:
+            raise HTTPException(status_code=404, detail=f"Prescription {rx_id} not found")
+        return rx
+
+    results = await pharmapi_search_prescriptions(barcode=rx_id)
+    if not results:
+        raise HTTPException(status_code=404, detail=f"Prescription {rx_id} not found")
+    return results[0]
 
 
 @router.post("/{rx_id}/approve", response_model=ApproveResponse)
@@ -163,37 +217,57 @@ async def approve_prescription(
     current: dict = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ):
-    if not is_mock_pharmapi():
-        # Real ΗΔΥΚΑ dispense POST not yet wired.
-        raise HTTPException(
-            status_code=501,
-            detail="Live dispense not yet wired to ΗΔΥΚΑ POST.",
-        )
+    rx = await _resolve_rx_for_dispense(session, rx_id, current)
 
-    rx = MOCK_PRESCRIPTIONS.get(rx_id)
-    if not rx:
-        raise HTTPException(status_code=404, detail=f"Prescription {rx_id} not found")
+    pharmacy = await find_pharmacy_by_name(session, current["pharmacy"])
+    if pharmacy is None:
+        raise HTTPException(status_code=400, detail="Pharmacy not found for current user")
 
-    # 1) Snapshot safety checks at action time (cast to plain list of dicts so
-    #    JSONB serialisation doesn't surprise us if the source ever shifts to
-    #    something pydantic-ish).
-    snapshot = [dict(c) for c in rx.get("safetyChecks", [])]
-
-    # 2) Pretend-POST to ΗΔΥΚΑ. Returns a synthetic exec_ref in mock mode.
-    exec_resp = await pharmapi_execute_prescription(
+    items = _rx_to_dispense_items(rx)
+    cda_request = build_dispense_cda(
         barcode=rx_id,
-        eof_licence_no=rx.get("prescriber", {}).get("licenceId", ""),
+        pharmacy_unit_id=pharmacy.pharmapi_unit_id,
+        items=items,
     )
 
-    # 3) Persist documentation_logs row.
     ip, ua = _client_meta(request)
-    log = await record_prescription_action(
+    # X-DOCTOR-IP per IDIKA spec — the pharmacist's external IP. Under
+    # TestClient (no real client) we fall back to a placeholder so the
+    # required-header guard in pharmapi_dispense never refuses a mock call.
+    doctor_ip = ip or "0.0.0.0"
+
+    # Single seam to ΗΔΥΚΑ — mock + live return the same envelope shape.
+    # If this raises, we MUST NOT persist any success log. Both writes below
+    # are unreachable on failure (the exception propagates).
+    envelope = await pharmapi_dispense(
+        barcode=rx_id,
+        cda_xml=cda_request,
+        doctor_ip=doctor_ip,
+    )
+
+    # Snapshot the safety checks at action time — cast to plain dicts so
+    # JSONB serialisation doesn't surprise us if upstream ever switches to
+    # pydantic-ish objects.
+    snapshot = [dict(c) for c in rx.get("safetyChecks", [])]
+
+    dispense_log = DispenseLog(
+        pharmacy_id=pharmacy.id,
+        pharmacist_id=uuid.UUID(current["pharmacist_id"]),
+        barcode=rx_id,
+        exec_ref=envelope["exec_ref"],
+        request_cda=cda_request.decode("utf-8"),
+        response_cda=envelope.get("response_cda") or "",
+    )
+    session.add(dispense_log)
+    await session.flush()  # commit happens inside record_prescription_action
+
+    doc_log = await record_prescription_action(
         session,
         action_type=ActionType.APPROVE,
         rx=rx,
         safety_checks=snapshot,
         pharmacist_email=current["email"],
-        pharmapi_exec_ref=exec_resp["exec_ref"],
+        pharmapi_exec_ref=envelope["exec_ref"],
         discrepancy_type=None,
         notes=None,
         info_provided="Counselling delivered per SPC",
@@ -202,17 +276,22 @@ async def approve_prescription(
         user_agent=ua,
     )
 
-    # 4) Mutate in-memory mock so subsequent GETs reflect COMPLETED status.
-    rx["status"] = PrescriptionStatus.COMPLETED
-    rx["completedAt"] = datetime.now(UTC).isoformat()
+    completed_at = datetime.now(UTC).isoformat()
+    if is_mock_pharmapi():
+        # Reflect COMPLETED in the in-memory mock so subsequent GETs match
+        # what the dispense_logs row now says.
+        rx["status"] = PrescriptionStatus.COMPLETED
+        rx["completedAt"] = completed_at
 
     return ApproveResponse(
         success=True,
         rxId=rx_id,
-        status=rx["status"],
-        completedAt=rx["completedAt"],
-        execId=exec_resp["exec_ref"],
-        documentationLogId=str(log.id),
+        status=PrescriptionStatus.COMPLETED,
+        completedAt=completed_at,
+        execId=envelope["exec_ref"],
+        executionNo=envelope["exec_ref"],
+        documentationLogId=str(doc_log.id),
+        dispenseLogId=str(dispense_log.id),
     )
 
 
