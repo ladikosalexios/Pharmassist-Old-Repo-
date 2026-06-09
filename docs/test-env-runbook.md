@@ -149,46 +149,6 @@ Anything that 502s here is a real upstream issue — capture the exact request
 ID from the backend logs (now JSON-formatted under `LOG_FORMAT=json`) before
 re-running.
 
-### 5a. Real eDispensation POST — manual test against pharmacy 70014
-
-P3 wired `POST /prescriptions/{rx_id}/approve` to the live ΗΔΥΚΑ
-`POST /api/v1/prescriptions/dispense` endpoint (Content-Type:
-`application/x-hl7`, X-DOCTOR-IP required — see
-`backend/app/services/pharmapi.py:pharmapi_dispense`). Until live data
-sourcing for `therapy_line_id` lands (TODOs in
-`backend/app/routers/prescriptions.py:_rx_to_dispense_items`), the upstream
-POST is intended to be exercised **manually** against ΗΔΥΚΑ test pharmacy
-**70014**, not in an automated test:
-
-1. From the verification screen of a real pending Rx on pharmacy 70014,
-   click **Approve & dispense**.
-2. Backend logs will show one line of the form
-   `[Pharmapi] POST /api/v1/prescriptions/dispense barcode=… doctor_ip=… body_bytes=…`
-   (the CDA body is **never** logged — PHI guard).
-3. On HTTP 200: record the returned `executionNo` from the JSON response
-   (it's also persisted on `dispense_logs.exec_ref` and on
-   `documentation_logs.pharmapi_exec_ref`):
-   ```sql
-   SELECT id, barcode, exec_ref, created_at
-     FROM dispense_logs
-    WHERE barcode = '<rx barcode>'
-    ORDER BY created_at DESC LIMIT 1;
-   ```
-4. Re-POSTing the same barcode (any `X-Request-Id`) must return
-   `{"idempotent": true, "execId": "<same>", "dispenseLogId": "<same>"}`
-   with NO second upstream call — the
-   `uq_dispense_logs_pharmacy_id` constraint on
-   `(pharmacy_id, barcode)` is the DB-enforced backstop.
-5. Common upstream errors are mapped to HTTP 4xx by error code:
-   `G02` (already executed) → 409, `G14` (session expired) → 401, etc. —
-   see `_PHARMAPI_RX_ERRORS` in `services/pharmapi.py`. If you hit
-   anything that 502s, save the response body and the backend request
-   line and ship a follow-up PR with the new mapping.
-
-Partial dispense and reversal are intentionally out of scope (the CDA
-builder raises `NotImplementedError` for `execution_case != 1` — TODOs
-in `backend/app/services/cda.py`).
-
 ---
 
 ## 6. First real HMVS call — the qualification gate

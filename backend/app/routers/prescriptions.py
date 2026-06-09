@@ -30,7 +30,6 @@ from ..db.models.dispense_log import DispenseLog
 from ..db.session import get_session
 from ..deps import get_current_user
 from ..schemas.prescriptions import ApproveResponse, PatchResponse, PrescriptionPatch
-from ..services.cda import DispenseItem, build_dispense_cda
 from ..services.documentation import record_prescription_action
 from ..services.drug_catalog import atc_codes_for_barcodes
 from ..services.pharmacy import find_pharmacy_by_name
@@ -154,8 +153,8 @@ async def get_prescription_for_verification(
 # Approve flow (mock + live; identical control flow, branch only at the
 # pharmapi_dispense call):
 #   1. resolve the rx (mock map or pharmapi search)
-#   2. build the eDispensation request CDA via services.cda.build_dispense_cda
-#   3. POST it via services.pharmapi.pharmapi_dispense (mock parity envelope)
+#   2. pull dispense fields (pharmacyId + medicine barcodes + amka)
+#   3. POST via services.pharmapi.pharmapi_dispense (mock parity envelope)
 #   4. on success → write dispense_log (upstream receipt audit) + a
 #      documentation_logs row (counselling / legal record). Never persist
 #      either row when pharmapi_dispense raises — we only audit real dispenses.
@@ -164,34 +163,22 @@ async def get_prescription_for_verification(
 # ΗΔΥΚΑ call because flagging is internal triage, not a dispense.
 
 
-def _rx_to_dispense_items(rx: dict) -> list[DispenseItem]:
-    """Map a prescription dict to one or more DispenseItems for the CDA.
+def _rx_to_dispense_fields(rx: dict) -> dict:
+    """Pull the dispense-request fields off a prescription dict.
 
-    The mock fixtures carry a single ``medication`` object; live mode shapes
-    will eventually grow a per-line list (see TODOs in services.pharmapi).
-    For now we emit one line per Rx using the EAN/NHRN as the medicine
-    barcode and a synthetic per-Rx therapy id so the upstream POST has a
-    well-formed (if synthetic) ``id[@root='1.21.1']`` field.
-
-    TODO(P3-followup): in live mode therapy_line_id MUST come from the
-    upstream search response's per-medicine lineId — sending a synthetic id
-    would let ΗΔΥΚΑ accept a malformed dispense. Until that wiring lands the
-    live mode is intended for the manual test against pharmacy 70014 only.
+    Returns ``{amka, medicine_barcodes}`` for the predosing-pattern POST in
+    services.pharmapi.pharmapi_dispense. Mock fixtures carry a single
+    ``medication.nhrn``; live mode populates ``medicineBarcode`` on the
+    search response. Returns one barcode today; ready to grow to N once the
+    upstream shape ships a list.
     """
     medication = rx.get("medication", {}) or {}
+    patient = rx.get("patient", {}) or {}
     medicine_barcode = rx.get("medicineBarcode") or medication.get("nhrn") or ""
-    return [
-        DispenseItem(
-            therapy_line_id=f"{rx['rxId']}-L1",
-            medicine_barcode=medicine_barcode,
-            # TODO(P3-followup): real ΕΟΦ strip / HMVS QR id from the
-            # pack-verify step (services.hmvs verify). The 12-zero placeholder
-            # keeps the CDA schema-valid for the mock round-trip.
-            lot_number="000000000000",
-            consent=1,
-            dispense_mode=0,
-        )
-    ]
+    return {
+        "amka": patient.get("amka") or "",
+        "medicine_barcodes": [medicine_barcode] if medicine_barcode else [],
+    }
 
 
 async def _resolve_rx_for_dispense(session: AsyncSession, rx_id: str, current: dict) -> dict:
@@ -265,12 +252,7 @@ async def approve_prescription(
     if cached is not None:
         return _cached_approve_response(cached)
 
-    items = _rx_to_dispense_items(rx)
-    cda_request = build_dispense_cda(
-        barcode=rx_id,
-        pharmacy_unit_id=pharmacy.pharmapi_unit_id,
-        items=items,
-    )
+    fields = _rx_to_dispense_fields(rx)
 
     ip, ua = _client_meta(request)
     # X-DOCTOR-IP per IDIKA spec — the pharmacist's external IP. Under
@@ -283,7 +265,10 @@ async def approve_prescription(
     # are unreachable on failure (the exception propagates).
     envelope = await pharmapi_dispense(
         barcode=rx_id,
-        cda_xml=cda_request,
+        pharmacy_id=pharmacy.pharmapi_unit_id,
+        amka=fields["amka"],
+        medicine_barcodes=fields["medicine_barcodes"],
+        eof_licence_no=current.get("eof_licence_no", ""),
         doctor_ip=doctor_ip,
     )
 
@@ -292,13 +277,17 @@ async def approve_prescription(
     # pydantic-ish objects.
     snapshot = [dict(c) for c in rx.get("safetyChecks", [])]
 
+    # Note: the dispense_logs.request_cda / response_cda columns are
+    # *legacy-named* now that the dispense isn't a CDA — they hold the
+    # generic XML payloads. A column rename can come in a follow-up if it
+    # turns out a rename adds more value than the schema churn costs.
     dispense_log = DispenseLog(
         pharmacy_id=pharmacy.id,
         pharmacist_id=uuid.UUID(current["pharmacist_id"]),
         barcode=rx_id,
         exec_ref=envelope["exec_ref"],
-        request_cda=cda_request.decode("utf-8"),
-        response_cda=envelope.get("response_cda") or "",
+        request_cda="",  # populated when live live wiring lands
+        response_cda=envelope.get("response_xml") or "",
         request_id=x_request_id,
     )
     session.add(dispense_log)

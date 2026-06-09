@@ -23,57 +23,40 @@ os.environ.setdefault(
     "postgresql+asyncpg://pharmassist:pharmassist_dev@localhost:5432/pharmassist_test",
 )
 
-from app.routers.prescriptions import _rx_to_dispense_items  # noqa: E402
-from app.services.cda import build_dispense_cda, parse_dispense_response  # noqa: E402
+from app.routers.prescriptions import _rx_to_dispense_fields  # noqa: E402
 
 
-def test_rx_to_items_uses_nhrn_when_medicine_barcode_absent():
-    items = _rx_to_dispense_items(
+def test_rx_to_fields_uses_nhrn_when_medicine_barcode_absent():
+    fields = _rx_to_dispense_fields(
         {
             "rxId": "RX2024-001",
+            "patient": {"amka": "22071993789"},
             "medication": {"nhrn": "5201234500017"},
         }
     )
-    assert len(items) == 1
-    assert items[0].medicine_barcode == "5201234500017"
-    assert items[0].therapy_line_id == "RX2024-001-L1"
-    assert items[0].dispense_mode == 0  # ΕΟΦ strip
-    assert items[0].consent == 1
+    assert fields == {
+        "amka": "22071993789",
+        "medicine_barcodes": ["5201234500017"],
+    }
 
 
-def test_rx_to_items_prefers_live_medicine_barcode():
-    items = _rx_to_dispense_items(
+def test_rx_to_fields_prefers_live_medicine_barcode():
+    fields = _rx_to_dispense_fields(
         {
             "rxId": "2411223344556",
+            "patientAmka": "ignored-top-level",
+            "patient": {"amka": "05055505340"},
             "medicineBarcode": "2802676702022",
             "medication": {"nhrn": "ignored"},
         }
     )
-    assert items[0].medicine_barcode == "2802676702022"
+    assert fields["medicine_barcodes"] == ["2802676702022"]
+    assert fields["amka"] == "05055505340"
 
 
-def test_rx_to_items_roundtrips_through_cda_builder():
-    """Whatever the helper emits must satisfy build_dispense_cda — guards
-    against an accidental change to the helper that produces unbuildable
-    items (e.g. dispense_mode=1 with no qr_*)."""
-    items = _rx_to_dispense_items({"rxId": "RX2024-005", "medication": {"nhrn": "5201234500017"}})
-    cda = build_dispense_cda(barcode="RX2024-005", pharmacy_unit_id=6543, items=items)
-    # Sanity: must contain the barcode and the synthetic therapy id.
-    text = cda.decode("utf-8")
-    assert "RX2024-005-L1" in text
-    assert "5201234500017" in text
-
-
-def test_mock_envelope_parses_round_trip(monkeypatch):
-    """Belt-and-braces — the mock branch's stub CDA must round-trip through
-    parse_dispense_response. Already covered in test_pharmapi_dispense; mirrored
-    here so a Phase-3 refactor of the mock template doesn't slip past."""
-    from app.services.pharmapi import _mock_dispense_envelope
-
-    env = _mock_dispense_envelope("2411223344556")
-    parsed = parse_dispense_response(env["response_cda"])
-    assert parsed.exec_ref == env["exec_ref"]
-    assert parsed.barcode == "2411223344556"
+def test_rx_to_fields_empty_when_no_medicine_or_patient():
+    fields = _rx_to_dispense_fields({"rxId": "x"})
+    assert fields == {"amka": "", "medicine_barcodes": []}
 
 
 def test_cached_approve_response_reuses_original_metadata():
@@ -92,7 +75,7 @@ def test_cached_approve_response_reuses_original_metadata():
         pharmacist_id=_uuid.uuid4(),
         barcode="RX2024-001",
         exec_ref="MOCK-EXEC-D7A9F91349D1",
-        request_cda="<x/>",
+        request_cda="",
         response_cda="<x/>",
         request_id="req-original",
     )
