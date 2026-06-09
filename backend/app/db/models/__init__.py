@@ -1,6 +1,7 @@
 from .adr_event import AdrEvent
 from .adr_report import AdrReport
 from .audit_log import AuditLog
+from .dispense_log import DispenseLog
 from .documentation_log import DocumentationLog
 from .drug_catalog import DrugCatalog
 from .hmvs_operation import HmvsOperation
@@ -17,6 +18,7 @@ __all__ = [
     "PharmacistPharmacy",
     "Invitation",
     "PatientCondition",
+    "DispenseLog",
     "DocumentationLog",
     "AdrReport",
     "AdrEvent",

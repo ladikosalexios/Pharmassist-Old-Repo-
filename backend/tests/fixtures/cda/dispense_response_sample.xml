@@ -1,0 +1,805 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<ClinicalDocument xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:epsos="urn:epsos-org:ep:medication" xmlns="urn:hl7-org:v3">
+    <realmCode code="US"/>
+    <typeId extension="POCD_HD000040" root="2.16.840.1.113883.1.3"/>
+    <!-- Μοναδικό χαρακτηριστικό για το EpsosEDispensation για τις αντλήσεις -->
+    <templateId root="1.3.6.1.4.1.12559.11.10.1.3.1.1.2"/>
+    <templateId root="1.3.6.1.4.1.19376.1.5.3.1.1.1"/>
+    <!-- Βarcode Συνταγής -->
+    <id extension="2411223344556" root="1.21"/>
+    <code code="60593-1" codeSystem="2.16.840.1.113883.6.1" codeSystemName="LOINC" displayName="eDispensation"/>
+    <title>Medication Dispensed</title>
+    <!-- Ημερομηνία Εκτέλεσης -->
+    <effectiveTime value="20241119"/>
+    <confidentialityCode code="N" codeSystem="2.16.840.1.113883.5.25"/>
+    <languageCode code="el-GR"/>
+    <!-- Πληροφορίες Ασθενή -->
+    <recordTarget contextControlCode="OP" typeCode="RCT">
+        <patientRole>
+            <!-- ΑΜΚΑ Ασθενή -->
+            <id extension="05055505340" root="1.10.1"/>
+            <!-- Id Ασφαλιστικού Φορέα με βάση το οποίο έγινε η συνταγογράφηση -->
+            <id extension="2" root="1.10.30.1"/>
+            <!-- Όνομα Ασφαλιστικού Φορέα με βάση το οποίο έγινε η συνταγογράφηση -->
+            <id extension="Ι.Κ.Α.-Ε.Τ.Α.Μ." root="1.10.30.2"/>
+            <!-- ΑΜΑ με βάση το οποίο έγινε η συνταγογράφηση -->
+            <id extension="58555" root="1.10.2"/>
+            <!-- Τύπος ασφαλισμένου με βάση το οποίο έγινε η συνταγογράφηση -->
+            <id extension="Άμεσος" root="1.20.1"/>
+            <!-- Ημερομηνία Τελευταίας Ενημέρωσης Ασφαλιστικού φορέα -->
+            <id extension="20241118" root="1.30.1"/>
+            <!-- Ημερομηνία Λήξης Ασφαλιστικής Ικανότητας -->
+            <id extension="99991231" root="1.30.2"/>
+            <!-- Διεύθυνση -->
+            <addr>
+                <streetAddressLine>ΟΔΟΣ 12</streetAddressLine>
+                <city>ΑΤΤΙΚΗ</city>
+                <postalCode>12347</postalCode>
+                <state>ΑΤΤΙΚΗΣ</state>
+                <country>GR</country>
+            </addr>
+            <!-- Τηλέφωνο -->
+            <telecom use="MC" value="tel:+6900000004"/>
+            <!-- email -->
+            <telecom use="HP" value="mailto:test@test.gr"/>
+            <patient>
+                <!-- Όνομα / Επίθετο-->
+                <name>
+                    <given>ΟΝΟΜΑ</given>
+                    <family>ΕΠΩΝΥΜΟ</family>
+                </name>
+                <!-- Φύλο: F για Γυναίκα, Μ για Άνδρας -->
+                <administrativeGenderCode code="M" codeSystem="2.16.840.1.113883.5.1" displayName="Male"/>
+                <!-- Ημερομηνία Γέννησης: "DDMMYYHHmm" -->
+                <birthTime value="19390101"/>
+                <raceCode nullFlavor="NA"/>
+                <languageCommunication>
+                    <templateId root="1.3.6.1.4.1.19376.1.5.3.1.2.1"/>
+                    <languageCode code="el-GR"/>
+                </languageCommunication>
+            </patient>
+        </patientRole>
+    </recordTarget>
+    <!-- Πληροφορίες Φαρμακοποιού -->
+    <author>
+        <functionCode code="2262" codeSystem="2.16.840.1.113883.2.9.6.2.7" codeSystemName="ISCO" displayName="Pharmacists"/>
+        <time value="20241119"/>
+        <assignedAuthor>
+            <id root="2.16.840.1.113883.4.6"/>
+            <!-- Id Φαρμακοποιού -->
+            <id extension="12345" root="1.18.1"/>
+            <!-- Τηλέφωνο -->
+            <telecom use="MC" value="tel:+6900000008"/>
+            <!-- email -->
+            <telecom use="HP" value="mailto:test@test.gr"/>
+            <assignedPerson classCode="PSN" determinerCode="INSTANCE">
+                <name>
+                    <given>ΟΝΟΜΑΦ</given>
+                    <family>ΕΠΙΘΕΤΟΦ</family>
+                </name>
+            </assignedPerson>
+            <!-- Στοιχεία φαρμακείου -->
+            <representedOrganization>
+                <!-- Id Μονάδας -->
+                <id extension="6543" root="1.18.1.1"/>
+                <!-- Επωνυμία -->
+                <name>ΙΔΙΩΤΙΚΟ ΦΑΡΜΑΚΕΙΟ</name>
+                <!-- Κινητό-->
+                <telecom use="MC" value="tel:+2340000000"/>
+                <telecom nullFlavor="NI"/>
+                <!-- Διεύθυνση Μονάδας -->
+                <addr>
+                    <streetAddressLine>ΟΔΟΣ 2</streetAddressLine>
+                    <city>ΣΚΟΠΕΛΟΣ</city>
+                    <postalCode>37003</postalCode>
+                    <state nullFlavor="NI"/>
+                    <country>GR</country>
+                </addr>
+            </representedOrganization>
+        </assignedAuthor>
+    </author>
+    <!-- Στοιχεία Φαρμακευτικού Συλλόγου -->
+    <custodian typeCode="CST">
+        <!-- Φαρμακευτικός Σύλλογος -->
+        <assignedCustodian classCode="ASSIGNED">
+            <representedCustodianOrganization>
+                <id extension="2" root="1.5.2.1"/>
+                <name>ΑΙΤΩΛ/ΝΙΑΣ</name>
+                <telecom use="MC" value="tel:+26000/20000"/>
+                <addr>
+                    <streetAddressLine>ΧΑΡ.ΤΡΙΚΟΥΠΗ 38</streetAddressLine>
+                    <city>ΜΕΣΟΛΟΓΓΙ</city>
+                    <postalCode>30200</postalCode>
+                </addr>
+            </representedCustodianOrganization>
+        </assignedCustodian>
+    </custodian>
+    <!-- Στοιχεία Φαρμακοποιού που εκτέλεσε την συνταγή -->
+    <legalAuthenticator>
+        <time value="20241119"/>
+        <signatureCode code="S"/>
+        <assignedEntity>
+            <!-- Id Φαρμακοποιού -->
+            <id extension="12345" root="1.18.1"/>
+            <!-- Τηλέφωνο -->
+            <telecom use="MC" value="tel:+6900000008"/>
+            <!-- email -->
+            <telecom use="HP" value="mailto:test@test.gr"/>
+            <assignedPerson>
+                <name>
+                    <given>ΟΝΟΜΑΦ</given>
+                    <family>ΕΠΙΘΕΤΟΦ</family>
+                </name>
+            </assignedPerson>
+            <!-- Στοιχεία φαρμακείου -->
+            <representedOrganization>
+                <id extension="6543" root="1.18.1.1"/>
+                <name>ΙΔΙΩΤΙΚΟ ΦΑΡΜΑΚΕΙΟ</name>
+                <telecom use="MC" value="tel:+2340000000"/>
+                <telecom nullFlavor="NI"/>
+                <!-- Διεύθυνση Μονάδας -->
+                <addr>
+                    <streetAddressLine>ΟΔΟΣ 2</streetAddressLine>
+                    <city>ΣΚΟΠΕΛΟΣ</city>
+                    <postalCode>37003</postalCode>
+                    <state nullFlavor="NI"/>
+                    <country>GR</country>
+                </addr>
+            </representedOrganization>
+        </assignedEntity>
+    </legalAuthenticator>
+    <inFulfillmentOf>
+        <order>
+            <!-- Βarcode Συνταγής -->
+            <id extension="2411223344556" root="1.21"/>
+        </order>
+    </inFulfillmentOf>
+    <relatedDocument typeCode="XFRM">
+        <parentDocument>
+            <!-- Βarcode Συνταγής -->
+            <id extension="2411223344556" root="1.21"/>
+        </parentDocument>
+    </relatedDocument>
+    <component>
+        <structuredBody>
+            <component>
+                <section>
+                    <templateId root="2.16.840.1.113883.10.20.1.8"/>
+                    <templateId root="1.3.6.1.4.1.12559.11.10.1.3.1.2.2"/>
+                    <!-- Βarcode Συνταγής -->
+                    <id extension="2411223344556" root="1.21"/>
+                    <code code="60590-7" codeSystem="2.16.840.1.113883.6.1" codeSystemName="LOINC" displayName="Medication dispensed"/>
+                    <title>Treatments Dispensed</title>
+                    <text>
+                        <!-- Λίστα Βarcode Φαρμάκων -->
+                        <list>
+                            <item ID="med_barcode_1">2802676702022</item>
+                            <item ID="med_notes_1">Σημειώσεις</item>
+                            <item ID="med_barcode_2">2802009201024</item>
+                            <item ID="med_notes_2">Σημειώσεις</item>
+                            <item ID="prescription_notes">lorem ipsum</item>
+                        </list>
+                    </text>
+                    <entry>
+                        <act classCode="ACT" moodCode="EVN">
+                            <!-- Id Συνταγής -->
+                            <id extension="22033332" root="1.22"/>
+                            <!-- Id περίπτωσης εκτέλεσης -->
+                            <id extension="0" root="2.10.7"/>
+                            <!-- Επιβάρυνση από ασφαλιστικό ταμείο (Επιβάρυνση 1 Ευρώ) - 0 : ΌΧΙ | 1 : ΝΑΙ -->
+                            <id extension="1" root="1.1.22.1"/>
+                            <!-- Ποσό Επιβάρυνσης από ασφαλιστικό ταμείο (Επιβάρυνση 1 Ευρώ) -->
+                            <!-- Στην περίπτωση 1ης εκτέλεσης της συνταγής -->
+                            <id extension="1.0" root="1.1.22"/>
+                            <!-- Συνολικό ποσό συμμετοχής ασθενή -->
+                            <id extension="2.4025" root="1.1.2.4"/>
+                            <!-- Συνολικό ποσό συμμετοχής Ασφαλιστικού Φορέα -->
+                            <id extension="7.2075" root="1.1.2.5"/>
+                            <!-- Αξία συμπληρωματικής ασφάλισης -->
+                            <id extension="0.0" root="1.1.27.1"/>
+                            <!-- Συνολικό ποσό διαφοράς που καλύπτεται από τον ΚΥΥΑΠ -->
+                            <id extension="0.0" root="1.1.27.2"/>
+                            <!-- Ένδειξη απαλλαγής συμμετοχής ασφαλισμένου, 1:Ναι | 0:Όχι -->
+                            <id extension="0" root="1.1.26"/>
+                            <!-- Γνωμάτευση, 1:Ναι | 0:Όχι -->
+                            <id extension="1" root="1.1.23"/>
+                            <!-- Τύπος ιατρικής γνωμάτευσης: 1-Νοσοκομειακή Γνωμάτευση, 2-Γνωμάτευση Ειδικότητας -->
+                            <id extension="1" root="1.1.23.7"/>
+                            <id extension="0" root="1.7.1"/>
+                            <id extension="0" root="1.1.34"/>
+                            <id extension="0" root="1.7.1"/>
+                            <code nullFlavor="NI"/>
+                            <effectiveTime>
+                                <!-- Ημερομηνία Έκδοσης -->
+                                <low value="20241119"/>
+                                <!-- Ημερομηνία Πρoθεσμίας Εκτέλεσης-->
+                                <high value="20350406"/>
+                            </effectiveTime>
+                        </act>
+                    </entry>
+                    <!-- Στοιχεία που αφορούν την μία (και μοναδική) ποσότητα της πρώτης θεραπείας -->
+                    <entry>
+                        <templateId root="1.3.6.1.4.1.12559.11.10.1.3.1.3.2"/>
+                        <supply classCode="SPLY" moodCode="EVN">
+                            <templateId root="2.16.840.1.113883.10.20.1.34"/>
+                            <templateId root="1.3.6.1.4.1.19376.1.5.3.1.4.7.3"/>
+                            <templateId root="1.3.6.1.4.1.12559.11.10.1.3.1.3.3"/>
+                            <!-- Ιd 1ης Θεραπείας -->
+                            <id extension="22033332" root="1.21.1"/>
+                            <!-- Ποσότητα 1ης Θεραπείας -->
+                            <quantity value="1" unit="1"/>
+                            <product>
+                                <manufacturedProduct classCode="MANU">
+                                    <templateId root="1.3.6.1.4.1.12559.11.10.1.3.1.3.1"/>
+                                    <templateId root="2.16.840.1.113883.10.20.1.53"/>
+                                    <manufacturedMaterial>
+                                        <epsos:id root="1.3.6.1.4.1.12559.11.10.1.3.1.3.3"/>
+                                        <!-- Φάρμακο, code: EOFcode φαρμάκου, displayName: Ονομασία φαρμάκου -->
+                                        <code code="267670202" codeSystem="0.0.0.0.0.0.0.0.0" codeSystemName="EOF" displayName="NORVALET CAPS 10MG/CAP BTx30 (BLIST 3x10)">
+                                            <originalText>
+                                                <!-- Αναφορά στο barcode Φαρμάκου -->
+                                                <reference value="#med_barcode_1"/>
+                                            </originalText>
+                                        </code>
+                                        <!-- Ονομασία φαρμάκου -->
+                                        <name>NORVALET CAPS 10MG/CAP BTx30 (BLIST 3x10)</name>
+                                        <!-- Φόρμα / Συσκευασία Φαρμάκου -->
+                                        <epsos:formCode code="CAPS" codeSystem="1.3.6.1.4.1.12559.11.10.1.3.1.44.1" codeSystemName="EDQM" displayName="CAPS">
+                                            <epsos:translation displayName="ΚΑΨΟΥΛΑ"/>
+                                        </epsos:formCode>
+                                        <epsos:asContent classCode="CONT">
+                                            <epsos:containerPackagedMedicine classCode="CONT" determinerCode="KIND">
+                                                <!-- Ονομασία φαρμάκου -->
+                                                <epsos:name>NORVALET CAPS 10MG/CAP BTx30 (BLIST 3x10)</epsos:name>
+                                                <!-- Συσκευασία Φαρμάκου -->
+                                                <epsos:formCode code="BTx30_(BLIST_3x10)" codeSystem="1.3.6.1.4.1.12559.11.10.1.3.1.44.1" codeSystemName="EDQM" displayName="BTx30_(BLIST_3x10)"/>
+                                                <!-- Ταινία γνησιότητας Φαρμάκου -->
+                                                <epsos:lotNumberText>230100011999</epsos:lotNumberText>
+                                                <!-- Ποσότητα κάθε Συσκευασίας Φαρμάκου -->
+                                                <epsos:capacityQuantity value="30"/>
+                                                <epsos:capTypeCode nullFlavor="NA"/>
+                                            </epsos:containerPackagedMedicine>
+                                        </epsos:asContent>
+                                        <epsos:ingredient classCode="ACTI">
+                                            <epsos:quantity>
+                                                <epsos:numerator value="0" unit="0" xsi:type="epsos:PQ"/>
+                                                <epsos:denominator value="0" unit="0" xsi:type="epsos:PQ"/>
+                                            </epsos:quantity>
+                                            <epsos:ingredient classCode="MMAT" determinerCode="KIND">
+                                                <epsos:code code="C08CA01" codeSystem="0.0.0.0.0.0.0.0.0" codeSystemName="EOF" displayName="AMLODIPINE BESYLATE"/>
+                                                <!-- όνομα δραστικής ουσίας -->
+                                                <epsos:name>AMLODIPINE BESYLATE</epsos:name>
+                                            </epsos:ingredient>
+                                        </epsos:ingredient>
+                                    </manufacturedMaterial>
+                                </manufacturedProduct>
+                            </product>
+                            <!-- Στοιχεία Φαρμακοποιού που εκτέλεσε την συνταγή -->
+                            <performer typeCode="PRF">
+                                <time value="20241119"/>
+                                <assignedEntity>
+                                    <!-- Ιd Φαρμακοποιού που εκτέλεσε την συνταγή -->
+                                    <id extension="12345" root="1.18.1"/>
+                                    <!-- Αριθμός Τηλεφώνου -->
+                                    <telecom use="MC" value="tel:+6900000008"/>
+                                    <!-- Αριθμός Τηλεφώνου -->
+                                    <telecom use="HP" value="mailto:test@test.gr"/>
+                                    <assignedPerson>
+                                        <!-- Όνομα / Επίθετο -->
+                                        <name>
+                                            <given>ΟΝΟΜΑΦ</given>
+                                            <family>ΕΠΙΘΕΤΟΦ</family>
+                                        </name>
+                                    </assignedPerson>
+                                    <!-- Στοιχεία φαρμακείου -->
+                                    <representedOrganization>
+                                        <!-- Id αυτού που εκτελεί -->
+                                        <id extension="6543" root="1.18.1.1"/>
+                                        <!-- Επωνυμία -->
+                                        <name>ΙΔΙΩΤΙΚΟ ΦΑΡΜΑΚΕΙΟ</name>
+                                        <!-- Κινητό-->
+                                        <telecom use="MC" value="tel:+2340000000"/>
+                                        <telecom nullFlavor="NI"/>
+                                        <!-- Διεύθυνση -->
+                                        <addr>
+                                            <streetAddressLine>ΟΔΟΣ 2</streetAddressLine>
+                                            <city>ΣΚΟΠΕΛΟΣ</city>
+                                            <postalCode>37003</postalCode>
+                                            <state nullFlavor="NI"/>
+                                            <country>GR</country>
+                                        </addr>
+                                    </representedOrganization>
+                                </assignedEntity>
+                            </performer>
+                            <participant typeCode="PRF">
+                                <participantRole classCode="LIC">
+                                    <!-- Ιd Φαρμακοποιού που εκτέλεσε την συνταγή -->
+                                    <id extension="12345" root="1.18.1"/>
+                                    <scopingEntity>
+                                        <!-- Φαρμακευτικός Σύλλογος -->
+                                        <id extension="2" root="1.5.2.1"/>
+                                        <desc>ΑΙΤΩΛ/ΝΙΑΣ</desc>
+                                    </scopingEntity>
+                                </participantRole>
+                            </participant>
+                            <entryRelationship typeCode="SPRT">
+                                <act classCode="ACT" moodCode="EVN">
+                                    <!-- Συνέναιση Ασθενή -->
+                                    <id extension="1" root="2.10.6"/>
+                                    <!--  Πλήθος εκτέλεσης φαρμάκου -->
+                                    <id extension="1" root="2.10.8"/>
+                                    <!-- Τιμή Εκτέλεσης -->
+                                    <id extension="7.27" root="2.10.9"/>
+                                    <!-- Τιμή Λιανικής -->
+                                    <id extension="7.27" root="2.10.11"/>
+                                    <!-- Τιμή Αναφοράς -->
+                                    <id extension="7.27" root="2.10.10"/>
+                                    <id extension="0" root="2.10.13"/>
+                                    <!-- Ένδειξη αν η εκτέλεση γίνεται με ακύρωση Ταινίας γνησιότητας ΕΟΦ (Τιμή 0) ή με QR code HMVS (Τιμή 1) -->
+                                    <id extension="0" root="2.10.14" />
+                                    <code nullFlavor="NA"/>
+                                    <!-- Ημερομηνία Εκτέλεσης -->
+                                    <effectiveTime value="20241119103645"/>
+                                </act>
+                            </entryRelationship>
+                            <entryRelationship typeCode="REFR">
+                                <substanceAdministration classCode="SBADM" moodCode="INT">
+                                    <templateId root="2.16.840.1.113883.10.20.1.24"/>
+                                    <templateId root="1.3.6.1.4.1.12559.11.10.1.3.1.3.2"/>
+                                    <!-- Ιd 1ης Θεραπείας -->
+                                    <id extension="22033332" root="1.21.1"/>
+                                    <statusCode code="completed"/>
+                                    <!-- Έναρξη/Λήξη θεραπείας, Δεν χρησιμοποιείται προς το παρών. Πάντα UNK -->
+                                    <effectiveTime xsi:type="IVL_TS">
+                                        <low nullFlavor="UNK"/>
+                                        <high nullFlavor="UNK"/>
+                                    </effectiveTime>
+                                    <!-- Συχνότητα Συνταγής -->
+                                    <effectiveTime xsi:type="PIVL_TS" operator="A">
+                                        <period value="1" unit="d"/>
+                                    </effectiveTime>
+                                    <!-- Ποσότητα δόσης -->
+                                    <doseQuantity>
+                                        <low value="2.5" unit="ΚΑΨΟΥΛΑ"/>
+                                        <high value="2.5" unit="ΚΑΨΟΥΛΑ"/>
+                                    </doseQuantity>
+                                    <!-- Διάρκεια λήψης του φαρμάκου -->
+                                    <rateQuantity>
+                                        <low value="1" unit="d"/>
+                                        <high value="1" unit="d"/>
+                                    </rateQuantity>
+                                    <!-- Πληροφορίες Φαρμάκου -->
+                                    <consumable>
+                                        <manufacturedProduct classCode="MANU">
+                                            <templateId root="1.3.6.1.4.1.12559.11.10.1.3.1.3.1"/>
+                                            <templateId root="2.16.840.1.113883.10.20.1.53"/>
+                                            <manufacturedMaterial>
+                                                <!-- Φάρμακο, code: EOFcode φαρμάκου, displayName: Ονομασία φαρμάκου -->
+                                                <code code="267670202" codeSystem="0.0.0.0.0.0.0.0.0" codeSystemName="EOF" displayName="NORVALET CAPS 10MG/CAP BTx30 (BLIST 3x10)">
+                                                    <originalText>
+                                                        <!-- To barcode του φαρμάκου, είναι τιμή αναφοράς σε γραμμή που συμπεριλαμβάνει την τιμή του πεδίου "#med_barcode_1" -->
+                                                        <reference value="#med_barcode_1"/>
+                                                    </originalText>
+                                                </code>
+                                                <!-- Ονομασία φαρμάκου -->
+                                                <name>NORVALET CAPS 10MG/CAP BTx30 (BLIST 3x10)</name>
+                                                <epsos:desc>10MG/CAP</epsos:desc>
+                                                <!-- Φόρμα Φαρμάκου -->
+                                                <epsos:formCode code="CAPS" codeSystem="1.3.6.1.4.1.12559.11.10.1.3.1.44.1" codeSystemName="EDQM" displayName="CAPS">
+                                                    <epsos:translation displayName="ΚΑΨΟΥΛΑ"/>
+                                                </epsos:formCode>
+                                                <epsos:asContent classCode="CONT">
+                                                    <epsos:containerPackagedMedicine classCode="CONT" determinerCode="KIND">
+                                                        <!-- Ονομασία φαρμάκου -->
+                                                        <epsos:name>NORVALET CAPS 10MG/CAP BTx30 (BLIST 3x10)</epsos:name>
+                                                        <!-- Συσκευασία Φαρμάκου -->
+                                                        <epsos:formCode code="BTx30_(BLIST_3x10)" codeSystem="1.3.6.1.4.1.12559.11.10.1.3.1.44.1" codeSystemName="EDQM" displayName="BTx30_(BLIST_3x10)"/>
+                                                        <!-- Ποσότητα κάθε Συσκευασίας Φαρμάκου -->
+                                                        <epsos:capacityQuantity value="30"/>
+                                                        <epsos:capTypeCode nullFlavor="NA"/>
+                                                    </epsos:containerPackagedMedicine>
+                                                </epsos:asContent>
+                                                <epsos:ingredient classCode="ACTI">
+                                                    <epsos:quantity>
+                                                        <epsos:numerator value="0" unit="0" xsi:type="epsos:PQ"/>
+                                                        <epsos:denominator value="0" unit="0" xsi:type="epsos:PQ"/>
+                                                    </epsos:quantity>
+                                                    <!-- Δραστική ουσία -->
+                                                    <epsos:ingredient classCode="MMAT" determinerCode="KIND">
+                                                        <epsos:code code="C08CA01" codeSystem="0.0.0.0.0.0.0.0.0" codeSystemName="EOF" displayName="AMLODIPINE BESYLATE"/>
+                                                        <epsos:name>AMLODIPINE BESYLATE</epsos:name>
+                                                    </epsos:ingredient>
+                                                </epsos:ingredient>
+                                            </manufacturedMaterial>
+                                        </manufacturedProduct>
+                                    </consumable>
+                                    <!-- Ποσότητα που συνταγογραφήθηκε -->
+                                    <entryRelationship typeCode="COMP">
+                                        <supply classCode="SPLY" moodCode="RQO">
+                                            <independentInd value="false"/>
+                                            <!-- Ποσότητα -->
+                                            <quantity value="1" unit="1"/>
+                                        </supply>
+                                    </entryRelationship>
+                                    <entryRelationship typeCode="SUBJ" inversionInd="true">
+                                        <act classCode="ACT" moodCode="INT">
+                                            <templateId root="2.16.840.1.113883.10.20.1.43"/>
+                                            <templateId root="1.3.6.1.4.1.19376.1.5.3.1.4.3.1"/>
+                                            <code code="FINSTRUCT" codeSystem="1.3.6.1.4.1.19376.1.5.3.2" codeSystemName="IHEActCode"/>
+                                            <text>
+                                                <reference value="#med_notes_1"/>
+                                            </text>
+                                            <statusCode code="completed"/>
+                                        </act>
+                                    </entryRelationship>
+                                    <entryRelationship typeCode="SPRT">
+                                        <act classCode="ACT" moodCode="EVN">
+                                            <templateId root="2.16.840.1.113883.10.12.301"/>
+                                            <id extension="0" root="1.4.15"/>
+                                            <!-- Συνολικό ποσό τιμών αναφοράς -->
+                                            <id extension="7.27" root="1.4.17"/>
+                                            <!-- Ποσοστό συμμετοχής ασφαλισμένου -->
+                                            <id extension="25.0" root="1.4.18"/>
+                                            <!-- Υπόλοιπο -->
+                                            <id extension="0" root="1.4.19"/>
+                                            <!-- Συμμετοχή ασφαλισμένου -->
+                                            <id extension="1.8175" root="1.4.20"/>
+                                            <!-- Διαφορά Συμμετοχής Ασφαλισμένου (Συνολική Διαφορά - Διαφορά Ασφαλ. Φορέα) -->
+                                            <id extension="0.0" root="1.4.21"/>
+                                            <!-- Συνολική Διαφορά της γραμμής Συνταγής (η οποία μερίζεται σε Ασφαλ. Φορέα και Ασφαλισμένο) -->
+                                            <id extension="0.0" root="1.4.21.1"/>
+                                            <id extension="0.0" root="1.4.21.3"/>
+                                            <!-- Στην περίπτωση συνταγογράφησης με βάση την δραστική ουσία του φαρμάκου -->
+                                            <!-- Id της λίστας ομοειδών φαρμάκων -->
+                                            <id extension="5045" root="1.4.22"/>
+                                            <id extension="NORVALET CAPS 10MG/CAP BTx30 (BLIST 3x10)" root="1.7.1.43"/>
+                                            <!-- Επιτρέπεται αντικατάσταση του φαρμάκου, 1:Ναι | 0:'Όχι -->
+                                            <id extension="0" root="1.4.23"/>
+                                            <id extension="1" root="1.4.34"/>
+                                            <id extension="G" root="1.4.35"/>
+                                            <id extension="G" root="1.9.6.1"/>
+                                            <!-- Θεραπευτική κατηγορία με γενόσημο,  1:Ναι | 0:Όχι -->
+                                            <id extension="1" root="1.9.6.2"/>
+                                            <code nullFlavor="NA"/>
+                                            <!-- Το section εμφανίζεται μόνο για φάρμακα που χαρακτηρίζονται ως εισαγωγές ΙΦΕΤ -->
+                                            <!-- Δραστική ουσία φαρμάκου εισαγωγής ΙΦΕΤ -->
+                                            <id extension="active substance" root="1.4.25" />
+                                            <!-- Φαρμ. μορφή φαρμάκου εισαγωγής ΙΦΕΤ -->
+                                            <id extension="form code" root="1.4.26" />
+                                            <!-- Περιεκτικότητα φαρμάκου εισαγωγής ΙΦΕΤ -->
+                                            <id extension="content" root="1.4.27" />
+                                            <!-- Εμπορική ονομασία φαρμάκου εισαγωγής ΙΦΕΤ Φαρμακοποιού -->
+                                            <id extension="commercial name" root="1.4.28" />
+                                            <!-- Μονάδα δόσης φαρμάκου εισαγωγής ΙΦΕΤ Φαρμακοποιού -->
+                                            <id extension="dose unit" root="1.4.29" />
+                                            <!-- Φαρμ. μορφή φαρμάκου εισαγωγής ΙΦΕΤ Φαρμακοποιού -->
+                                            <id extension="pharm form code" root="1.4.30" />
+                                            <!-- Περιεκτικότητα φαρμάκου εισαγωγής ΙΦΕΤ Φαρμακοποιού -->
+                                            <id extension="pharm content" root="1.4.31" />
+                                            <!-- Συσκευασία φαρμάκου εισαγωγής ΙΦΕΤ Φαρμακοποιού -->
+                                            <id extension="package" root="1.4.32" />
+                                            <!-- Τιμή Μονάδος φαρμάκου εισαγωγής ΙΦΕΤ Φαρμακοποιού -->
+                                            <id extension="10.0" root="1.4.33" />
+                                        </act>
+                                    </entryRelationship>
+                                    <entryRelationship typeCode="SPRT">
+                                        <act classCode="ACT" moodCode="EVN">
+                                            <id extension="0" root="2.10.5"/>
+                                            <id extension="1" root="2.10.6"/>
+                                            <!--  Πλήθος εκτέλεσης φαρμάκου -->
+                                            <id extension="1" root="2.10.8"/>
+                                            <!-- Τιμή Εκτέλεσης -->
+                                            <id extension="7.27" root="2.10.9"/>
+                                            <!-- Τιμή Λιανικής-->
+                                            <id extension="7.27" root="2.10.11"/>
+                                            <!-- Τιμή Αναφοράς -->
+                                            <id extension="7.27" root="2.10.10"/>
+                                            <!-- Ταινία γνησιότητας -->
+                                            <id extension="230100011999" root="2.10.12"/>
+                                            <!-- Ένδειξη αν η εκτέλεση γίνεται με ακύρωση Ταινίας γνησιότητας ΕΟΦ (Τιμή 0) ή με QR code HMVS (Τιμή 1) -->
+                                            <id extension="0" root="2.10.14" />
+                                            <id extension="0.0" root="1.4.21.2"/>
+                                            <code nullFlavor="NA"/>
+                                            <!-- Ημερομηνία Εκτέλεσης -->
+                                            <effectiveTime value="20241119103645"/>
+                                        </act>
+                                    </entryRelationship>
+                                    <entryRelationship typeCode="REFR">
+                                        <act classCode="INFRM" moodCode="EVN">
+                                            <code nullFlavor="NA"/>
+                                            <entryRelationship typeCode="RSON">
+                                                <observation classCode="OBS" moodCode="EVN">
+                                                    <templateId root="2.16.840.1.113883.10.20.1.28"/>
+                                                    <templateId root="1.3.6.1.4.1.19376.1.5.3.1.4.5"/>
+                                                    <code code="282291009" codeSystem="1.3.6.1.4.1.12559.11.10.1.3.1.42.23" codeSystemName="SNOMED-CT" displayName="Diagnosis interpretation"/>
+                                                    <text>Χολέρα, μη καθορισμένη</text>
+                                                    <statusCode code="completed"/>
+                                                    <value xsi:type="CD" code="A00.9" codeSystem="1.3.6.1.4.1.12559.11.10.1.3.1.44.2" codeSystemName="ICD10" displayName="Χολέρα, μη καθορισμένη"/>
+                                                </observation>
+                                            </entryRelationship>
+                                        </act>
+                                    </entryRelationship>
+                                </substanceAdministration>
+                            </entryRelationship>
+                        </supply>
+                    </entry>
+                    <!-- Στοιχεία που αφορούν την μία (και μοναδική) ποσότητα της δεύτερης θεραπείας -->
+                    <entry>
+                        <templateId root="1.3.6.1.4.1.12559.11.10.1.3.1.3.2"/>
+                        <supply classCode="SPLY" moodCode="EVN">
+                            <templateId root="2.16.840.1.113883.10.20.1.34"/>
+                            <templateId root="1.3.6.1.4.1.19376.1.5.3.1.4.7.3"/>
+                            <templateId root="1.3.6.1.4.1.12559.11.10.1.3.1.3.3"/>
+                            <!-- Ιd 2ης Θεραπείας -->
+                            <id extension="22033333" root="1.21.1"/>
+                            <!-- Ποσότητα 2ης Θεραπείας -->
+                            <quantity value="1" unit="1"/>
+                            <product>
+                                <manufacturedProduct classCode="MANU">
+                                    <templateId root="1.3.6.1.4.1.12559.11.10.1.3.1.3.1"/>
+                                    <templateId root="2.16.840.1.113883.10.20.1.53"/>
+                                    <manufacturedMaterial>
+                                        <epsos:id root="1.3.6.1.4.1.12559.11.10.1.3.1.3.3"/>
+                                        <code code="207670701" codeSystem="0.0.0.0.0.0.0.0.0" codeSystemName="EOF" displayName="ALGOFREN SUPP 500MG/SUP BT X12(STRIP 2X6)">
+                                            <originalText>
+                                                <!-- Αναφορά στο barcode Φαρμάκου -->
+                                                <reference value="#med_barcode_2"/>
+                                            </originalText>
+                                        </code>
+                                        <name>ALGOFREN SUPP 500MG/SUP BT X12(STRIP 2X6)</name>
+                                        <epsos:formCode code="SUPP" codeSystem="1.3.6.1.4.1.12559.11.10.1.3.1.44.1" codeSystemName="EDQM" displayName="SUPP">
+                                            <epsos:translation displayName="ΥΠΟΘΕΤΑ"/>
+                                        </epsos:formCode>
+                                        <epsos:asContent classCode="CONT">
+                                            <epsos:containerPackagedMedicine classCode="CONT" determinerCode="KIND">
+                                                <epsos:name>ALGOFREN SUPP 500MG/SUP BT X12(STRIP 2X6)</epsos:name>
+                                                <epsos:formCode code="BT_X12(STRIP_2X6)" codeSystem="1.3.6.1.4.1.12559.11.10.1.3.1.44.1" codeSystemName="EDQM" displayName="BT_X12(STRIP_2X6)"/>
+                                                <epsos:lotNumberText>150411392746</epsos:lotNumberText>
+                                                <epsos:capacityQuantity value="12"/>
+                                                <epsos:capTypeCode nullFlavor="NA"/>
+                                            </epsos:containerPackagedMedicine>
+                                        </epsos:asContent>
+                                        <epsos:ingredient classCode="ACTI">
+                                            <epsos:quantity>
+                                                <epsos:numerator value="0" unit="0" xsi:type="epsos:PQ"/>
+                                                <epsos:denominator value="0" unit="0" xsi:type="epsos:PQ"/>
+                                            </epsos:quantity>
+                                            <epsos:ingredient classCode="MMAT" determinerCode="KIND">
+                                                <epsos:code code="M01AE01" codeSystem="0.0.0.0.0.0.0.0.0" codeSystemName="EOF" displayName="IBUPROFEN"/>
+                                                <epsos:name>IBUPROFEN</epsos:name>
+                                            </epsos:ingredient>
+                                        </epsos:ingredient>
+                                    </manufacturedMaterial>
+                                </manufacturedProduct>
+                            </product>
+                            <performer typeCode="PRF">
+                                <time value="20241119"/>
+                                <assignedEntity>
+                                    <id extension="12345" root="1.18.1"/>
+                                    <telecom use="MC" value="tel:+6900000008"/>
+                                    <telecom use="HP" value="mailto:test@test.gr"/>
+                                    <assignedPerson>
+                                        <name>
+                                            <given>ΟΝΟΜΑΦ</given>
+                                            <family>ΕΠΙΘΕΤΟΦ</family>
+                                        </name>
+                                    </assignedPerson>
+                                    <representedOrganization>
+                                        <id extension="6543" root="1.18.1.1"/>
+                                        <name>ΙΔΙΩΤΙΚΟ ΦΑΡΜΑΚΕΙΟ</name>
+                                        <telecom use="MC" value="tel:+2340000000"/>
+                                        <telecom nullFlavor="NI"/>
+                                        <addr>
+                                            <streetAddressLine>ΟΔΟΣ 2</streetAddressLine>
+                                            <city>ΣΚΟΠΕΛΟΣ</city>
+                                            <postalCode>37003</postalCode>
+                                            <state nullFlavor="NI"/>
+                                            <country>GR</country>
+                                        </addr>
+                                    </representedOrganization>
+                                </assignedEntity>
+                            </performer>
+                            <participant typeCode="PRF">
+                                <participantRole classCode="LIC">
+                                    <id extension="12345" root="1.18.1"/>
+                                    <scopingEntity>
+                                        <id extension="2" root="1.5.2.1"/>
+                                        <desc>ΑΙΤΩΛ/ΝΙΑΣ</desc>
+                                    </scopingEntity>
+                                </participantRole>
+                            </participant>
+                            <entryRelationship typeCode="SPRT">
+                                <act classCode="ACT" moodCode="EVN">
+                                    <id extension="1" root="2.10.6"/>
+                                    <id extension="1" root="2.10.8"/>
+                                    <id extension="2.34" root="2.10.9"/>
+                                    <id extension="2.34" root="2.10.11"/>
+                                    <id extension="2.34" root="2.10.10"/>
+                                    <id extension="0" root="2.10.13"/>
+                                    <!-- Ένδειξη αν η εκτέλεση γίνεται με ακύρωση Ταινίας γνησιότητας ΕΟΦ (Τιμή 0) ή με QR code HMVS (Τιμή 1) -->
+                                    <id extension="1" root="2.10.14" />
+                                    <!-- Ένδειξη του product code του QR code. -->
+                                    <id extension="123A2123" root="2.10.15" />
+                                    <!-- Ένδειξη του Batch No του QR code -->
+                                    <id extension="123A2123" root="2.10.16" />
+                                    <!-- Ένδειξη του expiry date (string) του QR code. -->
+                                    <id extension="241212" root="2.10.17" />
+                                    <!-- Ένδειξη αν έγινε χειροκίνητη εισαγωγή του QR code. -->
+                                    <id extension="0" root="2.10.18" />
+                                    <!-- Ένδειξη του τύπου του κωδικού προϊόντος. -->
+                                    <id extension="GS1" root="2.10.19" />
+                                    <code nullFlavor="NA"/>
+                                    <effectiveTime value="20241119103645"/>
+                                </act>
+                            </entryRelationship>
+                            <entryRelationship typeCode="REFR">
+                                <substanceAdministration classCode="SBADM" moodCode="INT">
+                                    <templateId root="2.16.840.1.113883.10.20.1.24"/>
+                                    <templateId root="1.3.6.1.4.1.12559.11.10.1.3.1.3.2"/>
+                                    <!-- Ιd 2ης Θεραπείας -->
+                                    <id extension="22033333" root="1.21.1"/>
+                                    <statusCode code="active"/>
+                                    <effectiveTime xsi:type="IVL_TS">
+                                        <low nullFlavor="UNK"/>
+                                        <high nullFlavor="UNK"/>
+                                    </effectiveTime>
+                                    <effectiveTime xsi:type="PIVL_TS" operator="A">
+                                        <period value="1" unit="d"/>
+                                    </effectiveTime>
+                                    <doseQuantity>
+                                        <low value="2.5" unit="ΥΠΟΘΕΤΑ"/>
+                                        <high value="2.5" unit="ΥΠΟΘΕΤΑ"/>
+                                    </doseQuantity>
+                                    <rateQuantity>
+                                        <low value="1" unit="d"/>
+                                        <high value="1" unit="d"/>
+                                    </rateQuantity>
+                                    <consumable>
+                                        <manufacturedProduct classCode="MANU">
+                                            <templateId root="1.3.6.1.4.1.12559.11.10.1.3.1.3.1"/>
+                                            <templateId root="2.16.840.1.113883.10.20.1.53"/>
+                                            <manufacturedMaterial>
+                                                <code code="207670701" codeSystem="0.0.0.0.0.0.0.0.0" codeSystemName="EOF" displayName="ALGOFREN SUPP 500MG/SUP BT X12(STRIP 2X6)">
+                                                    <originalText>
+                                                        <!-- To barcode του φαρμάκου, είναι τιμή αναφοράς σε γραμμή που συμπεριλαμβάνει την τιμή του πεδίου "#med_barcode_2" -->
+                                                        <reference value="#med_barcode_2"/>
+                                                    </originalText>
+                                                </code>
+                                                <name>ALGOFREN SUPP 500MG/SUP BT X12(STRIP 2X6)</name>
+                                                <epsos:desc>500MG/SUP</epsos:desc>
+                                                <epsos:formCode code="SUPP" codeSystem="1.3.6.1.4.1.12559.11.10.1.3.1.44.1" codeSystemName="EDQM" displayName="SUPP">
+                                                    <epsos:translation displayName="ΥΠΟΘΕΤΑ"/>
+                                                </epsos:formCode>
+                                                <epsos:asContent classCode="CONT">
+                                                    <epsos:containerPackagedMedicine classCode="CONT" determinerCode="KIND">
+                                                        <epsos:name>ALGOFREN SUPP 500MG/SUP BT X12(STRIP 2X6)</epsos:name>
+                                                        <epsos:formCode code="BT_X12(STRIP_2X6)" codeSystem="1.3.6.1.4.1.12559.11.10.1.3.1.44.1" codeSystemName="EDQM" displayName="BT_X12(STRIP_2X6)"/>
+                                                        <epsos:capacityQuantity value="12"/>
+                                                        <epsos:capTypeCode nullFlavor="NA"/>
+                                                    </epsos:containerPackagedMedicine>
+                                                </epsos:asContent>
+                                                <epsos:ingredient classCode="ACTI">
+                                                    <epsos:quantity>
+                                                        <epsos:numerator value="0" unit="0" xsi:type="epsos:PQ"/>
+                                                        <epsos:denominator value="0" unit="0" xsi:type="epsos:PQ"/>
+                                                    </epsos:quantity>
+                                                    <epsos:ingredient classCode="MMAT" determinerCode="KIND">
+                                                        <epsos:code code="M01AE01" codeSystem="0.0.0.0.0.0.0.0.0" codeSystemName="EOF" displayName="IBUPROFEN"/>
+                                                        <epsos:name>IBUPROFEN</epsos:name>
+                                                    </epsos:ingredient>
+                                                </epsos:ingredient>
+                                            </manufacturedMaterial>
+                                        </manufacturedProduct>
+                                    </consumable>
+                                    <entryRelationship typeCode="COMP">
+                                        <supply classCode="SPLY" moodCode="RQO">
+                                            <independentInd value="false"/>
+                                            <quantity value="2" unit="1"/>
+                                        </supply>
+                                    </entryRelationship>
+                                    <entryRelationship typeCode="SUBJ" inversionInd="true">
+                                        <act classCode="ACT" moodCode="INT">
+                                            <templateId root="2.16.840.1.113883.10.20.1.43"/>
+                                            <templateId root="1.3.6.1.4.1.19376.1.5.3.1.4.3.1"/>
+                                            <code code="FINSTRUCT" codeSystem="1.3.6.1.4.1.19376.1.5.3.2" codeSystemName="IHEActCode"/>
+                                            <text>
+                                                <reference value="#med_notes_2"/>
+                                            </text>
+                                            <statusCode code="completed"/>
+                                        </act>
+                                    </entryRelationship>
+                                    <entryRelationship typeCode="SPRT">
+                                        <act classCode="ACT" moodCode="EVN">
+                                            <templateId root="2.16.840.1.113883.10.12.301"/>
+                                            <id extension="0" root="1.4.15"/>
+                                            <id extension="2.34" root="1.4.17"/>
+                                            <id extension="25.0" root="1.4.18"/>
+                                            <id extension="1" root="1.4.19"/>
+                                            <id extension="0.585" root="1.4.20"/>
+                                            <id extension="0.0" root="1.4.21"/>
+                                            <id extension="0.0" root="1.4.21.1"/>
+                                            <id extension="0.0" root="1.4.21.3"/>
+                                            <id extension="31254" root="1.4.22"/>
+                                            <id extension="ALGOFREN SUPP 500MG/SUP BT X12(STRIP 2X6)" root="1.7.1.43"/>
+                                            <id extension="2.38" root="1.8.5.1"/>
+                                            <id extension="2.34" root="1.8.7.1"/>
+                                            <id extension="2.38" root="1.8.5.2"/>
+                                            <id extension="2.34" root="1.8.7.2"/>
+                                            <id extension="0" root="1.4.23"/>
+                                            <id extension="1" root="1.4.34"/>
+                                            <id extension="G" root="1.4.35"/>
+                                            <id extension="G" root="1.9.6.1"/>
+                                            <id extension="1" root="1.9.6.2"/>
+                                            <code nullFlavor="NA"/>
+                                            <!-- Το section εμφανίζεται μόνο για φάρμακα που χαρακτηρίζονται ως εισαγωγές ΙΦΕΤ -->
+                                            <!-- Δραστική ουσία φαρμάκου εισαγωγής ΙΦΕΤ -->
+                                            <id extension="active substance" root="1.4.25" />
+                                            <!-- Φαρμ. μορφή φαρμάκου εισαγωγής ΙΦΕΤ -->
+                                            <id extension="form code" root="1.4.26" />
+                                            <!-- Περιεκτικότητα φαρμάκου εισαγωγής ΙΦΕΤ -->
+                                            <id extension="content" root="1.4.27" />
+                                            <!-- Εμπορική ονομασία φαρμάκου εισαγωγής ΙΦΕΤ Φαρμακοποιού -->
+                                            <id extension="commercial name" root="1.4.28" />
+                                            <!-- Μονάδα δόσης φαρμάκου εισαγωγής ΙΦΕΤ Φαρμακοποιού -->
+                                            <id extension="dose unit" root="1.4.29" />
+                                            <!-- Φαρμ. μορφή φαρμάκου εισαγωγής ΙΦΕΤ Φαρμακοποιού -->
+                                            <id extension="pharm form code" root="1.4.30" />
+                                            <!-- Περιεκτικότητα φαρμάκου εισαγωγής ΙΦΕΤ Φαρμακοποιού -->
+                                            <id extension="pharm content" root="1.4.31" />
+                                            <!-- Συσκευασία φαρμάκου εισαγωγής ΙΦΕΤ Φαρμακοποιού -->
+                                            <id extension="package" root="1.4.32" />
+                                            <!-- Τιμή Μονάδος φαρμάκου εισαγωγής ΙΦΕΤ Φαρμακοποιού -->
+                                            <id extension="10.0" root="1.4.33" />
+                                        </act>
+                                    </entryRelationship>
+                                    <entryRelationship typeCode="SPRT">
+                                        <act classCode="ACT" moodCode="EVN">
+                                            <id extension="0" root="2.10.5"/>
+                                            <id extension="1" root="2.10.6"/>
+                                            <id extension="1" root="2.10.8"/>
+                                            <id extension="2.34" root="2.10.9"/>
+                                            <id extension="2.34" root="2.10.11"/>
+                                            <id extension="2.34" root="2.10.10"/>
+                                            <!-- QR Serial Number -->
+                                            <id extension="123BDF2123" root="2.10.12"/>
+                                            <!-- Ένδειξη αν η εκτέλεση γίνεται με ακύρωση Ταινίας γνησιότητας ΕΟΦ (Τιμή 0) ή με QR code HMVS (Τιμή 1) -->
+                                            <id extension="1" root="2.10.14" />
+                                            <!-- Συμπληρώνετε το product code του QR code. -->
+                                            <id extension="123A2123" root="2.10.15" />
+                                            <!-- Συμπληρώνετε το Batch No του QR code -->
+                                            <id extension="123A2123" root="2.10.16" />
+                                            <!-- Συμπληρώνετε το expiry date (string) του QR code. -->
+                                            <id extension="241212" root="2.10.17" />
+                                            <!-- Ένδειξη αν έγινε χειροκίνητη εισαγωγή του QR code. -->
+                                            <id extension="0" root="2.10.18" />
+                                            <!-- Ένδειξη του τύπου του κωδικού προϊόντος. -->
+                                            <id extension="GS1" root="2.10.19" />
+                                            <id extension="0.0" root="1.4.21.2"/>
+                                            <code nullFlavor="NA"/>
+                                            <effectiveTime value="20241119103645"/>
+                                        </act>
+                                    </entryRelationship>
+                                    <entryRelationship typeCode="REFR">
+                                        <act classCode="INFRM" moodCode="EVN">
+                                            <code nullFlavor="NA"/>
+                                            <entryRelationship typeCode="RSON">
+                                                <observation classCode="OBS" moodCode="EVN">
+                                                    <templateId root="2.16.840.1.113883.10.20.1.28"/>
+                                                    <templateId root="1.3.6.1.4.1.19376.1.5.3.1.4.5"/>
+                                                    <code code="282291009" codeSystem="1.3.6.1.4.1.12559.11.10.1.3.1.42.23" codeSystemName="SNOMED-CT" displayName="Diagnosis interpretation"/>
+                                                    <text>Χολέρα, μη καθορισμένη</text>
+                                                    <statusCode code="completed"/>
+                                                    <value xsi:type="CD" code="A00.9" codeSystem="1.3.6.1.4.1.12559.11.10.1.3.1.44.2" codeSystemName="ICD10" displayName="Χολέρα, μη καθορισμένη"/>
+                                                </observation>
+                                            </entryRelationship>
+                                        </act>
+                                    </entryRelationship>
+                                </substanceAdministration>
+                            </entryRelationship>
+                        </supply>
+                    </entry>
+                </section>
+            </component>
+        </structuredBody>
+    </component>
+</ClinicalDocument>

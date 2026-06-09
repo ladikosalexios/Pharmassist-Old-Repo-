@@ -16,3 +16,5 @@ python-dotenv
 # light. See app/observability.py for the wiring.
 sentry-sdk>=2.0.0
 slowapi>=0.1.9
+# eDispensation CDA generation + parsing (P3 — POST /prescriptions/{id}/approve)
+lxml>=5.2.0

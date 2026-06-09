@@ -10,6 +10,7 @@ from app.db.base import Base
 from app.db.models.adr_event import AdrEvent  # noqa
 from app.db.models.adr_report import AdrReport  # noqa
 from app.db.models.audit_log import AuditLog  # noqa
+from app.db.models.dispense_log import DispenseLog  # noqa
 from app.db.models.documentation_log import DocumentationLog  # noqa
 from app.db.models.drug_catalog import DrugCatalog  # noqa
 from app.db.models.hmvs_operation import HmvsOperation  # noqa
