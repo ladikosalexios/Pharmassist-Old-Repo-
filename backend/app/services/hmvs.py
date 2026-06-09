@@ -88,6 +88,12 @@ class HmvsResult:
     alert_id: str | None = None
     information: str | None = None
     warning: str | None = None
+    # Free-text product label echoed by the registry — surfaced in the pack row so
+    # a pharmacist can sanity-check what was scanned. None when the upstream omits it.
+    product_name: str | None = None
+    # Batch-level state (e.g. "Recalled", "Withdrawn"). Populated on 409 conflict
+    # responses where the pack itself may be Active but the batch isn't dispensable.
+    batch_state: str | None = None
     queued: bool = False
     # Throttle hint from a 429 Retry-After header — seconds the caller should
     # back off before retrying. None for any non-throttled response or when
@@ -157,6 +163,8 @@ def _map_response(r: httpx.Response) -> HmvsResult:
         alert_id=body.get("alertId"),
         information=body.get("information"),
         warning=body.get("warning"),
+        product_name=body.get("productName"),
+        batch_state=body.get("batchState"),
         raw=body,
     )
 
@@ -499,6 +507,9 @@ async def replay_pending(
 _MOCK_NHRN = "GR-0000-0000-0000"
 
 
+_MOCK_PRODUCT_NAME = "Mock Pharma Tablet 10mg x28"
+
+
 def _mock_verify(serial: str) -> HmvsResult:
     if "404" in serial:
         return HmvsResult(
@@ -512,6 +523,8 @@ def _mock_verify(serial: str) -> HmvsResult:
         nhrn=_MOCK_NHRN,
         is_intermarket=False,
         information="Pack verified (mock).",
+        product_name=_MOCK_PRODUCT_NAME,
+        batch_state=STATE_ACTIVE,
         raw={"mock": True},
     )
 
@@ -528,6 +541,7 @@ def _mock_change_state(serial: str, target_state: str) -> HmvsResult:
             http_status=409,
             operation_code="NMVS_NC_PCK_19",
             current_state=target_state,
+            product_name=_MOCK_PRODUCT_NAME,
             raw={"mock": True},
         )
     return HmvsResult(
@@ -537,5 +551,7 @@ def _mock_change_state(serial: str, target_state: str) -> HmvsResult:
         state=target_state,
         nhrn=_MOCK_NHRN,
         is_intermarket=False,
+        product_name=_MOCK_PRODUCT_NAME,
+        batch_state=STATE_ACTIVE,
         raw={"mock": True},
     )

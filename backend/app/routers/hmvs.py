@@ -59,6 +59,8 @@ def _body(result: HmvsResult, gtin: str, serial: str) -> dict:
         "isIntermarket": result.is_intermarket,
         "information": result.information,
         "warning": result.warning,
+        "productName": result.product_name,
+        "batchState": result.batch_state,
         "alertId": result.alert_id,
         "queued": result.queued,
         # Throttle hint from a 429 Retry-After (seconds). None for any other
