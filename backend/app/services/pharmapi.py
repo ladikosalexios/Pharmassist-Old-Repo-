@@ -186,13 +186,17 @@ async def pharmapi_get(
         except Exception:
             return {"raw": r.text}
 
-    # Full raw error for debugging
+    # Full raw error for debugging — but bounded, because ΗΔΥΚΑ error bodies
+    # can echo the request CDA (which carries patient AMKA + name) and we
+    # don't want that landing in an HTTPException detail surfaced to the
+    # browser. 200 chars is plenty for the G-code + Greek message; PHI lives
+    # further down inside the structured CDA, well past byte 200.
     try:
         err_body = r.json()
-        err = str(err_body)
+        err = str(err_body)[:200]
     except Exception:
         err_body = {}
-        err = r.text
+        err = r.text[:200]
 
     if "G12" in err:
         raise HTTPException(

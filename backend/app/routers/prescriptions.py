@@ -15,6 +15,7 @@ before the bare ``/{rx_id}``.
 """
 
 import ipaddress
+import logging
 import uuid
 from datetime import UTC, datetime
 
@@ -38,6 +39,7 @@ from ..services.pharmapi import pharmapi_dispense, pharmapi_search_prescriptions
 from ..services.prescriptions import MOCK_PRESCRIPTIONS, MOCK_QUEUE_BASE
 from ..services.safety_engine import checks_for_prescription, live_rx_to_engine_shape
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/prescriptions", tags=["prescriptions"])
 
 
@@ -248,7 +250,7 @@ async def approve_prescription(
     request: Request,
     current: dict = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
-    x_request_id: str | None = Header(default=None, alias="X-Request-Id"),
+    x_request_id: str | None = Header(default=None, alias="X-Request-Id", max_length=128),
 ):
     rx = await _resolve_rx_for_dispense(session, rx_id, current)
 
@@ -304,20 +306,65 @@ async def approve_prescription(
     session.add(dispense_log)
     try:
         await session.flush()
-    except IntegrityError:
-        # Race: another worker passed the same pre-check and wrote the row
-        # between our SELECT and INSERT. Roll back our session and return
-        # the winner's receipt — same UX as the pre-check hit.
+    except IntegrityError as exc:
+        # At this point ΗΔΥΚΑ already dispensed (we have envelope["exec_ref"]).
+        # Distinguish the two IntegrityError flavours so we don't mis-handle:
+        #   (a) UNIQUE(pharmacy_id, barcode)  → a concurrent winner wrote the
+        #       row; roll back, fetch theirs, return cached. No double dispense.
+        #   (b) Anything else (FK gone, NOT NULL, check)  → bug in our caller
+        #       state or schema drift; surface 502 + the upstream exec_ref so
+        #       an operator can reconcile manually. Logged at error level.
         await session.rollback()
+        constraint = getattr(exc.orig, "constraint_name", None) or str(exc.orig)
+        is_unique_race = "uq_dispense_logs_pharmacy_id" in constraint
+        if not is_unique_race:
+            logger.error(
+                "[dispense] non-UNIQUE IntegrityError on flush after ΗΔΥΚΑ "
+                "succeeded — barcode=%s pharmacy=%s exec_ref=%s constraint=%s",
+                rx_id,
+                pharmacy.id,
+                envelope["exec_ref"],
+                constraint,
+            )
+            raise HTTPException(
+                502,
+                f"Dispense recorded upstream (execRef={envelope['exec_ref']}) "
+                "but local persistence failed — manual reconciliation required",
+            ) from exc
         winner = await _get_existing_dispense_log(session, pharmacy.id, rx_id)
         if winner is None:
-            # IntegrityError without a winning row would mean the DB lied to
-            # us; surface a 500 rather than silently swallow.
+            # UNIQUE violation reported but the winning row vanished between
+            # the flush failure and our re-SELECT (DELETE between?). Log and
+            # 500 so the operator notices, never silently swallow.
+            logger.error(
+                "[dispense] UNIQUE race winner not found — barcode=%s pharmacy=%s",
+                rx_id,
+                pharmacy.id,
+            )
             raise HTTPException(
                 500,
                 "dispense_logs UNIQUE violation but no winning row found",
             ) from None
         return _cached_approve_response(winner)
+    except Exception as exc:
+        # ΗΔΥΚΑ already dispensed but we couldn't write the audit row. This
+        # leaves an upstream side-effect with no local trail; the operator
+        # needs the exec_ref to reconcile. Logged at error level (no PHI —
+        # only the exec_ref and the exception class).
+        await session.rollback()
+        logger.error(
+            "[dispense] flush failed after ΗΔΥΚΑ success — barcode=%s pharmacy=%s "
+            "exec_ref=%s exc=%s",
+            rx_id,
+            pharmacy.id,
+            envelope["exec_ref"],
+            type(exc).__name__,
+        )
+        raise HTTPException(
+            502,
+            f"Dispense recorded upstream (execRef={envelope['exec_ref']}) "
+            "but local persistence failed — manual reconciliation required",
+        ) from exc
 
     doc_log = await record_prescription_action(
         session,
@@ -334,7 +381,11 @@ async def approve_prescription(
         user_agent=ua,
     )
 
-    completed_at = datetime.now(UTC).isoformat()
+    # completedAt comes from the upstream envelope (ΗΔΥΚΑ's effectiveTime)
+    # so the fresh-response timestamp matches the cached-response timestamp
+    # for the same dispense — both report the moment ΗΔΥΚΑ recorded the
+    # execution, not the moment we returned the HTTP reply.
+    completed_at = envelope.get("executed_at") or datetime.now(UTC).isoformat()
     if is_mock_pharmapi():
         # Reflect COMPLETED in the in-memory mock so subsequent GETs match
         # what the dispense_logs row now says.

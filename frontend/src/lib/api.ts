@@ -223,14 +223,30 @@ export async function getActiveAlerts(): Promise<ActiveAlert[]> {
   }));
 }
 
-export async function approvePrescription(
-  rxId: string,
-): Promise<{ success: boolean; status: string; executionNo?: string }> {
+export interface ApproveResponse {
+  success: boolean;
+  rxId: string;
+  status: string;
+  completedAt: string;
+  execId: string;
+  executionNo: string;
+  // documentationLogId is null on an idempotent retry — no new counsel log
+  // is written when the cached receipt is replayed. Treat any consumer of
+  // this field as needing a null check.
+  documentationLogId: string | null;
+  dispenseLogId: string;
+  // True when this response was served from dispense_logs (cached) instead
+  // of by re-POSTing to ΗΔΥΚΑ. The client can use this to suppress duplicate
+  // toasts / animations on retries.
+  idempotent: boolean;
+}
+
+export async function approvePrescription(rxId: string): Promise<ApproveResponse> {
   const r = await fetch(`${API_BASE}/prescriptions/${encodeURIComponent(rxId)}/approve`, {
     method: "POST",
     credentials: "include",
   });
-  return handle(r) as Promise<{ success: boolean; status: string; executionNo?: string }>;
+  return handle(r) as Promise<ApproveResponse>;
 }
 
 // HMVS/FMD pack verification & decommission live in lib/hmvs.ts (the single
