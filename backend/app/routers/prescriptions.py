@@ -18,7 +18,9 @@ import ipaddress
 import uuid
 from datetime import UTC, datetime
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
+from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.utils.environment import is_mock_pharmapi
@@ -210,18 +212,58 @@ async def _resolve_rx_for_dispense(session: AsyncSession, rx_id: str, current: d
     return results[0]
 
 
+async def _get_existing_dispense_log(
+    session: AsyncSession, pharmacy_id, barcode: str
+) -> DispenseLog | None:
+    """Idempotency cache lookup: at most one row per (pharmacy_id, barcode)
+    by the UNIQUE constraint, so .scalar() is correct."""
+    return await session.scalar(
+        select(DispenseLog).where(
+            DispenseLog.pharmacy_id == pharmacy_id,
+            DispenseLog.barcode == barcode,
+        )
+    )
+
+
+def _cached_approve_response(log: DispenseLog) -> ApproveResponse:
+    """Reply built from an existing dispense_logs row — no new doc-log,
+    no second ΗΔΥΚΑ call. ``completedAt`` reports the *original* dispense
+    time so the receipt is the truthful one, not "now"."""
+    return ApproveResponse(
+        success=True,
+        rxId=log.barcode,
+        status=PrescriptionStatus.COMPLETED,
+        completedAt=log.created_at.isoformat() if log.created_at else "",
+        execId=log.exec_ref,
+        executionNo=log.exec_ref,
+        documentationLogId=None,
+        dispenseLogId=str(log.id),
+        idempotent=True,
+    )
+
+
 @router.post("/{rx_id}/approve", response_model=ApproveResponse)
 async def approve_prescription(
     rx_id: str,
     request: Request,
     current: dict = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
+    x_request_id: str | None = Header(default=None, alias="X-Request-Id"),
 ):
     rx = await _resolve_rx_for_dispense(session, rx_id, current)
 
     pharmacy = await find_pharmacy_by_name(session, current["pharmacy"])
     if pharmacy is None:
         raise HTTPException(status_code=400, detail="Pharmacy not found for current user")
+
+    # ── Idempotency pre-check ─────────────────────────────────────────────────
+    # A successful dispense already exists for (pharmacy, barcode) → return
+    # the cached receipt verbatim. No second ΗΔΥΚΑ call, no error. The DB
+    # UNIQUE on (pharmacy_id, barcode) is the real guard; this pre-check
+    # avoids burning a doomed POST + Roundtrip every time the client retries.
+    cached = await _get_existing_dispense_log(session, pharmacy.id, rx_id)
+    if cached is not None:
+        return _cached_approve_response(cached)
 
     items = _rx_to_dispense_items(rx)
     cda_request = build_dispense_cda(
@@ -257,9 +299,25 @@ async def approve_prescription(
         exec_ref=envelope["exec_ref"],
         request_cda=cda_request.decode("utf-8"),
         response_cda=envelope.get("response_cda") or "",
+        request_id=x_request_id,
     )
     session.add(dispense_log)
-    await session.flush()  # commit happens inside record_prescription_action
+    try:
+        await session.flush()
+    except IntegrityError:
+        # Race: another worker passed the same pre-check and wrote the row
+        # between our SELECT and INSERT. Roll back our session and return
+        # the winner's receipt — same UX as the pre-check hit.
+        await session.rollback()
+        winner = await _get_existing_dispense_log(session, pharmacy.id, rx_id)
+        if winner is None:
+            # IntegrityError without a winning row would mean the DB lied to
+            # us; surface a 500 rather than silently swallow.
+            raise HTTPException(
+                500,
+                "dispense_logs UNIQUE violation but no winning row found",
+            ) from None
+        return _cached_approve_response(winner)
 
     doc_log = await record_prescription_action(
         session,
@@ -292,6 +350,7 @@ async def approve_prescription(
         executionNo=envelope["exec_ref"],
         documentationLogId=str(doc_log.id),
         dispenseLogId=str(dispense_log.id),
+        idempotent=False,
     )
 
 

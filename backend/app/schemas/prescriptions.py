@@ -19,8 +19,12 @@ class ApproveResponse(BaseModel):
     # `executionNo` is the field the frontend (DispenseWizard) reads; same
     # value as `execId`. Both populated to make the wire contract explicit.
     executionNo: str
-    documentationLogId: str  # documentation_logs.id
+    # documentationLogId is None on an idempotent retry — the original counsel
+    # log row remains the legal record; we don't write a second one when the
+    # cached receipt is replayed (see approve_prescription idempotency branch).
+    documentationLogId: str | None = None
     dispenseLogId: str  # dispense_logs.id — the upstream-receipt audit row
+    idempotent: bool = False  # True when this response came from the cache
 
 
 class PatchResponse(BaseModel):

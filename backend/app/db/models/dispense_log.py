@@ -10,7 +10,7 @@
 # upstream calls.
 import uuid
 
-from sqlalchemy import ForeignKey, Index, String, Text, text
+from sqlalchemy import ForeignKey, Index, String, Text, UniqueConstraint, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -20,7 +20,12 @@ from ..base import Base, TimestampMixin
 class DispenseLog(Base, TimestampMixin):
     __tablename__ = "dispense_logs"
     __table_args__ = (
-        Index("ix_dispense_logs_pharmacy_barcode", "pharmacy_id", "barcode"),
+        # Anti-double-dispense invariant: at most ONE successful dispense per
+        # (pharmacy, prescription barcode). Concurrent requests that pass the
+        # application-layer pre-lookup race on the INSERT — only one wins,
+        # the loser catches IntegrityError and returns the winner's receipt.
+        # See routers/prescriptions.py approve_prescription.
+        UniqueConstraint("pharmacy_id", "barcode"),
         Index("ix_dispense_logs_pharmacy_created", "pharmacy_id", "created_at"),
     )
     id: Mapped[uuid.UUID] = mapped_column(
@@ -42,3 +47,8 @@ class DispenseLog(Base, TimestampMixin):
     # never log the bodies, only the exec_ref and the row id.
     request_cda: Mapped[str] = mapped_column(Text, nullable=False)
     response_cda: Mapped[str] = mapped_column(Text, nullable=False)
+    # Client-supplied idempotency token (X-Request-Id). Used for traceability
+    # in audit logs; dedupe is enforced by the (pharmacy_id, barcode) UNIQUE,
+    # not by this column. Nullable so callers that don't send the header still
+    # work (the UNIQUE protects them anyway).
+    request_id: Mapped[str | None] = mapped_column(String)
