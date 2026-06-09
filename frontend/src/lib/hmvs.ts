@@ -33,6 +33,11 @@ const API_BASE = (import.meta.env.VITE_API_BASE as string | undefined) ?? "";
 /** Pack lifecycle states relevant to the dispense flow (EMVS/HMVS subset). */
 export type HmvsState = "Active" | "Supplied";
 
+// EMVS `emvs-data-entry-mode` — how the pack identifier was captured. Sent so
+// the registry records a scan as a scan, not "manual". Camera/handheld 2D scan
+// → "2d_two_dimensional_barcode"; hand-keyed → "manual".
+export type HmvsDataEntryMode = "2d_two_dimensional_barcode" | "manual";
+
 /** GS1 fields scanned off the carton — the input to every HMVS call. */
 export interface HmvsPackKey {
   /** GS1 (01) — 14-digit Global Trade Item Number. */
@@ -85,11 +90,15 @@ export interface HmvsPackResponse {
   retryAfterSeconds: number | null;
 }
 
-function packUrl({ gtin, serial, batch, expiry }: HmvsPackKey): string {
+function packUrl(
+  { gtin, serial, batch, expiry }: HmvsPackKey,
+  entryMode?: HmvsDataEntryMode,
+): string {
   if (!gtin || !serial || !batch || !expiry) {
     throw new ApiError(400, "Missing GS1 field for HMVS operation (gtin/serial/batch/expiry).");
   }
   const qs = new URLSearchParams({ batch, expiry });
+  if (entryMode) qs.set("entryMode", entryMode);
   return `${API_BASE}/pharmapi/hmvs/product/gs1/${encodeURIComponent(gtin)}/pack/${encodeURIComponent(serial)}?${qs}`;
 }
 
@@ -139,8 +148,11 @@ async function parseHmvsResponse(r: Response, pack: HmvsPackKey): Promise<HmvsPa
  *
  * Maps to: GET /pharmapi/hmvs/product/gs1/{GTIN}/pack/{serial}?batch={batch}&expiry={YYMMDD}
  */
-export async function hmvsVerify(pack: HmvsPackKey): Promise<HmvsPackResponse> {
-  const r = await fetch(packUrl(pack), { credentials: "include" });
+export async function hmvsVerify(
+  pack: HmvsPackKey,
+  entryMode?: HmvsDataEntryMode,
+): Promise<HmvsPackResponse> {
+  const r = await fetch(packUrl(pack, entryMode), { credentials: "include" });
   return parseHmvsResponse(r, pack);
 }
 
@@ -149,8 +161,11 @@ export async function hmvsVerify(pack: HmvsPackKey): Promise<HmvsPackResponse> {
  *
  * Maps to: PATCH /pharmapi/hmvs/product/gs1/{GTIN}/pack/{serial}?… body { state: "Supplied" }
  */
-export async function hmvsDecommission(pack: HmvsPackKey): Promise<HmvsPackResponse> {
-  const r = await fetch(packUrl(pack), {
+export async function hmvsDecommission(
+  pack: HmvsPackKey,
+  entryMode?: HmvsDataEntryMode,
+): Promise<HmvsPackResponse> {
+  const r = await fetch(packUrl(pack, entryMode), {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     credentials: "include",
@@ -165,8 +180,11 @@ export async function hmvsDecommission(pack: HmvsPackKey): Promise<HmvsPackRespo
  *
  * Maps to: PATCH /pharmapi/hmvs/product/gs1/{GTIN}/pack/{serial}?… body { state: "Active" }
  */
-export async function hmvsReactivate(pack: HmvsPackKey): Promise<HmvsPackResponse> {
-  const r = await fetch(packUrl(pack), {
+export async function hmvsReactivate(
+  pack: HmvsPackKey,
+  entryMode?: HmvsDataEntryMode,
+): Promise<HmvsPackResponse> {
+  const r = await fetch(packUrl(pack, entryMode), {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     credentials: "include",

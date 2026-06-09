@@ -19,6 +19,7 @@ import {
   hmvsDecommission,
   hmvsReactivate,
   hmvsVerify,
+  type HmvsDataEntryMode,
   type HmvsPackKey,
   type HmvsPackResponse,
 } from "../lib/hmvs";
@@ -57,6 +58,9 @@ interface PackEntry {
   rawPayload: string;
   /** Parsed GS1 (gtin/serial/batch/expiry). Only populated when complete. */
   key?: HmvsPackKey;
+  /** How this pack was captured (camera 2D scan vs hand-keyed) — sent to EMVS
+   * on verify + supply so a scan is recorded as a scan, not "manual". */
+  entryMode?: HmvsDataEntryMode;
   status: PackStatus;
   /**
    * "bulk" when verification was skipped because a previously-verified pack
@@ -229,7 +233,7 @@ export function DispenseWizard({
       }
 
       try {
-        const result = await hmvsVerify(entry.key!);
+        const result = await hmvsVerify(entry.key!, entry.entryMode);
         // The dispense flow accepts ONLY packs reported Active by the
         // registry. Anything else (Supplied, Recalled, Withdrawn, …) lands
         // the pack in 'blocked' so the pharmacist sees the registry warning.
@@ -250,7 +254,7 @@ export function DispenseWizard({
     [t],
   );
 
-  function onPackScanned(rawPayload: string) {
+  function onPackScanned(rawPayload: string, entryMode: HmvsDataEntryMode) {
     setScanError(null);
     const fields = parseGs1(rawPayload);
     if (!isCompletePack(fields)) {
@@ -268,6 +272,7 @@ export function DispenseWizard({
         id: newPackId(),
         rawPayload,
         key: fields,
+        entryMode,
         status: "verifying",
       };
       // Kick off verify against the soon-to-be-updated list. Known limitation:
@@ -308,7 +313,7 @@ export function DispenseWizard({
       if (!p.key) continue;
       setPack(p.id, { status: "supplying" });
       try {
-        const result = await hmvsDecommission(p.key);
+        const result = await hmvsDecommission(p.key, p.entryMode);
         if (result.ok || result.queued) {
           setPack(p.id, { status: "supplied", supply: result });
         } else {
@@ -340,8 +345,19 @@ export function DispenseWizard({
     }
 
     // ── Phase 2: record the dispense in ΗΔΥΚΑ ─────────────────────────────
+    // Every pack in `ordered` is now Supplied (we returned early on any
+    // failure). Pass their GS1 keys so the eDispensation supply lines carry the
+    // real ΕΟΦ/QR serial instead of the synthetic placeholder.
+    const dispensePacks = ordered
+      .filter((p) => p.key)
+      .map((p) => ({
+        gtin: p.key!.gtin,
+        serial: p.key!.serial,
+        batch: p.key!.batch,
+        expiry: p.key!.expiry,
+      }));
     try {
-      const result = await approvePrescription(rxId);
+      const result = await approvePrescription(rxId, dispensePacks);
       setExecutionNo(result.executionNo ?? null);
       setView("success");
       onDispensed(result.status);
@@ -365,7 +381,7 @@ export function DispenseWizard({
     for (const p of packs) {
       if (p.status !== "supplied" || !p.key) continue;
       try {
-        const result = await hmvsReactivate(p.key);
+        const result = await hmvsReactivate(p.key, p.entryMode);
         if (result.ok || result.queued) {
           setPack(p.id, { status: "verified", supply: undefined, error: undefined });
         } else {

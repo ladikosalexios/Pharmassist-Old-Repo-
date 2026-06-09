@@ -16,8 +16,14 @@ import { HmvsSecureInput, type HmvsBlockReason } from "./HmvsSecureInput";
  * The component does NOT parse GS1 AIs — it hands the RAW payload back to the
  * caller (DispenseWizard), which delegates parsing to ``lib/gs1.parseGs1``.
  */
+// EMVS data-entry mode — how this payload was captured. Mirrors
+// lib/hmvs.HmvsDataEntryMode, declared inline because the HMVS gateway is
+// import-restricted to the dispense flow (see eslint.config.js); the parent
+// (DispenseWizard) bridges the two structurally-identical unions.
+export type ScanEntryMode = "2d_two_dimensional_barcode" | "manual";
+
 export interface DataMatrixScannerProps {
-  onScan: (rawPayload: string) => void;
+  onScan: (rawPayload: string, entryMode: ScanEntryMode) => void;
   disabled?: boolean;
   /** Forwarded to HmvsSecureInput so the parent receives the same block signal. */
   onBlockChange?: (reason: HmvsBlockReason) => void;
@@ -66,7 +72,8 @@ export function DataMatrixScanner({ onScan, disabled, onBlockChange }: DataMatri
         if (result) {
           controls.stop();
           controlsRef.current = null;
-          onScanRef.current(result.getText());
+          // Camera decode of the 2D DataMatrix → a genuine 2D scan.
+          onScanRef.current(result.getText(), "2d_two_dimensional_barcode");
           setMode("input");
         }
       })
@@ -90,7 +97,9 @@ export function DataMatrixScanner({ onScan, disabled, onBlockChange }: DataMatri
   function submitManual() {
     const v = manualValue.trim();
     if (!v || blockReason !== null) return;
-    onScan(v);
+    // Typed / handheld-scanner input via the field — we can't prove a 2D scan,
+    // so report "manual" rather than over-claiming a scan.
+    onScan(v, "manual");
     setManualValue("");
   }
 

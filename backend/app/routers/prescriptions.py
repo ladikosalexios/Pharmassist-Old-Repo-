@@ -7,7 +7,13 @@ Set PHARMAPI_MOCK=false (env var) to switch from mock in-memory data to live
 log) is identical in both modes.
 
   PHARMAPI_MOCK=true  (default)  → MOCK_PRESCRIPTIONS + MOCK_QUEUE_BASE
-  PHARMAPI_MOCK=false            → pharmapi_search_prescriptions()
+  PHARMAPI_MOCK=false            → pharmapi_get_prescription() by barcode,
+                                   falling back to pharmapi_search_prescriptions()
+
+Resolve path: a single prescription is resolved by barcode via
+``pharmapi_get_prescription`` (GET /prescriptions/get/{barcode}), which returns
+the source CDA and — unlike /search — surfaces PAPERLESS (άυλη) prescriptions.
+``/search`` remains the fallback (and still backs the /next + list queues).
 
 Order matters: ``/next`` is declared *before* ``/{rx_id}`` so FastAPI matches
 the fixed path before the catch-all. Same reason ``/{rx_id}/approve`` comes
@@ -30,12 +36,22 @@ from ..constants import ActionType, DeliveryMethod, PrescriptionStatus
 from ..db.models.dispense_log import DispenseLog
 from ..db.session import get_session
 from ..deps import get_current_user
-from ..schemas.prescriptions import ApproveResponse, PatchResponse, PrescriptionPatch
+from ..schemas.prescriptions import (
+    ApproveRequest,
+    ApproveResponse,
+    DispensePack,
+    PatchResponse,
+    PrescriptionPatch,
+)
 from ..services.cda import DispenseItem, build_dispense_cda
 from ..services.documentation import record_prescription_action
 from ..services.drug_catalog import atc_codes_for_barcodes
 from ..services.pharmacy import find_pharmacy_by_name
-from ..services.pharmapi import pharmapi_dispense, pharmapi_search_prescriptions
+from ..services.pharmapi import (
+    pharmapi_dispense,
+    pharmapi_get_prescription,
+    pharmapi_search_prescriptions,
+)
 from ..services.prescriptions import MOCK_PRESCRIPTIONS, MOCK_QUEUE_BASE
 from ..services.safety_engine import checks_for_prescription, live_rx_to_engine_shape
 
@@ -110,6 +126,7 @@ async def list_prescriptions(current: dict = Depends(get_current_user)):
 @router.get("/{rx_id}")
 async def get_prescription_for_verification(
     rx_id: str,
+    request: Request,
     current: dict = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ):
@@ -132,16 +149,15 @@ async def get_prescription_for_verification(
         payload = await checks_for_prescription(session, rx_id, rx, pharmacy.id)
         return {**rx, "safetyChecks": [c.model_dump(by_alias=True) for c in payload.checks]}
 
-    # Live mode: Pharmapi has no per-prescription detail endpoint.
-    # Use the search endpoint filtered by barcode, then enrich with safety checks.
-    results = await pharmapi_search_prescriptions(barcode=rx_id)
-    if not results:
-        raise HTTPException(status_code=404, detail=f"Prescription {rx_id} not found")
-    rx = results[0]
-
+    # Live mode: resolve by barcode via GET /prescriptions/get/{barcode} (the
+    # source CDA — surfaces paperless άυλη prescriptions), falling back to
+    # /search. Then enrich with safety checks.
     pharmacy = await find_pharmacy_by_name(session, current["pharmacy"])
     if pharmacy is None:
         raise HTTPException(status_code=400, detail="Pharmacy not found for current user")
+    rx = await _fetch_live_rx(rx_id, pharmacy, request)
+    if rx is None:
+        raise HTTPException(status_code=404, detail=f"Prescription {rx_id} not found")
 
     medicine_barcode = rx.get("medicineBarcode")
     atc_map = await atc_codes_for_barcodes(session, [medicine_barcode] if medicine_barcode else [])
@@ -166,29 +182,78 @@ async def get_prescription_for_verification(
 # ΗΔΥΚΑ call because flagging is internal triage, not a dispense.
 
 
-def _rx_to_dispense_items(rx: dict) -> list[DispenseItem]:
-    """Map a prescription dict to one or more DispenseItems for the CDA.
+def _pack_dispense_item(
+    *, therapy_line_id: str, medicine_barcode: str, pack: DispensePack
+) -> DispenseItem:
+    """A supply line carrying real HMVS-QR data (dispense_mode=1) from a scanned
+    + supplied pack — the ΕΟΦ/QR serial ΗΔΥΚΑ validates instead of a placeholder."""
+    return DispenseItem(
+        therapy_line_id=therapy_line_id,
+        medicine_barcode=medicine_barcode,
+        lot_number=pack.serial,  # HMVS QR serial is the lot when dispense_mode=1
+        consent=1,
+        dispense_mode=1,
+        qr_product_code=pack.gtin,
+        qr_batch_no=pack.batch,
+        qr_expiry=pack.expiry,
+        qr_code_type="GS1",
+    )
 
-    The mock fixtures carry a single ``medication`` object; live mode shapes
-    will eventually grow a per-line list (see TODOs in services.pharmapi).
-    For now we emit one line per Rx using the EAN/NHRN as the medicine
-    barcode and a synthetic per-Rx therapy id so the upstream POST has a
-    well-formed (if synthetic) ``id[@root='1.21.1']`` field.
 
-    TODO(P3-followup): in live mode therapy_line_id MUST come from the
-    upstream search response's per-medicine lineId — sending a synthetic id
-    would let ΗΔΥΚΑ accept a malformed dispense. Until that wiring lands the
-    live mode is intended for the manual test against pharmacy 70014 only.
+def _rx_to_dispense_items(rx: dict, packs: list[DispensePack] | None = None) -> list[DispenseItem]:
+    """Map a prescription dict (+ scanned packs) to DispenseItems for the CDA.
+
+    ``therapyLines`` (from ``pharmapi_get_prescription``'s parsed source CDA)
+    carries the REAL per-line therapy id (``id[@root='1.21.1']``) + medicine
+    barcode, so the eDispensation echoes ΗΔΥΚΑ's own line ids.
+
+    Pack pairing: when ``packs`` (verified+supplied HMVS packs) are supplied they
+    are paired to therapy lines by index — each yields a ``dispense_mode=1`` line
+    with the real GS1 GTIN/serial/batch/expiry. A line with no matching pack (or
+    no packs at all, e.g. mock / pre-scan) falls back to the synthetic
+    ``dispense_mode=0`` ΕΟΦ-strip placeholder so the CDA stays schema-valid.
     """
-    medication = rx.get("medication", {}) or {}
-    medicine_barcode = rx.get("medicineBarcode") or medication.get("nhrn") or ""
+    packs = packs or []
+    lines = rx.get("therapyLines") or []
+    if lines:
+        items: list[DispenseItem] = []
+        for i, ln in enumerate(lines, start=1):
+            line_id = ln.get("lineId") or f"{rx['rxId']}-L{i}"
+            med_barcode = ln.get("medicineBarcode") or ""
+            pack = packs[i - 1] if i - 1 < len(packs) else None
+            if pack is not None:
+                items.append(
+                    _pack_dispense_item(
+                        therapy_line_id=line_id, medicine_barcode=med_barcode, pack=pack
+                    )
+                )
+            else:
+                items.append(
+                    DispenseItem(
+                        therapy_line_id=line_id,
+                        medicine_barcode=med_barcode,
+                        lot_number="000000000000",
+                        consent=1,
+                        dispense_mode=0,
+                    )
+                )
+        return items
+
+    # Fallback (mock / no per-line list): one line from the flat dict shape.
+    medication = rx.get("medication") if isinstance(rx.get("medication"), dict) else {}
+    medicine_barcode = rx.get("medicineBarcode") or (medication or {}).get("nhrn") or ""
+    if packs:
+        return [
+            _pack_dispense_item(
+                therapy_line_id=f"{rx['rxId']}-L1",
+                medicine_barcode=medicine_barcode,
+                pack=packs[0],
+            )
+        ]
     return [
         DispenseItem(
             therapy_line_id=f"{rx['rxId']}-L1",
             medicine_barcode=medicine_barcode,
-            # TODO(P3-followup): real ΕΟΦ strip / HMVS QR id from the
-            # pack-verify step (services.hmvs verify). The 12-zero placeholder
-            # keeps the CDA schema-valid for the mock round-trip.
             lot_number="000000000000",
             consent=1,
             dispense_mode=0,
@@ -196,11 +261,36 @@ def _rx_to_dispense_items(rx: dict) -> list[DispenseItem]:
     ]
 
 
-async def _resolve_rx_for_dispense(session: AsyncSession, rx_id: str, current: dict) -> dict:
+async def _fetch_live_rx(rx_id: str, pharmacy, request: Request) -> dict | None:
+    """Resolve ONE live prescription by barcode (shared by detail + dispense).
+
+    Primary: ``pharmapi_get_prescription`` (GET /prescriptions/get/{barcode}) —
+    the source CDA, which surfaces PAPERLESS (άυλη) prescriptions and carries the
+    real per-line therapy ids. On 404 fall back to ``/search`` (legacy printed /
+    already-associated rows). Returns the search-shaped rx dict, or None.
+    """
+    ip, _ = _client_meta(request)
+    # X-DOCTOR-IP per spec (pharmacist external IP). Under TestClient there is no
+    # real client; fall back so pharmapi_get_prescription's header guard passes.
+    doctor_ip = ip or "0.0.0.0"
+    try:
+        return await pharmapi_get_prescription(
+            barcode=rx_id, pharmacy_id=pharmacy.pharmapi_unit_id, doctor_ip=doctor_ip
+        )
+    except HTTPException as exc:
+        if exc.status_code != 404:
+            raise
+    results = await pharmapi_search_prescriptions(barcode=rx_id)
+    return results[0] if results else None
+
+
+async def _resolve_rx_for_dispense(
+    session: AsyncSession, rx_id: str, current: dict, pharmacy, request: Request
+) -> dict:
     """Return the rx dict the dispense flow operates on.
 
-    Mock branch: look up MOCK_PRESCRIPTIONS by rxId. Live branch: search
-    Pharmapi by barcode (single-result query).
+    Mock branch: look up MOCK_PRESCRIPTIONS by rxId. Live branch: barcode-direct
+    via ``_fetch_live_rx`` (GET /prescriptions/get/{barcode} → /search fallback).
     """
     if is_mock_pharmapi():
         rx = MOCK_PRESCRIPTIONS.get(rx_id)
@@ -208,10 +298,10 @@ async def _resolve_rx_for_dispense(session: AsyncSession, rx_id: str, current: d
             raise HTTPException(status_code=404, detail=f"Prescription {rx_id} not found")
         return rx
 
-    results = await pharmapi_search_prescriptions(barcode=rx_id)
-    if not results:
+    rx = await _fetch_live_rx(rx_id, pharmacy, request)
+    if rx is None:
         raise HTTPException(status_code=404, detail=f"Prescription {rx_id} not found")
-    return results[0]
+    return rx
 
 
 async def _get_existing_dispense_log(
@@ -248,15 +338,18 @@ def _cached_approve_response(log: DispenseLog) -> ApproveResponse:
 async def approve_prescription(
     rx_id: str,
     request: Request,
+    body: ApproveRequest | None = None,
     current: dict = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
     x_request_id: str | None = Header(default=None, alias="X-Request-Id", max_length=128),
 ):
-    rx = await _resolve_rx_for_dispense(session, rx_id, current)
-
+    # Resolve the pharmacy first — barcode-direct resolution needs its
+    # pharmapi_unit_id for the /get/{barcode} pharmacyId query.
     pharmacy = await find_pharmacy_by_name(session, current["pharmacy"])
     if pharmacy is None:
         raise HTTPException(status_code=400, detail="Pharmacy not found for current user")
+
+    rx = await _resolve_rx_for_dispense(session, rx_id, current, pharmacy, request)
 
     # ── Idempotency pre-check ─────────────────────────────────────────────────
     # A successful dispense already exists for (pharmacy, barcode) → return
@@ -267,7 +360,10 @@ async def approve_prescription(
     if cached is not None:
         return _cached_approve_response(cached)
 
-    items = _rx_to_dispense_items(rx)
+    # Scanned + supplied HMVS packs (if the wizard sent them) supply the real
+    # ΕΟΦ/QR serial per line; absent → synthetic ΕΟΦ-strip fallback.
+    packs = body.packs if body else []
+    items = _rx_to_dispense_items(rx, packs)
     cda_request = build_dispense_cda(
         barcode=rx_id,
         pharmacy_unit_id=pharmacy.pharmapi_unit_id,

@@ -629,3 +629,73 @@ def test_replay_pending_halts_on_token_auth_failure_and_keeps_remaining_pending(
     assert op_third.status == "pending" and op_third.attempts == 0
     # And the session still committed once so op_first.attempts persists.
     assert session.commits == 1
+
+
+# ── Live-only request shape: data-entry-mode header + serial encoding ─────────
+# Both regressions are invisible in mock mode (no HTTP) but break EVERY live IQE
+# call: a missing emvs-data-entry-mode header → 422/61020012, and an un-encoded
+# GS1 serial containing "/" → 404. Verified live against api-gr-iqe.nmvo.eu.
+
+
+def _capturing_transport(captured: dict) -> httpx.MockTransport:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/identity/connect/token"):
+            return httpx.Response(
+                200, json={"access_token": "tok", "expires_in": 3600, "token_type": "Bearer"}
+            )
+        captured["request"] = request
+        return httpx.Response(200, json={"operationCode": "NMVS_OK", "state": "Active"})
+
+    return httpx.MockTransport(handler)
+
+
+def test_verify_defaults_to_2d_scan_entry_mode():
+    """The dispense flow is scan-driven, so the honest default is 2D — NOT a
+    hardcoded "manual" that would misrepresent a scan."""
+    captured: dict = {}
+    hmvs._transport_override = _capturing_transport(captured)
+    asyncio.run(
+        hmvs.verify(
+            "05210330200000", "PLAIN-SERIAL", "LOT", "320101", client_id=CID, client_secret=SECRET
+        )
+    )
+    assert captured["request"].headers.get("emvs-data-entry-mode") == hmvs.EMVS_DATA_ENTRY_2D
+
+
+def test_verify_honours_manual_entry_mode():
+    """A hand-keyed pack reports "manual" — scan-aware, not always 2D either."""
+    captured: dict = {}
+    hmvs._transport_override = _capturing_transport(captured)
+    asyncio.run(
+        hmvs.verify(
+            "05210330200000",
+            "PLAIN-SERIAL",
+            "LOT",
+            "320101",
+            client_id=CID,
+            client_secret=SECRET,
+            data_entry_mode=hmvs.EMVS_DATA_ENTRY_MANUAL,
+        )
+    )
+    assert captured["request"].headers.get("emvs-data-entry-mode") == "manual"
+
+
+def test_normalise_data_entry_mode():
+    assert hmvs.normalise_data_entry_mode("manual") == "manual"
+    assert hmvs.normalise_data_entry_mode("2d_two_dimensional_barcode") == hmvs.EMVS_DATA_ENTRY_2D
+    # Unknown/missing → 2D scan (never a silent "manual" under-reporting a scan).
+    assert hmvs.normalise_data_entry_mode(None) == hmvs.EMVS_DATA_ENTRY_2D
+    assert hmvs.normalise_data_entry_mode("bogus") == hmvs.EMVS_DATA_ENTRY_2D
+
+
+def test_pack_url_percent_encodes_gs1_serial():
+    serial = 'SCP1GR:AZaz10_/+&"-'
+    url = hmvs._pack_url("05210330200000", serial)
+    tail = url.split("/pack/", 1)[1]
+    # The serial's "/" (and +, &, ", :) must be encoded so the path stays one segment.
+    assert "/" not in tail
+    for raw, enc in (("/", "%2F"), ("+", "%2B"), ("&", "%26"), ('"', "%22"), (":", "%3A")):
+        assert enc in tail, f"{raw!r} not percent-encoded in {tail!r}"
+    from urllib.parse import unquote
+
+    assert unquote(tail) == serial  # round-trips back to the raw serial
