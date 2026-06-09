@@ -23,3 +23,6 @@ CLAUDE.MD
 .DS_Store
 # Local release-readiness audit reports (not for the repo)
 docs/release-readiness-audit-*.md
+
+# Claude session state (per-session locks, transcripts)
+.claude/
