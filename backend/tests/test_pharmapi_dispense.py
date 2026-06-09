@@ -1,15 +1,12 @@
 """Tests for app.services.pharmapi.pharmapi_dispense.
 
 Mock-mode envelope shape parity is the load-bearing assertion: the router
-and dispense_log writer must work identically against the mock and live
-branches.
+and dispense_log writer in Phase 3 must work identically against the mock
+and live branches.
 
-Mirrors test_hmvs.py — env vars set before app imports; async coroutines
-driven via asyncio.run inside sync tests so the suite stays
-pytest-asyncio-free.
-
-NOTE: live-mode tests are minimal until the exact ΗΔΥΚΑ dispense endpoint
-is confirmed (see TODO at top of services/pharmapi.py dispense section).
+Mirrors test_hmvs.py / test_pharmapi_g14_retry.py — env vars set before app
+imports; async coroutines driven via asyncio.run inside sync tests so the
+suite stays pytest-asyncio-free.
 """
 
 from __future__ import annotations
@@ -33,73 +30,147 @@ os.environ.setdefault(
     "postgresql+asyncpg://pharmassist:pharmassist_dev@localhost:5432/pharmassist_test",
 )
 
+import httpx  # noqa: E402
 import pytest  # noqa: E402
 
 from app.services import pharmapi as pharmapi_module  # noqa: E402
+from app.services.cda import parse_dispense_response  # noqa: E402
 
 
-def _call_dispense(**overrides):
-    args = {
-        "barcode": "2411223344556",
-        "pharmacy_id": 6543,
-        "amka": "05055505340",
-        "medicine_barcodes": ["2802676702022"],
-        "eof_licence_no": "EOF-12345",
-        "doctor_ip": "10.0.0.1",
-    }
-    args.update(overrides)
-    return asyncio.run(pharmapi_module.pharmapi_dispense(**args))
+class _StubResponse:
+    def __init__(self, status_code: int, text: str, content_type: str = "application/json"):
+        self.status_code = status_code
+        self.text = text
+        self.content = text.encode("utf-8")
+        self.headers = {"content-type": content_type}
+
+    def json(self):
+        import json as _json
+
+        return _json.loads(self.text)
+
+
+class _StubClient:
+    """Drop-in for httpx.AsyncClient — returns a pre-canned response."""
+
+    def __init__(self, response: _StubResponse):
+        self._response = response
+
+    def __call__(self, *_args, **_kwargs):
+        return self
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *_args):
+        return False
+
+    async def post(self, *_args, **_kwargs):
+        return self._response
 
 
 def test_mock_envelope_shape():
     os.environ["PHARMAPI_MOCK"] = "true"
-    envelope = _call_dispense()
+    envelope = asyncio.run(
+        pharmapi_module.pharmapi_dispense(
+            barcode="2411223344556",
+            cda_xml=b"<unused-in-mock/>",
+            doctor_ip="10.0.0.1",
+        )
+    )
     assert set(envelope.keys()) >= {
         "exec_ref",
         "executed_at",
         "status",
         "barcode",
-        "response_xml",
+        "response_cda",
     }
     assert envelope["status"] == "EXECUTED"
     assert envelope["barcode"] == "2411223344556"
     assert envelope["exec_ref"].startswith("MOCK-EXEC-")
+    # Round-trip parse — the stub CDA must satisfy the same parser the live
+    # branch uses, so dispense_log writes are mode-blind.
+    parsed = parse_dispense_response(envelope["response_cda"])
+    assert parsed.exec_ref == envelope["exec_ref"]
+    assert parsed.barcode == envelope["barcode"]
 
 
 def test_doctor_ip_required():
     from fastapi import HTTPException
 
     with pytest.raises(HTTPException) as excinfo:
-        _call_dispense(doctor_ip="")
+        asyncio.run(
+            pharmapi_module.pharmapi_dispense(
+                barcode="X",
+                cda_xml=b"<x/>",
+                doctor_ip="",
+            )
+        )
     assert excinfo.value.status_code == 500
     assert "X-DOCTOR-IP" in excinfo.value.detail
 
 
-def test_live_endpoint_pending_501(monkeypatch):
-    """Until the exact ΗΔΥΚΑ dispense endpoint + DTO is confirmed, live mode
-    raises 501 — preserves the fail-closed behaviour the brief asked for.
-    """
+def test_live_g02_already_executed(monkeypatch):
+    """G02 from ΗΔΥΚΑ → 409 'Prescription already executed' (mapped error)."""
     from fastapi import HTTPException
 
     monkeypatch.setenv("PHARMAPI_MOCK", "false")
-    with pytest.raises(HTTPException) as excinfo:
-        _call_dispense()
-    assert excinfo.value.status_code == 501
-    assert "TODO" in excinfo.value.detail or "not yet confirmed" in excinfo.value.detail.lower()
-
-
-def test_build_request_xml_contains_required_fields():
-    xml_bytes = pharmapi_module._build_dispense_request_xml(
-        barcode="2411223344556",
-        pharmacy_id=6543,
-        amka="05055505340",
-        medicine_barcodes=["2802676702022", "2802009201024"],
-        eof_licence_no="EOF-12345",
+    stub = _StubClient(
+        _StubResponse(
+            409,
+            '{"errorCode":"G02","message":"Prescription already executed"}',
+        )
     )
-    text = xml_bytes.decode("utf-8")
-    assert "<pharmacyId>6543</pharmacyId>" in text
-    assert "<prescriptionBarcode>2411223344556</prescriptionBarcode>" in text
-    assert "<amka>05055505340</amka>" in text
-    assert "<eofLicenceNo>EOF-12345</eofLicenceNo>" in text
-    assert "<medicineBarcode>2802676702022</medicineBarcode>" in text
-    assert "<medicineBarcode>2802009201024</medicineBarcode>" in text
+    monkeypatch.setattr(httpx, "AsyncClient", stub)
+
+    with pytest.raises(HTTPException) as excinfo:
+        asyncio.run(
+            pharmapi_module.pharmapi_dispense(
+                barcode="2411223344556",
+                cda_xml=b"<ClinicalDocument/>",
+                doctor_ip="10.0.0.1",
+            )
+        )
+    assert excinfo.value.status_code == 409
+    assert "already executed" in excinfo.value.detail.lower()
+
+
+def test_live_unparseable_response_502s(monkeypatch):
+    """200 with garbage body → 502; never persist a success log on this path."""
+    from fastapi import HTTPException
+
+    monkeypatch.setenv("PHARMAPI_MOCK", "false")
+    # No executionNo in the CDA — parse_dispense_response will raise ValueError.
+    stub = _StubClient(_StubResponse(200, "<ClinicalDocument/>", content_type="application/xml"))
+    monkeypatch.setattr(httpx, "AsyncClient", stub)
+
+    with pytest.raises(HTTPException) as excinfo:
+        asyncio.run(
+            pharmapi_module.pharmapi_dispense(
+                barcode="X",
+                cda_xml=b"<ClinicalDocument/>",
+                doctor_ip="10.0.0.1",
+            )
+        )
+    assert excinfo.value.status_code == 502
+    assert "unparseable" in excinfo.value.detail.lower()
+
+
+def test_live_g14_session_expired(monkeypatch):
+    """G14 → 401 'session expired'; mirrors the pharmapi_get behaviour."""
+    from fastapi import HTTPException
+
+    monkeypatch.setenv("PHARMAPI_MOCK", "false")
+    stub = _StubClient(_StubResponse(401, '{"errorCode":"G14","message":"Connection time limit"}'))
+    monkeypatch.setattr(httpx, "AsyncClient", stub)
+
+    with pytest.raises(HTTPException) as excinfo:
+        asyncio.run(
+            pharmapi_module.pharmapi_dispense(
+                barcode="X",
+                cda_xml=b"<ClinicalDocument/>",
+                doctor_ip="10.0.0.1",
+            )
+        )
+    assert excinfo.value.status_code == 401
+    assert "G14" in excinfo.value.detail
