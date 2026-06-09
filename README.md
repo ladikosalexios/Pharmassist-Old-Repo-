@@ -24,8 +24,8 @@ Navigate to http://localhost:5173/login
 
 | Field    | Value                   |
 |----------|-------------------------|
-| username    | medcare1pharmapi |
-| Password | Aa900990099009!!                 |
+| Email    | ladikosalexios@gmail.com |
+| Password | test1234 |
 
 ## Required secrets
 
