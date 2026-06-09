@@ -132,6 +132,8 @@ def test_verify_200_parses_full_structure():
                 "nhrn": "GR-0001-0002-0003",
                 "isIntermarket": False,
                 "information": "Pack verified.",
+                "productName": "Aspirin 100mg x30",
+                "batchState": "Active",
             },
         ),
         "patch": (200, {}),
@@ -146,6 +148,8 @@ def test_verify_200_parses_full_structure():
     assert r.nhrn == "GR-0001-0002-0003"
     assert r.is_intermarket is False
     assert r.information == "Pack verified."
+    assert r.product_name == "Aspirin 100mg x30"
+    assert r.batch_state == "Active"
 
 
 @pytest.mark.parametrize("status", [403, 404, 422])

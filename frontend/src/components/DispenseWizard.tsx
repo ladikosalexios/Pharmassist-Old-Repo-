@@ -1,8 +1,7 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   XIcon,
-  BarcodeIcon,
   CheckCircleIcon,
   AlertOctagonIcon,
   ChevronRightIcon,
@@ -11,22 +10,68 @@ import {
   CheckIcon,
   PrinterIcon,
   AlertCircleIcon,
+  TrashIcon,
+  RefreshIcon,
 } from "./Icons";
 import { useTranslation } from "react-i18next";
 import { ApiError, approvePrescription } from "../lib/api";
-import { hmvsVerify } from "../lib/hmvs";
+import {
+  hmvsDecommission,
+  hmvsReactivate,
+  hmvsVerify,
+  type HmvsPackKey,
+  type HmvsPackResponse,
+} from "../lib/hmvs";
 import { useModalRegistration } from "../lib/keyboard";
-import { HmvsSecureInput, type HmvsBlockReason } from "./HmvsSecureInput";
+import { DataMatrixScanner } from "./DataMatrixScanner";
+import { type HmvsBlockReason } from "./HmvsSecureInput";
+import { parseGs1, isCompletePack } from "../lib/gs1";
 
-type WizardView =
-  | "s1-idle"
-  | "s1-verifying"
-  | "s1-failed"
-  | "s1-unavailable"
-  | "s2-idle"
-  | "s2-submitting"
-  | "s2-success"
-  | "s2-failure";
+// ── Per-pack state machine ──────────────────────────────────────────────────
+//
+// pending     — the pharmacist added a payload, parsing/verification not started
+// verifying   — HMVS verify call in flight (or scheduled to run)
+// verified    — HMVS returned 200 + state=Active (or bulk-inferred from a
+//               same-batch local sibling — see ``verifyPack``)
+// blocked     — HMVS returned a non-Active response (recalled, withdrawn,
+//               expired, suspended, already supplied). ``warning`` carries
+//               the upstream copy so the pharmacist sees WHY.
+// supplying   — PATCH Supplied in flight.
+// supplied    — PATCH Supplied returned ok.
+// supply-failed — PATCH Supplied failed (or returned ok=false).
+//
+// Malformed payloads do NOT enter this list — onPackScanned surfaces them via
+// `scanError` and never adds the entry, so the pharmacist re-scans before the
+// pack reaches the registry.
+type PackStatus =
+  | "pending"
+  | "verifying"
+  | "verified"
+  | "blocked"
+  | "supplying"
+  | "supplied"
+  | "supply-failed";
+
+interface PackEntry {
+  id: string;
+  rawPayload: string;
+  /** Parsed GS1 (gtin/serial/batch/expiry). Only populated when complete. */
+  key?: HmvsPackKey;
+  status: PackStatus;
+  /**
+   * "bulk" when verification was skipped because a previously-verified pack
+   * of the same GTIN+batch returned isIntermarket=false (local homogeneous
+   * set, single-verify covers the rest). "single" for verified-on-the-wire.
+   */
+  verifyMethod?: "single" | "bulk";
+  /** Response from the registry (or inherited for bulk). */
+  verify?: HmvsPackResponse;
+  supply?: HmvsPackResponse;
+  /** Free-text error to surface in the row. */
+  error?: string;
+}
+
+type WizardView = "verify" | "confirm" | "submitting" | "success" | "rollback" | "failure";
 
 interface DispenseWizardProps {
   open: boolean;
@@ -96,6 +141,14 @@ function SummaryRow({
   );
 }
 
+function newPackId(): string {
+  // crypto.randomUUID is available in all modern browsers — good enough
+  // for an in-memory list key.
+  return (
+    globalThis.crypto?.randomUUID?.() ?? `pack-${Math.floor(performance.now() * 1000).toString(36)}`
+  );
+}
+
 export function DispenseWizard({
   open,
   rxId,
@@ -110,140 +163,255 @@ export function DispenseWizard({
   useModalRegistration(open);
 
   const titleId = useId();
-  const inputRef = useRef<HTMLInputElement>(null);
 
-  const [view, setView] = useState<WizardView>("s1-idle");
-  const [manual, setManual] = useState(false);
-  const [payload, setPayload] = useState("");
-  // Caps Lock / wrong-keyboard-layout guard for the scanned pack code (H1).
-  const [hmvsBlock, setHmvsBlock] = useState<HmvsBlockReason>(null);
-  const [scheme, setScheme] = useState<"GS1" | "PPN">("GS1");
-  // Controlled state for manual-entry fields
-  const [manualProductCode, setManualProductCode] = useState("");
-  const [manualSerial, setManualSerial] = useState("");
-  const [manualBatch, setManualBatch] = useState("");
-  const [manualExpiry, setManualExpiry] = useState("");
+  const [view, setView] = useState<WizardView>("verify");
+  const [packs, setPacks] = useState<PackEntry[]>([]);
+  const [scanError, setScanError] = useState<string | null>(null);
+  const [scannerBlocked, setScannerBlocked] = useState<HmvsBlockReason>(null);
   const [counsel, setCounsel] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
-  const [verifyError, setVerifyError] = useState<string | null>(null);
   const [dispenseError, setDispenseError] = useState<string | null>(null);
   const [dispenseErrorDetail, setDispenseErrorDetail] = useState<string | null>(null);
   const [executionNo, setExecutionNo] = useState<string | null>(null);
-  const [packVerified, setPackVerified] = useState(false);
 
-  // Reset internal state when wizard opens
+  // Reset state when the wizard opens.
   useEffect(() => {
     if (!open) return;
-    setView("s1-idle");
-    setManual(false);
-    setPayload("");
-    setHmvsBlock(null);
-    setScheme("GS1");
-    setManualProductCode("");
-    setManualSerial("");
-    setManualBatch("");
-    setManualExpiry("");
+    setView("verify");
+    setPacks([]);
+    setScanError(null);
+    setScannerBlocked(null);
     setCounsel(false);
     setShowDetails(false);
-    setVerifyError(null);
     setDispenseError(null);
     setDispenseErrorDetail(null);
     setExecutionNo(null);
-    setPackVerified(false);
   }, [open]);
 
-  // Focus the payload input when Step 1 is idle
-  useEffect(() => {
-    if (open && view === "s1-idle" && !manual) {
-      setTimeout(() => inputRef.current?.focus(), 0);
-    }
-  }, [open, view, manual]);
-
-  // Escape key handler
+  // Esc closes the modal unless something irreversible is in flight.
   useEffect(() => {
     if (!open) return;
     function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape" && view !== "s2-submitting") onClose();
+      const blocking = view === "submitting" || view === "rollback";
+      if (e.key === "Escape" && !blocking) onClose();
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [open, view, onClose]);
 
-  async function handleVerify() {
-    // Defence in depth: never verify a scanned code that the H1 guard flagged
-    // (Caps Lock / wrong layout), even if a caller bypasses the disabled button.
-    if (!manual && hmvsBlock !== null) return;
-    setView("s1-verifying");
-    setVerifyError(null);
-    // In manual mode, assemble GS1/PPN fields into the payload string sent to hmvsVerify
-    const effectivePayload = manual
-      ? `${scheme}:${manualProductCode}:${manualSerial}:${manualBatch}:${manualExpiry}`
-      : payload;
-    try {
-      await hmvsVerify(effectivePayload);
-      setPackVerified(true);
-      setView("s2-idle");
-    } catch (e) {
-      if (e instanceof ApiError && e.status === 501) {
-        setView("s1-unavailable");
-      } else if (e instanceof ApiError) {
-        setVerifyError(e.message);
-        setView("s1-failed");
-      } else {
-        setVerifyError(t("dispense.verifyGenericError"));
-        setView("s1-failed");
-      }
-    }
+  function setPack(id: string, patch: Partial<PackEntry>) {
+    setPacks((cur) => cur.map((p) => (p.id === id ? { ...p, ...patch } : p)));
   }
 
-  function proceedWithoutVerification() {
-    setPackVerified(false);
-    setView("s2-idle");
+  const verifyPack = useCallback(
+    async (entry: PackEntry, siblings: PackEntry[]) => {
+      // ── Bulk verification by inference ────────────────────────────────────
+      // The HMVS Bulk Verification feature allows a single verify call to
+      // cover a homogeneous local (non-intermarket) set: one pack on the wire,
+      // the rest treated as verified by inheritance. Intermarket packs and
+      // heterogeneous sets always verify single-per-pack.
+      const sibling = siblings.find(
+        (p) =>
+          p.id !== entry.id &&
+          p.status === "verified" &&
+          p.verifyMethod === "single" &&
+          p.verify?.isIntermarket === false &&
+          p.key?.gtin === entry.key?.gtin &&
+          p.key?.batch === entry.key?.batch,
+      );
+      if (sibling && sibling.verify) {
+        setPack(entry.id, {
+          status: "verified",
+          verifyMethod: "bulk",
+          verify: { ...sibling.verify, serial: entry.key?.serial ?? sibling.verify.serial },
+        });
+        return;
+      }
+
+      try {
+        const result = await hmvsVerify(entry.key!);
+        // The dispense flow accepts ONLY packs reported Active by the
+        // registry. Anything else (Supplied, Recalled, Withdrawn, …) lands
+        // the pack in 'blocked' so the pharmacist sees the registry warning.
+        if (result.ok && result.state === "Active") {
+          setPack(entry.id, { status: "verified", verifyMethod: "single", verify: result });
+        } else {
+          setPack(entry.id, {
+            status: "blocked",
+            verify: result,
+            error: result.warning ?? result.information ?? t("dispense.verifyFailedTitle"),
+          });
+        }
+      } catch (e) {
+        const msg = e instanceof ApiError ? e.message : t("dispense.verifyGenericError");
+        setPack(entry.id, { status: "blocked", error: msg });
+      }
+    },
+    [t],
+  );
+
+  function onPackScanned(rawPayload: string) {
+    setScanError(null);
+    const fields = parseGs1(rawPayload);
+    if (!isCompletePack(fields)) {
+      setScanError(t("dispense.scanMalformed"));
+      return;
+    }
+    // Reject duplicates by serial — a pack is dispensed once.
+    const dupKey = `${fields.gtin}:${fields.serial}`;
+    setPacks((cur) => {
+      if (cur.some((p) => p.key && `${p.key.gtin}:${p.key.serial}` === dupKey)) {
+        setScanError(t("dispense.duplicatePack"));
+        return cur;
+      }
+      const entry: PackEntry = {
+        id: newPackId(),
+        rawPayload,
+        key: fields,
+        status: "verifying",
+      };
+      // Kick off verify against the soon-to-be-updated list. Known limitation:
+      // bulk-by-inference (verifyPack) requires the sibling pack's status to be
+      // "verified" already, so two packs scanned in quick succession both hit
+      // the registry on the wire — the second's siblings snapshot only sees the
+      // first as "verifying". This is intentional: serialising on a sibling we
+      // haven't actually verified would let a single bad-state response taint
+      // the whole batch. Sequential-scan is the documented usage.
+      queueMicrotask(() => verifyPack(entry, [...cur, entry]));
+      return [...cur, entry];
+    });
   }
+
+  function removePack(id: string) {
+    setPacks((cur) => cur.filter((p) => p.id !== id));
+  }
+
+  async function retryVerify(id: string) {
+    const entry = packs.find((p) => p.id === id);
+    if (!entry || !entry.key) return;
+    setPack(id, { status: "verifying", verify: undefined, error: undefined });
+    await verifyPack({ ...entry, status: "verifying" }, packs);
+  }
+
+  const allVerified = packs.length > 0 && packs.every((p) => p.status === "verified");
 
   async function handleConfirmDispense() {
-    setView("s2-submitting");
+    setView("submitting");
     setDispenseError(null);
     setDispenseErrorDetail(null);
+
+    // ── Phase 1: PATCH Supplied for every pack, sequentially ──────────────
+    // Sequential keeps the audit trail clean and lets us stop at the first
+    // failure (so a partial supply chain is small and easy to reactivate).
+    const ordered = packs.slice();
+    for (const p of ordered) {
+      if (!p.key) continue;
+      setPack(p.id, { status: "supplying" });
+      try {
+        const result = await hmvsDecommission(p.key);
+        if (result.ok || result.queued) {
+          setPack(p.id, { status: "supplied", supply: result });
+        } else {
+          setPack(p.id, {
+            status: "supply-failed",
+            supply: result,
+            error: result.warning ?? result.information ?? t("dispense.supplyFailed"),
+          });
+          setDispenseError(t("dispense.supplyHaltedTitle"));
+          setDispenseErrorDetail(
+            `pack: ${p.key.gtin}/${p.key.serial}\noperationCode: ${result.operationCode ?? "—"}\n${result.warning ?? ""}`,
+          );
+          setView("failure");
+          return;
+        }
+      } catch (e) {
+        const detail =
+          e instanceof ApiError
+            ? `${e.status} ${e.message}`
+            : e instanceof Error
+              ? e.message
+              : String(e);
+        setPack(p.id, { status: "supply-failed", error: detail });
+        setDispenseError(t("dispense.supplyHaltedTitle"));
+        setDispenseErrorDetail(`pack: ${p.key.gtin}/${p.key.serial}\n${detail}`);
+        setView("failure");
+        return;
+      }
+    }
+
+    // ── Phase 2: record the dispense in ΗΔΥΚΑ ─────────────────────────────
     try {
       const result = await approvePrescription(rxId);
-      // TODO(H6): once the /pharmapi/hmvs proxy lands, decommission the verified
-      // pack here on success via hmvsDecommission(packPayload, reason) — the pack
-      // scanned in step 1 must be retained from handleVerify and passed in. Until
-      // then the wizard records approval only; the pack is NOT decommissioned,
-      // despite the step-2 copy. See docs/hmvs-scope.md.
-      const execNo = result.executionNo ?? null;
-      setExecutionNo(execNo);
-      setView("s2-success");
+      setExecutionNo(result.executionNo ?? null);
+      setView("success");
       onDispensed(result.status);
     } catch (e) {
-      if (e instanceof ApiError && e.status === 501) {
-        setDispenseError(t("dispense.dispenseNotWired"));
-        setDispenseErrorDetail(
-          `rxId: ${rxId}\nstatus: 501 Not Implemented\n${t("dispense.diagnosticMockOnly")}`,
-        );
-      } else if (e instanceof ApiError) {
+      if (e instanceof ApiError) {
         setDispenseError(t("dispense.dispenseRejected", { message: e.message }));
         setDispenseErrorDetail(`rxId: ${rxId}\nstatus: ${e.status}\n${e.message}`);
       } else {
         setDispenseError(t("dispense.dispenseGenericError"));
-        setDispenseErrorDetail(null);
       }
-      setView("s2-failure");
+      setView("failure");
+    }
+  }
+
+  async function handleReactivateSupplied() {
+    setView("rollback");
+    // Walk every pack we've already moved to Supplied and PATCH back to Active.
+    // Each reactivate is idempotency-guarded by the backend so a partial first
+    // rollback can be safely retried.
+    let anyFailed = false;
+    for (const p of packs) {
+      if (p.status !== "supplied" || !p.key) continue;
+      try {
+        const result = await hmvsReactivate(p.key);
+        if (result.ok || result.queued) {
+          setPack(p.id, { status: "verified", supply: undefined, error: undefined });
+        } else {
+          anyFailed = true;
+          setPack(p.id, {
+            error: result.warning ?? result.information ?? t("dispense.reactivateFailed"),
+          });
+        }
+      } catch (e) {
+        anyFailed = true;
+        const msg = e instanceof ApiError ? e.message : t("dispense.reactivateFailed");
+        setPack(p.id, { error: msg });
+      }
+    }
+    if (anyFailed) {
+      // A reactivate failed → leave the failure banner up so the pharmacist
+      // sees that some packs are stuck Supplied and can retry.
+      setView("failure");
+    } else {
+      // Clean rollback — drop the prior failure banner and send the wizard back
+      // to step 1 so the pharmacist can re-scan / re-confirm cleanly.
+      setDispenseError(null);
+      setDispenseErrorDetail(null);
+      setView("verify");
     }
   }
 
   if (!open) return null;
 
-  const step: 1 | 2 = view.startsWith("s1") ? 1 : 2;
-  const success = view === "s2-success";
+  const step: 1 | 2 =
+    view === "confirm" ||
+    view === "submitting" ||
+    view === "success" ||
+    view === "failure" ||
+    view === "rollback"
+      ? 2
+      : 1;
+  const success = view === "success";
+  const blockingView = view === "submitting" || view === "rollback";
 
   return createPortal(
     <div
       className="fixed inset-0 z-50 animate-fade-in bg-slate-900/40"
       role="presentation"
       onMouseDown={(e) => {
-        if (e.target === e.currentTarget && view !== "s2-submitting") onClose();
+        if (e.target === e.currentTarget && !blockingView) onClose();
       }}
     >
       <div className="flex h-full items-center justify-center p-4">
@@ -251,16 +419,15 @@ export function DispenseWizard({
           role="dialog"
           aria-modal="true"
           aria-labelledby={titleId}
-          className="w-full max-w-[560px] animate-modal-in overflow-hidden rounded-2xl bg-white dark:bg-slate-900 shadow-modal"
+          className="w-full max-w-[600px] animate-modal-in overflow-hidden rounded-2xl bg-white dark:bg-slate-900 shadow-modal"
         >
-          {/* ── modal header (steps 1 & 2, not success) ── */}
           {!success && (
             <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 px-6 py-4">
               <StepDots step={step} />
               <button
                 type="button"
                 onClick={onClose}
-                disabled={view === "s2-submitting"}
+                disabled={blockingView}
                 aria-label={t("dispense.cancel")}
                 className="rounded-lg p-1.5 text-slate-400 dark:text-slate-500 transition-colors hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-600 dark:hover:text-slate-300 disabled:opacity-40"
               >
@@ -269,7 +436,7 @@ export function DispenseWizard({
             </div>
           )}
 
-          {/* ══════════════ STEP 1 ══════════════ */}
+          {/* ══════════════ STEP 1 — verify packs ══════════════ */}
           {step === 1 && (
             <div className="px-6 py-6">
               <h2 id={titleId} className="text-[18px] font-bold text-slate-900 dark:text-slate-100">
@@ -289,163 +456,31 @@ export function DispenseWizard({
                 </div>
               )}
 
-              {/* s1-unavailable — stub not wired */}
-              {view === "s1-unavailable" && (
-                <div className="mt-5 rounded-xl border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 p-4">
-                  <div className="flex items-start gap-3">
-                    <AlertCircleIcon
-                      width={20}
-                      height={20}
-                      className="mt-0.5 shrink-0 text-amber-600 dark:text-amber-400"
-                    />
-                    <div className="flex-1">
-                      <div className="text-[13.5px] font-bold text-amber-800 dark:text-amber-400">
-                        {t("dispense.unavailableTitle")}
-                      </div>
-                      <p className="mt-1 text-[12.5px] text-amber-700/90 dark:text-amber-400/90">
-                        {t("dispense.unavailableBody")}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
+              <div className="mt-5">
+                <DataMatrixScanner onScan={onPackScanned} onBlockChange={setScannerBlocked} />
+                {scanError && (
+                  <p className="mt-2 flex items-center gap-1.5 text-[12.5px] font-medium text-red-700 dark:text-red-400">
+                    <AlertCircleIcon width={13} height={13} className="shrink-0" /> {scanError}
+                  </p>
+                )}
+                {scannerBlocked !== null && (
+                  <p className="mt-1 text-[11.5px] text-slate-500 dark:text-slate-400">
+                    {t("dispense.fixSecureInputFirst")}
+                  </p>
+                )}
+              </div>
 
-              {/* s1-failed — pack already dispensed / error */}
-              {view === "s1-failed" && (
-                <div className="mt-5 rounded-xl border border-red-200 dark:border-red-500/30 bg-red-50 dark:bg-red-500/10 p-5">
-                  <div className="flex items-start gap-3">
-                    <AlertOctagonIcon
-                      width={22}
-                      height={22}
-                      className="shrink-0 text-red-600 dark:text-red-400"
-                    />
-                    <div className="flex-1">
-                      <div className="text-[14px] font-bold text-red-800 dark:text-red-400">
-                        {verifyError ?? t("dispense.verifyFailedTitle")}
-                      </div>
-                      <p className="mt-1 text-[12.5px] text-red-700/90 dark:text-red-400/90">
-                        {t("dispense.verifyFailedBody")}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* scan / entry area — shown unless failed or unavailable with a different layout */}
-              {view !== "s1-failed" && view !== "s1-unavailable" && (
-                <>
-                  {!manual ? (
-                    <div className="mt-5">
-                      <div className="flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 py-9 text-center">
-                        {view === "s1-verifying" ? (
-                          <>
-                            <span className="text-brand-600 dark:text-brand-400">
-                              <Spinner size={30} />
-                            </span>
-                            <p className="mt-3 text-[13px] font-medium text-slate-600 dark:text-slate-300">
-                              {t("dispense.queryingHmvs")}
-                            </p>
-                          </>
-                        ) : (
-                          <>
-                            <span className="text-slate-400 dark:text-slate-500">
-                              <BarcodeIcon width={38} height={38} />
-                            </span>
-                            <p className="mt-2.5 text-[13px] font-medium text-slate-500 dark:text-slate-400">
-                              {t("dispense.scanPrompt")}
-                            </p>
-                          </>
-                        )}
-                      </div>
-                      <div className="mt-3">
-                        <HmvsSecureInput
-                          inputRef={inputRef}
-                          value={payload}
-                          onChange={setPayload}
-                          onBlock={setHmvsBlock}
-                          mono
-                          ariaLabel={t("dispense.scanPrompt")}
-                          disabled={view === "s1-verifying"}
-                          onKeyDown={(e) => {
-                            if (
-                              e.key === "Enter" &&
-                              payload.trim() &&
-                              view === "s1-idle" &&
-                              hmvsBlock === null
-                            )
-                              handleVerify();
-                          }}
-                          placeholder="01057001234567892..."
-                        />
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setManual(true);
-                          setHmvsBlock(null);
-                        }}
-                        disabled={view === "s1-verifying"}
-                        className="mt-2.5 text-[12.5px] font-medium text-brand-600 dark:text-brand-400 hover:text-brand-700 disabled:opacity-50"
-                      >
-                        {t("dispense.skipManualEntry")}
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="mt-5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 p-4">
-                      <div className="mb-3 flex items-center justify-between">
-                        <span className="text-[12px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                          {t("dispense.manualEntry")}
-                        </span>
-                        <div className="flex items-center gap-1 rounded-full border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-0.5">
-                          {(["GS1", "PPN"] as const).map((s) => (
-                            <button
-                              key={s}
-                              type="button"
-                              onClick={() => setScheme(s)}
-                              className={`rounded-full px-2.5 py-1 text-[11.5px] font-semibold transition-colors ${scheme === s ? "bg-brand-600 text-white" : "text-slate-500 dark:text-slate-400"}`}
-                            >
-                              {s}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-2 gap-2.5">
-                        {(
-                          [
-                            [
-                              t("dispense.productCode"),
-                              "05700123456789",
-                              manualProductCode,
-                              setManualProductCode,
-                            ],
-                            [t("dispense.serialNumber"), "9d8X7p17", manualSerial, setManualSerial],
-                            [t("dispense.batch"), "B-4471", manualBatch, setManualBatch],
-                            [t("dispense.expiry"), "270531", manualExpiry, setManualExpiry],
-                          ] as [string, string, string, (v: string) => void][]
-                        ).map(([label, ph, val, setter]) => (
-                          <label key={label} className="block">
-                            <span className="mb-1 block text-[11px] font-semibold text-slate-500 dark:text-slate-400">
-                              {label}
-                            </span>
-                            <input
-                              value={val}
-                              onChange={(e) => setter(e.target.value)}
-                              placeholder={ph}
-                              className="mono w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 dark:text-slate-100 px-3 py-2 text-[12.5px] outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
-                            />
-                          </label>
-                        ))}
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setManual(false)}
-                        className="mt-3 text-[12px] font-medium text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
-                      >
-                        {t("dispense.backToScan")}
-                      </button>
-                    </div>
-                  )}
-                </>
+              {/* Pack list */}
+              {packs.length > 0 && (
+                <ul
+                  className="mt-5 space-y-2"
+                  aria-live="polite"
+                  aria-label={t("dispense.packListLabel")}
+                >
+                  {packs.map((p) => (
+                    <PackRow key={p.id} pack={p} onRemove={removePack} onRetry={retryVerify} />
+                  ))}
+                </ul>
               )}
 
               {/* footer */}
@@ -457,71 +492,24 @@ export function DispenseWizard({
                 >
                   {t("dispense.cancel")}
                 </button>
-
-                {view === "s1-failed" ? (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setView("s1-idle");
-                      setPayload("");
-                      setHmvsBlock(null);
-                      setShowDetails(false);
-                    }}
-                    className="rounded-lg bg-brand-600 px-4 py-2 text-[13px] font-semibold text-white transition-colors hover:bg-brand-700"
-                  >
-                    {t("dispense.scanAnotherPack")}
-                  </button>
-                ) : view === "s1-unavailable" ? (
-                  <button
-                    type="button"
-                    onClick={proceedWithoutVerification}
-                    className="flex items-center gap-1.5 rounded-lg bg-brand-600 px-4 py-2 text-[13px] font-semibold text-white transition-colors hover:bg-brand-700"
-                  >
-                    {t("dispense.proceedToConfirm")} <ChevronRightIcon width={15} height={15} />
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={handleVerify}
-                    disabled={
-                      view === "s1-verifying" ||
-                      (!manual && !payload.trim()) ||
-                      (!manual && hmvsBlock !== null) ||
-                      (manual && !manualProductCode.trim())
-                    }
-                    className="flex items-center gap-1.5 rounded-lg bg-brand-600 px-4 py-2 text-[13px] font-semibold text-white transition-colors hover:bg-brand-700 disabled:bg-brand-600/70"
-                  >
-                    {view === "s1-verifying" ? (
-                      <>
-                        <Spinner size={15} /> {t("dispense.verifying")}
-                      </>
-                    ) : (
-                      <>
-                        {t("dispense.verifyPack")} <ChevronRightIcon width={15} height={15} />
-                      </>
-                    )}
-                  </button>
-                )}
+                <button
+                  type="button"
+                  onClick={() => setView("confirm")}
+                  disabled={!allVerified}
+                  className="flex items-center gap-1.5 rounded-lg bg-brand-600 px-4 py-2 text-[13px] font-semibold text-white transition-colors hover:bg-brand-700 disabled:bg-brand-600/60"
+                >
+                  {t("dispense.proceedToConfirm")} <ChevronRightIcon width={15} height={15} />
+                </button>
               </div>
             </div>
           )}
 
-          {/* ══════════════ STEP 2 (idle / submitting / failure) ══════════════ */}
+          {/* ══════════════ STEP 2 — confirm / submitting / failure ══════════════ */}
           {step === 2 && !success && (
             <div className="px-6 py-6">
               <h2 id={titleId} className="text-[18px] font-bold text-slate-900 dark:text-slate-100">
                 {t("dispense.step2Title")}
               </h2>
-
-              {packVerified ? (
-                <div className="mt-4 flex items-center gap-2.5 rounded-lg border border-emerald-200 dark:border-emerald-500/30 bg-emerald-50 dark:bg-emerald-500/10 px-3.5 py-3 text-[13px] font-medium text-emerald-700 dark:text-emerald-400">
-                  <CheckCircleIcon width={18} height={18} /> {t("dispense.packVerifiedBanner")}
-                </div>
-              ) : (
-                <div className="mt-4 flex items-center gap-2.5 rounded-lg border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 px-3.5 py-3 text-[13px] font-medium text-amber-700 dark:text-amber-400">
-                  <AlertCircleIcon width={18} height={18} /> {t("dispense.packSkippedBanner")}
-                </div>
-              )}
 
               <div className="mt-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 px-4 py-1.5">
                 <SummaryRow label={t("dispense.patient")}>{patientName}</SummaryRow>
@@ -535,20 +523,26 @@ export function DispenseWizard({
                     </SummaryRow>
                   </>
                 )}
+                <div className="border-t border-slate-200/70 dark:border-slate-800" />
+                <SummaryRow label={t("dispense.packsToSupply")} strong>
+                  {packs.length}
+                </SummaryRow>
               </div>
 
-              {!packVerified && (
-                <p className="mt-2.5 text-[12px] text-slate-500 dark:text-slate-400">
-                  {t("dispense.decommissionSkippedNote")}
-                </p>
-              )}
-              {packVerified && (
-                <p className="mt-2.5 text-[12px] text-slate-500 dark:text-slate-400">
-                  {t("dispense.decommissionNote")}
-                </p>
-              )}
+              <ul className="mt-4 space-y-2">
+                {packs.map((p) => (
+                  <PackRow key={p.id} pack={p} compact />
+                ))}
+              </ul>
 
-              {/* TODO: pass counsel to approvePrescription when API supports it */}
+              <p className="mt-3 text-[12px] text-slate-500 dark:text-slate-400">
+                {t("dispense.decommissionNote")}
+              </p>
+
+              {/* TODO(FR-3): pass `counsel` to approvePrescription once the
+                  /prescriptions/{id}/approve body accepts a counseling flag.
+                  For now the checkbox records intent only — the post-dispense
+                  Instructions flow remains the canonical counselling surface. */}
               <label className="mt-3 flex cursor-pointer items-center gap-2.5">
                 <input
                   type="checkbox"
@@ -561,7 +555,7 @@ export function DispenseWizard({
                 </span>
               </label>
 
-              {view === "s2-failure" && dispenseError && (
+              {view === "failure" && dispenseError && (
                 <div className="mt-4 rounded-xl border border-red-200 dark:border-red-500/30 bg-red-50 dark:bg-red-500/10 p-4">
                   <div className="flex items-start gap-2.5">
                     <AlertOctagonIcon
@@ -594,6 +588,16 @@ export function DispenseWizard({
                           )}
                         </>
                       )}
+                      {packs.some((p) => p.status === "supplied") && (
+                        <button
+                          type="button"
+                          onClick={handleReactivateSupplied}
+                          disabled={view !== "failure"}
+                          className="mt-3 flex items-center gap-1.5 rounded-lg border border-red-300 dark:border-red-500/40 bg-white dark:bg-slate-900 px-3 py-1.5 text-[12.5px] font-semibold text-red-700 dark:text-red-400 transition-colors hover:bg-red-50 dark:hover:bg-red-500/10"
+                        >
+                          <RefreshIcon width={13} height={13} /> {t("dispense.reactivateSupplied")}
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -603,24 +607,29 @@ export function DispenseWizard({
                 <button
                   type="button"
                   onClick={() => {
-                    setView("s1-idle");
+                    setView("verify");
                     setShowDetails(false);
                   }}
-                  className="flex items-center gap-1 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-2 text-[13px] font-semibold text-slate-600 dark:text-slate-300 transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/60"
+                  disabled={blockingView}
+                  className="flex items-center gap-1 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-2 text-[13px] font-semibold text-slate-600 dark:text-slate-300 transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/60 disabled:opacity-50"
                 >
                   <ChevronLeftIcon width={15} height={15} /> {t("dispense.back")}
                 </button>
                 <button
                   type="button"
                   onClick={handleConfirmDispense}
-                  disabled={view === "s2-submitting"}
+                  disabled={blockingView || !allVerified}
                   className="flex items-center gap-1.5 rounded-lg bg-brand-600 px-5 py-2 text-[13px] font-semibold text-white transition-colors hover:bg-brand-700 disabled:bg-brand-600/70"
                 >
-                  {view === "s2-submitting" ? (
+                  {view === "submitting" ? (
                     <>
                       <Spinner size={15} /> {t("dispense.submittingToHdyka")}
                     </>
-                  ) : view === "s2-failure" ? (
+                  ) : view === "rollback" ? (
+                    <>
+                      <Spinner size={15} /> {t("dispense.reactivating")}
+                    </>
+                  ) : view === "failure" ? (
                     t("dispense.retryDispense")
                   ) : (
                     t("dispense.confirmDispense")
@@ -643,9 +652,7 @@ export function DispenseWizard({
                 {t("dispense.successTitle")}
               </h2>
               <p className="mt-1.5 text-[13px] text-slate-500 dark:text-slate-400">
-                {packVerified
-                  ? t("dispense.successBodyVerified")
-                  : t("dispense.successBodySkipped")}
+                {t("dispense.successBodyVerified", { count: packs.length })}
               </p>
               <div className="mx-auto mt-5 max-w-[360px] rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 px-4 py-1.5 text-left">
                 {executionNo && (
@@ -659,6 +666,8 @@ export function DispenseWizard({
                 <SummaryRow label={t("dispense.prescription")}>
                   <span className="mono">{barcode}</span>
                 </SummaryRow>
+                <div className="border-t border-slate-200/70 dark:border-slate-800" />
+                <SummaryRow label={t("dispense.packsDispensed")}>{packs.length}</SummaryRow>
               </div>
               <div className="mt-6 flex items-center justify-center gap-3">
                 <button
@@ -682,5 +691,152 @@ export function DispenseWizard({
       </div>
     </div>,
     document.body,
+  );
+}
+
+// ── Pack row ────────────────────────────────────────────────────────────────
+
+function PackRow({
+  pack,
+  onRemove,
+  onRetry,
+  compact,
+}: {
+  pack: PackEntry;
+  onRemove?: (id: string) => void;
+  onRetry?: (id: string) => void;
+  compact?: boolean;
+}) {
+  const { t } = useTranslation();
+  const serial = pack.key?.serial ?? "—";
+  const productName = pack.verify?.productName ?? null;
+  const nhrn = pack.verify?.nhrn ?? null;
+  return (
+    <li className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/50 px-3.5 py-2.5">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <span className="mono text-[12.5px] text-slate-700 dark:text-slate-200">
+              ⋯{serial.slice(-8)}
+            </span>
+            <PackStatusBadge pack={pack} />
+          </div>
+          {productName && (
+            <p className="mt-0.5 truncate text-[12px] text-slate-500 dark:text-slate-400">
+              {productName}
+            </p>
+          )}
+          {nhrn && (
+            <p className="mt-0.5 text-[11.5px] text-slate-500 dark:text-slate-400">
+              {t("dispense.nhrnLabel")}: <span className="mono">{nhrn}</span>
+            </p>
+          )}
+          {pack.error && pack.status !== "verified" && pack.status !== "supplied" && (
+            <p className="mt-1 text-[12px] text-red-700 dark:text-red-400">{pack.error}</p>
+          )}
+        </div>
+        {!compact && (
+          <div className="flex items-center gap-1">
+            {pack.status === "blocked" && onRetry && (
+              <button
+                type="button"
+                onClick={() => onRetry(pack.id)}
+                className="rounded p-1.5 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-700 dark:hover:text-slate-200"
+                aria-label={t("dispense.retryVerify")}
+                title={t("dispense.retryVerify")}
+              >
+                <RefreshIcon width={14} height={14} />
+              </button>
+            )}
+            {onRemove && (
+              <button
+                type="button"
+                onClick={() => onRemove(pack.id)}
+                className="rounded p-1.5 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-red-600 dark:hover:text-red-400"
+                aria-label={t("dispense.removePack")}
+                title={t("dispense.removePack")}
+              >
+                <TrashIcon width={14} height={14} />
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+    </li>
+  );
+}
+
+function PackStatusBadge({ pack }: { pack: PackEntry }) {
+  const { t } = useTranslation();
+  switch (pack.status) {
+    case "verifying":
+      return (
+        <Badge tone="brand">
+          <Spinner size={10} /> {t("dispense.statusVerifying")}
+        </Badge>
+      );
+    case "verified":
+      return (
+        <Badge tone="emerald">
+          <CheckCircleIcon width={11} height={11} />{" "}
+          {pack.verifyMethod === "bulk"
+            ? t("dispense.statusVerifiedBulk")
+            : t("dispense.statusVerified")}
+        </Badge>
+      );
+    case "blocked":
+      return (
+        <Badge tone="red">
+          <AlertOctagonIcon width={11} height={11} /> {t("dispense.statusBlocked")}
+        </Badge>
+      );
+    case "supplying":
+      return (
+        <Badge tone="brand">
+          <Spinner size={10} /> {t("dispense.statusSupplying")}
+        </Badge>
+      );
+    case "supplied":
+      return (
+        <Badge tone="emerald">
+          <CheckCircleIcon width={11} height={11} /> {t("dispense.statusSupplied")}
+        </Badge>
+      );
+    case "supply-failed":
+      return (
+        <Badge tone="red">
+          <AlertOctagonIcon width={11} height={11} /> {t("dispense.statusSupplyFailed")}
+        </Badge>
+      );
+    case "pending":
+    default:
+      return <Badge tone="slate">{t("dispense.statusPending")}</Badge>;
+  }
+}
+
+function Badge({
+  tone,
+  children,
+}: {
+  tone: "brand" | "emerald" | "red" | "amber" | "slate";
+  children: React.ReactNode;
+}) {
+  const cls = {
+    brand:
+      "bg-brand-50 text-brand-700 border-brand-200 dark:bg-brand-500/10 dark:text-brand-400 dark:border-brand-500/30",
+    emerald:
+      "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/30",
+    red: "bg-red-50 text-red-700 border-red-200 dark:bg-red-500/10 dark:text-red-400 dark:border-red-500/30",
+    amber:
+      "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/30",
+    slate:
+      "bg-slate-50 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700",
+  }[tone];
+  return (
+    <span
+      className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10.5px] font-semibold uppercase tracking-wide ${cls}`}
+    >
+      {children}
+    </span>
   );
 }
