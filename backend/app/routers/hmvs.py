@@ -94,6 +94,9 @@ async def verify_pack(
     serial: str,
     batch: str = Query(..., description="Batch / lot number, GS1 (10)"),
     expiry: str | None = Query(None, description="Expiry YYMMDD, GS1 (17)"),
+    entry_mode: str | None = Query(
+        None, alias="entryMode", description="EMVS data-entry mode (2d scan vs manual)"
+    ),
     current: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_session),
 ):
@@ -102,7 +105,13 @@ async def verify_pack(
     path = f"/pharmapi/hmvs/product/gs1/{gtin}/pack/{serial}"
     try:
         result = await hmvs.verify(
-            gtin, serial, batch, expiry, client_id=client_id, client_secret=client_secret
+            gtin,
+            serial,
+            batch,
+            expiry,
+            client_id=client_id,
+            client_secret=client_secret,
+            data_entry_mode=hmvs.normalise_data_entry_mode(entry_mode),
         )
     except (httpx.TimeoutException, httpx.TransportError) as exc:
         raise HTTPException(status_code=504, detail="HMVS registry unreachable") from exc
@@ -141,6 +150,9 @@ async def change_pack_state(
     body: StateChangeBody,
     batch: str = Query(..., description="Batch / lot number, GS1 (10)"),
     expiry: str | None = Query(None, description="Expiry YYMMDD, GS1 (17)"),
+    entry_mode: str | None = Query(
+        None, alias="entryMode", description="EMVS data-entry mode (2d scan vs manual)"
+    ),
     current: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_session),
 ):
@@ -165,6 +177,7 @@ async def change_pack_state(
             target_state=body.state,
             client_id=client_id,
             client_secret=client_secret,
+            data_entry_mode=hmvs.normalise_data_entry_mode(entry_mode),
         )
     except httpx.HTTPStatusError as exc:
         # Token-endpoint refusal during a state change. Mirrors verify_pack: 502

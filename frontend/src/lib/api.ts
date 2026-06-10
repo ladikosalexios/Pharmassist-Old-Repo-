@@ -241,10 +241,25 @@ export interface ApproveResponse {
   idempotent: boolean;
 }
 
-export async function approvePrescription(rxId: string): Promise<ApproveResponse> {
+// A verified + supplied HMVS pack (GS1 fields off the 2D DataMatrix). Sent on
+// approve so the eDispensation carries the real ΕΟΦ/QR serial per dispensed unit
+// instead of the synthetic placeholder ΗΔΥΚΑ rejects.
+export interface DispensePack {
+  gtin: string;
+  serial: string;
+  batch: string;
+  expiry: string; // YYMMDD
+}
+
+export async function approvePrescription(
+  rxId: string,
+  packs: DispensePack[] = [],
+): Promise<ApproveResponse> {
   const r = await fetch(`${API_BASE}/prescriptions/${encodeURIComponent(rxId)}/approve`, {
     method: "POST",
     credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ packs }),
   });
   return handle(r) as Promise<ApproveResponse>;
 }

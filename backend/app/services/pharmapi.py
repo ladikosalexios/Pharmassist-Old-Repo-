@@ -572,6 +572,82 @@ async def pharmapi_dispense(
     raise HTTPException(502, f"Pharmapi dispense error {r.status_code}: {err}")
 
 
+async def pharmapi_get_prescription(
+    *,
+    barcode: str,
+    pharmacy_id: int | str,
+    doctor_ip: str,
+) -> dict:
+    """Barcode-direct retrieval — GET /api/v1/prescriptions/get/{barcode}.
+
+    Spec: ΗΔΥΚΑ pharmapi v2 ``info.description`` → ``## Άντληση Συνταγής``.
+    Returns the source prescription as an epSOS ePrescription CDA, parsed into
+    the SAME dict shape ``pharmapi_search_prescriptions`` yields (so the resolve
+    path, safety engine, and verification UI are unchanged) plus ``therapyLines``
+    carrying the real per-line ids the eDispensation must echo.
+
+    Unlike /search, this surfaces PAPERLESS (άυλη) prescriptions — the reason
+    the scan-barcode flow resolves through here. ``pharmacyId`` is the upstream
+    pharmacy unit (e.g. 70014); ``doctor_ip`` populates the mandatory
+    X-DOCTOR-IP header (the calling pharmacist's external IP).
+
+    PHI guard: the returned CDA carries patient AMKA + name. We never log the
+    body — only the barcode + HTTP status.
+    """
+    if not doctor_ip:
+        raise HTTPException(500, "pharmapi_get_prescription: doctor_ip is required (X-DOCTOR-IP)")
+
+    from .cda import parse_prescription_cda
+
+    url = f"{PHARMAPI_BASE}/api/v1/prescriptions/get/{barcode}"
+    headers = pharmapi_headers()
+    headers["Accept"] = f"{PHARMAPI_HL7_CONTENT_TYPE}, application/xml"
+    headers["Content-Type"] = PHARMAPI_HL7_CONTENT_TYPE
+    headers["X-DOCTOR-IP"] = doctor_ip
+
+    logger.info("[Pharmapi] GET %s pharmacyId=%s", url, pharmacy_id)
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        r = await client.get(
+            url,
+            params={"pharmacyId": pharmacy_id},
+            auth=(PHARMAPI_USER, PHARMAPI_PASS),
+            headers=headers,
+        )
+
+    if r.status_code == 200:
+        try:
+            parsed = parse_prescription_cda(r.content)
+        except Exception as exc:
+            raise HTTPException(502, f"Pharmapi: prescription CDA unparseable — {exc}") from exc
+        # Fail loudly when the CDA parsed but yielded no medicine lines — the
+        # downstream eDispensation builder would otherwise produce a schema-
+        # invalid (empty supply) CDA and ΗΔΥΚΑ would reject it with a less
+        # diagnostic message than this 502.
+        if not parsed.lines:
+            raise HTTPException(
+                502,
+                f"Pharmapi: prescription {barcode} returned no medicine lines — "
+                "upstream CDA missing substanceAdministration entries",
+            )
+        return parsed.to_rx_dict(status_mapper=_map_pharmapi_status)
+
+    err = _parse_pharmapi_error(r)
+    if "G14" in err or "914" in err or "Connection time limit" in err:
+        raise HTTPException(401, "Pharmapi session expired — please re-login (G14)")
+    if "G15" in err:
+        raise HTTPException(500, "Pharmapi: Api-Key missing — set PHARMAPI_API_KEY env var")
+    if "G11" in err:
+        raise HTTPException(500, "Pharmapi: Api-Key invalid — check PHARMAPI_API_KEY value")
+    for code, (status, message) in _PHARMAPI_RX_ERRORS.items():
+        if re.search(rf"\b{re.escape(code)}\b", err):
+            raise HTTPException(status, f"Pharmapi: {message} ({code})")
+    if r.status_code == 404:
+        raise HTTPException(404, f"Prescription {barcode} not found")
+    if r.status_code == 401:
+        raise HTTPException(502, f"Pharmapi: bad credentials — {err}")
+    raise HTTPException(502, f"Pharmapi get-prescription error {r.status_code}: {err}")
+
+
 def _parse_prescription_search_json(items: list) -> list[dict]:
     """Map Pharmapi v2 JSON search items to our internal queue shape."""
     out: list[dict] = []

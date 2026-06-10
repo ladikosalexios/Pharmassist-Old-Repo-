@@ -10,6 +10,31 @@ class PrescriptionPatch(BaseModel):
     notify_physician: bool | None = None
 
 
+class DispensePack(BaseModel):
+    """A verified + supplied HMVS pack the pharmacist scanned at dispense.
+
+    GS1 fields straight off the 2D DataMatrix (AI 01/21/10/17). These populate
+    the eDispensation supply line's HMVS-QR block (dispense_mode=1) so ΗΔΥΚΑ
+    gets the real ΕΟΦ/QR serial instead of the synthetic placeholder.
+    """
+
+    gtin: str  # GS1 (01)
+    serial: str  # GS1 (21)
+    batch: str  # GS1 (10)
+    expiry: str  # GS1 (17) — YYMMDD
+
+
+class ApproveRequest(BaseModel):
+    """Optional body for POST /prescriptions/{rx}/approve.
+
+    ``packs`` are the scanned+supplied HMVS packs (one per dispensed unit). When
+    present the eDispensation echoes real HMVS-QR data; when empty/omitted the
+    flow falls back to the synthetic ΕΟΦ-strip line (mock + pre-scan parity).
+    """
+
+    packs: list[DispensePack] = []
+
+
 class ApproveResponse(BaseModel):
     success: bool
     rxId: str

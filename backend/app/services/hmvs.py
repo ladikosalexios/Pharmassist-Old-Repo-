@@ -34,6 +34,7 @@ from dataclasses import asdict, dataclass, field
 from dataclasses import fields as dataclass_fields
 from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
+from urllib.parse import quote
 
 import httpx
 from sqlalchemy import delete, select
@@ -51,6 +52,31 @@ HMVS_TIMEOUT = httpx.Timeout(15.0)
 # Lifecycle states relevant to dispense (EMVS/HMVS subset).
 STATE_ACTIVE = "Active"
 STATE_SUPPLIED = "Supplied"
+
+# EMVS requires an `emvs-data-entry-mode` header on EVERY verify/state-change.
+# Omitting it → 422/61020012 ("header required"); an unrecognised value →
+# 422/61020013. The value must reflect HOW the pack identifier was captured:
+# sending "manual" for a 2D scan misrepresents the dispense.
+#
+# Accepted values — confirmed live against the Greek IQE (api-gr-iqe.nmvo.eu):
+#   "non-manual" → scanned (camera/handheld 2D); the dispense-flow default
+#   "manual"     → hand-keyed at the keyboard
+# Matches Solidsoft's ITE Postman environment, which uses "non-manual" for
+# scanned entry. NOTE: the descriptive EMVS token "2d_two_dimensional_barcode"
+# is REJECTED by IQE (422/61020013) — do not send it.
+EMVS_DATA_ENTRY_MANUAL = "manual"
+EMVS_DATA_ENTRY_SCAN = "non-manual"
+EMVS_DATA_ENTRY_MODES = frozenset({EMVS_DATA_ENTRY_MANUAL, EMVS_DATA_ENTRY_SCAN})
+
+
+def normalise_data_entry_mode(value: str | None) -> str:
+    """Coerce an inbound entry-mode to a valid EMVS value.
+
+    Unknown/missing → the scan value (the scan-driven dispense norm), never a
+    silent "manual" that would under-report a real scan.
+    """
+    return value if value in EMVS_DATA_ENTRY_MODES else EMVS_DATA_ENTRY_SCAN
+
 
 # Per-client_id Bearer-token cache. Keyed by client_id so per-pharmacy IQE
 # equipment creds (later) never share a token with the ITE shared creds.
@@ -230,8 +256,15 @@ async def _get_token(client_id: str, client_secret: str) -> str:
     return token
 
 
-def hmvs_headers(token: str) -> dict:
-    return {"Authorization": f"Bearer {token}", "Accept": "application/json"}
+def hmvs_headers(token: str, data_entry_mode: str = EMVS_DATA_ENTRY_SCAN) -> dict:
+    return {
+        "Authorization": f"Bearer {token}",
+        "Accept": "application/json",
+        # Mandatory — see EMVS_DATA_ENTRY_*. Value reflects how the pack was
+        # captured (camera/handheld 2D scan vs hand-keyed); without it the IQE
+        # 422s every call.
+        "emvs-data-entry-mode": data_entry_mode,
+    }
 
 
 # Startup TLS probe target — the NMVO developer portal, which fronts the IDP
@@ -275,7 +308,13 @@ async def probe_developer_tls() -> bool:
 
 def _pack_url(gtin: str, serial: str) -> str:
     settings = get_settings()
-    return f"{settings.hmvs_verification_url}/product/gs1/{gtin}/pack/{serial}"
+    # GS1 serials carry the full printable character set (e.g. ``AZaz10_/+&"-``);
+    # an un-encoded "/" splits the path and the registry 404s. Percent-encode the
+    # serial (and gtin, defensively) so every legal pack routes to lookup.
+    return (
+        f"{settings.hmvs_verification_url}"
+        f"/product/gs1/{quote(gtin, safe='')}/pack/{quote(serial, safe='')}"
+    )
 
 
 # ── Verify / state-change ────────────────────────────────────────────────────
@@ -289,6 +328,7 @@ async def verify(
     *,
     client_id: str,
     client_secret: str,
+    data_entry_mode: str = EMVS_DATA_ENTRY_SCAN,
 ) -> HmvsResult:
     """GET the pack from the registry to confirm it is genuine/active."""
     if is_mock_hmvs():
@@ -297,7 +337,7 @@ async def verify(
     async with _client() as client:
         r = await client.get(
             _pack_url(gtin, serial),
-            headers=hmvs_headers(token),
+            headers=hmvs_headers(token, data_entry_mode),
             params={"batch": batch, "expiry": expiry},
         )
     return _map_response(r)
@@ -312,6 +352,7 @@ async def change_state(
     target_state: str,
     client_id: str,
     client_secret: str,
+    data_entry_mode: str = EMVS_DATA_ENTRY_SCAN,
 ) -> HmvsResult:
     """PATCH the pack to a new state (Supplied on dispense, Active to reverse)."""
     if is_mock_hmvs():
@@ -320,7 +361,7 @@ async def change_state(
     async with _client() as client:
         r = await client.patch(
             _pack_url(gtin, serial),
-            headers=hmvs_headers(token),
+            headers=hmvs_headers(token, data_entry_mode),
             params={"batch": batch, "expiry": expiry},
             json={"state": target_state},
         )
@@ -347,12 +388,18 @@ async def change_state_idempotent(
     target_state: str,
     client_id: str,
     client_secret: str,
+    data_entry_mode: str = EMVS_DATA_ENTRY_SCAN,
 ) -> HmvsResult:
     """``change_state`` wrapped in the double-supply guard + store-and-forward.
 
     A previously-``completed`` intent short-circuits to its cached result with no
     upstream call. A timeout/transport error or 429 leaves the row ``pending`` for
     ``replay_pending`` and returns a ``queued`` result.
+
+    ``data_entry_mode`` flows to the inline PATCH. NOTE: it is not persisted on
+    the intent row, so a later ``replay_pending`` re-issues with the conservative
+    "manual" value (never over-claims a scan). Persist it (a column) to make
+    replay byte-honest — tracked in docs/OPEN-ISSUES.md.
     """
     key = make_idempotency_key(gtin, serial, batch, target_state)
 
@@ -398,6 +445,7 @@ async def change_state_idempotent(
             target_state=target_state,
             client_id=client_id,
             client_secret=client_secret,
+            data_entry_mode=data_entry_mode,
         )
     except (httpx.TimeoutException, httpx.TransportError) as exc:
         # Store-and-forward: keep the intent for replay; surface as queued.
@@ -468,6 +516,11 @@ async def replay_pending(
                 target_state=op.target_state,
                 client_id=client_id,
                 client_secret=client_secret,
+                # The original capture mode is NOT persisted on the intent row,
+                # so replay can't know it. Default to "manual" — conservative:
+                # it never over-claims a scan. (Persisting data_entry_mode on the
+                # row would make replay byte-honest; tracked in docs/OPEN-ISSUES.)
+                data_entry_mode=EMVS_DATA_ENTRY_MANUAL,
             )
         except (httpx.TimeoutException, httpx.TransportError):
             continue  # still unreachable — leave pending for the next pass

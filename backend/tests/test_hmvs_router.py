@@ -94,6 +94,7 @@ def client(monkeypatch):
         target_state,
         client_id,
         client_secret,
+        data_entry_mode=hmvs_service.EMVS_DATA_ENTRY_SCAN,
     ):
         return await hmvs_service.change_state(
             gtin,
@@ -103,6 +104,7 @@ def client(monkeypatch):
             target_state=target_state,
             client_id=client_id,
             client_secret=client_secret,
+            data_entry_mode=data_entry_mode,
         )
 
     monkeypatch.setattr(hmvs_service, "change_state_idempotent", _direct_change_state)

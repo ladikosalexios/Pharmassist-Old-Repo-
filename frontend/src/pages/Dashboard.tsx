@@ -189,6 +189,12 @@ function SessionStrip() {
   );
 }
 
+// Paperless (AMKA + PIN) lookup is hidden until Phase 2 wires the backend
+// `/prescriptions/nopaper` retrieval. The barcode tab already resolves paperless
+// (άυλη) prescriptions via GET /prescriptions/get/{barcode}, so the separate
+// AMKA+PIN entry is only a fallback. Flip to `true` once that endpoint lands.
+const SHOW_PAPERLESS: boolean = false;
+
 /* ── "Start a dispense" scanner hero ── */
 function ScanHero({
   scannerRef,
@@ -216,34 +222,36 @@ function ScanHero({
             {t("dashboard.scanSubtitle")}
           </p>
         </div>
-        <div className="flex items-center gap-1 self-start rounded-full border border-slate-200 bg-slate-50 p-1 dark:border-slate-700 dark:bg-slate-800">
-          <button
-            type="button"
-            onClick={() => setTab("barcode")}
-            className={`flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[12.5px] font-medium transition-colors ${
-              tab === "barcode"
-                ? "bg-white text-brand-700 shadow-card dark:bg-slate-700 dark:text-brand-300"
-                : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
-            }`}
-          >
-            <BarcodeIcon width={15} height={15} /> {t("dashboard.tabBarcode")}
-          </button>
-          <button
-            type="button"
-            onClick={() => setTab("paperless")}
-            className={`flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[12.5px] font-medium transition-colors ${
-              tab === "paperless"
-                ? "bg-white text-brand-700 shadow-card dark:bg-slate-700 dark:text-brand-300"
-                : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
-            }`}
-          >
-            <KeyIcon width={15} height={15} /> {t("dashboard.tabPaperless")}
-          </button>
-        </div>
+        {SHOW_PAPERLESS && (
+          <div className="flex items-center gap-1 self-start rounded-full border border-slate-200 bg-slate-50 p-1 dark:border-slate-700 dark:bg-slate-800">
+            <button
+              type="button"
+              onClick={() => setTab("barcode")}
+              className={`flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[12.5px] font-medium transition-colors ${
+                tab === "barcode"
+                  ? "bg-white text-brand-700 shadow-card dark:bg-slate-700 dark:text-brand-300"
+                  : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+              }`}
+            >
+              <BarcodeIcon width={15} height={15} /> {t("dashboard.tabBarcode")}
+            </button>
+            <button
+              type="button"
+              onClick={() => setTab("paperless")}
+              className={`flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[12.5px] font-medium transition-colors ${
+                tab === "paperless"
+                  ? "bg-white text-brand-700 shadow-card dark:bg-slate-700 dark:text-brand-300"
+                  : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+              }`}
+            >
+              <KeyIcon width={15} height={15} /> {t("dashboard.tabPaperless")}
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="rounded-xl bg-brand-50 p-5 dark:bg-brand-500/10 sm:p-6">
-        {tab === "barcode" ? (
+        {!SHOW_PAPERLESS || tab === "barcode" ? (
           <form
             onSubmit={(e) => {
               e.preventDefault();
