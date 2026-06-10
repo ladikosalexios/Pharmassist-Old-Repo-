@@ -619,6 +619,16 @@ async def pharmapi_get_prescription(
             parsed = parse_prescription_cda(r.content)
         except Exception as exc:
             raise HTTPException(502, f"Pharmapi: prescription CDA unparseable — {exc}") from exc
+        # Fail loudly when the CDA parsed but yielded no medicine lines — the
+        # downstream eDispensation builder would otherwise produce a schema-
+        # invalid (empty supply) CDA and ΗΔΥΚΑ would reject it with a less
+        # diagnostic message than this 502.
+        if not parsed.lines:
+            raise HTTPException(
+                502,
+                f"Pharmapi: prescription {barcode} returned no medicine lines — "
+                "upstream CDA missing substanceAdministration entries",
+            )
         return parsed.to_rx_dict(status_mapper=_map_pharmapi_status)
 
     err = _parse_pharmapi_error(r)

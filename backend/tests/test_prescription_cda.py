@@ -106,25 +106,149 @@ def test_dispense_items_use_real_therapy_line():
 
 def test_dispense_items_with_scanned_pack_carry_real_qr():
     """A supplied HMVS pack turns the line into dispense_mode=1 with real GS1
-    data — the real ΕΟΦ/QR serial replaces the placeholder ΗΔΥΚΑ rejects."""
+    data — the real ΕΟΦ/QR serial replaces the placeholder ΗΔΥΚΑ rejects.
+
+    Uses a GTIN-14 form (``02800933605048``) of the same product as the
+    prescription's EAN-13 (``2800933605048``) to also exercise the
+    leading-zero normalisation in ``_pair_packs_to_lines``.
+    """
     from app.routers.prescriptions import _rx_to_dispense_items
     from app.schemas.prescriptions import DispensePack
     from app.services.cda import build_dispense_cda
 
     rx = _parsed().to_rx_dict(status_mapper=_map_pharmapi_status)
     pack = DispensePack(
-        gtin="05210330200000", serial="SCP2GR:ABCDEFGHIJKLM", batch="SCB1GR", expiry="320101"
+        gtin="02800933605048",  # GTIN-14 of the EAN-13 2800933605048 on the Rx
+        serial="AMOXIL-LOT-1",
+        batch="LOT-A",
+        expiry="320101",
     )
     items = _rx_to_dispense_items(rx, [pack])
     assert len(items) == 1
     it = items[0]
     assert it.therapy_line_id == "2606094071443-1"  # still the real therapy line
     assert it.dispense_mode == 1  # HMVS QR
-    assert it.lot_number == "SCP2GR:ABCDEFGHIJKLM"  # serial is the lot
-    assert it.qr_product_code == "05210330200000"
-    assert it.qr_batch_no == "SCB1GR"
+    assert it.lot_number == "AMOXIL-LOT-1"  # serial is the lot
+    assert it.qr_product_code == "02800933605048"
+    assert it.qr_batch_no == "LOT-A"
     assert it.qr_expiry == "320101"
     # And the result must still satisfy the CDA builder (dispense_mode=1 requires
     # qr_* — a missing one would raise).
     cda = build_dispense_cda(barcode="2606094071443", pharmacy_unit_id=70014, items=items)
-    assert b"SCP2GR:ABCDEFGHIJKLM" in cda
+    assert b"AMOXIL-LOT-1" in cda
+
+
+def test_pack_pairing_rejects_wrong_product():
+    """A pack whose GTIN matches no prescribed medicine → 400, not silent
+    mis-attribution. The single-line case still benefits — pharmacist scans
+    the wrong product, we catch it before ΗΔΥΚΑ does."""
+    from fastapi import HTTPException
+
+    from app.routers.prescriptions import _rx_to_dispense_items
+    from app.schemas.prescriptions import DispensePack
+
+    rx = _parsed().to_rx_dict(status_mapper=_map_pharmapi_status)
+    # Scanner-check pack GTIN — not AMOXIL.
+    pack = DispensePack(gtin="05210330200000", serial="SCP2GR:X", batch="SCB1GR", expiry="320101")
+    try:
+        _rx_to_dispense_items(rx, [pack])
+    except HTTPException as exc:
+        assert exc.status_code == 400
+        assert "does not match" in exc.detail
+    else:
+        raise AssertionError("expected HTTPException 400 for mismatched pack")
+
+
+def test_pack_pairing_matches_by_content_not_index():
+    """Multi-line Rx + packs scanned out of order: each pack must land on its
+    OWN therapy line, not on whichever line shares its position."""
+    from app.routers.prescriptions import _rx_to_dispense_items
+    from app.schemas.prescriptions import DispensePack
+    from app.services.cda import ParsedPrescription, PrescriptionLine
+
+    rx = ParsedPrescription(
+        barcode="MULTI-RX",
+        patient_amka="01010003430",
+        patient_name="TEST",
+        physician="DOC",
+        issue_date="2026-06-09",
+        expiry_date="2027-06-09",
+        status="active",
+        lines=[
+            PrescriptionLine(
+                line_id="MULTI-RX-1",
+                medicine_code="093360504",
+                medicine_barcode="2800933605048",  # AMOXIL
+                medicine_name="AMOXIL CAPS",
+                status="active",
+            ),
+            PrescriptionLine(
+                line_id="MULTI-RX-2",
+                medicine_code="123456789",
+                medicine_barcode="2812345678901",  # OTHER
+                medicine_name="OTHER TABS",
+                status="active",
+            ),
+        ],
+    ).to_rx_dict(status_mapper=_map_pharmapi_status)
+
+    # Packs deliberately scanned in REVERSE order from the prescription.
+    pack_other = DispensePack(
+        gtin="2812345678901", serial="OTHER-S", batch="OTHER-B", expiry="320101"
+    )
+    pack_amox = DispensePack(gtin="2800933605048", serial="AMOX-S", batch="AMOX-B", expiry="320202")
+    items = _rx_to_dispense_items(rx, [pack_other, pack_amox])
+    assert len(items) == 2
+    # Line 1 (AMOXIL) got the AMOXIL pack despite arriving second in the list.
+    assert items[0].therapy_line_id == "MULTI-RX-1"
+    assert items[0].qr_product_code == "2800933605048"
+    assert items[0].lot_number == "AMOX-S"
+    # Line 2 (OTHER) got the OTHER pack.
+    assert items[1].therapy_line_id == "MULTI-RX-2"
+    assert items[1].qr_product_code == "2812345678901"
+    assert items[1].lot_number == "OTHER-S"
+
+
+def test_empty_cda_lines_raises_502_in_service(monkeypatch):
+    """A 200 from /prescriptions/get/{barcode} whose CDA carries zero medicine
+    lines must fail loudly upstream — sending an empty supply CDA downstream
+    would produce a schema-invalid request to ΗΔΥΚΑ."""
+    import asyncio
+
+    import httpx
+    from fastapi import HTTPException
+
+    from app.services import pharmapi
+
+    empty_cda = (
+        b'<?xml version="1.0" encoding="UTF-8"?>'
+        b'<ClinicalDocument xmlns="urn:hl7-org:v3">'
+        b'<id extension="EMPTY-RX" root="1.21"/>'
+        b"<component><structuredBody><component><section>"
+        b"</section></component></structuredBody></component>"
+        b"</ClinicalDocument>"
+    )
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, content=empty_cda)
+
+    transport = httpx.MockTransport(handler)
+    real_client = httpx.AsyncClient
+
+    def patched_client(*args, **kwargs):
+        kwargs["transport"] = transport
+        return real_client(*args, **kwargs)
+
+    monkeypatch.setattr(pharmapi.httpx, "AsyncClient", patched_client)
+
+    try:
+        asyncio.run(
+            pharmapi.pharmapi_get_prescription(
+                barcode="EMPTY-RX", pharmacy_id=70014, doctor_ip="1.1.1.1"
+            )
+        )
+    except HTTPException as exc:
+        assert exc.status_code == 502
+        assert "no medicine lines" in exc.detail
+    else:
+        raise AssertionError("expected HTTPException 502 for empty-lines CDA")

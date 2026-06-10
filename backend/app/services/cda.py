@@ -360,7 +360,18 @@ class ParsedPrescription:
         emits, so the safety engine, verification UI, and dispense builder need
         no changes — plus a ``therapyLines`` list carrying the real per-line ids
         the eDispensation must echo. ``status_mapper`` is injected by the caller
-        (pharmapi._map_pharmapi_status) to avoid a cda→pharmapi import cycle."""
+        (pharmapi._map_pharmapi_status) to avoid a cda→pharmapi import cycle.
+
+        Divergences from the /search-shaped dict (documented in
+        docs/OPEN-ISSUES.md so a future caller doesn't expect them):
+
+        * ``medication`` is the medicine NAME (str) here AND in the /search
+          path; the mock fixtures embed a richer ``dict`` with ``nhrn``/etc.,
+          and ``_rx_to_dispense_items`` handles both via ``isinstance``.
+        * ``socialInsurance``, ``repeatNo``, ``totalRepeats`` are intentionally
+          ``None`` — the source CDA does not surface them. Extend the parser
+          (and this dict) when a downstream feature depends on them.
+        """
         first = self.lines[0] if self.lines else None
         return {
             "rxId": self.barcode,

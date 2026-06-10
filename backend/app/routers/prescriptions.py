@@ -200,6 +200,56 @@ def _pack_dispense_item(
     )
 
 
+def _gs1_code_eq(a: str, b: str) -> bool:
+    """Compare two GS1 product identifiers, normalising GTIN-14 vs EAN-13.
+
+    ΗΔΥΚΑ's prescription CDA narrative carries the EAN-13 (e.g. ``2800933605048``)
+    while a scanned HMVS pack carries the GTIN-14 (``02800933605048``) — same
+    pack, different length. We compare with leading zeros stripped so the same
+    medicine matches regardless of which length the source uses.
+    """
+    return bool(a) and bool(b) and a.lstrip("0") == b.lstrip("0")
+
+
+def _pair_packs_to_lines(packs: list[DispensePack], lines: list[dict]) -> list[DispensePack | None]:
+    """Assign each scanned pack to its matching therapy line by product code.
+
+    Index-based pairing is unsafe for multi-medicine prescriptions: a pharmacist
+    who scans pack B before pack A, or any caller that re-orders the pack list,
+    would silently send the wrong supply data to ΗΔΥΚΑ. So we match each pack to
+    the first UNASSIGNED line whose ``medicineBarcode`` (or fallback ``medicineCode``)
+    equals the pack's GTIN (length-normalised). A pack that matches none of the
+    remaining lines raises 400 — better to reject than to mis-attribute supply
+    on the regulator-facing log. Returns a per-line list ``[pack | None]`` in
+    the same order as ``lines``; lines without a matching pack stay ``None`` and
+    fall back to the synthetic placeholder downstream.
+    """
+    paired: list[DispensePack | None] = [None] * len(lines)
+    for pack in packs:
+        match_idx = next(
+            (
+                i
+                for i, ln in enumerate(lines)
+                if paired[i] is None
+                and (
+                    _gs1_code_eq(pack.gtin, ln.get("medicineBarcode") or "")
+                    or _gs1_code_eq(pack.gtin, ln.get("medicineCode") or "")
+                )
+            ),
+            None,
+        )
+        if match_idx is None:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"Scanned pack GTIN {pack.gtin} (serial {pack.serial}) does not match "
+                    "any prescribed medicine on this prescription — wrong pack scanned?"
+                ),
+            )
+        paired[match_idx] = pack
+    return paired
+
+
 def _rx_to_dispense_items(rx: dict, packs: list[DispensePack] | None = None) -> list[DispenseItem]:
     """Map a prescription dict (+ scanned packs) to DispenseItems for the CDA.
 
@@ -207,20 +257,23 @@ def _rx_to_dispense_items(rx: dict, packs: list[DispensePack] | None = None) -> 
     carries the REAL per-line therapy id (``id[@root='1.21.1']``) + medicine
     barcode, so the eDispensation echoes ΗΔΥΚΑ's own line ids.
 
-    Pack pairing: when ``packs`` (verified+supplied HMVS packs) are supplied they
-    are paired to therapy lines by index — each yields a ``dispense_mode=1`` line
-    with the real GS1 GTIN/serial/batch/expiry. A line with no matching pack (or
-    no packs at all, e.g. mock / pre-scan) falls back to the synthetic
-    ``dispense_mode=0`` ΕΟΦ-strip placeholder so the CDA stays schema-valid.
+    Pack pairing: when ``packs`` (verified+supplied HMVS packs) are supplied,
+    each is matched to its therapy line by product code via
+    ``_pair_packs_to_lines`` (mismatch → 400, never silent mis-attribution). A
+    matched line yields ``dispense_mode=1`` with the real GS1 GTIN/serial/batch/
+    expiry. A line with no matching pack (or no packs at all, e.g. mock / pre-
+    scan) falls back to the synthetic ``dispense_mode=0`` ΕΟΦ-strip placeholder
+    so the CDA stays schema-valid (ΗΔΥΚΑ will then reject the placeholder with
+    code 10018 — caller's intent is "execute with this pack list").
     """
     packs = packs or []
     lines = rx.get("therapyLines") or []
     if lines:
+        paired_packs = _pair_packs_to_lines(packs, lines) if packs else [None] * len(lines)
         items: list[DispenseItem] = []
-        for i, ln in enumerate(lines, start=1):
+        for i, (ln, pack) in enumerate(zip(lines, paired_packs, strict=True), start=1):
             line_id = ln.get("lineId") or f"{rx['rxId']}-L{i}"
             med_barcode = ln.get("medicineBarcode") or ""
-            pack = packs[i - 1] if i - 1 < len(packs) else None
             if pack is not None:
                 items.append(
                     _pack_dispense_item(
@@ -272,6 +325,10 @@ async def _fetch_live_rx(rx_id: str, pharmacy, request: Request) -> dict | None:
     ip, _ = _client_meta(request)
     # X-DOCTOR-IP per spec (pharmacist external IP). Under TestClient there is no
     # real client; fall back so pharmapi_get_prescription's header guard passes.
+    # PROD P1: behind a reverse proxy ``request.client.host`` is the proxy IP, not
+    # the pharmacist's. Wire X-Forwarded-For (Caddy/Nginx) before prod — sending
+    # the proxy IP to ΗΔΥΚΑ misattributes the call on the regulator-facing log.
+    # See docs/OPEN-ISSUES.md (ΗΔΥΚΑ dispense → X-DOCTOR-IP).
     doctor_ip = ip or "0.0.0.0"
     try:
         return await pharmapi_get_prescription(
@@ -374,6 +431,8 @@ async def approve_prescription(
     # X-DOCTOR-IP per IDIKA spec — the pharmacist's external IP. Under
     # TestClient (no real client) we fall back to a placeholder so the
     # required-header guard in pharmapi_dispense never refuses a mock call.
+    # Same prod P1 caveat as _fetch_live_rx: behind a reverse proxy this is the
+    # proxy IP; wire X-Forwarded-For before prod (docs/OPEN-ISSUES.md).
     doctor_ip = ip or "0.0.0.0"
 
     # Single seam to ΗΔΥΚΑ — mock + live return the same envelope shape.
