@@ -360,14 +360,14 @@ one dev who knows the codebase, tests included.
 *correct*; restarts self-heal lazily (one `/user/me` per location, `pharmapi.py:228-241`).
 What single-worker actually costs: no HA, deploys briefly drop sessions, FT-1's rate
 counters and sessions silently fork per process the moment workers > 1.
-**Recommendation:** **later** — not on the first integrator's critical path. Commit to the
-trigger instead: schedule FT-7 (≈1 week) before signing any contract with an
-availability SLA / zero-downtime expectation, or before the second sizeable tenant,
-whichever first.
-**Needed from you:** expected location count + go-live window for the first 1–2
-integrator conversations, and whether you intend to offer an SLA number in the first
-contract (also feeds D-11). That answer slots FT-7 into the order — it changes *when*,
-not *what*.
+**✅ RESOLVED (2026-06-10, per Alex): DEFER.** The single-worker pilot stands; Redis
+becomes **required** at >1 worker / HA / any SLA commitment (the trigger above is now the
+commitment of record). Sizing basis from Alex: **~5,000-user ceiling** for the product's
+horizon → **one shared Redis instance, no sharding** — at that scale session entries and
+rate counters are a few MB and a single Redis is over-provisioned, so FT-7's scope is
+deliberately the simplest shape (one instance, JSON values, TTL = session window, no
+cluster mode). FT-7 stays **scoped, not built**, in this and subsequent batches until a
+trigger fires.
 
 ### D-9 · Co-pay: source it or re-word it
 
@@ -398,12 +398,13 @@ import, if we ever need it: source the ΕΟΦ/ΕΟΠΥΥ θετικός-κατά
 revised periodically), parse + reconcile by EOF code/barcode against `drug_catalog`,
 maintain per revision — realistically **2–3 weeks** initial + recurring per-bulletin
 upkeep, and a second source of truth to keep consistent with masterdata.
-**Recommendation:** **tri-state is launch-OK** gated on FT-3 (first full production sync +
-quality spot-check + coverage-% report) — the `strict` filter then does what the pricing
-doc says on real data. Hold the ΕΟΦ import as a priced contingency, triggered only by
-evidence of junk production values.
-**Needed from you:** confirm tri-state-at-launch, and whether "coverage-filtered" in the
-pricing doc needs a footnote about the `lenient` default (one sentence, FT-12 carries it).
+**✅ RESOLVED (2026-06-10, per Alex): tri-state at launch.** Confirmed via the Batch-1
+build directive ("production full-sync + value-quality check (tri-state launch)"). The
+launch gate is FT-3's machinery — full-sync + coverage/quality report — which ships in
+Batch 1; the report runs against production masterdata at first onboarding. The ΕΟΦ
+positive-list import stays a **priced contingency** (~2–3 weeks + per-bulletin upkeep),
+triggered only by evidence of junk production values. The `lenient`-default footnote
+rides FT-12.
 
 ### D-11 · Hosting + SLA for the paid endpoint
 
@@ -417,10 +418,13 @@ posture), and the SLA/support promise (a number like 99.5% + business-hours supp
 defines FT-8's alerting depth and whether FT-7 moves up — see D-8). The sandbox's
 commercial shape (pricing doc: "€5,000 dedicated sandbox setup") rides the same
 decision: FT-13's mock-mode stack is the Tier-1 deliverable for that line.
-**Recommendation:** separate small EC2 box, EU region, `api.<domain>` + `sandbox.api.<domain>`,
-launch promise "99.5%, business-hours support, no credits" until FT-7 lands.
-**Needed from you:** domain, AWS account/region confirmation, separate-box sign-off, and
-the SLA + support-hours wording you're willing to put in a contract.
+**✅ RESOLVED (2026-06-10, per Alex) — target recorded, go-live deferred.** Target: **AWS
+EU region, public domain + TLS, separate box from the B2C pilot**. **SLA: TBD** — to be
+set at contract time; the number drives FT-8's alerting depth and is one of D-8's Redis
+triggers. FT-10 (live deployment) and the FT-13 sandbox *stack* remain **scoped, not
+deployed** — explicitly out of Batch 1; the FT-13 *key-semantics code* (env-prefix
+enforcement) ships now so the day-one sandbox deployment is config, not code. Concrete
+domain + AWS account details land when go-live is scheduled.
 
 ### D-12 · ΗΔΥΚΑ IT-supplier agreement — multi-pharmacy API proxying
 
@@ -444,11 +448,12 @@ comparatively small — no LLM subprocessors (Core has no AI features), processi
 annex (data inventory, subprocessors, security measures) so whoever drafts the legal text
 starts from facts, not interviews. This is the **longest external lead time** in the whole
 plan — lawyer or template-service turnaround is weeks regardless of our velocity.
-**Recommendation:** start procurement **now**, in parallel with all engineering: a Greek
-commercial/IT lawyer for the ToS + a GDPR-standard processor DPA (EU SCC-style template
-adapted), with FT-14's annex attached.
-**Needed from you:** who drafts (lawyer vs template service), contracting entity details,
-and governing law — engineering blocks on none of it, but onboarding day does.
+**⏸ RESOLVED AS DEFERRED (2026-06-10, per Alex):** handed to the team, **owner TBD**.
+Explicit framing: legal **gates contract signature, not build** — engineering proceeds at
+full speed; FT-14's technical annex stays on the shelf ready for whoever picks up
+ownership. Re-flag at the first serious integrator conversation: lawyer/template
+turnaround is weeks, so the owner decision becomes urgent the moment a signature date
+exists.
 
 ---
 
