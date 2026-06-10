@@ -1,14 +1,20 @@
 """Sync the drug_catalog table from Pharmapi masterdata + the /v1 search read path."""
 
+import logging
+from datetime import UTC, datetime
+
 from sqlalchemy import func, or_, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.db.models.catalog_sync_run import CatalogSyncRun
 from app.db.models.drug_catalog import DrugCatalog
 from app.services.formulary import parse_strength
 from app.services.pharmapi import pharmapi_get_masterdata_medicines
 
 from ..db.session import AsyncSessionLocal
+
+logger = logging.getLogger(__name__)
 
 # Columns refreshed on every sync upsert. interaction_group and atc_class are
 # intentionally excluded so manually assigned values are preserved.
@@ -146,17 +152,103 @@ async def atc_codes_for_barcodes(
     return {row.gns_code: row.atc_code for row in rows if row.atc_code}
 
 
-async def run_sync(since: str | None) -> None:
-    async with AsyncSessionLocal() as db:
-        try:
-            result = await _sync_drug_catalog(db, since=since)
-            print(
-                f"[sync-drug-catalog] Complete — "
-                f"fetched={result['fetched']} upserted={result['upserted']} "
-                f"skipped={result['skipped']}"
+async def run_sync(since: str | None, triggered_by: str | None = None) -> None:
+    """Run one catalogue sync, recording a catalog_sync_runs row (FT-4).
+
+    Built for BackgroundTasks / cron callers: never raises. Failures land in
+    the status row (visible via GET /admin/sync-drug-catalog/status) AND the
+    log — the previous behaviour printed-and-swallowed, so a dead sync was
+    invisible anywhere but live container output.
+    """
+    try:
+        async with AsyncSessionLocal() as db:
+            run = CatalogSyncRun(
+                mode="incremental" if since else "full",
+                since=since,
+                status="running",
+                triggered_by=triggered_by,
             )
-        except Exception as exc:
-            print(f"[sync-drug-catalog] Failed — {exc}")
+            db.add(run)
+            await db.commit()
+            await db.refresh(run)
+            run_id = run.id
+    except Exception:
+        logger.exception("[sync-drug-catalog] could not record sync run — aborting")
+        return
+
+    try:
+        async with AsyncSessionLocal() as db:
+            result = await _sync_drug_catalog(db, since=since)
+    except Exception as exc:
+        logger.exception("[sync-drug-catalog] failed (run %s)", run_id)
+        await _finish_run(run_id, status="error", error=f"{type(exc).__name__}: {exc}"[:2000])
+        return
+
+    logger.info(
+        "[sync-drug-catalog] complete (run %s) — fetched=%d upserted=%d skipped=%d",
+        run_id,
+        result["fetched"],
+        result["upserted"],
+        result["skipped"],
+    )
+    await _finish_run(run_id, status="success", **result)
+
+
+async def _finish_run(
+    run_id,
+    *,
+    status: str,
+    error: str | None = None,
+    fetched: int = 0,
+    upserted: int = 0,
+    skipped: int = 0,
+) -> None:
+    try:
+        async with AsyncSessionLocal() as db:
+            run = await db.get(CatalogSyncRun, run_id)
+            if run is None:  # pragma: no cover — row deleted mid-run
+                return
+            run.status = status
+            run.error = error
+            run.fetched = fetched
+            run.upserted = upserted
+            run.skipped = skipped
+            run.finished_at = datetime.now(UTC)
+            await db.commit()
+    except Exception:  # pragma: no cover — DB died between sync and bookkeeping
+        logger.exception("[sync-drug-catalog] could not finalise run %s", run_id)
+
+
+async def catalog_coverage(session: AsyncSession) -> dict:
+    """Formulary data-quality counts over ACTIVE rows (FT-3 launch gate).
+
+    One query, FILTER-per-column: how complete is the catalogue for every
+    field the formulary ranks or filters on. The onboarding gate reads this
+    after the first full production sync — near-zero with_coverage means the
+    sync hasn't run (or upstream stopped supplying positiveList) and the
+    `strict` coverage filter would return nothing.
+    """
+
+    def _non_null(col):
+        return func.count(DrugCatalog.id).filter(col.is_not(None))
+
+    stmt = select(
+        func.count(DrugCatalog.id).label("total_active"),
+        _non_null(DrugCatalog.eopyy_coverage).label("with_coverage"),
+        _non_null(DrugCatalog.retail_price).label("with_price"),
+        _non_null(DrugCatalog.participation_pct).label("with_participation"),
+        _non_null(DrugCatalog.form_code).label("with_form"),
+        _non_null(DrugCatalog.substance_code).label("with_substance"),
+    ).where(DrugCatalog.active.is_(True))
+    row = (await session.execute(stmt)).one()
+    return {
+        "total_active": row.total_active,
+        "with_coverage": row.with_coverage,
+        "with_price": row.with_price,
+        "with_participation": row.with_participation,
+        "with_form": row.with_form,
+        "with_substance": row.with_substance,
+    }
 
 
 async def _sync_drug_catalog(
