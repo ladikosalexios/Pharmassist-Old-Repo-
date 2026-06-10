@@ -379,12 +379,15 @@ not the retrieval CDA (evidence in §1/A2). The real rate also depends on exempt
 categories, so synthesizing it from drug-level data would be **wrong for exactly the
 patients where it matters** — we won't fake it. One cheap unknown remains: the raw
 insurances key-set was never captured (FT-2 step 1, ~0.5 day).
-**Recommendation:** run the FT-2 probe first; absent a new field, **re-word** the pricing
-line to "insurance/fund details + drug-level participation %" — deliverable today, honest,
-and still ahead of what an integrator can get from ΗΔΥΚΑ without building all of this.
-**Needed from you:** green-light the probe (it's a live testeps read, same pattern as
-BC-13a), then the wording call on `docs/PharmAssist_Pricing.md` — your document, your
-voice.
+**✅ RESOLVED (2026-06-10, probe + Batch-1 directive "surface the field if present, else
+reword; never fake"):** the probe (`docs/b2b-core/insurances-probe.md`) found **no numeric
+patient-level co-pay %** anywhere in the read tier — but it found two real fields our
+schemas were dropping, and both are now surfaced: **`patientPartExceptions`** (patient
+co-pay **exemption** records — reason + validity window) → `participationExceptions` on
+`GET /v1/patients/{key}`, and **`socialInsurance.eopyy`** (the fund-is-ΕΟΠΥΥ coverage
+flag) → `eopyy` on the insurances response. The pricing line was re-worded to exactly
+that (fund identity + ΕΟΠΥΥ flag + exemptions + drug-level `participationPct`). Nothing
+synthesized: the effective payable % stays upstream's dispense-time computation.
 
 ### D-10 · Formulary: tri-state at launch vs ΕΟΦ-import-first
 

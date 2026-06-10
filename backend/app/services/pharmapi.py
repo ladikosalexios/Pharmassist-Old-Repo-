@@ -29,7 +29,7 @@ from datetime import UTC, datetime
 import httpx
 from fastapi import HTTPException
 
-from app.schemas.patients import PatientPayload
+from app.schemas.patients import ParticipationException, PatientPayload
 from app.utils.dates import age_from_date
 
 from ..config import get_settings
@@ -888,6 +888,22 @@ def clean_pharmapi_patient_data(data: dict) -> PatientPayload:
     identifier = data.get("amka") or data.get("identificationNo")
     if not identifier:
         raise HTTPException(502, "Pharmapi returned patient with no AMKA or EKAA")
+    # Co-pay exemption records (FT-2 / D-9): None when upstream omits the key,
+    # [] when present-but-empty — callers can tell "not supplied" from "none".
+    part_exceptions = data.get("patientPartExceptions")
+    participation_exceptions = (
+        [
+            ParticipationException(
+                id=e.get("id"),
+                reason=e.get("exceptionReason"),
+                effective_from=e.get("effectiveFrom"),
+                effective_to=e.get("effectiveTo"),
+            )
+            for e in part_exceptions
+        ]
+        if part_exceptions is not None
+        else None
+    )
     return PatientPayload(
         id=identifier,
         amka=data.get("amka") or None,
@@ -907,6 +923,7 @@ def clean_pharmapi_patient_data(data: dict) -> PatientPayload:
         allergies=None,
         intolerances=None,
         safety_flags=None,
+        participation_exceptions=participation_exceptions,
     )
 
 

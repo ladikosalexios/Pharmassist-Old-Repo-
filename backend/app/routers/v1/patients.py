@@ -99,9 +99,13 @@ async def get_patient(patient_key: str, ctx: ApiContext = Depends(get_api_contex
 
 @router.get("/{patient_key}/insurances", response_model=list[PatientInsurancePayload])
 async def get_patient_insurances(patient_key: str, ctx: ApiContext = Depends(get_api_context)):
-    """ΕΟΠΥΥ/fund coverage entries. NOTE: the upstream payload carries fund
-    identity + activity flags, not a co-pay % (D-7) — drug-level participation
-    lives on /v1/drugs (participationPct)."""
+    """ΕΟΠΥΥ/fund coverage entries, incl. the fund's `eopyy` flag (D-9 probe).
+
+    NOTE: ΗΔΥΚΑ supplies no numeric patient-level co-pay % on this payload
+    (D-7/D-9, verified — docs/b2b-core/insurances-probe.md). Patient co-pay
+    EXEMPTIONS ride the patient profile (`participationExceptions` on
+    GET /v1/patients/{key}); drug-level participation lives on /v1/drugs
+    (participationPct)."""
     amka, ekaa = classify_patient_key(patient_key)
     if is_mock_pharmapi():
         return MOCK_V1_INSURANCES.get(amka or ekaa, [])

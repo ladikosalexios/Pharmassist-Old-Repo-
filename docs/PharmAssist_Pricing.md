@@ -47,7 +47,9 @@ reference these capabilities.
 
 - Patient lookup by AMKA or EKAA — returns demographics (name, DOB, sex, phone, address)
 - Prescription search (pending + history with AMKA)
-- Patient insurance details (ΕΟΠΥΥ coverage, co-pay %)
+- Patient insurance details — fund identity, ΕΟΠΥΥ-coverage flag, and patient co-pay
+  exemption records; drug-level participation % via the drug catalog (ΗΔΥΚΑ supplies no
+  numeric patient-level co-pay % — the effective rate is computed at dispense time)
 - Patient intolerances from ΗΔΥΚΑ (requires ΕΟΠΥΥ-category account)
 - Patient medicine history from ΗΔΥΚΑ (requires ΕΟΠΥΥ-category account)
 - Drug catalog — full national medicines list, ATC codes, active substance, GNS codes

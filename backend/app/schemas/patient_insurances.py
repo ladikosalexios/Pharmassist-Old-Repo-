@@ -10,6 +10,10 @@ class InsuranceFund(AppSchema):
     id: int
     name: str
     short_name: str | None = None
+    # Fund-is-ΕΟΠΥΥ flag from the upstream `socialInsurance.eopyy` field —
+    # the "ΕΟΠΥΥ coverage" signal the pricing doc promises on insurance
+    # details (surfaced by the FT-2 probe; previously dropped by this schema).
+    eopyy: bool | None = None
 
 
 class PatientInsurancePayload(AppSchema):

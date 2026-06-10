@@ -48,6 +48,35 @@ def test_amka_patient_maps_correctly():
     assert p.sex == "Θήλυ"  # flattened from the {id, name} object
     assert p.phone == "2109823392"
     assert isinstance(p.age, int)
+    # Key absent upstream → None (distinct from supplied-but-empty []).
+    assert p.participation_exceptions is None
+
+
+def test_participation_exceptions_map():
+    # Real shape from the FT-2 probe: patientPartExceptions on /common/getpatient.
+    data = {
+        **_AMKA_PATIENT,
+        "patientPartExceptions": [
+            {
+                "id": 7,
+                "exceptionReason": "Χρόνια πάθηση",
+                "effectiveFrom": "2025-01-01",
+                "effectiveTo": None,
+            }
+        ],
+    }
+    p = clean_pharmapi_patient_data(data)
+    assert p.participation_exceptions is not None
+    (exc,) = p.participation_exceptions
+    assert exc.id == 7
+    assert exc.reason == "Χρόνια πάθηση"
+    assert exc.effective_from == "2025-01-01"
+    assert exc.effective_to is None
+
+
+def test_participation_exceptions_empty_list_is_preserved():
+    p = clean_pharmapi_patient_data({**_AMKA_PATIENT, "patientPartExceptions": []})
+    assert p.participation_exceptions == []
 
 
 def test_ekaa_fallback_when_amka_absent():

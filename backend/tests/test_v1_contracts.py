@@ -91,6 +91,18 @@ def test_patient_lookup_by_amka_camelcase_contract():
     assert body["amka"] == AMKA
     assert {"firstName", "lastName", "dateOfBirth", "age", "sex"} <= set(body)
     assert "first_name" not in body  # camelCase on the wire
+    # FT-2 / D-9: co-pay exemptions surface on the patient (camelCase nested).
+    (exc,) = body["participationExceptions"]
+    assert exc["reason"].startswith("Χρόνια πάθηση")
+    assert exc["effectiveFrom"] == "2025-01-01"
+    assert "effective_from" not in exc
+
+
+def test_patient_without_exceptions_reads_null_not_empty():
+    # Nikos's fixture omits the key — upstream-not-supplied must stay null.
+    r = client.get("/v1/patients/08111947033")
+    assert r.status_code == 200, r.text
+    assert r.json()["participationExceptions"] is None
 
 
 def test_patient_lookup_by_ekaa():
@@ -114,6 +126,8 @@ def test_insurances_shape():
     items = r.json()
     assert items and items[0]["socialInsurance"]["shortName"] == "ΕΟΠΥΥ"
     assert "lastActive" in items[0]
+    # FT-2 / D-9: the fund-is-ΕΟΠΥΥ coverage flag is no longer dropped.
+    assert items[0]["socialInsurance"]["eopyy"] is True
 
 
 def test_intolerances_require_consent():
