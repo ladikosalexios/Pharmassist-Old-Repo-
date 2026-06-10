@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
-from fastapi import Depends, Header, HTTPException
+from fastapi import Depends, Header, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
@@ -50,6 +50,7 @@ class ApiContext:
 
 
 async def get_api_context(
+    request: Request,
     x_api_key: str | None = Header(default=None, alias="X-API-Key"),
     db: AsyncSession = Depends(get_session),
 ) -> ApiContext:
@@ -60,6 +61,12 @@ async def get_api_context(
     if resolved is None:
         raise _unauthorized()
     key_row, location, customer = resolved
+
+    # Tenant attribution for the /v1 access log (FT-6) — stamped immediately
+    # after the key resolves so even a 429 below is attributed to its tenant.
+    request.state.v1_api_key_id = key_row.id
+    request.state.v1_location_id = location.id
+    request.state.v1_customer_id = customer.id
 
     # Per-key rate limit (FT-1) — after auth (only resolved active keys touch a
     # counter; an unauthenticated spray 401s above), before the AES decrypt and
