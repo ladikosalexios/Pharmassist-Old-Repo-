@@ -6,7 +6,7 @@
 > Keep it a register: one line per item, a status, and a dependency/owner where
 > known. Status vocabulary: `open` · `blocked-on-<X>` · `done-pending-<Y>`.
 
-_Last touched: 2026-06-09._
+_Last touched: 2026-06-10._
 
 ---
 
@@ -48,4 +48,16 @@ _Last touched: 2026-06-09._
 ## B2B (post-pilot)
 
 - `open` — **B2B Core (Tier-1) backlog** — see `docs/b2b-core/TICKETS.md` (supersedes the
-  old B1–B6 Trello backlog).
+  old B1–B6 Trello backlog) and `docs/b2b-core/FINISH-TIER1.md` (gap audit → FT-* tickets).
+- `done` — **`PHARMAPI_MOCK` typo footgun** (FT-15): an unrecognized value (e.g. `flase`)
+  silently routed dispense/verify/masterdata to MOCK on a live box. Now boot-validated
+  fail-fast in `app/config.py`. _(Batch 2)_
+- `blocked-on-D-11` — **FT-8 monitoring wiring** (LOG_FORMAT=json/SENTRY_DSN in a prod
+  compose, external uptime monitor, error-rate alert) — needs the public live target.
+  `GET /health/v1` + the OPERATIONS.md triage section shipped (FT-8 partial, Batch 2).
+- `blocked-on-D-11` — **FT-10 public TLS live-mode deployment** + the FT-13 sandbox stack +
+  the FT-12 docs URL ride it. Doc/paper shell (FT-9/FT-11/FT-12/FT-14) shipped in Batch 2.
+- `done-pending-cleanup` — **dev-stack dry-run tenant** ("Batch2 DryRun SA") was created in
+  the dev DB while validating the FT-9/FT-11 runbooks; inert mock data, safe to leave.
+- `blocked-on-D-13` — **DPA/ToS legal text** — engineering annex (`DATA-PROCESSING.md`)
+  ready for the legal author; owner TBD (longest external lead time).

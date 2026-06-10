@@ -6,6 +6,7 @@ Run inside the backend container (or from backend/ with the venv active):
     python -m scripts.b2b_admin create-location --customer-id <uuid> --name "Store 12" \
         --pharmapi-unit-id 70466 --pharmapi-username chain12 [--eopyy] [--verify]
     python -m scripts.b2b_admin mint-key --location-id <uuid> --label "prod-pos"
+    python -m scripts.b2b_admin rotate-key --key-id <uuid>   # mint sibling, revoke stays manual
     python -m scripts.b2b_admin revoke-key --key-id <uuid>
     python -m scripts.b2b_admin list
 
@@ -126,6 +127,40 @@ async def mint_key(args: argparse.Namespace) -> None:
     print(f"\n    {raw_key}\n")
 
 
+async def rotate_key(args: argparse.Namespace) -> None:
+    """Mint a SIBLING key on the same location and print BOTH ids (FT-9).
+
+    Zero-downtime rotation: the old key stays active until you revoke it
+    explicitly. Multiple active keys per location are supported (api_keys has
+    no one-active-key constraint), so deploy the new key to the customer, watch
+    its last_used_at move (`list`), THEN `revoke-key --key-id <old>`. Auto-
+    revoking here would invite a lockout if the customer hasn't deployed yet."""
+    async with AsyncSessionLocal() as db:
+        old = await ApiKey.get_by_id(db, args.key_id)
+        if old is None:
+            sys.exit(f"[b2b-admin] api key {args.key_id} not found")
+        if not old.active:
+            print(f"[b2b-admin] NOTE: key {old.id} is already revoked — minting a sibling anyway")
+        # The sibling must match THIS stack's mode to authenticate (FT-13), so
+        # mint for the deployment env — the old key's env can't be recovered
+        # from its stored hash anyway.
+        raw_key = generate_api_key(_default_env_label())
+        new = ApiKey(
+            location_id=old.location_id,
+            key_hash=hash_api_key(raw_key),
+            label=args.label or (f"{old.label}-rotated" if old.label else "rotated"),
+            active=True,
+        )
+        db.add(new)
+        await db.commit()
+        await db.refresh(new)
+    print(f"[b2b-admin] rotated location key — old id {old.id} (still ACTIVE), new id {new.id}")
+    print("[b2b-admin] Deploy the new key, confirm its last_used moves, THEN:")
+    print(f"[b2b-admin]   python -m scripts.b2b_admin revoke-key --key-id {old.id}")
+    print("[b2b-admin] This is the ONLY time the new key is shown — store it now:")
+    print(f"\n    {raw_key}\n")
+
+
 async def revoke_key(args: argparse.Namespace) -> None:
     async with AsyncSessionLocal() as db:
         key = await ApiKey.get_by_id(db, args.key_id)
@@ -199,6 +234,13 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument("--label", default=None)
     p.add_argument("--env", default=_default_env_label(), choices=("live", "test"))
     p.set_defaults(func=mint_key)
+
+    p = sub.add_parser(
+        "rotate-key", help="Mint a sibling key for zero-downtime rotation (revoke stays manual)"
+    )
+    p.add_argument("--key-id", required=True, type=uuid.UUID, help="The key being rotated out")
+    p.add_argument("--label", default=None, help="Label for the new key (default: <old>-rotated)")
+    p.set_defaults(func=rotate_key)
 
     p = sub.add_parser("revoke-key", help="Revoke an API key")
     p.add_argument("--key-id", required=True, type=uuid.UUID)

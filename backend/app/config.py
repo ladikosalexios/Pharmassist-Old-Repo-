@@ -18,6 +18,7 @@ from typing import Literal
 from dotenv import load_dotenv
 from pydantic import BaseModel
 
+from .utils.environment import validate_pharmapi_mock_token
 from .utils.ratelimit import parse_rate_limit
 
 load_dotenv()  # backend/.env when run from backend/
@@ -157,6 +158,8 @@ class Settings(BaseModel):
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
+    # FT-15: validate the mock flag at boot, before anything reads it lazily.
+    validate_pharmapi_mock_token()
     hmvs_mock = _env_bool("HMVS_MOCK", True)
     hmvs_identity_url = os.getenv("HMVS_IDENTITY_URL", "https://api-ite.nmvo.eu")
     _validate_hmvs_identity_url(hmvs_identity_url, hmvs_mock=hmvs_mock)
