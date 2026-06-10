@@ -9,12 +9,16 @@ from app.config import get_settings
 from app.db.base import Base
 from app.db.models.adr_event import AdrEvent  # noqa
 from app.db.models.adr_report import AdrReport  # noqa
+from app.db.models.api_key import ApiKey  # noqa
 from app.db.models.audit_log import AuditLog  # noqa
+from app.db.models.b2b_patient_condition import B2bPatientCondition  # noqa
+from app.db.models.customer import Customer  # noqa
 from app.db.models.dispense_log import DispenseLog  # noqa
 from app.db.models.documentation_log import DocumentationLog  # noqa
 from app.db.models.drug_catalog import DrugCatalog  # noqa
 from app.db.models.hmvs_operation import HmvsOperation  # noqa
 from app.db.models.invitation import Invitation  # noqa
+from app.db.models.location import Location  # noqa
 from app.db.models.patient_condition import PatientCondition  # noqa
 from app.db.models.pharmacist import Pharmacist  # noqa
 from app.db.models.pharmacist_pharmacy import PharmacistPharmacy  # noqa

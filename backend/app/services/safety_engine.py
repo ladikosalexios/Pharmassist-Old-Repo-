@@ -54,6 +54,7 @@ def _rule_to_alert(rule: SafetyRule, rx_id: str) -> SafetyAlertPayload:
         name=_CHECK_TYPE_NAME.get(rule.check_type, rule.check_type),
         check_type=rule.check_type,
         status=_SEVERITY_TO_STATUS.get(rule.severity, AlertStatus.REVIEW),
+        severity=rule.severity,
         message=rule.message_en,
         details=rule.details_en,
         recommended_action=rule.recommended_action_en,
@@ -129,6 +130,8 @@ async def evaluate_safety(
     rx: dict,
     pharmacy_id: UUID,
     rules: list[SafetyRule] | None = None,
+    history_atcs: set[str] | None = None,
+    patient_conditions: list | None = None,
 ) -> SafetyChecksPayload:
     """Evaluate a single prescription against the safety-rule catalogue.
 
@@ -137,6 +140,18 @@ async def evaluate_safety(
     missing (e.g. live Pharmapi search hasn't been enriched yet), all
     ATC-keyed checks are skipped — DB-condition checks that don't need
     ATC still run when relevant rule shape supports it.
+
+    The two seams for the B2B /v1 path (additive — B2C behaviour is
+    unchanged when they are omitted):
+
+    * `history_atcs` — explicit co-medication ATC set. When provided, the
+      interaction/duplicate checks match against it directly instead of
+      deriving history from the (mock-only) prescription store. This is what
+      makes drug-drug checks work in live mode for callers that supply the
+      patient's other drugs.
+    * `patient_conditions` — pre-loaded condition rows (each carrying a
+      `.condition_code`). When provided, the per-pharmacy DB read is skipped;
+      /v1 loads them from b2b_patient_conditions scoped to its location.
     """
     if rules is None:
         rules = await load_active_safety_rules(session)
@@ -159,13 +174,15 @@ async def evaluate_safety(
     interaction_rules = [
         r for r in rules if r.check_type in (CheckType.INTERACTIONS, CheckType.DUPLICATE_THERAPY)
     ]
-    if rx_atc and patient_id and interaction_rules:
-        history = await rx_history(patient_id)
-        history_atcs = {
-            hist_rx["medication"]["atcCode"]
-            for entry in history
-            if entry["rxId"] != rx["rxId"] and (hist_rx := MOCK_PRESCRIPTIONS.get(entry["rxId"]))
-        }
+    if rx_atc and interaction_rules and (history_atcs is not None or patient_id):
+        if history_atcs is None:
+            history = await rx_history(patient_id)
+            history_atcs = {
+                hist_rx["medication"]["atcCode"]
+                for entry in history
+                if entry["rxId"] != rx["rxId"]
+                and (hist_rx := MOCK_PRESCRIPTIONS.get(entry["rxId"]))
+            }
 
         if history_atcs:
             # Bidirectional ATC match: WARFARIN_ASPIRIN_BLEED fires whether
@@ -194,6 +211,7 @@ async def evaluate_safety(
                             name=_CHECK_TYPE_NAME[CheckType.CONTRAINDICATIONS],
                             check_type=CheckType.CONTRAINDICATIONS,
                             status=_SEVERITY_TO_STATUS.get(intol["severity"], AlertStatus.REVIEW),
+                            severity=intol["severity"],
                             message=intol["name"],
                             rx_id=rx["rxId"],
                             created_at=datetime.now(UTC),
@@ -207,7 +225,11 @@ async def evaluate_safety(
         r for r in rules if r.trigger_atc == rx_atc and r.trigger_condition_code is not None
     ]
     if rx_atc and amka and condition_rule_candidates:
-        pt_conditions = await conditions(session, amka, pharmacy_id)
+        pt_conditions = (
+            patient_conditions
+            if patient_conditions is not None
+            else await conditions(session, amka, pharmacy_id)
+        )
         condition_codes = {c.condition_code for c in pt_conditions}
 
         if condition_codes:

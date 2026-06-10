@@ -23,9 +23,27 @@ import json
 import logging
 import os
 import sys
+import uuid
 from typing import Final
 
 from fastapi import FastAPI
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request
+
+# ── Request id ──────────────────────────────────────────────────────────────
+
+
+class RequestIdMiddleware(BaseHTTPMiddleware):
+    """Stamp every request with a UUID, echoed as the X-Request-Id response
+    header and embedded in the /v1 error envelope (BC-5). App-wide and purely
+    additive — B2C bodies are unchanged, they just gain the header."""
+
+    async def dispatch(self, request: Request, call_next):
+        request.state.request_id = uuid.uuid4().hex
+        response = await call_next(request)
+        response.headers["X-Request-Id"] = request.state.request_id
+        return response
+
 
 # ── JSON logging ────────────────────────────────────────────────────────────
 
