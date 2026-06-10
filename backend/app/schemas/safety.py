@@ -12,6 +12,9 @@ class SafetyAlertPayload(AppSchema):
     name: str
     check_type: CheckType
     status: AlertStatus
+    # Raw rule severity (MILD/MODERATE/SEVERE) alongside the mapped status —
+    # the /v1 B2B contract exposes it; curated mock checks predate it → None.
+    severity: str | None = None
     message: str
     details: str | None = None
     recommended_action: str | None = None

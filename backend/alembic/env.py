@@ -11,6 +11,7 @@ from app.db.models.adr_event import AdrEvent  # noqa
 from app.db.models.adr_report import AdrReport  # noqa
 from app.db.models.api_key import ApiKey  # noqa
 from app.db.models.audit_log import AuditLog  # noqa
+from app.db.models.b2b_patient_condition import B2bPatientCondition  # noqa
 from app.db.models.customer import Customer  # noqa
 from app.db.models.dispense_log import DispenseLog  # noqa
 from app.db.models.documentation_log import DocumentationLog  # noqa

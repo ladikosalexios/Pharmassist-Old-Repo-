@@ -10,9 +10,14 @@ from fastapi import APIRouter, Depends
 from app.services.pharmapi import session_is_valid
 from app.utils.environment import is_mock_pharmapi
 
+from . import drugs, patients, prescriptions, safety
 from .deps import ApiContext, get_api_context
 
 router = APIRouter(prefix="/v1", tags=["b2b-v1"])
+router.include_router(patients.router)
+router.include_router(prescriptions.router)
+router.include_router(drugs.router)
+router.include_router(safety.router)
 
 
 @router.get("/status")
