@@ -42,12 +42,23 @@ _CODE_BY_STATUS = {
 
 
 class V1Error(Exception):
-    """Raise inside /v1 handlers for envelope errors with an explicit code."""
+    """Raise inside /v1 handlers for envelope errors with an explicit code.
 
-    def __init__(self, code: str, status_code: int, message: str):
+    ``headers`` rides into the envelope response unchanged — used by the
+    rate limiter for ``Retry-After`` (FT-1).
+    """
+
+    def __init__(
+        self,
+        code: str,
+        status_code: int,
+        message: str,
+        headers: dict[str, str] | None = None,
+    ):
         self.code = code
         self.status_code = status_code
         self.message = message
+        self.headers = headers
         super().__init__(message)
 
 
@@ -62,11 +73,12 @@ def _envelope_response(
     code: str,
     message: str,
     upstream_code: str | None = None,
+    headers: dict[str, str] | None = None,
 ) -> JSONResponse:
     error: dict = {"code": code, "message": message, "request_id": request_id_of(request)}
     if upstream_code:
         error["upstream_code"] = upstream_code
-    return JSONResponse(status_code=status_code, content={"error": error})
+    return JSONResponse(status_code=status_code, content={"error": error}, headers=headers)
 
 
 def _translate_http_exception(exc: StarletteHTTPException) -> tuple[str, str, str | None]:
@@ -101,7 +113,11 @@ def install_v1_exception_handlers(app: FastAPI) -> None:
     @app.exception_handler(V1Error)
     async def _v1_error(request: Request, exc: V1Error):
         return _envelope_response(
-            request, status_code=exc.status_code, code=exc.code, message=exc.message
+            request,
+            status_code=exc.status_code,
+            code=exc.code,
+            message=exc.message,
+            headers=exc.headers,
         )
 
     @app.exception_handler(StarletteHTTPException)

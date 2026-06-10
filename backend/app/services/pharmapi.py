@@ -18,7 +18,6 @@ Two credential paths flow through this module (B2B Core BC-4):
 
 import asyncio
 import logging
-import os
 import re
 import time
 import uuid
@@ -29,11 +28,12 @@ from datetime import UTC, datetime
 import httpx
 from fastapi import HTTPException
 
-from app.schemas.patients import PatientPayload
+from app.schemas.patients import ParticipationException, PatientPayload
 from app.utils.dates import age_from_date
 
 from ..config import get_settings
 from ..constants import PrescriptionStatus
+from ..utils.environment import is_mock_pharmapi_explicit
 
 logger = logging.getLogger(__name__)
 
@@ -400,7 +400,7 @@ async def verify_pharmapi_credentials_with_decrypted(username: str, password: st
     still required — bcrypt over the local password_hash must have already
     passed, and we want the same call shape in mock and live mode.
     """
-    if os.getenv("PHARMAPI_MOCK", "false").lower() not in ("false", "0", "no"):
+    if is_mock_pharmapi_explicit():
         return {
             "email": f"{username}@pharmapi.local",
             "name": {"firstname": "Mock", "lastname": "Pharmacist"},
@@ -659,14 +659,9 @@ async def pharmapi_dispense(
         # blank — ΗΔΥΚΑ may reject silently or log an unattributable call.
         raise HTTPException(500, "pharmapi_dispense: doctor_ip is required (X-DOCTOR-IP)")
 
-    # Defaults to LIVE — dispense is the most safety-critical call in this
-    # module: a silently-mocked dispense makes a pharmacist believe a
-    # prescription reached ΗΔΥΚΑ when nothing did (a patient-safety / legal
-    # hazard). Production must never fall into mock mode just because the env
-    # var was unset; set PHARMAPI_MOCK=true explicitly for dev/CI/tests (both
-    # compose.yaml and the dispense tests already do). Matches
-    # verify_pharmapi_credentials_with_decrypted.
-    if os.getenv("PHARMAPI_MOCK", "false").lower() not in ("false", "0", "no"):
+    # FAIL-LIVE default (unset ⇒ live) — dispense is the most safety-critical
+    # call in this module; rationale + the 3fcf012 history live on the helper.
+    if is_mock_pharmapi_explicit():
         return _mock_dispense_envelope(barcode)
 
     # Imported here so the module's existing import-time cost stays unchanged
@@ -888,6 +883,22 @@ def clean_pharmapi_patient_data(data: dict) -> PatientPayload:
     identifier = data.get("amka") or data.get("identificationNo")
     if not identifier:
         raise HTTPException(502, "Pharmapi returned patient with no AMKA or EKAA")
+    # Co-pay exemption records (FT-2 / D-9): None when upstream omits the key,
+    # [] when present-but-empty — callers can tell "not supplied" from "none".
+    part_exceptions = data.get("patientPartExceptions")
+    participation_exceptions = (
+        [
+            ParticipationException(
+                id=e.get("id"),
+                reason=e.get("exceptionReason"),
+                effective_from=e.get("effectiveFrom"),
+                effective_to=e.get("effectiveTo"),
+            )
+            for e in part_exceptions
+        ]
+        if part_exceptions is not None
+        else None
+    )
     return PatientPayload(
         id=identifier,
         amka=data.get("amka") or None,
@@ -907,6 +918,7 @@ def clean_pharmapi_patient_data(data: dict) -> PatientPayload:
         allergies=None,
         intolerances=None,
         safety_flags=None,
+        participation_exceptions=participation_exceptions,
     )
 
 
@@ -1068,7 +1080,7 @@ async def pharmapi_get_masterdata_medicines(
     nightly incremental refresh rather than a full re-download every session.
     Returns the raw paginated JSON: {"contents": [...], "lastPage": bool, ...}.
     """
-    if os.getenv("PHARMAPI_MOCK", "false").lower() not in ("false", "0", "no"):
+    if is_mock_pharmapi_explicit():  # FAIL-LIVE default — see the helper's docstring
         return {"contents": [], "lastPage": True}
 
     if since:

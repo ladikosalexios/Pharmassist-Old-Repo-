@@ -1,4 +1,4 @@
-"""Observability wiring — Sentry, JSON logging, slowapi rate limiting.
+"""Observability wiring — Sentry, JSON logging, slowapi rate limiting, /v1 access log.
 
 All three pieces are designed to be **safe no-ops in dev / tests**:
 
@@ -19,10 +19,13 @@ each of these from ``create_app``.
 
 from __future__ import annotations
 
+import hashlib
+import hmac
 import json
 import logging
 import os
 import sys
+import time
 import uuid
 from typing import Final
 
@@ -43,6 +46,87 @@ class RequestIdMiddleware(BaseHTTPMiddleware):
         response = await call_next(request)
         response.headers["X-Request-Id"] = request.state.request_id
         return response
+
+
+# ── /v1 access log (FT-6) ───────────────────────────────────────────────────
+
+_v1_access_logger = logging.getLogger("v1.access")
+
+
+def patient_ref(patient_key: str) -> str:
+    """Keyed pseudonym for a patient identifier in log lines.
+
+    HMAC-SHA256 under SECRET_KEY, truncated — NEVER the raw AMKA/EKAA (PHI
+    must not land in log aggregators; a plain sha256 of an 11-digit AMKA is
+    brute-forceable). With the key, operators can recompute the ref for a
+    given patient to answer "did location X attest consent for patient Y"
+    (the D-5 attestation trail) without logs ever carrying the identifier.
+    """
+    from app.config import get_settings  # late import — env-before-import discipline
+
+    digest = hmac.new(
+        get_settings().secret_key.encode(), patient_key.encode(), hashlib.sha256
+    ).hexdigest()
+    return digest[:16]
+
+
+class V1AccessLogMiddleware(BaseHTTPMiddleware):
+    """One structured log line per /v1 request — the tenant-attributed access
+    record behind error-rate/SLA reporting, per-key usage forensics, and the
+    D-5 consent-attestation trail (FT-6).
+
+    PHI rules: the line carries the ROUTE TEMPLATE (``/v1/patients/{patient_key}``),
+    never the rendered path (AMKA rides in it); patient identity appears only
+    as the HMAC pseudonym above; the API key only as its row id (stamped on
+    request.state by get_api_context — absent on 401s). Non-/v1 traffic is
+    untouched.
+    """
+
+    async def dispatch(self, request: Request, call_next):
+        if not request.url.path.startswith("/v1"):
+            return await call_next(request)
+
+        started = time.perf_counter()
+        status = 500  # if call_next raises, log the crash line then re-raise
+        try:
+            response = await call_next(request)
+            status = response.status_code
+            return response
+        finally:
+            duration_ms = round((time.perf_counter() - started) * 1000, 1)
+            route = request.scope.get("route")
+            route_path = getattr(route, "path", "(unmatched)")  # template, not rendered URL
+            fields: dict[str, object] = {
+                "request_id": getattr(request.state, "request_id", None),
+                "method": request.method,
+                "route": route_path,
+                "status": status,
+                "duration_ms": duration_ms,
+                "api_key_id": _state_str(request, "v1_api_key_id"),
+                "location_id": _state_str(request, "v1_location_id"),
+                "customer_id": _state_str(request, "v1_customer_id"),
+            }
+            patient_key = request.scope.get("path_params", {}).get("patient_key")
+            if patient_key:
+                fields["patient_ref"] = patient_ref(patient_key)
+            consent_raw = request.query_params.get("patientConsent")
+            if consent_raw is not None:
+                # The attestation record (D-5): who asserted consent, for which
+                # patient_ref, under which key, when (the log timestamp).
+                fields["patient_consent"] = consent_raw.lower() == "true"
+            _v1_access_logger.info(
+                "%s %s -> %s %sms",
+                request.method,
+                route_path,
+                status,
+                duration_ms,
+                extra=fields,
+            )
+
+
+def _state_str(request: Request, attr: str) -> str | None:
+    value = getattr(request.state, attr, None)
+    return str(value) if value is not None else None
 
 
 # ── JSON logging ────────────────────────────────────────────────────────────

@@ -22,6 +22,16 @@ MOCK_V1_PATIENTS: dict[str, dict] = {
         "phone": "+30 694 312 3456",
         "nationality": "Ελληνική",
         "address": "Αριστοτέλους 22, Θεσσαλονίκη 546 24",
+        # Live shape: /common/getpatient `patientPartExceptions` after the
+        # clean_pharmapi_patient_data mapping (FT-2/D-9 — co-pay exemptions).
+        "participation_exceptions": [
+            {
+                "id": 1,
+                "reason": "Χρόνια πάθηση — μηδενική συμμετοχή",
+                "effective_from": "2025-01-01",
+                "effective_to": None,
+            }
+        ],
     },
     "08111947033": {
         "id": "08111947033",
@@ -67,7 +77,7 @@ MOCK_V1_INSURANCES: dict[str, list[dict]] = {
             "fromEmaes": False,
             "lastActive": True,
             "isRetired": True,
-            "socialInsurance": {"id": 1, "name": "ΕΟΠΥΥ", "shortName": "ΕΟΠΥΥ"},
+            "socialInsurance": {"id": 1, "name": "ΕΟΠΥΥ", "shortName": "ΕΟΠΥΥ", "eopyy": True},
         }
     ],
     "08111947033": [
@@ -80,7 +90,7 @@ MOCK_V1_INSURANCES: dict[str, list[dict]] = {
             "fromEmaes": False,
             "lastActive": True,
             "isRetired": True,
-            "socialInsurance": {"id": 1, "name": "ΕΟΠΥΥ", "shortName": "ΕΟΠΥΥ"},
+            "socialInsurance": {"id": 1, "name": "ΕΟΠΥΥ", "shortName": "ΕΟΠΥΥ", "eopyy": True},
         }
     ],
 }

@@ -7,11 +7,12 @@ to-use PharmapiContext. All auth failure modes return one indistinguishable
 401 (no oracle for key-exists/revoked/inactive).
 """
 
+import math
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
-from fastapi import Depends, Header, HTTPException
+from fastapi import Depends, Header, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
@@ -19,6 +20,9 @@ from app.crypto import decrypt_credential
 from app.db.session import get_session
 from app.services.api_keys import resolve_api_key
 from app.services.pharmapi import PharmapiContext
+from app.utils.ratelimit import parse_rate_limit, v1_api_key_limiter
+
+from .errors import V1Error
 
 # Refresh last_used_at at most this often — keeps the per-request write
 # amplification bounded without losing usage visibility.
@@ -46,6 +50,7 @@ class ApiContext:
 
 
 async def get_api_context(
+    request: Request,
     x_api_key: str | None = Header(default=None, alias="X-API-Key"),
     db: AsyncSession = Depends(get_session),
 ) -> ApiContext:
@@ -57,12 +62,30 @@ async def get_api_context(
         raise _unauthorized()
     key_row, location, customer = resolved
 
+    # Tenant attribution for the /v1 access log (FT-6) — stamped immediately
+    # after the key resolves so even a 429 below is attributed to its tenant.
+    request.state.v1_api_key_id = key_row.id
+    request.state.v1_location_id = location.id
+    request.state.v1_customer_id = customer.id
+
+    # Per-key rate limit (FT-1) — after auth (only resolved active keys touch a
+    # counter; an unauthenticated spray 401s above), before the AES decrypt and
+    # the last_used_at write so a throttled burst sheds load early.
+    settings = get_settings()
+    retry_after = v1_api_key_limiter.hit(key_row.id, *parse_rate_limit(settings.v1_rate_limit))
+    if retry_after is not None:
+        raise V1Error(
+            "rate_limited",
+            429,
+            f"Rate limit exceeded — {settings.v1_rate_limit} per API key",
+            headers={"Retry-After": str(math.ceil(retry_after))},
+        )
+
     if not location.pharmapi_username or not location.pharmapi_password:
         # Server-side provisioning gap, not a caller error — but don't leak
         # tenant existence details either.
         raise HTTPException(status_code=500, detail="Location is not fully provisioned")
 
-    settings = get_settings()
     ctx = PharmapiContext(
         # Decrypted in-memory for this request only — never logged.
         username=decrypt_credential(location.pharmapi_username),

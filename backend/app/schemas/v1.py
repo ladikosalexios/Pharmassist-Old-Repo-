@@ -16,6 +16,7 @@ from pydantic import field_validator, model_validator
 
 from ..constants import AlertStatus
 from .base import AppSchema
+from .patients import ParticipationException
 from .safety import SafetyAlertPayload
 
 
@@ -31,6 +32,12 @@ class V1Patient(AppSchema):
     phone: str = ""
     nationality: str | None = None
     address: str | None = None
+    # Patient co-pay exemption records (D-9): ΗΔΥΚΑ supplies no numeric
+    # patient-level co-pay % — these exemptions + the drug-level
+    # participationPct on /v1/drugs are what the read tier actually carries
+    # (probe evidence: docs/b2b-core/insurances-probe.md). None = upstream
+    # did not supply the key; [] = supplied and empty (no exemptions).
+    participation_exceptions: list[ParticipationException] | None = None
 
 
 class V1Intolerance(AppSchema):

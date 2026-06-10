@@ -41,6 +41,7 @@ import app.db.models  # noqa — registers all SQLAlchemy models at startup
 from app.config import Settings, get_settings
 from app.observability import (
     RequestIdMiddleware,
+    V1AccessLogMiddleware,
     configure_logging,
     configure_sentry,
     install_rate_limiter,
@@ -172,6 +173,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         allow_methods=settings.cors_allow_methods,
         allow_headers=settings.cors_allow_headers,
     )
+    # Order matters: added LAST = runs FIRST (outermost). RequestIdMiddleware
+    # must wrap the access log so request_id is stamped before /v1 lines emit.
+    app.add_middleware(V1AccessLogMiddleware)
     app.add_middleware(RequestIdMiddleware)
 
     # slowapi limiter wired to /auth/login (see app/observability.py). Must be
