@@ -1,0 +1,618 @@
+{
+  "info": {
+    "name": "PharmAssist B2B Core (/v1)",
+    "description": "Tier-1 Core surface: Pharmapi proxy (patients, prescriptions, drug catalog), safety engine, patient conditions, formulary substitution. Every request authenticates with the X-API-Key header ({{api_key}}); errors arrive as {\"error\": {code, message, request_id}}. Import together with PharmAssist-B2B-Core.postman_environment.json, mint a key with `python -m scripts.b2b_admin`, set it in the environment, then run the whole collection top-to-bottom (the Conditions folder is a create→409→list→patch→delete flow and is re-runnable). Works against the mock-mode compose stack out of the box; the same requests run live when the backend has PHARMAPI_MOCK=false.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "apikey",
+    "apikey": [
+      { "key": "key", "value": "X-API-Key", "type": "string" },
+      { "key": "value", "value": "{{api_key}}", "type": "string" },
+      { "key": "in", "value": "header", "type": "string" }
+    ]
+  },
+  "variable": [{ "key": "condition_id", "value": "" }],
+  "item": [
+    {
+      "name": "Status & Auth",
+      "item": [
+        {
+          "name": "GET /v1/status — auth smoke",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/v1/status", "host": ["{{base_url}}"], "path": ["v1", "status"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "const b = pm.response.json();",
+                  "pm.test('tenant context resolved', () => {",
+                  "  pm.expect(b.customer).to.have.property('id');",
+                  "  pm.expect(b.location).to.have.property('id');",
+                  "  pm.expect(b.location).to.have.property('isEopyy');",
+                  "});",
+                  "pm.test('request id header', () => pm.expect(pm.response.headers.get('X-Request-Id')).to.be.a('string'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "401 — invalid API key (uniform envelope)",
+          "request": {
+            "auth": {
+              "type": "apikey",
+              "apikey": [
+                { "key": "key", "value": "X-API-Key", "type": "string" },
+                { "key": "value", "value": "pa_test_definitely-not-a-real-key", "type": "string" },
+                { "key": "in", "value": "header", "type": "string" }
+              ]
+            },
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/v1/status", "host": ["{{base_url}}"], "path": ["v1", "status"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('401', () => pm.response.to.have.status(401));",
+                  "const e = pm.response.json().error;",
+                  "pm.test('envelope', () => {",
+                  "  pm.expect(e.code).to.eql('unauthorized');",
+                  "  pm.expect(e.message).to.eql('Invalid or missing API key');",
+                  "  pm.expect(e.request_id).to.eql(pm.response.headers.get('X-Request-Id'));",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Patients",
+      "item": [
+        {
+          "name": "GET patient by AMKA",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/v1/patients/15031962456", "host": ["{{base_url}}"], "path": ["v1", "patients", "15031962456"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "const b = pm.response.json();",
+                  "pm.test('camelCase demographics', () => {",
+                  "  pm.expect(b.amka).to.eql('15031962456');",
+                  "  pm.expect(b).to.have.property('firstName');",
+                  "  pm.expect(b).to.have.property('dateOfBirth');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET patient by EKAA",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/v1/patients/DE801234567890123456", "host": ["{{base_url}}"], "path": ["v1", "patients", "DE801234567890123456"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "pm.test('ekaa routing', () => pm.expect(pm.response.json().ekaa).to.eql('DE801234567890123456'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "404 — unknown patient",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/v1/patients/99999999999", "host": ["{{base_url}}"], "path": ["v1", "patients", "99999999999"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('404 envelope', () => {",
+                  "  pm.response.to.have.status(404);",
+                  "  const e = pm.response.json().error;",
+                  "  pm.expect(e.code).to.eql('not_found');",
+                  "  pm.expect(e).to.have.property('request_id');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET insurances",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/v1/patients/15031962456/insurances", "host": ["{{base_url}}"], "path": ["v1", "patients", "15031962456", "insurances"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 array with fund identity', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  const items = pm.response.json();",
+                  "  pm.expect(items).to.be.an('array').that.is.not.empty;",
+                  "  pm.expect(items[0].socialInsurance).to.have.property('shortName');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "422 — intolerances without consent",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/v1/patients/15031962456/intolerances", "host": ["{{base_url}}"], "path": ["v1", "patients", "15031962456", "intolerances"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('consent gate', () => {",
+                  "  pm.response.to.have.status(422);",
+                  "  pm.expect(pm.response.json().error.code).to.eql('consent_required');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET intolerances (with consent)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/v1/patients/15031962456/intolerances?patientConsent=true",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "patients", "15031962456", "intolerances"],
+              "query": [{ "key": "patientConsent", "value": "true" }]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 array', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.json()).to.be.an('array');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET medicine history (with consent)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/v1/patients/15031962456/medicine-history?patientConsent=true",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "patients", "15031962456", "medicine-history"],
+              "query": [{ "key": "patientConsent", "value": "true" }]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('pagination envelope', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  const b = pm.response.json();",
+                  "  ['items','page','totalPages','lastPage','totalEntries','blocked'].forEach(k => pm.expect(b).to.have.property(k));",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Patient Conditions (flow)",
+      "item": [
+        {
+          "name": "POST create condition",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"conditionCode\": \"POSTMAN_TEST\",\n  \"name\": \"Postman demo condition\",\n  \"severity\": \"MILD\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/v1/patients/15031962456/conditions", "host": ["{{base_url}}"], "path": ["v1", "patients", "15031962456", "conditions"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('201 created', () => pm.response.to.have.status(201));",
+                  "const b = pm.response.json();",
+                  "pm.test('payload', () => {",
+                  "  pm.expect(b.conditionCode).to.eql('POSTMAN_TEST');",
+                  "  pm.expect(b.active).to.be.true;",
+                  "});",
+                  "pm.collectionVariables.set('condition_id', b.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST duplicate → 409",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"conditionCode\": \"POSTMAN_TEST\",\n  \"name\": \"Postman demo condition\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/v1/patients/15031962456/conditions", "host": ["{{base_url}}"], "path": ["v1", "patients", "15031962456", "conditions"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('409 conflict envelope', () => {",
+                  "  pm.response.to.have.status(409);",
+                  "  pm.expect(pm.response.json().error.code).to.eql('conflict');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET list conditions",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/v1/patients/15031962456/conditions", "host": ["{{base_url}}"], "path": ["v1", "patients", "15031962456", "conditions"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('lists the created condition', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  const codes = pm.response.json().map(c => c.conditionCode);",
+                  "  pm.expect(codes).to.include('POSTMAN_TEST');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PATCH condition notes",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"notes\": \"updated via Postman\"\n}" },
+            "url": { "raw": "{{base_url}}/v1/patients/15031962456/conditions/{{condition_id}}", "host": ["{{base_url}}"], "path": ["v1", "patients", "15031962456", "conditions", "{{condition_id}}"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 patched', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.json().notes).to.eql('updated via Postman');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "DELETE condition (soft) — keeps flow re-runnable",
+          "request": {
+            "method": "DELETE",
+            "url": { "raw": "{{base_url}}/v1/patients/15031962456/conditions/{{condition_id}}", "host": ["{{base_url}}"], "path": ["v1", "patients", "15031962456", "conditions", "{{condition_id}}"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('soft deleted', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.json().active).to.be.false;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Prescriptions",
+      "item": [
+        {
+          "name": "GET pending queue",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/v1/prescriptions?status=pending",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "prescriptions"],
+              "query": [{ "key": "status", "value": "pending" }]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('items + count', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  const b = pm.response.json();",
+                  "  pm.expect(b.count).to.eql(b.items.length);",
+                  "  if (b.items.length) pm.expect(b.items[0]).to.have.property('rxId');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "422 — dispensed search without amka",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/v1/prescriptions?status=dispensed",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "prescriptions"],
+              "query": [{ "key": "status", "value": "dispensed" }]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('no silent degrade', () => {",
+                  "  pm.response.to.have.status(422);",
+                  "  const e = pm.response.json().error;",
+                  "  pm.expect(e.code).to.eql('validation_failed');",
+                  "  pm.expect(e.message).to.include('606');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET prescription by barcode",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/v1/prescriptions/1262602210000100", "host": ["{{base_url}}"], "path": ["v1", "prescriptions", "1262602210000100"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('detail', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.json().rxId).to.eql('1262602210000100');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "404 — unknown barcode",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/v1/prescriptions/0000000000000000", "host": ["{{base_url}}"], "path": ["v1", "prescriptions", "0000000000000000"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('404 envelope', () => {",
+                  "  pm.response.to.have.status(404);",
+                  "  pm.expect(pm.response.json().error.code).to.eql('not_found');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Drugs & Formulary",
+      "item": [
+        {
+          "name": "GET drug catalog search",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/v1/drugs?atc=B01",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "drugs"],
+              "query": [{ "key": "atc", "value": "B01" }]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('paginated catalogue', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  const b = pm.response.json();",
+                  "  pm.expect(b.total).to.be.above(0);",
+                  "  pm.expect(b.items[0]).to.have.property('barcode');",
+                  "  pm.expect(b.items[0]).to.have.property('atcCode');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET formulary alternatives (warfarin)",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/v1/drugs/3661001/alternatives", "host": ["{{base_url}}"], "path": ["v1", "drugs", "3661001", "alternatives"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('ranked alternatives with caveats', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  const b = pm.response.json();",
+                  "  pm.expect(b.sourceAtc).to.eql('B01AA03');",
+                  "  pm.expect(b.alternatives).to.be.an('array');",
+                  "  pm.expect(b.dataCaveats).to.be.an('array');",
+                  "  if (b.alternatives.length) {",
+                  "    pm.expect(b.alternatives[0]).to.have.property('tier');",
+                  "    pm.expect(b.alternatives[0]).to.have.property('doseNote');",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "404 — alternatives for unknown barcode",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/v1/drugs/0000000/alternatives", "host": ["{{base_url}}"], "path": ["v1", "drugs", "0000000", "alternatives"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('404 envelope', () => {",
+                  "  pm.response.to.have.status(404);",
+                  "  pm.expect(pm.response.json().error.code).to.eql('not_found');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Safety",
+      "item": [
+        {
+          "name": "POST safety check — interaction pair",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"patient\": { \"amka\": \"15031962456\" },\n  \"medications\": [\n    { \"barcode\": \"3661001\" },\n    { \"barcode\": \"3661002\" }\n  ]\n}"
+            },
+            "url": { "raw": "{{base_url}}/v1/safety/check", "host": ["{{base_url}}"], "path": ["v1", "safety", "check"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('warfarin+aspirin fires', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  const b = pm.response.json();",
+                  "  pm.expect(['review','block']).to.include(b.status);",
+                  "  pm.expect(b.results[0].checks.length).to.be.above(0);",
+                  "  pm.expect(b.results[0].checks[0]).to.have.property('severity');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST safety check — unknown drug surfaced",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"medications\": [ { \"barcode\": \"9999999\" } ]\n}" },
+            "url": { "raw": "{{base_url}}/v1/safety/check", "host": ["{{base_url}}"], "path": ["v1", "safety", "check"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('unknownDrug flag — silence is not safety', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  const r = pm.response.json().results[0];",
+                  "  pm.expect(r.unknownDrug).to.be.true;",
+                  "  pm.expect(r.checks).to.be.an('array').that.is.empty;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "422 — invalid medication input",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"medications\": [ { \"barcode\": \"3661001\", \"atc\": \"B01AA03\" } ]\n}" },
+            "url": { "raw": "{{base_url}}/v1/safety/check", "host": ["{{base_url}}"], "path": ["v1", "safety", "check"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('validation envelope', () => {",
+                  "  pm.response.to.have.status(422);",
+                  "  pm.expect(pm.response.json().error.code).to.eql('validation_failed');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
