@@ -1,7 +1,14 @@
 # B2B Core (Tier-1) — Engineering Tickets
 
-**Status:** Proposed — awaiting review before implementation
-**Date:** 2026-06-09
+**Status:** ✅ Delivered on `feat/b2b-core` (Phases 1–3 complete, BC-1…BC-16).
+156 backend tests green; B2C suite unchanged and passing. Approved decisions:
+D-3 (separate `b2b_patient_conditions` table), D-6 (expose real
+MILD/MODERATE/SEVERE — pricing-doc CRITICAL is a doc fix, not a code level).
+**BC-13a outcome:** the live masterdata payload *does* carry `positiveList`
+(ΕΟΠΥΥ coverage), `retailPrice`/`referencePrice`, and `participationPercentage`
+— **no external ΕΟΦ price-bulletin import was needed** (see
+`docs/b2b-core/masterdata-probe.md`).
+**Date:** 2026-06-09 (delivered 2026-06-10)
 **Source of truth for scope:** `docs/PharmAssist_Pricing.md` → Motion A, Tier 1 "Core"
 (€15/location/month) and the B2B Feature Matrix "Core" column only.
 **Supersedes:** the old **B1–B6 MVP backlog** (Trello; referenced from
