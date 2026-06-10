@@ -649,9 +649,9 @@ def _capturing_transport(captured: dict) -> httpx.MockTransport:
     return httpx.MockTransport(handler)
 
 
-def test_verify_defaults_to_2d_scan_entry_mode():
-    """The dispense flow is scan-driven, so the honest default is 2D — NOT a
-    hardcoded "manual" that would misrepresent a scan."""
+def test_verify_defaults_to_scan_entry_mode():
+    """The dispense flow is scan-driven, so the honest default is the scan value
+    ("non-manual", IQE-accepted) — NOT a hardcoded "manual" misrepresenting a scan."""
     captured: dict = {}
     hmvs._transport_override = _capturing_transport(captured)
     asyncio.run(
@@ -659,11 +659,12 @@ def test_verify_defaults_to_2d_scan_entry_mode():
             "05210330200000", "PLAIN-SERIAL", "LOT", "320101", client_id=CID, client_secret=SECRET
         )
     )
-    assert captured["request"].headers.get("emvs-data-entry-mode") == hmvs.EMVS_DATA_ENTRY_2D
+    assert captured["request"].headers.get("emvs-data-entry-mode") == hmvs.EMVS_DATA_ENTRY_SCAN
+    assert hmvs.EMVS_DATA_ENTRY_SCAN == "non-manual"  # the value IQE accepts
 
 
 def test_verify_honours_manual_entry_mode():
-    """A hand-keyed pack reports "manual" — scan-aware, not always 2D either."""
+    """A hand-keyed pack reports "manual" — scan-aware, not always scan either."""
     captured: dict = {}
     hmvs._transport_override = _capturing_transport(captured)
     asyncio.run(
@@ -682,10 +683,12 @@ def test_verify_honours_manual_entry_mode():
 
 def test_normalise_data_entry_mode():
     assert hmvs.normalise_data_entry_mode("manual") == "manual"
-    assert hmvs.normalise_data_entry_mode("2d_two_dimensional_barcode") == hmvs.EMVS_DATA_ENTRY_2D
-    # Unknown/missing → 2D scan (never a silent "manual" under-reporting a scan).
-    assert hmvs.normalise_data_entry_mode(None) == hmvs.EMVS_DATA_ENTRY_2D
-    assert hmvs.normalise_data_entry_mode("bogus") == hmvs.EMVS_DATA_ENTRY_2D
+    assert hmvs.normalise_data_entry_mode("non-manual") == hmvs.EMVS_DATA_ENTRY_SCAN
+    # The descriptive token IQE rejects is NOT a valid value → coerced to scan.
+    assert hmvs.normalise_data_entry_mode("2d_two_dimensional_barcode") == hmvs.EMVS_DATA_ENTRY_SCAN
+    # Unknown/missing → scan (never a silent "manual" under-reporting a scan).
+    assert hmvs.normalise_data_entry_mode(None) == hmvs.EMVS_DATA_ENTRY_SCAN
+    assert hmvs.normalise_data_entry_mode("bogus") == hmvs.EMVS_DATA_ENTRY_SCAN
 
 
 def test_pack_url_percent_encodes_gs1_serial():

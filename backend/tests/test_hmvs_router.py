@@ -94,7 +94,7 @@ def client(monkeypatch):
         target_state,
         client_id,
         client_secret,
-        data_entry_mode=hmvs_service.EMVS_DATA_ENTRY_2D,
+        data_entry_mode=hmvs_service.EMVS_DATA_ENTRY_SCAN,
     ):
         return await hmvs_service.change_state(
             gtin,

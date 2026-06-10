@@ -55,29 +55,27 @@ STATE_SUPPLIED = "Supplied"
 
 # EMVS requires an `emvs-data-entry-mode` header on EVERY verify/state-change.
 # Omitting it → 422/61020012 ("header required"); an unrecognised value →
-# 422/61020013. Crucially the value must reflect HOW the pack identifier was
-# captured: sending "manual" for a 2D camera/handheld scan misrepresents the
-# dispense. So the mode is threaded from the scanner (camera → 2D, hand-keyed →
-# manual) and defaults to the 2D scan value, since the dispense flow is
-# scan-driven. ``normalise_data_entry_mode`` coerces untrusted inbound values.
+# 422/61020013. The value must reflect HOW the pack identifier was captured:
+# sending "manual" for a 2D scan misrepresents the dispense.
 #
-# Sandbox note: the Greek IQE currently accepts only "manual" and 422s
-# "2d_two_dimensional_barcode"/"2D" (operationCode 61020013). That is a sandbox /
-# Solidsoft discrepancy — we send the HONEST value, not whichever one happens to
-# pass the sandbox. Confirm the exact accepted 2D token with Solidsoft and update
-# EMVS_DATA_ENTRY_2D if it differs.
+# Accepted values — confirmed live against the Greek IQE (api-gr-iqe.nmvo.eu):
+#   "non-manual" → scanned (camera/handheld 2D); the dispense-flow default
+#   "manual"     → hand-keyed at the keyboard
+# Matches Solidsoft's ITE Postman environment, which uses "non-manual" for
+# scanned entry. NOTE: the descriptive EMVS token "2d_two_dimensional_barcode"
+# is REJECTED by IQE (422/61020013) — do not send it.
 EMVS_DATA_ENTRY_MANUAL = "manual"
-EMVS_DATA_ENTRY_2D = "2d_two_dimensional_barcode"
-EMVS_DATA_ENTRY_MODES = frozenset({EMVS_DATA_ENTRY_MANUAL, EMVS_DATA_ENTRY_2D})
+EMVS_DATA_ENTRY_SCAN = "non-manual"
+EMVS_DATA_ENTRY_MODES = frozenset({EMVS_DATA_ENTRY_MANUAL, EMVS_DATA_ENTRY_SCAN})
 
 
 def normalise_data_entry_mode(value: str | None) -> str:
     """Coerce an inbound entry-mode to a valid EMVS value.
 
-    Unknown/missing → the 2D scan value (the scan-driven dispense norm), never a
+    Unknown/missing → the scan value (the scan-driven dispense norm), never a
     silent "manual" that would under-report a real scan.
     """
-    return value if value in EMVS_DATA_ENTRY_MODES else EMVS_DATA_ENTRY_2D
+    return value if value in EMVS_DATA_ENTRY_MODES else EMVS_DATA_ENTRY_SCAN
 
 
 # Per-client_id Bearer-token cache. Keyed by client_id so per-pharmacy IQE
@@ -258,7 +256,7 @@ async def _get_token(client_id: str, client_secret: str) -> str:
     return token
 
 
-def hmvs_headers(token: str, data_entry_mode: str = EMVS_DATA_ENTRY_2D) -> dict:
+def hmvs_headers(token: str, data_entry_mode: str = EMVS_DATA_ENTRY_SCAN) -> dict:
     return {
         "Authorization": f"Bearer {token}",
         "Accept": "application/json",
@@ -330,7 +328,7 @@ async def verify(
     *,
     client_id: str,
     client_secret: str,
-    data_entry_mode: str = EMVS_DATA_ENTRY_2D,
+    data_entry_mode: str = EMVS_DATA_ENTRY_SCAN,
 ) -> HmvsResult:
     """GET the pack from the registry to confirm it is genuine/active."""
     if is_mock_hmvs():
@@ -354,7 +352,7 @@ async def change_state(
     target_state: str,
     client_id: str,
     client_secret: str,
-    data_entry_mode: str = EMVS_DATA_ENTRY_2D,
+    data_entry_mode: str = EMVS_DATA_ENTRY_SCAN,
 ) -> HmvsResult:
     """PATCH the pack to a new state (Supplied on dispense, Active to reverse)."""
     if is_mock_hmvs():
@@ -390,7 +388,7 @@ async def change_state_idempotent(
     target_state: str,
     client_id: str,
     client_secret: str,
-    data_entry_mode: str = EMVS_DATA_ENTRY_2D,
+    data_entry_mode: str = EMVS_DATA_ENTRY_SCAN,
 ) -> HmvsResult:
     """``change_state`` wrapped in the double-supply guard + store-and-forward.
 
@@ -399,9 +397,9 @@ async def change_state_idempotent(
     ``replay_pending`` and returns a ``queued`` result.
 
     ``data_entry_mode`` flows to the inline PATCH. NOTE: it is not persisted on
-    the intent row, so a later ``replay_pending`` re-issues with the default 2D
-    value — acceptable because dispense packs are scanned; persist it (a column)
-    if a manual-entry pack's store-and-forward replay must stay byte-honest.
+    the intent row, so a later ``replay_pending`` re-issues with the conservative
+    "manual" value (never over-claims a scan). Persist it (a column) to make
+    replay byte-honest — tracked in docs/OPEN-ISSUES.md.
     """
     key = make_idempotency_key(gtin, serial, batch, target_state)
 
@@ -518,6 +516,11 @@ async def replay_pending(
                 target_state=op.target_state,
                 client_id=client_id,
                 client_secret=client_secret,
+                # The original capture mode is NOT persisted on the intent row,
+                # so replay can't know it. Default to "manual" — conservative:
+                # it never over-claims a scan. (Persisting data_entry_mode on the
+                # row would make replay byte-honest; tracked in docs/OPEN-ISSUES.)
+                data_entry_mode=EMVS_DATA_ENTRY_MANUAL,
             )
         except (httpx.TimeoutException, httpx.TransportError):
             continue  # still unreachable — leave pending for the next pass

@@ -19,8 +19,9 @@ import { HmvsSecureInput, type HmvsBlockReason } from "./HmvsSecureInput";
 // EMVS data-entry mode — how this payload was captured. Mirrors
 // lib/hmvs.HmvsDataEntryMode, declared inline because the HMVS gateway is
 // import-restricted to the dispense flow (see eslint.config.js); the parent
-// (DispenseWizard) bridges the two structurally-identical unions.
-export type ScanEntryMode = "2d_two_dimensional_barcode" | "manual";
+// (DispenseWizard) bridges the two structurally-identical unions. "non-manual"
+// is the scanned value the Greek IQE accepts.
+export type ScanEntryMode = "non-manual" | "manual";
 
 export interface DataMatrixScannerProps {
   onScan: (rawPayload: string, entryMode: ScanEntryMode) => void;
@@ -72,8 +73,8 @@ export function DataMatrixScanner({ onScan, disabled, onBlockChange }: DataMatri
         if (result) {
           controls.stop();
           controlsRef.current = null;
-          // Camera decode of the 2D DataMatrix → a genuine 2D scan.
-          onScanRef.current(result.getText(), "2d_two_dimensional_barcode");
+          // Camera decode of the 2D DataMatrix → a genuine scan ("non-manual").
+          onScanRef.current(result.getText(), "non-manual");
           setMode("input");
         }
       })

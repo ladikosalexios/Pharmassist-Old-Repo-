@@ -35,8 +35,9 @@ export type HmvsState = "Active" | "Supplied";
 
 // EMVS `emvs-data-entry-mode` — how the pack identifier was captured. Sent so
 // the registry records a scan as a scan, not "manual". Camera/handheld 2D scan
-// → "2d_two_dimensional_barcode"; hand-keyed → "manual".
-export type HmvsDataEntryMode = "2d_two_dimensional_barcode" | "manual";
+// → "non-manual" (the value the Greek IQE accepts; "2d_two_dimensional_barcode"
+// is rejected), hand-keyed → "manual".
+export type HmvsDataEntryMode = "non-manual" | "manual";
 
 /** GS1 fields scanned off the carton — the input to every HMVS call. */
 export interface HmvsPackKey {
