@@ -83,11 +83,14 @@ _ROWS_BY_HASH = {
 
 def _bind_value(stmt):
     """The key_hash literal bound to the query, via the PUBLIC compiled-params
-    API (resolve_api_key filters on exactly one bound value). Avoids reaching
-    into private AST internals (_where_criteria / .right.value) that carry no
-    stability guarantee across SQLAlchemy versions."""
+    API. Avoids reaching into private AST internals (_where_criteria /
+    .right.value) that carry no stability guarantee across SQLAlchemy versions.
+
+    Selected by column name (the bind param is named after the column it
+    compares, e.g. ``key_hash_1``) rather than positionally, so it stays
+    correct even if resolve_api_key's query grows a second bound filter."""
     params = stmt.compile().params
-    return next(iter(params.values()), None)
+    return next((v for k, v in params.items() if k.startswith("key_hash")), None)
 
 
 class _FakeScalarResult:
