@@ -47,4 +47,5 @@ _Last touched: 2026-06-09._
 
 ## B2B (post-pilot)
 
-- `open` — **B1–B6 MVP backlog.** _(deferred until after the pilot)_
+- `open` — **B2B Core (Tier-1) backlog** — see `docs/b2b-core/TICKETS.md` (supersedes the
+  old B1–B6 Trello backlog).
