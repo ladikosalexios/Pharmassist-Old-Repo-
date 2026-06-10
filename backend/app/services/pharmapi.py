@@ -519,7 +519,14 @@ async def pharmapi_dispense(
         # blank — ΗΔΥΚΑ may reject silently or log an unattributable call.
         raise HTTPException(500, "pharmapi_dispense: doctor_ip is required (X-DOCTOR-IP)")
 
-    if os.getenv("PHARMAPI_MOCK", "true").lower() not in ("false", "0", "no"):
+    # Defaults to LIVE — dispense is the most safety-critical call in this
+    # module: a silently-mocked dispense makes a pharmacist believe a
+    # prescription reached ΗΔΥΚΑ when nothing did (a patient-safety / legal
+    # hazard). Production must never fall into mock mode just because the env
+    # var was unset; set PHARMAPI_MOCK=true explicitly for dev/CI/tests (both
+    # compose.yaml and the dispense tests already do). Matches
+    # verify_pharmapi_credentials_with_decrypted.
+    if os.getenv("PHARMAPI_MOCK", "false").lower() not in ("false", "0", "no"):
         return _mock_dispense_envelope(barcode)
 
     # Imported here so the module's existing import-time cost stays unchanged
