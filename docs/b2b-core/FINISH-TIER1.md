@@ -1,9 +1,10 @@
 # Finish Tier-1 B2B — gap audit + tickets (BC-16 → first paying integrator)
 
-**Status:** 🔨 **Batch 1 built** (2026-06-10) — FT-1/2/3-machinery/4/5/6/13-semantics
-shipped on `feat/finish-tier1-batch1`; FT-7/FT-10/legal deferred by decision. See §6 for
-the batch log and what remains. (Phase 0 audit below is preserved as written — per-ticket
-status markers carry the deltas.)
+**Status:** 🔨 **Batch 2 built** (2026-06-10) — FT-8-partial/9/11/12/14 + new FT-15
+shipped on `feat/finish-tier1-batch2`, atop **Batch 1** (FT-1/2/3-machinery/4/5/6/13-
+semantics on `feat/finish-tier1-batch1`, merged). FT-7/FT-10/FT-8-wiring/legal-text
+deferred by decision (D-8/D-11/D-13). See §6 for the batch log and what remains. (Phase 0
+audit below is preserved as written — per-ticket status markers carry the deltas.)
 **Date:** 2026-06-10
 **Baseline:** BC-1…BC-16 merged to `main` (PR #135) — `docs/b2b-core/TICKETS.md` is the
 record of what shipped. 156 backend tests green incl. the /v1 suite
@@ -185,6 +186,22 @@ one dev who knows the codebase, tests included.
   zero `os.getenv("PHARMAPI_MOCK")` outside `environment.py` and the throwaway probe
   script.
 
+**FT-15 · Boot-validate `PHARMAPI_MOCK`** — *hardening from Batch-1 review* · **days (0.25)**
+> **✅ SHIPPED (Batch 2, 2026-06-10).** `_validate_pharmapi_mock()` in `app/config.py`
+> runs at settings-load (create_app() → get_settings()); an unrecognized token (e.g.
+> `flase`) raises `RuntimeError` at boot. Recognized set centralised in
+> `utils/environment.RECOGNIZED_MOCK_TOKENS`; both helpers keep their asymmetric unset
+> defaults (mock for read surface, live for safety sites). Tests pin the validator +
+> prove it fires at boot; FT-5 defaults unchanged.
+
+- The fail-live guarantee only held for the *unset* case; both mock helpers treated any
+  unrecognized value as mock=true, so a typo silently routed dispense/verify/masterdata to
+  MOCK on a live box (the 3fcf012/FT-5 regression). FT-15 validates the token fail-fast at
+  boot — a bad flag breaks the boot, never a mocked dispense at first request.
+- AC: unrecognized value raises at settings-load; unset still yields mock for
+  `is_mock_pharmapi()` / live for `is_mock_pharmapi_explicit()`; all recognized tokens
+  parse; grep still shows the single read point; B2C suite unchanged. **Met.**
+
 ### B — Production-readiness / scale
 
 ---
@@ -237,6 +254,13 @@ one dev who knows the codebase, tests included.
   cross-process.
 
 **FT-8 · Observability for a paid API: enable, watch, alert** — *configure + small build* · **days (2–3)**
+> **◑ PARTIAL SHIPPED (Batch 2, 2026-06-10).** Built now: `GET /health/v1` (unauthenticated;
+> DB reachable, last FT-4 sync age from `catalog_sync_runs`, app version; 503 on DB-down,
+> stale-sync flag is informational) + contract test; `/health` and B2C untouched.
+> `OPERATIONS.md` gained the observability/triage section incl. the "ΗΔΥΚΑ down vs we are
+> down" envelope-code table. **Deferred to FT-10** (marked TODO in OPERATIONS.md): enabling
+> `LOG_FORMAT=json`/`SENTRY_DSN` in a prod compose, the external uptime monitor, the
+> error-rate alert — all need the live public target (D-11).
 
 - Turn on what exists: `LOG_FORMAT=json`, `SENTRY_DSN` (+`SENTRY_ENVIRONMENT=b2b-prod`)
   in the FT-10 compose. Sentry region/PII stance feeds the FT-14 subprocessor list
@@ -254,6 +278,11 @@ one dev who knows the codebase, tests included.
 - AC: kill the DB in staging → alert fires; synthetic check green from outside the VPC.
 
 **FT-9 · API-key rotation / revocation runbook** — *write + tiny CLI polish* · **days (0.5–1)**
+> **✅ SHIPPED (Batch 2, 2026-06-10).** `docs/b2b-core/KEY-MANAGEMENT.md` (zero-downtime
+> rotation, compromised-key procedure greppable by `api_key_id` over the FT-6 log, cadence).
+> CLI polish landed: `b2b_admin rotate-key --key-id …` mints a sibling + prints both ids;
+> revoke stays manual. Dry-run executed against the dev stack (both keys 200 in the cutover
+> window → old 401 / new 200 after revoke); transcript pasted into the doc.
 
 - `docs/b2b-core/KEY-MANAGEMENT.md`: standard rotation (mint second key → customer
   deploys → verify `last_used_at` moves → revoke old; zero-downtime because multiple
@@ -293,6 +322,12 @@ one dev who knows the codebase, tests included.
 ---
 
 **FT-11 · Per-tenant provisioning runbook** — *write* · **days (1–2)**
+> **✅ SHIPPED (Batch 2, 2026-06-10).** `docs/b2b-core/ONBOARDING.md`: collect → ΕΟΠΥΥ/609 →
+> mint (sandbox-first, `--verify` for live) → verify (`/v1/status` + patient lookup + FT-3
+> gate) → hand off. Sandbox-first references the FT-13 stack (deferred, rides FT-10) as the
+> intended sequence; the dev-stack dry-run is the substitute and its transcript (PHI-free
+> mock fixtures) is pasted in. Surfaced one real behaviour: `--verify` always calls live
+> upstream, so it's skipped on the mock dev/sandbox stack — documented.
 
 - `docs/b2b-core/ONBOARDING.md`, the operator-facing sequence:
   1. **Collect** per location: ΗΔΥΚΑ pharmacy unit id, Basic-Auth username, password
@@ -319,6 +354,13 @@ one dev who knows the codebase, tests included.
 ---
 
 **FT-12 · API reference beyond Postman** — *build (docs pipeline)* · **days (2–3)**
+> **✅ SHIPPED (Batch 2, 2026-06-10).** `backend/scripts/export_openapi_v1.py` filters
+> `app.openapi()` to the B2B surface (13 paths: /v1* + /health/v1) with transitive schema
+> pruning (27 schemas, zero B2C leak) + `X-API-Key` securityScheme → `openapi-v1.json` +
+> standalone `api-reference.html` (Redoc, spec inlined for offline open). `API.md` narrative
+> covers auth, the error-code table, consent attestation, the 609/ΕΟΠΥΥ rule, rate limits,
+> tri-state coverage + dataCaveats, pagination, and the mock/sandbox identifiers. Hosting
+> (docs URL) still rides FT-10; the in-repo static artifact is the deliverable.
 
 - v1-only OpenAPI artifact: script filters `app.openapi()` to `/v1*` paths +
   `b2b-v1`-tagged components (today `/openapi.json` exposes the whole B2C surface
@@ -356,6 +398,12 @@ one dev who knows the codebase, tests included.
   401s on the live endpoint (separate DBs make this structural, assert it anyway).
 
 **FT-14 · API terms + GDPR DPA — engineering inputs (legal text is D-13)** — *write* · **days (1–2 eng); legal external**
+> **✅ SHIPPED (Batch 2, 2026-06-10).** `docs/b2b-core/DATA-PROCESSING.md`: data inventory
+> (transit vs stored — flags the one stored patient identifier, AMKA in
+> `b2b_patient_conditions`), roles (controller/processor/relayed-to per D-12), subprocessors
+> (AWS EU per D-11; Sentry only if EU-hosted+enabled; no LLM at Tier-1), security measures,
+> ToS skeleton inputs. Every cited code path re-checked to exist as described; marked "ready
+> for legal author" (legal text = D-13, owner TBD).
 
 - `docs/b2b-core/DATA-PROCESSING.md`, the technical annex a DPA template needs:
   - **Data inventory**: what /v1 receives/returns/stores — AMKA/EKAA + demographics
@@ -565,10 +613,23 @@ stack itself deferred). Verified: full backend suite 203 passed (was 156 — B2C
 and green), CI DB-less selection 192 passed, `ruff check` + `format --check` clean,
 mock parity pinned by the contract suites throughout.
 
-**Deferred by decision, not yet started:** FT-7 (D-8 triggers), FT-10 + sandbox stack +
-FT-8 (D-11 go-live), FT-14 legal text (D-13, owner TBD).
+**Batch 2** (✅ built 2026-06-10, branch `feat/finish-tier1-batch2` off merged main): the
+unblocked operational + integrator shell — everything not gated on the D-11 go-live.
+**FT-15** (new — boot-validate `PHARMAPI_MOCK`, closes the typo-footgun left by FT-5),
+**FT-8 partial** (`GET /health/v1` + OPERATIONS.md observability/triage; the LOG/Sentry/
+uptime/alert *wiring* deferred to FT-10), **FT-9** (KEY-MANAGEMENT.md + `rotate-key` CLI +
+dry-run transcript), **FT-11** (ONBOARDING.md + dev-stack dry-run), **FT-12** (v1-only
+OpenAPI export script + `openapi-v1.json` + Redoc HTML + API.md narrative), **FT-14**
+(DATA-PROCESSING.md engineering annex). Verified: full backend suite **228 passed, 1
+skipped** (was 203 — B2C untouched and green; +25 from the new FT-15/FT-8 tests), CI DB-less
+selection **217 passed**, `ruff check` + `format --check` clean tree-wide, mock parity
+pinned by the contract suites throughout. One additive shared-code change (FT-15 in
+`config.py`/`environment.py`) carries the FT-5 regression guard — its tests stay green.
 
-**Remaining engineering for "ready to onboard":** FT-8 (observability on the real
-target), FT-9 (key runbook), FT-10 (deployment, on D-11 go-live), FT-11 (onboarding
-runbook), FT-12 (API reference) — plus the FT-3 production gate executed at first
-onboarding.
+**Deferred by decision, not yet started:** FT-7 (D-8 triggers), FT-10 + sandbox stack +
+FT-8 *wiring* (D-11 go-live), FT-14 legal text (D-13, owner TBD).
+
+**Remaining engineering for "ready to onboard":** FT-10 (deployment, on D-11 go-live) and
+the FT-8 monitoring wiring + FT-12 docs URL + FT-13 sandbox stack that ride it — plus the
+FT-3 production coverage gate executed at first onboarding. The doc-and-paper shell (FT-9/
+FT-11/FT-12/FT-14) and the standalone code hardening (FT-8 health probe, FT-15) are done.
