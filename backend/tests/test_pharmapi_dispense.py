@@ -110,6 +110,31 @@ def test_doctor_ip_required():
     assert "X-DOCTOR-IP" in excinfo.value.detail
 
 
+def test_unset_mock_defaults_to_live(monkeypatch):
+    """Safety guard: with PHARMAPI_MOCK UNSET, dispense must take the LIVE path,
+    never silently mock. A real upstream call here returns G02, which only the
+    live branch raises — the mock branch would return a MOCK-EXEC envelope and
+    never reach the network. Locks in the fail-to-live default."""
+    from fastapi import HTTPException
+
+    monkeypatch.delenv("PHARMAPI_MOCK", raising=False)
+    stub = _StubClient(
+        _StubResponse(409, '{"errorCode":"G02","message":"Prescription already executed"}')
+    )
+    monkeypatch.setattr(httpx, "AsyncClient", stub)
+
+    with pytest.raises(HTTPException) as excinfo:
+        asyncio.run(
+            pharmapi_module.pharmapi_dispense(
+                barcode="2411223344556",
+                cda_xml=b"<ClinicalDocument/>",
+                doctor_ip="10.0.0.1",
+            )
+        )
+    # 409 (not a MOCK-EXEC envelope) proves the live branch ran.
+    assert excinfo.value.status_code == 409
+
+
 def test_live_g02_already_executed(monkeypatch):
     """G02 from ΗΔΥΚΑ → 409 'Prescription already executed' (mapped error)."""
     from fastapi import HTTPException
