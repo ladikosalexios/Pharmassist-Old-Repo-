@@ -39,8 +39,13 @@ from app.services.api_keys import generate_api_key, hash_api_key  # noqa: E402
 
 
 def _default_env_label() -> str:
-    env = os.getenv("ENV", "production")
-    return "live" if env == "production" else "test"
+    """Follow the stack's MODE, not ENV (FT-13): keys only resolve where their
+    prefix matches the deployment — pa_test_ on mock-mode (sandbox) stacks,
+    pa_live_ on live-mode ones. Keying this on ENV minted dead pa_live_ keys
+    on the ENV=production mock pilot box."""
+    from app.services.api_keys import deployment_env_label
+
+    return deployment_env_label()
 
 
 async def create_customer(args: argparse.Namespace) -> None:
@@ -96,6 +101,12 @@ async def create_location(args: argparse.Namespace) -> None:
 
 
 async def mint_key(args: argparse.Namespace) -> None:
+    if args.env != _default_env_label():
+        print(
+            f"[b2b-admin] WARNING: this stack accepts pa_{_default_env_label()}_ keys only "
+            f"(PHARMAPI_MOCK mode) — the pa_{args.env}_ key you are minting will NOT "
+            "authenticate HERE. Only proceed if it is destined for the other environment."
+        )
     raw_key = generate_api_key(args.env)
     async with AsyncSessionLocal() as db:
         location = await Location.get_by_id(db, args.location_id)

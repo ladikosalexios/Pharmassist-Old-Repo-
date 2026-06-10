@@ -41,6 +41,11 @@ envelope, so a full collection run doubles as a contract smoke test.
   `forbidden` envelope for non-ΕΟΠΥΥ locations (upstream rule 609) — mint the
   demo location with `--eopyy` or expect those two requests to fail their 200
   tests.
+- **Key environments are enforced:** a `pa_test_` key only authenticates on a
+  mock-mode (sandbox) stack and a `pa_live_` key only on a live-mode one —
+  mismatches 401 like any bad key. The dev compose stack is mock mode, so mint
+  with the default env (`test`) as in step 1; a `pa_live_` key would not work
+  against it.
 - **Rate limit:** every /v1 endpoint is limited **per API key** (default
   `120/minute`, deploy-configurable via `V1_RATE_LIMIT`). Exceeding it returns
   the standard envelope with `code: "rate_limited"` and a `Retry-After` header
