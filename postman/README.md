@@ -41,5 +41,9 @@ envelope, so a full collection run doubles as a contract smoke test.
   `forbidden` envelope for non-ΕΟΠΥΥ locations (upstream rule 609) — mint the
   demo location with `--eopyy` or expect those two requests to fail their 200
   tests.
+- **Rate limit:** every /v1 endpoint is limited **per API key** (default
+  `120/minute`, deploy-configurable via `V1_RATE_LIMIT`). Exceeding it returns
+  the standard envelope with `code: "rate_limited"` and a `Retry-After` header
+  (seconds) — back off and retry rather than hammering.
 - **TLS:** API keys are bearer credentials — only ever send them over HTTPS
   outside local development.

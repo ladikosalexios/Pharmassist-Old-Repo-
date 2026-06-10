@@ -18,6 +18,8 @@ from typing import Literal
 from dotenv import load_dotenv
 from pydantic import BaseModel
 
+from .utils.ratelimit import parse_rate_limit
+
 load_dotenv()  # backend/.env when run from backend/
 
 
@@ -85,6 +87,20 @@ def _validate_hmvs_identity_url(url: str, *, hmvs_mock: bool) -> None:
         )
 
 
+def _validated_v1_rate_limit(spec: str) -> str:
+    """Fail-fast on a malformed V1_RATE_LIMIT — a bad spec must break the boot,
+    not 500 every authenticated /v1 request at first enforcement (same
+    philosophy as _validate_hmvs_identity_url)."""
+    try:
+        parse_rate_limit(spec)
+    except ValueError as exc:
+        raise RuntimeError(
+            f"V1_RATE_LIMIT={spec!r} is invalid: {exc}. "
+            "Use '<count>/<second|minute|hour>', e.g. '120/minute'."
+        ) from exc
+    return spec
+
+
 class Settings(BaseModel):
     # ── App metadata ────────────────────────────────────────────────────────
     app_title: str
@@ -124,6 +140,11 @@ class Settings(BaseModel):
     hmvs_client_id: str
     hmvs_client_secret: str
     hmvs_token_skew_seconds: int
+
+    # ── B2B /v1 ──────────────────────────────────────────────────────────────
+    # Per-API-key fixed-window limit (FT-1), e.g. "120/minute". Enforced in
+    # routers/v1/deps.get_api_context; validated fail-fast at startup below.
+    v1_rate_limit: str
 
     # ── Cookie security ─────────────────────────────────────────────────────
     cookie_secure: bool
@@ -177,6 +198,7 @@ def get_settings() -> Settings:
         hmvs_client_id=os.getenv("HMVS_CLIENT_ID", ""),
         hmvs_client_secret=os.getenv("HMVS_CLIENT_SECRET", ""),
         hmvs_token_skew_seconds=_env_int("HMVS_TOKEN_SKEW_SECONDS", 60),
+        v1_rate_limit=_validated_v1_rate_limit(os.getenv("V1_RATE_LIMIT", "120/minute")),
         cookie_secure=_env_bool("COOKIE_SECURE", True),
         cookie_httponly=_env_bool("COOKIE_HTTPONLY", True),
         cookie_samesite=os.getenv("COOKIE_SAMESITE", "strict"),
