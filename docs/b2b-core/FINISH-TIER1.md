@@ -1,7 +1,9 @@
 # Finish Tier-1 B2B — gap audit + tickets (BC-16 → first paying integrator)
 
-**Status:** 📋 **Phase 0 — audit + plan only.** This document is the deliverable; nothing
-here is built. Paused for review before any Phase 1 work starts.
+**Status:** 🔨 **Batch 1 built** (2026-06-10) — FT-1/2/3-machinery/4/5/6/13-semantics
+shipped on `feat/finish-tier1-batch1`; FT-7/FT-10/legal deferred by decision. See §6 for
+the batch log and what remains. (Phase 0 audit below is preserved as written — per-ticket
+status markers carry the deltas.)
 **Date:** 2026-06-10
 **Baseline:** BC-1…BC-16 merged to `main` (PR #135) — `docs/b2b-core/TICKETS.md` is the
 record of what shipped. 156 backend tests green incl. the /v1 suite
@@ -88,6 +90,9 @@ one dev who knows the codebase, tests included.
 ---
 
 **FT-1 · Per-API-key rate limiting on /v1** — *build on wired infra* · **days (1–2)**
+> **✅ SHIPPED (Batch 1, 2026-06-10).** Enforced in `get_api_context`, keyed by api_key_id,
+> `V1_RATE_LIMIT` env (default 120/minute, boot-validated), envelope 429 + `Retry-After`.
+> Went with the in-dependency option, not slowapi (IP-keying/envelope/pytest reasons below).
 
 - Per-key limiter for every /v1 endpoint, keyed on the **hashed** `X-API-Key` (never the
   raw key, never client IP — integrators call from NAT'd server farms). Default e.g.
@@ -106,6 +111,9 @@ one dev who knows the codebase, tests included.
   key B); B2C `/auth/login` limiter behaviour unchanged.
 
 **FT-2 · Co-pay: close the evidence gap, then implement D-9** — *probe + decision-dependent* · **days (0.5 probe + 0.5–1 follow-up)**
+> **✅ SHIPPED (Batch 1, 2026-06-10).** Probe run + findings in
+> `docs/b2b-core/insurances-probe.md`; D-9 resolved: no numeric patient co-pay % upstream;
+> surfaced `participationExceptions` (patient) + `eopyy` (fund); pricing line re-worded.
 
 - **Step 1 (codebase-answerable, do regardless):** BC-13a-style timeboxed probe of the
   raw `/api/v1/common/getpatient/insurances` response on testeps — dump the full key-set
@@ -122,6 +130,9 @@ one dev who knows the codebase, tests included.
   real rate and we'd be wrong exactly when it matters.
 
 **FT-3 · Formulary coverage: production-sync gate + data-quality check** — *operational, not an import* · **days (1–2; contingency separately priced in D-10)**
+> **✅ MACHINERY SHIPPED (Batch 1, 2026-06-10).** Coverage report live on
+> `GET /admin/sync-drug-catalog/status`; gate procedure in `docs/b2b-core/OPERATIONS.md`.
+> The gate itself RUNS at first production onboarding (needs production-base creds).
 
 - Make "first full masterdata sync completed + coverage populated" an explicit
   **onboarding prerequisite** (lands in FT-11's runbook): run full sync (no `since`),
@@ -139,6 +150,9 @@ one dev who knows the codebase, tests included.
   `dataCaveats` already warns on unknown coverage (`formulary.py:182-187`) — unchanged.
 
 **FT-4 · Masterdata sync hardening: status row + schedule + failure surfacing** — *build* · **days (1–2)**
+> **✅ SHIPPED (Batch 1, 2026-06-10).** `catalog_sync_runs` (migration `dfbbaa41c915`),
+> run_sync records every run + logs failures (print killed), status endpoint, nightly
+> cron line documented in OPERATIONS.md.
 
 - `catalog_sync_runs` table (started_at, finished_at, mode full/incremental, fetched /
   upserted / skipped, error text, triggered_by). `run_sync` writes it instead of
@@ -155,6 +169,9 @@ one dev who knows the codebase, tests included.
   B2C untouched.
 
 **FT-5 · Collapse the 3 inline `PHARMAPI_MOCK` reads — preserving fail-live defaults** — *refactor* · **days (0.5)**
+> **✅ SHIPPED (Batch 1, 2026-06-10).** `is_mock_pharmapi_explicit()` (unset ⇒ LIVE) in
+> utils/environment; three sites collapsed; regression tests pin both helpers' defaults
+> + verify/masterdata live paths; the existing 3fcf012 dispense guard still passes.
 
 - Add `is_mock_pharmapi_strict()` (or `is_mock_pharmapi(default_live=True)`) to
   `app/utils/environment.py` — env-var **absent ⇒ LIVE**, mirroring the three sites'
@@ -173,6 +190,9 @@ one dev who knows the codebase, tests included.
 ---
 
 **FT-6 · /v1 structured access log (tenant-attributed) + consent attestation record** — *build* · **days (1)**
+> **✅ SHIPPED (Batch 1, 2026-06-10).** `V1AccessLogMiddleware`: route template (never the
+> rendered path), tenant ids via request.state, HMAC patient pseudonym, patientConsent
+> recorded (closes A5/D-5). PHI test asserts no raw AMKA in any emitted record.
 
 - Middleware (or extension of `RequestIdMiddleware`) emitting one JSON log line per /v1
   request: `request_id`, `api_key_id`, `location_id`, `customer_id`, method, path
@@ -186,7 +206,10 @@ one dev who knows the codebase, tests included.
 - AC: log line asserted in a contract test (capture handler); PHI review of the emitted
   fields; B2C request logging unchanged.
 
-**FT-7 · Redis-backed session store + limiter backend (the existing seam)** — *refactor behind an interface* · **week (~1); timing is D-8** 
+**FT-7 · Redis-backed session store + limiter backend (the existing seam)** — *refactor behind an interface* · **week (~1); timing is D-8**
+> **⏸ DEFERRED per D-8 (2026-06-10).** Scope confirmed: one shared Redis, no sharding
+> (~5,000-user ceiling). Build triggers: >1 worker / HA / an SLA commitment. Note FT-1's
+> rate counters now ride the same seam — the swap upgrades sessions + limits together.
 
 - Implement `PharmapiSessionStore` against Redis: session entries as JSON values keyed
   `pharmapi:session:<session_key>`, TTL = session window; per-key locking via a Redis
@@ -243,6 +266,9 @@ one dev who knows the codebase, tests included.
 - AC: runbook dry-run executed once against the dev stack, transcript pasted into the doc.
 
 **FT-10 · Public TLS-fronted live-mode /v1 deployment target** — *build (deploy)* · **days (2–4) after D-11**
+> **⏸ DEFERRED per D-11 (2026-06-10).** Target recorded (AWS EU, public domain + TLS,
+> separate box from the B2C pilot; SLA TBD) — scoped, NOT deployed in Batch 1. FT-8 and
+> the FT-13 sandbox stack queue behind it.
 
 - What exists vs what's needed: `compose.prod.yaml` is mock-mode + SPA-fronting + private
   (`:79` mock pin; Tailscale-only `tls internal` per `user-data.sh`); an integrator needs
@@ -311,6 +337,10 @@ one dev who knows the codebase, tests included.
   trial-run it on someone internal who hasn't touched /v1.
 
 **FT-13 · Sandbox tier with real semantics** — *build (small deploy + convention)* · **days (1–2) for the mock-mode variant**
+> **✅ KEY SEMANTICS SHIPPED (Batch 1, 2026-06-10).** Env prefix is enforced in
+> resolve_api_key (pa_test_ ⇄ mock stack, pa_live_ ⇄ live stack, mismatch = uniform 401);
+> mint default follows stack mode + warns on mismatch. The sandbox *stack* deployment
+> rides FT-10 (deferred per D-11) — day-one sandbox is now config, not code.
 
 - Today's `pa_test_` prefix is decoration (§1/C2). Give it meaning: a **sandbox stack** —
   same image, `PHARMAPI_MOCK=true`, own DB, own (or path/subdomain-separated) endpoint
@@ -521,8 +551,24 @@ the Tier-1 surface that BC-1…16 built. B2C behaviour and tests stay green thro
 FT-5 and FT-7 are the only tickets touching shared code paths and both carry explicit
 regression guards.
 
-## 6. Phase gate
+## 6. Phase gate / batch log
 
-**Phase 0 (this document) is complete on commit.** No FT ticket starts until this plan is
-reviewed — open items for that review: confirm/adjust D-8…D-11 and D-13 (D-12 is
-resolved), bless the ticket cut + ordering, and pick what lands in the first wave.
+**Phase 0** (the audit + this plan): ✅ complete, reviewed 2026-06-10.
+
+**Batch 1** (✅ built 2026-06-10, per the reviewed directive — branch
+`feat/finish-tier1-batch1`): decisions D-8…D-13 all recorded with basis; **FT-2** (probe →
+D-9 settled, exemptions + eopyy flag surfaced), **FT-1** (per-key rate limit), **FT-3/FT-4**
+(sync status rows + failure surfacing + coverage gate machinery, OPERATIONS.md started),
+**FT-5** (mock-read collapse, fail-live pinned + regression tests), **FT-6** (tenant-
+attributed access log + D-5 consent attestation), **FT-13** (key-env enforcement; sandbox
+stack itself deferred). Verified: full backend suite 203 passed (was 156 — B2C untouched
+and green), CI DB-less selection 192 passed, `ruff check` + `format --check` clean,
+mock parity pinned by the contract suites throughout.
+
+**Deferred by decision, not yet started:** FT-7 (D-8 triggers), FT-10 + sandbox stack +
+FT-8 (D-11 go-live), FT-14 legal text (D-13, owner TBD).
+
+**Remaining engineering for "ready to onboard":** FT-8 (observability on the real
+target), FT-9 (key runbook), FT-10 (deployment, on D-11 go-live), FT-11 (onboarding
+runbook), FT-12 (API reference) — plus the FT-3 production gate executed at first
+onboarding.
