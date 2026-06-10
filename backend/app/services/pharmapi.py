@@ -3,7 +3,17 @@
 In production the session state would live in Redis or a real DB; here it's
 just a per-process dict so a `uvicorn --reload` reset clears it.
 
-Pharmapi credentials are sourced from the centralised settings.
+Two credential paths flow through this module (B2B Core BC-4):
+
+* **Legacy / B2C** — every function called WITHOUT a ``ctx`` argument uses the
+  module-level env credentials (PHARMAPI_USER/PASS/API_KEY) and the ``legacy``
+  entry of the session store, exactly as before the refactor. Existing call
+  sites are untouched.
+* **Per-location / B2B** — callers pass a :class:`PharmapiContext` (built from
+  a ``locations`` row by the /v1 API-key dependency). Basic Auth, the base
+  URL, the Api-Key header, the ΗΔΥΚΑ pharmacy unit id, and the 24h session
+  entry are all taken from the context, so every upstream call transacts under
+  the calling location's own ΗΔΥΚΑ identity.
 """
 
 import asyncio
@@ -13,6 +23,7 @@ import re
 import time
 import uuid
 import xml.etree.ElementTree as ET
+from dataclasses import dataclass
 from datetime import UTC, datetime
 
 import httpx
@@ -47,20 +58,87 @@ _PHARMAPI_RX_ERRORS: dict[str, tuple[int, str]] = {
 }
 
 
-# In-memory 24h session tracker. Mutated by the /pharmapi/connect handler.
-pharmapi_session: dict = {
-    "connected": False,
-    "connected_at": None,  # ISO timestamp
-    "connected_at_ts": 0.0,  # unix timestamp
-    "user_data": None,  # response from /api/v1/user/me
-    "pharmacy_id": None,  # units[0].id from /api/v1/user/me — required for patient history endpoints
-}
+# Session-store key for the legacy single-account (B2C) path.
+LEGACY_SESSION_KEY = "legacy"
 
 
-def session_is_valid() -> bool:
-    if not pharmapi_session["connected"]:
+@dataclass(frozen=True)
+class PharmapiContext:
+    """Per-location upstream identity for a Pharmapi call (B2B /v1 path).
+
+    ``username``/``password`` are the location's DECRYPTED ΗΔΥΚΑ Basic-Auth
+    credentials — in-memory only, never logged, never persisted. ``api_key``
+    is the vendor Api-Key (today shared app-wide per the ΗΔΥΚΑ registration;
+    carried here so a per-location key becomes a data change, not a refactor).
+    ``pharmacy_unit_id`` is the upstream unit id embedded in intolerance /
+    medicine-history URLs. ``session_key`` keys the 24h session store entry
+    (``location:<uuid>``).
+    """
+
+    username: str
+    password: str
+    api_key: str
+    base_url: str
+    pharmacy_unit_id: int | str | None
+    session_key: str
+
+
+def _blank_session() -> dict:
+    return {
+        "connected": False,
+        "connected_at": None,  # ISO timestamp
+        "connected_at_ts": 0.0,  # unix timestamp
+        "user_data": None,  # response from /api/v1/user/me
+        "pharmacy_id": None,  # units[0].id from /api/v1/user/me
+    }
+
+
+# In-memory 24h session tracker for the LEGACY (B2C) path. Mutated by
+# /auth/login, /pharmapi/connect, the keepalive loop, and the G14 retry.
+# Kept as a module-level dict (not folded into the store) because
+# routers/pharmapi.py and scripts read it by name.
+pharmapi_session: dict = _blank_session()
+
+
+class PharmapiSessionStore:
+    """In-process ΗΔΥΚΑ session tracker keyed by location (BC-4 / D-1).
+
+    One entry per ``session_key`` (``legacy`` for B2C, ``location:<uuid>`` for
+    B2B), each with a per-key asyncio.Lock serialising session establishment
+    and the G14 refresh. The narrow get/lock/invalidate surface is the seam a
+    Redis-backed implementation drops into later — callers never touch the
+    dicts directly. Single-uvicorn-worker remains a deployment constraint
+    until then (same as the legacy dict before this refactor).
+    """
+
+    def __init__(self) -> None:
+        # The legacy entry IS the module-level dict (same object identity) so
+        # existing direct readers/writers and the store always agree.
+        self._sessions: dict[str, dict] = {LEGACY_SESSION_KEY: pharmapi_session}
+        self._locks: dict[str, asyncio.Lock] = {}
+
+    def get(self, session_key: str) -> dict:
+        return self._sessions.setdefault(session_key, _blank_session())
+
+    def lock(self, session_key: str) -> asyncio.Lock:
+        return self._locks.setdefault(session_key, asyncio.Lock())
+
+    def invalidate(self, session_key: str) -> None:
+        self._sessions[session_key] = (
+            pharmapi_session if session_key == LEGACY_SESSION_KEY else _blank_session()
+        )
+        if session_key == LEGACY_SESSION_KEY:
+            pharmapi_session.update(_blank_session())
+
+
+_session_store = PharmapiSessionStore()
+
+
+def session_is_valid(session_key: str = LEGACY_SESSION_KEY) -> bool:
+    entry = _session_store.get(session_key)
+    if not entry["connected"]:
         return False
-    elapsed = time.time() - pharmapi_session["connected_at_ts"]
+    elapsed = time.time() - entry["connected_at_ts"]
     return elapsed < SESSION_WINDOW_SECONDS
 
 
@@ -118,17 +196,49 @@ async def keepalive_loop(interval_seconds: int) -> None:
             await asyncio.sleep(KEEPALIVE_RETRY_SECONDS)
 
 
-def pharmapi_headers() -> dict:
+def pharmapi_headers(ctx: PharmapiContext | None = None) -> dict:
     """Headers required on every Pharmapi call."""
-    if not PHARMAPI_API_KEY:
+    api_key = ctx.api_key if ctx is not None else PHARMAPI_API_KEY
+    if not api_key:
         raise HTTPException(
             status_code=500,
             detail="PHARMAPI_API_KEY not set. Add it to your environment — it was in your ΗΔΥΚΑ registration email.",
         )
     return {
         "Accept": "application/json",
-        "Api-Key": PHARMAPI_API_KEY,
+        "Api-Key": api_key,
     }
+
+
+def _ctx_auth(ctx: PharmapiContext | None) -> tuple[str, str]:
+    """Basic-Auth tuple for a call — the context's creds or the legacy env pair."""
+    if ctx is not None:
+        return (ctx.username, ctx.password)
+    return (PHARMAPI_USER, PHARMAPI_PASS)
+
+
+def _ctx_base(ctx: PharmapiContext | None) -> str:
+    return ctx.base_url if ctx is not None else PHARMAPI_BASE
+
+
+def _ctx_session_key(ctx: PharmapiContext | None) -> str:
+    return ctx.session_key if ctx is not None else LEGACY_SESSION_KEY
+
+
+async def ensure_pharmapi_session(ctx: PharmapiContext) -> None:
+    """Open (or re-open) the 24h ΗΔΥΚΑ window for a B2B location, lazily.
+
+    B2B API-key requests have no login moment, so the first call for a
+    location (or the first after the 23h window lapses) establishes the
+    session here. The per-key lock collapses concurrent establishment into
+    one /user/me round-trip; ``_retrying=True`` stops the G14 branch from
+    recursing back into session establishment.
+    """
+    async with _session_store.lock(ctx.session_key):
+        if session_is_valid(ctx.session_key):
+            return
+        user_data = await pharmapi_get("/api/v1/user/me", _retrying=True, ctx=ctx)
+        _start_pharmapi_session(user_data, session_key=ctx.session_key)
 
 
 def _parse_pharmapi_error(r: httpx.Response) -> str:
@@ -145,6 +255,7 @@ async def pharmapi_get(
     accept_xml: bool = False,
     params: dict | None = None,
     _retrying: bool = False,
+    ctx: PharmapiContext | None = None,
 ) -> dict | list:
     """Authenticated GET to Pharmapi. Raises HTTPException on failure.
 
@@ -160,16 +271,26 @@ async def pharmapi_get(
     `_retrying` is an internal flag — on a G14 (session expired) it auto-
     refreshes once via /user/me + _start_pharmapi_session and re-issues
     the original call. A second G14 raises 401 instead of looping.
+
+    `ctx` selects the upstream identity: None → legacy env credentials +
+    the legacy session (B2C, unchanged); a PharmapiContext → that location's
+    credentials, base URL, Api-Key, and session entry (B2B /v1).
     """
-    url = f"{PHARMAPI_BASE}{path}"
-    headers = pharmapi_headers()
+    # B2B contexts establish their 24h window lazily — there is no login
+    # moment. The legacy path keeps its existing semantics (login/connect
+    # opens the window; the G14 branch below heals an expired one).
+    if ctx is not None and not _retrying and not session_is_valid(ctx.session_key):
+        await ensure_pharmapi_session(ctx)
+
+    url = f"{_ctx_base(ctx)}{path}"
+    headers = pharmapi_headers(ctx)
     if accept_xml:
         headers["Accept"] = "application/xml"
     logger.debug("[Pharmapi] GET %s params=%s", url, params)
     async with httpx.AsyncClient(timeout=15.0) as client:
         r = await client.get(
             url,
-            auth=(PHARMAPI_USER, PHARMAPI_PASS),
+            auth=_ctx_auth(ctx),
             headers=headers,
             params=params,
         )
@@ -205,13 +326,21 @@ async def pharmapi_get(
     if "G14" in err or "914" in err or "Connection time limit" in err:
         if _retrying:
             raise HTTPException(401, "Pharmapi session expired — please re-login (G14)")
+        # Re-auth with the SAME identity that made the failing call — the
+        # per-key lock stops two concurrent G14s on one location from
+        # double-refreshing (and one tenant's retry can never re-pin another
+        # tenant's session entry).
+        session_key = _ctx_session_key(ctx)
         try:
-            user_data = await pharmapi_get("/api/v1/user/me", _retrying=True)
-            _start_pharmapi_session(user_data)
+            async with _session_store.lock(session_key):
+                user_data = await pharmapi_get("/api/v1/user/me", _retrying=True, ctx=ctx)
+                _start_pharmapi_session(user_data, session_key=session_key)
         except Exception as exc:
             logger.warning("G14 auto-refresh failed: %s", exc)
             raise HTTPException(401, "Pharmapi session expired — please re-login (G14)") from exc
-        return await pharmapi_get(path, accept_xml=accept_xml, params=params, _retrying=True)
+        return await pharmapi_get(
+            path, accept_xml=accept_xml, params=params, _retrying=True, ctx=ctx
+        )
     if "G15" in err:
         raise HTTPException(500, "Pharmapi: Api-Key missing — set PHARMAPI_API_KEY env var")
     if "G11" in err:
@@ -281,25 +410,35 @@ async def verify_pharmapi_credentials_with_decrypted(username: str, password: st
     return await verify_pharmapi_credentials(username, password)
 
 
-def _start_pharmapi_session(user_data: dict) -> None:
-    """Pin the 24h connection window — shared by /auth/login and /pharmapi/connect."""
+def _start_pharmapi_session(user_data: dict, session_key: str = LEGACY_SESSION_KEY) -> None:
+    """Pin the 24h connection window for one session entry.
+
+    Legacy callers (/auth/login, /pharmapi/connect, keepalive) keep the
+    default key and behave exactly as before; B2B callers pass their
+    location's key so tenants never overwrite each other's window.
+    """
+    entry = _session_store.get(session_key)
     units = user_data.get("units", [])
-    pharmapi_session["pharmacy_id"] = (
-        units[0].get("id") if units else user_data.get("pharmacy", {}).get("id")
-    )
-    now = time.time()
-    pharmapi_session.update(
+    entry["pharmacy_id"] = units[0].get("id") if units else user_data.get("pharmacy", {}).get("id")
+    entry.update(
         {
             "connected": True,
             "connected_at": datetime.now(UTC).isoformat(),
-            "connected_at_ts": now,
+            "connected_at_ts": time.time(),
             "user_data": user_data,
         }
     )
 
 
-def get_pharmacy_id() -> int | str:
-    """Return the active pharmacy unit id or raise if no valid session exists."""
+def get_pharmacy_id(ctx: PharmapiContext | None = None) -> int | str:
+    """ΗΔΥΚΑ pharmacy unit id for URL paths (intolerances / medicine history).
+
+    B2B contexts carry the unit id on the `locations` row — no session
+    needed. The legacy path keeps reading the session entry pinned at login
+    (and keeps its existing 403/500 semantics).
+    """
+    if ctx is not None and ctx.pharmacy_unit_id is not None:
+        return ctx.pharmacy_unit_id
     if not session_is_valid():
         raise HTTPException(
             status_code=403,
@@ -492,6 +631,7 @@ async def pharmapi_dispense(
     barcode: str,
     cda_xml: bytes,
     doctor_ip: str,
+    ctx: PharmapiContext | None = None,
 ) -> dict:
     """POST an eDispensation CDA to ΗΔΥΚΑ and return the parsed receipt.
 
@@ -526,8 +666,8 @@ async def pharmapi_dispense(
     # for the search/patient endpoints; cda is only needed in the live path.
     from .cda import parse_dispense_response
 
-    url = f"{PHARMAPI_BASE}{PHARMAPI_DISPENSE_PATH}"
-    headers = pharmapi_headers()
+    url = f"{_ctx_base(ctx)}{PHARMAPI_DISPENSE_PATH}"
+    headers = pharmapi_headers(ctx)
     headers["Accept"] = f"{PHARMAPI_HL7_CONTENT_TYPE}, application/xml"
     headers["Content-Type"] = PHARMAPI_HL7_CONTENT_TYPE
     headers["X-DOCTOR-IP"] = doctor_ip
@@ -543,7 +683,7 @@ async def pharmapi_dispense(
     async with httpx.AsyncClient(timeout=30.0) as client:
         r = await client.post(
             url,
-            auth=(PHARMAPI_USER, PHARMAPI_PASS),
+            auth=_ctx_auth(ctx),
             headers=headers,
             content=cda_xml,
         )
@@ -577,6 +717,7 @@ async def pharmapi_get_prescription(
     barcode: str,
     pharmacy_id: int | str,
     doctor_ip: str,
+    ctx: PharmapiContext | None = None,
 ) -> dict:
     """Barcode-direct retrieval — GET /api/v1/prescriptions/get/{barcode}.
 
@@ -599,8 +740,8 @@ async def pharmapi_get_prescription(
 
     from .cda import parse_prescription_cda
 
-    url = f"{PHARMAPI_BASE}/api/v1/prescriptions/get/{barcode}"
-    headers = pharmapi_headers()
+    url = f"{_ctx_base(ctx)}/api/v1/prescriptions/get/{barcode}"
+    headers = pharmapi_headers(ctx)
     headers["Accept"] = f"{PHARMAPI_HL7_CONTENT_TYPE}, application/xml"
     headers["Content-Type"] = PHARMAPI_HL7_CONTENT_TYPE
     headers["X-DOCTOR-IP"] = doctor_ip
@@ -610,7 +751,7 @@ async def pharmapi_get_prescription(
         r = await client.get(
             url,
             params={"pharmacyId": pharmacy_id},
-            auth=(PHARMAPI_USER, PHARMAPI_PASS),
+            auth=_ctx_auth(ctx),
             headers=headers,
         )
 
@@ -691,6 +832,7 @@ async def pharmapi_search_prescriptions(
     to_date: str | None = None,
     barcode: str | None = None,
     amka: str | None = None,
+    ctx: PharmapiContext | None = None,
 ) -> list[dict]:
     """
     Fetch the prescription queue (or a specific prescription) from Pharmapi.
@@ -718,7 +860,7 @@ async def pharmapi_search_prescriptions(
     if amka:
         params["amka"] = amka
 
-    raw = await pharmapi_get("/api/v1/prescriptions/search", params=params)
+    raw = await pharmapi_get("/api/v1/prescriptions/search", params=params, ctx=ctx)
     if not isinstance(raw, dict) or "contents" not in raw:
         logger.warning(
             "Pharmapi search response missing 'contents' key; got keys=%s",
@@ -764,6 +906,7 @@ def clean_pharmapi_patient_data(data: dict) -> PatientPayload:
 async def pharmapi_get_patient(
     amka: str | None = None,
     ekaa: str | None = None,
+    ctx: PharmapiContext | None = None,
 ) -> PatientPayload:
     """
     Fetch the patient's data from Pharmapi /api/v1/common/getpatient.
@@ -781,13 +924,14 @@ async def pharmapi_get_patient(
         # translation is a file-wide convention change, not scoped here
         # (PR #67 review #4).
         raise HTTPException(400, "pharmapi_get_patient requires amka or ekaa")
-    patient_json = await pharmapi_get("/api/v1/common/getpatient", params=params)
+    patient_json = await pharmapi_get("/api/v1/common/getpatient", params=params, ctx=ctx)
     return clean_pharmapi_patient_data(patient_json)
 
 
 async def pharmapi_get_patient_insurances(
     amka: str | None = None,
     ekaa: str | None = None,
+    ctx: PharmapiContext | None = None,
 ) -> list[dict]:
     if amka:
         params: dict = {"patientamka": amka}
@@ -795,15 +939,15 @@ async def pharmapi_get_patient_insurances(
         params: dict = {"patientekaa": ekaa}
     else:
         raise HTTPException(400, "pharmapi_get_patient_insurances requires amka or ekaa")
-    result = await pharmapi_get("/api/v1/common/getpatient/insurances", params=params)
+    result = await pharmapi_get("/api/v1/common/getpatient/insurances", params=params, ctx=ctx)
     if isinstance(result, list):
         return result
     if isinstance(result, dict):
         contents = result.get("contents")
         if isinstance(contents, list):
             return contents
-    print(
-        f"[Pharmapi] /getpatient/insurances returned unexpected shape: {type(result)} — {result!r:.200}"
+    logger.warning(
+        "[Pharmapi] /getpatient/insurances returned unexpected shape: %s", type(result).__name__
     )
     return []
 
@@ -848,17 +992,22 @@ def _parse_page_xml_items(raw_xml: str) -> list[dict]:
     return _parse_page_xml(raw_xml)["items"]
 
 
-async def pharmapi_get_patient_intolerances(amka_or_ekaa: str) -> list[dict]:
-    pharmacy_id = get_pharmacy_id()
+async def pharmapi_get_patient_intolerances(
+    amka_or_ekaa: str,
+    ctx: PharmapiContext | None = None,
+) -> list[dict]:
+    pharmacy_id = get_pharmacy_id(ctx)
     # Spec ref: GET /patients/{amkaOrEkaa}/medicinehistory/{pharmacyId}/intolerances
     # exposes `patientsConsent` as an optional query flag. Without it, ΗΔΥΚΑ
     # blocks every call with code 608 "Patient's consent is required for full
     # history." Asserting consent here matches our UX assumption that the
-    # pharmacist already obtained consent at the counter.
+    # pharmacist already obtained consent at the counter. The /v1 B2B surface
+    # only reaches this after the caller attested consent explicitly (D-5).
     raw = await pharmapi_get(
         f"/api/v1/patients/{amka_or_ekaa}/medicinehistory/{pharmacy_id}/intolerances",
         accept_xml=True,
         params={"patientsConsent": "true"},
+        ctx=ctx,
     )
     return _parse_page_xml_items(raw.get("raw_xml", ""))
 
@@ -867,6 +1016,7 @@ async def pharmapi_get_patient_medicine_history(
     amka_or_ekaa: str,
     page: int = 0,
     size: int = 50,
+    ctx: PharmapiContext | None = None,
 ) -> dict:
     """Fetch one page of executed prescription history for a patient.
 
@@ -877,13 +1027,14 @@ async def pharmapi_get_patient_medicine_history(
     shape with empty items and "blocked": True so callers can render a
     graceful empty state rather than propagating an error.
     """
-    pharmacy_id = get_pharmacy_id()
+    pharmacy_id = get_pharmacy_id(ctx)
     # See note on pharmapi_get_patient_intolerances re: patientsConsent.
     try:
         raw = await pharmapi_get(
             f"/api/v1/patients/{amka_or_ekaa}/medicinehistory/full/{pharmacy_id}/prescription",
             accept_xml=True,
             params={"patientsConsent": "true", "page": page, "size": size},
+            ctx=ctx,
         )
     except HTTPException as exc:
         if "609" in str(exc.detail):
@@ -902,6 +1053,7 @@ async def pharmapi_get_masterdata_medicines(
     page: int = 0,
     size: int = 500,
     since: str | None = None,
+    ctx: PharmapiContext | None = None,
 ) -> dict:
     """Fetch one page of the national medicine catalogue from Pharmapi.
 
@@ -919,7 +1071,7 @@ async def pharmapi_get_masterdata_medicines(
         path = "/api/v1/masterdata/medicines"
         params = {"page": page, "size": size}
 
-    return await pharmapi_get(path, params=params)
+    return await pharmapi_get(path, params=params, ctx=ctx)
 
 
 async def pharmapi_get_error_codes() -> list[dict]:

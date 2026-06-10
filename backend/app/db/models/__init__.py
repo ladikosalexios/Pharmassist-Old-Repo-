@@ -1,11 +1,14 @@
 from .adr_event import AdrEvent
 from .adr_report import AdrReport
+from .api_key import ApiKey
 from .audit_log import AuditLog
+from .customer import Customer
 from .dispense_log import DispenseLog
 from .documentation_log import DocumentationLog
 from .drug_catalog import DrugCatalog
 from .hmvs_operation import HmvsOperation
 from .invitation import Invitation
+from .location import Location
 from .patient_condition import PatientCondition
 from .pharmacist import Pharmacist
 from .pharmacist_pharmacy import PharmacistPharmacy
@@ -26,4 +29,7 @@ __all__ = [
     "DrugCatalog",
     "SafetyRule",
     "HmvsOperation",
+    "Customer",
+    "Location",
+    "ApiKey",
 ]

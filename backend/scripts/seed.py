@@ -174,6 +174,10 @@ async def seed():
     async with AsyncSessionLocal() as db:
         # Idempotent: wipe seeded tables before re-inserting. CASCADE clears
         # patient_conditions, pharmacist_pharmacies via FK chains.
+        # NEVER add the B2B tenancy tables (customers, locations, api_keys,
+        # b2b_patient_conditions) to this list — they hold paying-customer
+        # data and are deliberately FK-isolated from the seeded set so this
+        # TRUNCATE can't reach them. See docs/b2b-core/TICKETS.md BC-1.
         await db.execute(
             text(
                 "TRUNCATE pharmacist_pharmacies, patient_conditions, pharmacists, pharmacies, adr_reports, documentation_logs RESTART IDENTITY CASCADE"  # noqa: E501

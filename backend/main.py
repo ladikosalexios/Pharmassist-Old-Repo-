@@ -39,7 +39,12 @@ from fastapi.middleware.cors import CORSMiddleware
 
 import app.db.models  # noqa — registers all SQLAlchemy models at startup
 from app.config import Settings, get_settings
-from app.observability import configure_logging, configure_sentry, install_rate_limiter
+from app.observability import (
+    RequestIdMiddleware,
+    configure_logging,
+    configure_sentry,
+    install_rate_limiter,
+)
 from app.routers import (
     admin,
     alerts,
@@ -56,7 +61,9 @@ from app.routers import (
     safety_checks,
     side_effects,
     spc,
+    v1,
 )
+from app.routers.v1.errors import install_v1_exception_handlers
 from app.services.audit import _background_tasks
 from app.services.hmvs import probe_developer_tls
 from app.services.pharmapi import keepalive_loop, pharmapi_check_version
@@ -121,6 +128,7 @@ _ROUTER_MODULES = (
     side_effects,
     patients,
     notifications,
+    v1,
 )
 
 
@@ -164,10 +172,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         allow_methods=settings.cors_allow_methods,
         allow_headers=settings.cors_allow_headers,
     )
+    app.add_middleware(RequestIdMiddleware)
 
     # slowapi limiter wired to /auth/login (see app/observability.py). Must be
     # installed BEFORE include_router so the decorated handler picks it up.
     install_rate_limiter(app)
+
+    # /v1 error envelope (BC-5) — handlers branch on the path prefix and
+    # delegate to FastAPI defaults elsewhere, so B2C error bodies don't change.
+    install_v1_exception_handlers(app)
 
     for module in _ROUTER_MODULES:
         app.include_router(module.router)
