@@ -149,6 +149,10 @@ class V1SafetyCheckResponse(AppSchema):
     status: AlertStatus
     results: list[V1MedicationResult]
     conditions_considered: int
+    # Transparency about what this endpoint does NOT screen — same principle as
+    # unknownDrug and the formulary dataCaveats: a clean status must never be
+    # mistaken for "everything was checked".
+    data_caveats: list[str]
 
 
 class V1Condition(AppSchema):

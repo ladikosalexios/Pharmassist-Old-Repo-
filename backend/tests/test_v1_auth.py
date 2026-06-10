@@ -82,10 +82,12 @@ _ROWS_BY_HASH = {
 
 
 def _bind_value(stmt):
-    """Extract the literal bound to the first WHERE criterion (key_hash == ?)."""
-    for crit in stmt._where_criteria:
-        return crit.right.value
-    return None
+    """The key_hash literal bound to the query, via the PUBLIC compiled-params
+    API (resolve_api_key filters on exactly one bound value). Avoids reaching
+    into private AST internals (_where_criteria / .right.value) that carry no
+    stability guarantee across SQLAlchemy versions."""
+    params = stmt.compile().params
+    return next(iter(params.values()), None)
 
 
 class _FakeScalarResult:

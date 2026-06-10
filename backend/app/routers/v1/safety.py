@@ -33,6 +33,18 @@ router = APIRouter(prefix="/safety", tags=["b2b-v1"])
 
 _STATUS_RANK = {AlertStatus.OK: 0, AlertStatus.REVIEW: 1, AlertStatus.BLOCK: 2}
 
+# This endpoint evaluates drug-drug interactions, duplicate therapy, and
+# condition-based contraindications. It does NOT screen ΗΔΥΚΑ intolerances /
+# allergies: live intolerance records carry an active-substance description
+# with no ATC code, and that activeSubstance→ATC mapping is not yet wired into
+# the rule engine. Stated explicitly so a clean status is never read as
+# "allergies were checked" — see GET /v1/patients/{amka}/intolerances.
+_INTOLERANCE_CAVEAT = (
+    "Intolerance/allergy screening is not performed by this endpoint — fetch "
+    "GET /v1/patients/{amka}/intolerances and screen separately (ΗΔΥΚΑ "
+    "intolerances are not yet mapped to ATC for rule evaluation)."
+)
+
 
 def _resolved_atc(med: V1MedicationInput, barcode_atcs: dict[str, str]) -> str | None:
     if med.atc:
@@ -93,4 +105,5 @@ async def safety_check(
         status=worst,
         results=results,
         conditions_considered=len(conditions),
+        data_caveats=[_INTOLERANCE_CAVEAT],
     )

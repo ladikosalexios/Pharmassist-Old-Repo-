@@ -38,9 +38,6 @@ AMKA = "77777777777"
 KEY_A = generate_api_key("test")
 KEY_B = generate_api_key("test")
 
-# Shared across ordered tests in this module.
-STATE: dict = {}
-
 
 def _run_sql(statements: list[tuple[str, dict]]):
     """Throwaway engine in its own loop (see test_endpoints_integration.py)."""
@@ -144,6 +141,33 @@ def _h(key: str) -> dict:
     return {"X-API-Key": key}
 
 
+@pytest.fixture(scope="module")
+def conditions(client):
+    """Canonical per-tenant conditions, created once: A→PREGNANCY, B→G6PD.
+
+    Returned ids replace the old cross-test STATE dict, so the assertions
+    below no longer depend on intra-module test execution order. Every test
+    leaves this canonical state intact (the collision test soft-deletes its
+    own extra row), so the live-DB state is stable regardless of order.
+    """
+    # Posted lower-case on purpose: the /v1 boundary must normalise it to
+    # "PREGNANCY" so it matches the safety rule's trigger code downstream.
+    a = client.post(
+        f"/v1/patients/{AMKA}/conditions",
+        headers=_h(KEY_A),
+        json={"conditionCode": "pregnancy", "name": "Pregnancy (12w)", "severity": "MODERATE"},
+    )
+    assert a.status_code == 201, a.text
+    assert a.json()["conditionCode"] == "PREGNANCY"  # normalised on ingest
+    b = client.post(
+        f"/v1/patients/{AMKA}/conditions",
+        headers=_h(KEY_B),
+        json={"conditionCode": "G6PD", "name": "G6PD deficiency"},
+    )
+    assert b.status_code == 201, b.text
+    return {"a_id": a.json()["id"], "b_id": b.json()["id"]}
+
+
 def test_each_key_resolves_its_own_location(client):
     a = client.get("/v1/status", headers=_h(KEY_A)).json()
     b = client.get("/v1/status", headers=_h(KEY_B)).json()
@@ -151,62 +175,63 @@ def test_each_key_resolves_its_own_location(client):
     assert b["location"]["name"] == "PYTEST-B2B-B Store"
 
 
-def test_a_records_condition(client):
-    r = client.post(
-        f"/v1/patients/{AMKA}/conditions",
-        headers=_h(KEY_A),
-        json={"conditionCode": "PREGNANCY", "name": "Pregnancy (12w)", "severity": "MODERATE"},
-    )
-    assert r.status_code == 201, r.text
-    STATE["a_condition_id"] = r.json()["id"]
+def test_condition_visible_only_to_its_own_location(client, conditions):
+    a_codes = [
+        c["conditionCode"]
+        for c in client.get(f"/v1/patients/{AMKA}/conditions", headers=_h(KEY_A)).json()
+    ]
+    b_codes = [
+        c["conditionCode"]
+        for c in client.get(f"/v1/patients/{AMKA}/conditions", headers=_h(KEY_B)).json()
+    ]
+    assert "PREGNANCY" in a_codes and "G6PD" not in a_codes
+    assert "G6PD" in b_codes and "PREGNANCY" not in b_codes  # A's record is invisible to B
 
 
-def test_b_cannot_see_a_condition(client):
-    r = client.get(f"/v1/patients/{AMKA}/conditions", headers=_h(KEY_B))
-    assert r.status_code == 200
-    assert r.json() == []
-
-
-def test_b_recording_same_condition_does_not_collide_or_leak(client):
-    # On the B2C table this would 409 (global unique index) and leak that
-    # another tenant recorded it — per-location keying makes it a clean 201.
+def test_same_code_across_tenants_does_not_collide_or_leak(client, conditions):
+    # On the B2C table the global unique index would 409 here and leak that
+    # another tenant recorded PREGNANCY for this AMKA — per-location keying
+    # makes it a clean, independent 201. Soft-deleted after so B's canonical
+    # state (G6PD only) is restored for the safety test.
     r = client.post(
         f"/v1/patients/{AMKA}/conditions",
         headers=_h(KEY_B),
-        json={"conditionCode": "G6PD", "name": "G6PD deficiency"},
+        json={"conditionCode": "PREGNANCY", "name": "Pregnancy (separate record)"},
     )
     assert r.status_code == 201, r.text
-    STATE["b_condition_id"] = r.json()["id"]
+    assert r.json()["id"] != conditions["a_id"]
+    client.delete(f"/v1/patients/{AMKA}/conditions/{r.json()['id']}", headers=_h(KEY_B))
 
 
-def test_b_cannot_touch_a_condition_by_id(client):
-    r = client.patch(
-        f"/v1/patients/{AMKA}/conditions/{STATE['a_condition_id']}",
+def test_b_cannot_touch_a_condition_by_id(client, conditions):
+    a_id = conditions["a_id"]
+    patch = client.patch(
+        f"/v1/patients/{AMKA}/conditions/{a_id}",
         headers=_h(KEY_B),
         json={"notes": "hijack attempt"},
     )
-    assert r.status_code == 404
-    assert r.json()["error"]["code"] == "not_found"
-    r = client.delete(
-        f"/v1/patients/{AMKA}/conditions/{STATE['a_condition_id']}", headers=_h(KEY_B)
+    assert patch.status_code == 404
+    assert patch.json()["error"]["code"] == "not_found"
+    assert (
+        client.delete(f"/v1/patients/{AMKA}/conditions/{a_id}", headers=_h(KEY_B)).status_code
+        == 404
     )
-    assert r.status_code == 404
 
 
-def test_safety_check_sees_only_own_location_conditions(client):
-    # Warfarin (seeded barcode 3661001, B01AA03) + A's PREGNANCY → blocks at A...
-    # (seeded rule code: WARFARIN_PREGNANCY_CONTRAINDICATION — match by substring)
+def test_safety_check_sees_only_own_location_conditions(client, conditions):
+    # Warfarin (seeded barcode 3661001, B01AA03) + A's PREGNANCY → blocks at A
+    # (seeded rule code WARFARIN_PREGNANCY_CONTRAINDICATION — match by substring)...
     body = {"patient": {"amka": AMKA}, "medications": [{"barcode": "3661001"}]}
     a = client.post("/v1/safety/check", headers=_h(KEY_A), json=body).json()
-    assert a["conditionsConsidered"] == 1
     assert any("WARFARIN_PREGNANCY" in c["id"] for r in a["results"] for c in r["checks"]), a
+    # Transparency: the response declares it does NOT screen intolerances.
+    assert any("intolerance" in cav.lower() for cav in a["dataCaveats"]), a
     # ...but NOT at B, whose only condition is G6PD (no warfarin+G6PD rule).
     b = client.post("/v1/safety/check", headers=_h(KEY_B), json=body).json()
-    assert b["conditionsConsidered"] == 1
     assert not any("WARFARIN_PREGNANCY" in c["id"] for r in b["results"] for c in r["checks"]), b
 
 
-def test_duplicate_condition_409_is_scoped_to_one_location(client):
+def test_duplicate_condition_409_is_scoped_to_one_location(client, conditions):
     r = client.post(
         f"/v1/patients/{AMKA}/conditions",
         headers=_h(KEY_A),

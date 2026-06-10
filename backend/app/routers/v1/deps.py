@@ -24,7 +24,12 @@ from app.services.pharmapi import PharmapiContext
 # amplification bounded without losing usage visibility.
 _LAST_USED_REFRESH = timedelta(minutes=5)
 
-_UNAUTHORIZED = HTTPException(status_code=401, detail="Invalid or missing API key")
+
+def _unauthorized() -> HTTPException:
+    # A fresh instance per raise — never a shared module singleton, so nothing
+    # added to the exception during handling (e.g. headers) can leak across
+    # concurrent requests.
+    return HTTPException(status_code=401, detail="Invalid or missing API key")
 
 
 @dataclass(frozen=True)
@@ -45,11 +50,11 @@ async def get_api_context(
     db: AsyncSession = Depends(get_session),
 ) -> ApiContext:
     if not x_api_key:
-        raise _UNAUTHORIZED
+        raise _unauthorized()
 
     resolved = await resolve_api_key(db, x_api_key)
     if resolved is None:
-        raise _UNAUTHORIZED
+        raise _unauthorized()
     key_row, location, customer = resolved
 
     if not location.pharmapi_username or not location.pharmapi_password:

@@ -188,7 +188,11 @@ async def create_patient_condition(
         session,
         location_id=ctx.location_id,
         amka=amka,
-        condition_code=body.condition_code,
+        # Normalise to upper-case so it matches the safety rules' trigger codes
+        # (e.g. "PREGNANCY", "G6PD") — a lower-case code would store fine but
+        # never fire a contraindication. B2C's shared schema stays untouched;
+        # we normalise here at the /v1 boundary only.
+        condition_code=body.condition_code.upper(),
         name=body.name,
         severity=body.severity,
         notes=body.notes,
@@ -211,6 +215,8 @@ async def update_patient_condition(
     fields = body.model_dump(exclude_unset=True)
     if not fields:
         return condition
+    if "condition_code" in fields:
+        fields["condition_code"] = fields["condition_code"].upper()  # match rule trigger codes
     return await b2b_conditions.update_condition(session, condition, fields=fields)
 
 
