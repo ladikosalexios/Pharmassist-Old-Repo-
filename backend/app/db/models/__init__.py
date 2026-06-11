@@ -2,6 +2,7 @@ from .adr_event import AdrEvent
 from .adr_report import AdrReport
 from .api_key import ApiKey
 from .audit_log import AuditLog
+from .b2b_admin_audit import B2bAdminAudit
 from .b2b_patient_condition import B2bPatientCondition
 from .catalog_sync_run import CatalogSyncRun
 from .customer import Customer
@@ -35,5 +36,6 @@ __all__ = [
     "Location",
     "ApiKey",
     "B2bPatientCondition",
+    "B2bAdminAudit",
     "CatalogSyncRun",
 ]

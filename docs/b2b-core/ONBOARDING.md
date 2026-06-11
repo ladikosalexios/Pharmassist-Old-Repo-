@@ -70,6 +70,10 @@ python -m scripts.b2b_admin mint-key --location-id <location-uuid> --label "chai
 - `mint-key` defaults its env to the **stack's mode**, not `ENV` (FT-13,
   `b2b_admin.py:41-48`): a mock stack mints `pa_test_`, a live stack mints
   `pa_live_`. It warns if you force the other env. The raw key is shown **once**.
+- Every command above is **audited** — one append-only `b2b_admin_audit` row per
+  mutation, committed atomically with the change (never a raw key or credential).
+  Add `--actor "name"` on a shared box; review with
+  `b2b_admin list-audit`. See [KEY-MANAGEMENT.md](KEY-MANAGEMENT.md).
 
 ## 4. Verify
 

@@ -387,6 +387,25 @@ in T2-11).
 
 ---
 
+**T2-13 · b2b_admin operator audit trail** — *build* · **days (1)** — origin: PR #142 review (finding #2)
+
+- Surfaced reviewing T2-1: `set-tier` moves billing entitlement (the €32-vs-€15
+  delta) with only a stdout `print()` — no durable record of who changed what. Generalised
+  to **all** privileged `b2b_admin` mutations (`create-customer`, `set-tier`,
+  `create-location`, `mint-key`, `rotate-key`, `revoke-key`), since singling out one is
+  inconsistent.
+- New append-only `b2b_admin_audit` table (D-3-style separate B2B table, **not** the B2C
+  `audit_log` whose `pharmacist_id`/`pharmacy_id` FKs and request-shaped columns don't
+  fit a CLI; FK-free `target_id` so a row survives its target's deletion). Written **in the
+  same transaction** as the mutation (fail-closed: no change without its audit row — unlike
+  the B2C fire-and-forget path, which can't work in a CLI that exits immediately anyway).
+- `--actor` flag (default OS user) + a `list-audit` read command. **No secrets** in
+  `details` (never the raw key or the ΗΔΥΚΑ username/password) — guard-tested.
+- AC: every command appends one row with before→after; PII/secret-leak test; DB-less unit
+  test for the helper. Ships stacked on the T2-1 branch (needs `set-tier`).
+
+---
+
 ## 3. Decisions — needs Alex / the business
 
 > Numbering continues FINISH-TIER1 (D-8…D-13). Each entry keeps the audit's context and
