@@ -136,7 +136,7 @@ def test_scrub_flags_numeric_ehic_token():
         assert_no_pii("patient 80756015000123456789 reports a rash")
 
 
-def test_scrub_ignores_non_amka_digit_runs():
+def test_scrub_numeric_ehic_boundary():
     # A 13-digit numeric run matches _NUMERIC_EHIC_RE (12-20 digits).
     with pytest.raises(PiiBoundaryError):
         assert_no_pii("barcode 2801234567890")

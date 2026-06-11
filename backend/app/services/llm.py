@@ -96,6 +96,8 @@ _EKAA_RE = re.compile(
 )
 
 # Standalone 12–20 digit run (non-Greek EHIC numeric identifiers, e.g., Swiss)
+# NOTE: This range includes standard 13-digit EAN medicine barcodes. Prompt
+# builders must not embed barcodes in free-text fields.
 _NUMERIC_EHIC_RE = re.compile(r"(?<!\d)\d{12,20}(?!\d)")
 
 
@@ -107,7 +109,7 @@ def assert_no_pii(text: str) -> None:
     prompt string before it can be sent or hashed."""
     if _AMKA_RE.search(text) or _EKAA_RE.search(text) or _NUMERIC_EHIC_RE.search(text):
         raise PiiBoundaryError(
-            "Refusing to dispatch a prompt containing a PII-shaped (AMKA/EKAA) "
+            "Refusing to dispatch a prompt containing a PII-shaped (AMKA/EKAA/numeric-EHIC) "
             "token — patient identity must never cross the LLM boundary (T2-2)."
         )
 
@@ -277,6 +279,7 @@ async def complete(
     fields: ClinicalPromptInput,
     *,
     cache_session: AsyncSession | None = None,
+    commit: bool = True,
 ) -> LlmResult:
     """Build → scrub → (cache lookup) → generate (mock or live) → (cache store).
 
@@ -285,10 +288,17 @@ async def complete(
     double-miss is healed via the UNIQUE constraint). Without a session the call
     is uncached (used by the determinism tests).
 
+    ``commit`` controls whether the cache row is committed automatically. By
+    default (``commit=True``) the behaviour matches the historic implementation.
+    Setting ``commit=False`` defers the commit to the caller, allowing other
+    pending writes on the same session to be committed together or rolled back.
+
     WARNING: storing a miss commits the WHOLE session — anything else staged on
     it lands with the cache row. Pass a dedicated session, or one carrying no
     other pending writes (today's AI endpoints are read-only besides this, which
-    is what makes the convenience safe — keep it that way).
+    is what makes the convenience safe — keep it that way). Set ``commit=False`` to
+    defer the commit; the caller must commit the session manually after any
+    additional work.
 
     The active model identity ("mock" or the configured model id) is part of the
     cache key, so a model swap or a mock↔live flip auto-invalidates: a hit is
@@ -321,7 +331,8 @@ async def complete(
             cache_session, key=key, prompt_kind=built.kind, payload=payload, model=active_model
         )
         try:
-            await cache_session.commit()
+            if commit:
+                await cache_session.commit()
         except IntegrityError:
             # Concurrent double-miss: another request inserted this key first.
             # Roll back and serve the winner's row so both callers agree. If the
