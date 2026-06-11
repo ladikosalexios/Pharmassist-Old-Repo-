@@ -3,7 +3,11 @@ import { BrowserMultiFormatReader, type IScannerControls } from "@zxing/browser"
 import { BarcodeFormat, DecodeHintType } from "@zxing/library";
 import { useTranslation } from "react-i18next";
 import { BarcodeIcon, AlertTriangleIcon } from "./Icons";
-import { HmvsSecureInput, type HmvsBlockReason, type HmvsSecureInputHandle } from "./HmvsSecureInput";
+import {
+  HmvsSecureInput,
+  type HmvsBlockReason,
+  type HmvsSecureInputHandle,
+} from "./HmvsSecureInput";
 
 /**
  * DataMatrix scanner for HMVS pack codes.

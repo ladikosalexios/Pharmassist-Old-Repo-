@@ -2,7 +2,11 @@ import { useState, type RefObject } from "react";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import i18n from "../lib/i18n";
-import { HmvsSecureInput, type HmvsBlockReason, type HmvsSecureInputHandle } from "./HmvsSecureInput";
+import {
+  HmvsSecureInput,
+  type HmvsBlockReason,
+  type HmvsSecureInputHandle,
+} from "./HmvsSecureInput";
 
 const CAPS_WARNING = "Απενεργοποιήστε το Caps Lock πριν συνεχίσετε";
 const LAYOUT_WARNING = "Αλλάξτε τη γλώσσα πληκτρολογίου σε αγγλικά πριν συνεχίσετε";
@@ -183,14 +187,14 @@ describe("HmvsSecureInput", () => {
 
       // Clear the field.
       fireEvent.change(input, { target: { value: "" } });
-      
+
       // New rapid burst.
       fireEvent.change(input, { target: { value: "3" } });
       fireEvent.keyDown(input, { key: "3" });
       now += 10;
       fireEvent.change(input, { target: { value: "34" } });
       fireEvent.keyDown(input, { key: "4" });
-      
+
       expect(handleRef.current?.isBurst()).toBe(true);
     });
 
