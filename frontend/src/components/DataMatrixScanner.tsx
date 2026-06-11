@@ -3,7 +3,11 @@ import { BrowserMultiFormatReader, type IScannerControls } from "@zxing/browser"
 import { BarcodeFormat, DecodeHintType } from "@zxing/library";
 import { useTranslation } from "react-i18next";
 import { BarcodeIcon, AlertTriangleIcon } from "./Icons";
-import { HmvsSecureInput, type HmvsBlockReason } from "./HmvsSecureInput";
+import {
+  HmvsSecureInput,
+  type HmvsBlockReason,
+  type HmvsSecureInputHandle,
+} from "./HmvsSecureInput";
 
 /**
  * DataMatrix scanner for HMVS pack codes.
@@ -34,6 +38,7 @@ export function DataMatrixScanner({ onScan, disabled, onBlockChange }: DataMatri
   const { t } = useTranslation();
   const videoRef = useRef<HTMLVideoElement>(null);
   const controlsRef = useRef<IScannerControls | null>(null);
+  const secureInputRef = useRef<HmvsSecureInputHandle>(null);
   const onScanRef = useRef(onScan);
   useEffect(() => {
     onScanRef.current = onScan;
@@ -95,12 +100,18 @@ export function DataMatrixScanner({ onScan, disabled, onBlockChange }: DataMatri
     };
   }, [mode, disabled, t, stopCamera]);
 
-  function submitManual() {
+  function submitManual(e?: React.KeyboardEvent) {
     const v = manualValue.trim();
-    if (!v || blockReason !== null) return;
-    // Typed / handheld-scanner input via the field — we can't prove a 2D scan,
-    // so report "manual" rather than over-claiming a scan.
-    onScan(v, "manual");
+    if (!v) return;
+
+    // Synchronous re-validation to prevent React batching races (e.g. Greek scan
+    // followed immediately by Enter before state updates).
+    if (!secureInputRef.current?.isClean(e)) return;
+
+    // Detect fast wedge-scanner bursts vs slow human typing.
+    const entryMode: ScanEntryMode = secureInputRef.current?.isBurst() ? "non-manual" : "manual";
+
+    onScanRef.current(v, entryMode);
     setManualValue("");
   }
 
@@ -109,6 +120,7 @@ export function DataMatrixScanner({ onScan, disabled, onBlockChange }: DataMatri
       {mode === "input" ? (
         <>
           <HmvsSecureInput
+            ref={secureInputRef}
             value={manualValue}
             onChange={setManualValue}
             onBlock={setBlockReason}
@@ -119,7 +131,7 @@ export function DataMatrixScanner({ onScan, disabled, onBlockChange }: DataMatri
             onKeyDown={(e) => {
               if (e.key === "Enter") {
                 e.preventDefault();
-                submitManual();
+                submitManual(e);
               }
             }}
           />
@@ -134,7 +146,7 @@ export function DataMatrixScanner({ onScan, disabled, onBlockChange }: DataMatri
             </button>
             <button
               type="button"
-              onClick={submitManual}
+              onClick={() => submitManual()}
               disabled={!manualValue.trim() || blockReason !== null || disabled}
               className="rounded-lg bg-brand-600 px-3 py-1.5 text-[12.5px] font-semibold text-white hover:bg-brand-700 disabled:bg-brand-600/60"
             >
