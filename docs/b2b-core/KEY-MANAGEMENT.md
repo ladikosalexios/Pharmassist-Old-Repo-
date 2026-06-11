@@ -146,12 +146,16 @@ before→after `details` payload (e.g. `set-tier` stores `{"tier":{"from":"core"
 credential.
 
 - **Actor** defaults to the OS user running the CLI; pass `--actor "name"` to
-  attribute a shared-account session to a person.
+  attribute a shared-account session to a person. It is **self-declared and
+  unvalidated** — the trail is an *integrity* record (no mutation lands without a
+  row) but the actor field is not proof of identity; don't rely on it alone for
+  accountability where the OS account is shared.
 - **Read it back** with `list-audit` (most recent first):
 
   ```bash
   python -m scripts.b2b_admin list-audit --limit 20
   python -m scripts.b2b_admin list-audit --target-id <customer|location|key uuid>
+  python -m scripts.b2b_admin list-audit --action SET_TIER   # trace one verb
   ```
 
   `target_id` is plain text (no FK), so a row survives its target's deletion —

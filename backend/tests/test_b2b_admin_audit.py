@@ -104,6 +104,8 @@ async def _drive_lifecycle():
         cid = (await db.scalars(select(Customer).where(Customer.name == CUST))).one().id
 
     await set_tier(_ns(actor=ACTOR, customer_id=cid, tier="core"))
+    # No-op: re-asserting the current tier must NOT write a second SET_TIER row.
+    await set_tier(_ns(actor=ACTOR, customer_id=cid, tier="core"))
 
     await create_location(
         _ns(
@@ -184,6 +186,8 @@ def test_actor_and_targets_recorded(lifecycle):
     assert by_action["CREATE_LOCATION"]["details"]["customerId"] == cid
     assert by_action["MINT_KEY"]["target_id"] == kid
     assert by_action["REVOKE_KEY"]["target_id"] == kid
+    # The rotation links back to the original key it replaced.
+    assert by_action["ROTATE_KEY"]["details"]["rotatedFrom"] == kid
 
 
 def test_tier_change_records_before_and_after(lifecycle):
@@ -191,6 +195,13 @@ def test_tier_change_records_before_and_after(lifecycle):
     by_action = {r["action"]: r for r in rows}
     assert by_action["CREATE_CUSTOMER"]["details"]["tier"] == "clinical"
     assert by_action["SET_TIER"]["details"]["tier"] == {"from": "clinical", "to": "core"}
+
+
+def test_noop_tier_change_writes_no_extra_row(lifecycle):
+    # The driver issues a second set-tier to the SAME tier; the guard makes it a
+    # no-op, so there is exactly ONE SET_TIER row, not two.
+    rows, _cid, _lid, _kid = lifecycle
+    assert sum(1 for r in rows if r["action"] == "SET_TIER") == 1
 
 
 def test_no_audit_row_leaks_a_secret(lifecycle):

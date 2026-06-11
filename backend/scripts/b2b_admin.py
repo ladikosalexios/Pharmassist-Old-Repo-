@@ -90,6 +90,12 @@ async def set_tier(args: argparse.Namespace) -> None:
         if customer is None:
             sys.exit(f"[b2b-admin] customer {args.customer_id} not found")
         old = customer.tier
+        if old == args.tier:
+            # Idempotent no-op: don't write a phantom {"from": x, "to": x} audit
+            # row or print a misleading "tier x -> x" line. Exit 0 so a script
+            # that re-asserts a tier isn't treated as a failure.
+            print(f"[b2b-admin] customer {customer.id} already on tier {old!r} — no change")
+            return
         customer.tier = args.tier
         audit.add_admin_audit(
             db,
@@ -296,11 +302,16 @@ async def list_tenants(_args: argparse.Namespace) -> None:
 
 async def list_audit(args: argparse.Namespace) -> None:
     """Print the operator audit trail, most recent first. --target-id narrows to
-    one customer/location/key; --limit bounds the rows."""
+    one customer/location/key; --action narrows to one verb (e.g. SET_TIER);
+    --limit bounds the rows."""
     async with AsyncSessionLocal() as db:
-        stmt = select(B2bAdminAudit).order_by(B2bAdminAudit.occurred_at.desc()).limit(args.limit)
+        # Filters first, then order+limit — reads in the order SQL applies them.
+        stmt = select(B2bAdminAudit)
         if args.target_id is not None:
             stmt = stmt.where(B2bAdminAudit.target_id == str(args.target_id))
+        if args.action is not None:
+            stmt = stmt.where(B2bAdminAudit.action == args.action)
+        stmt = stmt.order_by(B2bAdminAudit.occurred_at.desc()).limit(args.limit)
         rows = (await db.scalars(stmt)).all()
         if not rows:
             print("[b2b-admin] no audit entries")
@@ -318,11 +329,14 @@ def _build_parser() -> argparse.ArgumentParser:
     sub = parser.add_subparsers(dest="command", required=True)
 
     # Shared by every state-changing command: who is recorded in the audit trail.
+    # NOTE: --actor is SELF-DECLARED and unvalidated — the trail is an integrity
+    # record (no mutation without a row), not proof of identity.
     actor_parent = argparse.ArgumentParser(add_help=False)
     actor_parent.add_argument(
         "--actor",
         default=None,
-        help="Operator identity recorded in the audit trail (default: OS user)",
+        help="Operator identity for the audit trail (default: OS user). "
+        "Self-declared — records who claims to act, not a verified identity.",
     )
 
     p = sub.add_parser(
@@ -397,6 +411,9 @@ def _build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("list-audit", help="Show the operator audit trail (most recent first)")
     p.add_argument(
         "--target-id", default=None, type=uuid.UUID, help="Filter to one customer/location/key id"
+    )
+    p.add_argument(
+        "--action", default=None, choices=audit.ALL_ACTIONS, help="Filter to one action verb"
     )
     p.add_argument("--limit", default=20, type=int, help="Max rows to show (default 20)")
     p.set_defaults(func=list_audit)

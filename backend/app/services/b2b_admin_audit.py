@@ -18,6 +18,7 @@ Two intentional design choices:
 """
 
 import getpass
+import uuid
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -31,6 +32,16 @@ ACTION_CREATE_LOCATION = "CREATE_LOCATION"
 ACTION_MINT_KEY = "MINT_KEY"
 ACTION_ROTATE_KEY = "ROTATE_KEY"
 ACTION_REVOKE_KEY = "REVOKE_KEY"
+
+# Every action, for the `list-audit --action` filter's choices.
+ALL_ACTIONS = (
+    ACTION_CREATE_CUSTOMER,
+    ACTION_SET_TIER,
+    ACTION_CREATE_LOCATION,
+    ACTION_MINT_KEY,
+    ACTION_ROTATE_KEY,
+    ACTION_REVOKE_KEY,
+)
 
 # Target types.
 TARGET_CUSTOMER = "CUSTOMER"
@@ -56,7 +67,7 @@ def add_admin_audit(
     actor: str,
     action: str,
     target_type: str | None = None,
-    target_id: str | object | None = None,
+    target_id: str | uuid.UUID | None = None,
     details: dict | None = None,
 ) -> B2bAdminAudit:
     """Stage one audit row on the caller's session — the caller commits it in the

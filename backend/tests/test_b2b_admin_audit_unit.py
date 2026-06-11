@@ -46,6 +46,12 @@ def test_resolve_actor_defaults_to_os_user():
     assert isinstance(actor, str) and actor  # the OS user, never empty
 
 
+def test_resolve_actor_empty_string_falls_back_to_os_user():
+    # An empty --actor is falsy and must not be stored verbatim — it falls
+    # through to the OS user, same as None.
+    assert resolve_actor("") == resolve_actor(None)
+
+
 def test_add_admin_audit_stages_a_correct_row():
     s = _FakeSession()
     cid = uuid.uuid4()

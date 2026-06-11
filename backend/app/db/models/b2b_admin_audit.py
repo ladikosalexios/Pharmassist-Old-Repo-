@@ -32,6 +32,10 @@ class B2bAdminAudit(Base, TimestampMixin):
     target_type: Mapped[str | None] = mapped_column(String)  # CUSTOMER | LOCATION | API_KEY
     target_id: Mapped[str | None] = mapped_column(String)  # uuid as text — no FK by design
     details: Mapped[dict | None] = mapped_column(JSONB)  # non-secret before→after + context
+    # The semantic "when the action happened" timestamp, and what list_audit
+    # orders by. Distinct from TimestampMixin.created_at (row-insert provenance):
+    # they're set within the same insert here, but occurred_at is the audited
+    # fact and is queried/ordered as such, mirroring audit_log.occurred_at.
     occurred_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=text("now()")
     )
