@@ -73,8 +73,9 @@ def _live_llm_env():
             if v is None:
                 os.environ.pop(k, None)
             else:
-                os.environ[k] = v
-        get_settings.cache_clear()
+                os.environ["LLM_MOCK"] = saved
+            get_settings.cache_clear()
+
 
 
 def _install_fake_post(monkeypatch, *, side_effect=None, return_value=None):
@@ -241,7 +242,7 @@ def test_missing_config_on_live_path_raises(monkeypatch):
         if saved is None:
             os.environ.pop("LLM_MOCK", None)
         else:
-            os.environ[k] = saved
+            os.environ["LLM_MOCK"] = saved
         get_settings.cache_clear()
 
 
