@@ -70,3 +70,38 @@ def is_mock_hmvs() -> bool:
     fetches an OAuth2 token or touches the network (local dev, CI, tests).
     """
     return os.getenv("HMVS_MOCK", "true").lower() not in ("false", "0", "no")
+
+
+def validate_llm_mock_token() -> None:
+    """Fail-fast on a malformed LLM_MOCK token (T2-2, FT-15 pattern).
+
+    Called at boot from app.config.get_settings(), alongside
+    validate_pharmapi_mock_token(). is_mock_llm() below only tests membership of
+    the FALSEY set, so any unrecognized value (a typo like ``LLM_MOCK=flase``)
+    would fall through to mock=true and silently serve canned AI outputs on a
+    box that is supposed to call Mistral — a paying Tier-2 customer would get
+    static text instead of a real explanation. Validating the token here breaks
+    the boot instead. Unset is legal (the helper applies its own mock default).
+    """
+    raw = os.getenv("LLM_MOCK")
+    if raw is None:
+        return  # unset is legal — is_mock_llm() defaults to mock
+    if raw.strip().lower() not in RECOGNIZED_MOCK_TOKENS:
+        raise RuntimeError(
+            f"LLM_MOCK={raw!r} is not a recognized boolean token. "
+            "Use one of true/false/1/0/yes/no (case-insensitive), or leave it "
+            "unset. A typo like 'flase' would otherwise silently serve canned "
+            "AI mock outputs on a box meant to call the live LLM."
+        )
+
+
+def is_mock_llm() -> bool:
+    """Whether the T2-2 LLM seam serves deterministic canned outputs instead of
+    calling the live provider. Re-read per call so it can be toggled via env
+    without a restart (same shape as is_mock_pharmapi).
+
+    Defaults to mock (true): a Tier-1-only deployment never carries LLM config,
+    every test + the FT-13 sandbox story runs with zero upstream calls, and the
+    trial slice runs end-to-end on LLM_MOCK. A live Tier-2 box sets
+    LLM_MOCK=false explicitly (the boot-validated token above guards typos)."""
+    return os.getenv("LLM_MOCK", "true").lower() not in _FALSEY_MOCK_TOKENS

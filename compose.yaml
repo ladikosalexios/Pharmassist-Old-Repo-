@@ -27,6 +27,10 @@ services:
       # token fetch. The client secret is NEVER inlined here (unlike PHARMAPI_*);
       # live ITE runs set HMVS_MOCK=false + HMVS_CLIENT_ID/SECRET via env/SSM.
       HMVS_MOCK: "true"
+      # LLM seam (T2-2) stays mocked in dev — deterministic canned AI outputs,
+      # no Mistral key needed. A live Tier-2 box sets LLM_MOCK=false + LLM_API_KEY
+      # (the standard-plan key, via env/SSM) once Rekas accepts the DPA (D-15).
+      LLM_MOCK: "true"
       # Tells the production guard in main.py not to fire when COOKIE_SECURE=false.
       # Production deployments must NOT set this (missing ENV defaults to "production").
       ENV: development
