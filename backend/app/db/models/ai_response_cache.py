@@ -35,8 +35,10 @@ class AiResponseCache(Base, TimestampMixin):
     # per feature (e.g. drop all safety-explanation entries) without parsing keys.
     prompt_kind: Mapped[str] = mapped_column(String, nullable=False)
     # The provider+model that generated `payload` (e.g. "mistral-large-latest" or
-    # "mock"). Carried so a model swap is a cache-invalidation lever, not a silent
-    # stale-output bug.
+    # "mock"). The model is ALSO baked into cache_key (services/ai_cache.cache_key),
+    # so a model swap or mock↔live flip auto-invalidates — this column exists for
+    # retention/cleanup (delete orphaned-model rows, T2-12) and provenance, and by
+    # construction always matches its row's key.
     model: Mapped[str | None] = mapped_column(String)
     # The structured AI output, exactly as the consuming endpoint will return it.
     payload: Mapped[dict] = mapped_column(JSONB, nullable=False)

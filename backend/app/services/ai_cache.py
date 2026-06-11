@@ -20,16 +20,24 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.models.ai_response_cache import AiResponseCache
 
 
-def cache_key(prompt_kind: str, key_input: dict) -> str:
-    """Deterministic sha256 over (prompt_kind, canonical-JSON of key_input).
+def cache_key(prompt_kind: str, key_input: dict, *, model: str) -> str:
+    """Deterministic sha256 over (prompt_kind, canonical-JSON of key_input, model).
 
     ``sort_keys`` + compact separators make the hash invariant to dict ordering
     and whitespace, so the same logical request always lands the same key (the
     whole point of the cache). ``ensure_ascii=False`` keeps Greek text stable
     across Python versions rather than escaping it inconsistently.
+
+    ``model`` is the generating identity ("mock", or the configured model id) and
+    is part of the key on purpose: a model swap auto-invalidates every old entry
+    (no stale outputs served under a new model), and a mock-mode row can never be
+    served to a live request — a sandbox-warmed cache flipping to live must not
+    hand "[MOCK]" text to a customer. By construction the row's ``model`` column
+    always matches its key's model; the column exists for retention/cleanup and
+    provenance, not as the lookup discriminator.
     """
     canonical = json.dumps(
-        {"kind": prompt_kind, "input": key_input},
+        {"kind": prompt_kind, "input": key_input, "model": model},
         sort_keys=True,
         separators=(",", ":"),
         ensure_ascii=False,

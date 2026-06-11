@@ -34,8 +34,9 @@ from app.services import ai_cache  # noqa: E402
 from app.services.llm import KIND_CLINICAL_SUMMARY, ClinicalPromptInput, complete  # noqa: E402
 
 # Distinctive input so this test's cache key never collides with real rows.
+# model="mock" matches the identity complete() resolves under LLM_MOCK=true above.
 _FIELDS = ClinicalPromptInput(atc_codes=["ZZZTEST01"], condition_codes=["PYTEST_COND"])
-_KEY = ai_cache.cache_key(KIND_CLINICAL_SUMMARY, _FIELDS.cache_input())
+_KEY = ai_cache.cache_key(KIND_CLINICAL_SUMMARY, _FIELDS.cache_input(), model="mock")
 
 
 async def _cleanup():

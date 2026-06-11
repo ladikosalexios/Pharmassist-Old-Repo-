@@ -7,8 +7,11 @@ scans every module under app/ and asserts that the only importers of
 ``services/llm.py`` / ``services/ai_cache.py`` are the seam itself and the small,
 documented allowlist below.
 
-A safety net, not a parser: it greps source text for the seam's import shapes.
-When an AI feature lands (T2-5/6/7/9/10) its endpoint module adds itself to
+A safety net, not a parser: it greps source text for the seam's import shapes,
+so a marker inside a comment or string trips it too. Deliberate — a false
+positive fails toward a human look (add the file to the allowlist or reword the
+comment), which is the safe direction for an architectural guard. When an AI
+feature lands (T2-5/6/7/9/10) its endpoint module adds itself to
 ``ALLOWED_IMPORTERS`` — that edit is the visible record that a new caller of the
 seam was reviewed.
 """

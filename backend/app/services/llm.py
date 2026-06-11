@@ -269,41 +269,57 @@ async def complete(
     ``cache_session`` opts the call into the DB cache: a hit short-circuits before
     any upstream call, a miss is generated, stored and committed (a concurrent
     double-miss is healed via the UNIQUE constraint). Without a session the call
-    is uncached (used by the determinism tests). Cache invalidation is by row —
-    delete entries by ``prompt_kind`` or by ``model`` (a model swap is the lever);
-    there is deliberately no in-place refresh. Raises :class:`PiiBoundaryError`
-    (refused) or :class:`AiUnavailableError` (upstream down)."""
+    is uncached (used by the determinism tests).
+
+    WARNING: storing a miss commits the WHOLE session — anything else staged on
+    it lands with the cache row. Pass a dedicated session, or one carrying no
+    other pending writes (today's AI endpoints are read-only besides this, which
+    is what makes the convenience safe — keep it that way).
+
+    The active model identity ("mock" or the configured model id) is part of the
+    cache key, so a model swap or a mock↔live flip auto-invalidates: a hit is
+    always an output of the identity that would generate on a miss. Orphaned
+    rows from old models are retention's job (T2-12); there is deliberately no
+    in-place refresh. Raises :class:`PiiBoundaryError` (refused) or
+    :class:`AiUnavailableError` (upstream down)."""
     built = build_prompt(kind, fields)
+
+    # Resolved once so the key, the generate branch, and the stored row all agree
+    # on one identity even if the env flag flips mid-call. The mock path stays
+    # config-free: get_settings() is only consulted when live.
+    mock = is_mock_llm()
+    active_model = "mock" if mock else get_settings().llm_model
 
     key = None
     if cache_session is not None:
-        key = ai_cache.cache_key(built.kind, built.cache_input)
+        key = ai_cache.cache_key(built.kind, built.cache_input, model=active_model)
         hit = await ai_cache.get_cached(cache_session, key)
         if hit is not None:
             return LlmResult(payload=hit.payload, cached=True, model=hit.model)
 
-    if is_mock_llm():
+    if mock:
         payload = _MOCKS[built.kind](fields)
-        model = "mock"
     else:
         payload = await _chat(built.messages)
-        model = get_settings().llm_model
 
     if cache_session is not None and key is not None:
         ai_cache.stage_cached(
-            cache_session, key=key, prompt_kind=built.kind, payload=payload, model=model
+            cache_session, key=key, prompt_kind=built.kind, payload=payload, model=active_model
         )
         try:
             await cache_session.commit()
         except IntegrityError:
             # Concurrent double-miss: another request inserted this key first.
-            # Roll back and serve the winner's row so both callers agree.
+            # Roll back and serve the winner's row so both callers agree. If the
+            # winner vanished between its insert and our re-read (a retention
+            # delete racing us), fall through and return the freshly-generated
+            # payload uncached — correctness over cache bookkeeping.
             await cache_session.rollback()
             winner = await ai_cache.get_cached(cache_session, key)
             if winner is not None:
                 return LlmResult(payload=winner.payload, cached=True, model=winner.model)
 
-    return LlmResult(payload=payload, cached=False, model=model)
+    return LlmResult(payload=payload, cached=False, model=active_model)
 
 
 # ── Embeddings (thin — T2-9 wires pgvector + the SPC corpus over this) ──────────

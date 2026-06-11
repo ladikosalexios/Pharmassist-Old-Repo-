@@ -32,25 +32,32 @@ class _FakeSession:
 
 
 def test_cache_key_is_deterministic():
-    a = ai_cache.cache_key("clinical_summary", {"atc_codes": ["B01AA03"]})
-    b = ai_cache.cache_key("clinical_summary", {"atc_codes": ["B01AA03"]})
+    a = ai_cache.cache_key("clinical_summary", {"atc_codes": ["B01AA03"]}, model="mock")
+    b = ai_cache.cache_key("clinical_summary", {"atc_codes": ["B01AA03"]}, model="mock")
     assert a == b
 
 
 def test_cache_key_invariant_to_dict_order():
-    a = ai_cache.cache_key("k", {"atc_codes": ["X"], "condition_codes": ["Y"]})
-    b = ai_cache.cache_key("k", {"condition_codes": ["Y"], "atc_codes": ["X"]})
+    a = ai_cache.cache_key("k", {"atc_codes": ["X"], "condition_codes": ["Y"]}, model="mock")
+    b = ai_cache.cache_key("k", {"condition_codes": ["Y"], "atc_codes": ["X"]}, model="mock")
     assert a == b
 
 
 def test_cache_key_changes_with_kind_and_input():
-    base = ai_cache.cache_key("k", {"atc_codes": ["B01AA03"]})
-    assert ai_cache.cache_key("other", {"atc_codes": ["B01AA03"]}) != base
-    assert ai_cache.cache_key("k", {"atc_codes": ["J01CA04"]}) != base
+    base = ai_cache.cache_key("k", {"atc_codes": ["B01AA03"]}, model="mock")
+    assert ai_cache.cache_key("other", {"atc_codes": ["B01AA03"]}, model="mock") != base
+    assert ai_cache.cache_key("k", {"atc_codes": ["J01CA04"]}, model="mock") != base
+
+
+def test_cache_key_changes_with_model():
+    # The model is part of the identity: a model swap auto-invalidates, and a
+    # mock-mode row can never be served to a live request (or vice versa).
+    base = ai_cache.cache_key("k", {"atc_codes": ["B01AA03"]}, model="mock")
+    assert ai_cache.cache_key("k", {"atc_codes": ["B01AA03"]}, model="mistral-large-latest") != base
 
 
 def test_cache_key_is_sha256_hex():
-    key = ai_cache.cache_key("k", {"a": 1})
+    key = ai_cache.cache_key("k", {"a": 1}, model="mock")
     assert len(key) == 64 and all(c in "0123456789abcdef" for c in key)
 
 
