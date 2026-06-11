@@ -44,14 +44,14 @@ describe("DataMatrixScanner", () => {
     vi.spyOn(performance, "now").mockImplementation(() => now);
 
     // Fast burst: "123" + Enter, each 10ms apart (< 30ms).
-    fireEvent.change(input, { target: { value: "1" } });
     fireEvent.keyDown(input, { key: "1" });
+    fireEvent.change(input, { target: { value: "1" } });
     now += 10;
-    fireEvent.change(input, { target: { value: "12" } });
     fireEvent.keyDown(input, { key: "2" });
+    fireEvent.change(input, { target: { value: "12" } });
     now += 10;
-    fireEvent.change(input, { target: { value: "123" } });
     fireEvent.keyDown(input, { key: "3" });
+    fireEvent.change(input, { target: { value: "123" } });
     now += 10;
     fireEvent.keyDown(input, { key: "Enter" });
 
@@ -67,18 +67,52 @@ describe("DataMatrixScanner", () => {
     vi.spyOn(performance, "now").mockImplementation(() => now);
 
     // Slow typing: "123" + Enter, each 100ms apart (> 30ms).
-    fireEvent.change(input, { target: { value: "1" } });
     fireEvent.keyDown(input, { key: "1" });
+    fireEvent.change(input, { target: { value: "1" } });
     now += 100;
-    fireEvent.change(input, { target: { value: "12" } });
     fireEvent.keyDown(input, { key: "2" });
+    fireEvent.change(input, { target: { value: "12" } });
     now += 100;
-    fireEvent.change(input, { target: { value: "123" } });
     fireEvent.keyDown(input, { key: "3" });
+    fireEvent.change(input, { target: { value: "123" } });
     now += 100;
     fireEvent.keyDown(input, { key: "Enter" });
 
     expect(onScan).toHaveBeenCalledWith("123", "manual");
+  });
+
+  it("classifies Add Pack button click as manual when typed slowly", async () => {
+    const onScan = vi.fn();
+    render(<Harness onScan={onScan} />);
+    const input = screen.getByPlaceholderText("]d20105700123456789...");
+
+    let now = 1000;
+    vi.spyOn(performance, "now").mockImplementation(() => now);
+
+    fireEvent.keyDown(input, { key: "1" });
+    fireEvent.change(input, { target: { value: "1" } });
+    now += 100;
+    fireEvent.keyDown(input, { key: "2" });
+    fireEvent.change(input, { target: { value: "12" } });
+
+    fireEvent.click(screen.getByText("Προσθήκη συσκευασίας"));
+
+    expect(onScan).toHaveBeenCalledWith("12", "manual");
+  });
+
+  it("disables the Add Pack button when the input is blocked", async () => {
+    const onScan = vi.fn();
+    render(<Harness onScan={onScan} />);
+    const input = screen.getByPlaceholderText("]d20105700123456789...");
+
+    // Enter Greek text to trigger block.
+    fireEvent.change(input, { target: { value: "Παρα" } });
+
+    const button = screen.getByText("Προσθήκη συσκευασίας") as HTMLButtonElement;
+    expect(button.disabled).toBe(true);
+
+    fireEvent.click(button);
+    expect(onScan).not.toHaveBeenCalled();
   });
 
   it("blocks submission if Caps Lock is detected at the moment of Enter", async () => {

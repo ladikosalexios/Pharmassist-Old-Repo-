@@ -132,45 +132,46 @@ describe("HmvsSecureInput", () => {
   });
 
   describe("Handle API (Burst & Synchronous Validation)", () => {
+    const getHandleRef = () => {
+      return { current: null } as unknown as React.RefObject<HmvsSecureInputHandle>;
+    };
+
     it("reports isBurst=true for rapid keystrokes", () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const handleRef = { current: null } as any;
+      const handleRef = getHandleRef();
       render(<Harness handleRef={handleRef} />);
       const input = screen.getByLabelText(LABEL);
 
       let now = 1000;
       vi.spyOn(performance, "now").mockImplementation(() => now);
 
-      fireEvent.change(input, { target: { value: "1" } });
       fireEvent.keyDown(input, { key: "1" });
+      fireEvent.change(input, { target: { value: "1" } });
       now += 10;
-      fireEvent.change(input, { target: { value: "12" } });
       fireEvent.keyDown(input, { key: "2" });
+      fireEvent.change(input, { target: { value: "12" } });
 
       expect(handleRef.current?.isBurst()).toBe(true);
     });
 
     it("reports isBurst=false if inter-key timing exceeds 30ms", () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const handleRef = { current: null } as any;
+      const handleRef = getHandleRef();
       render(<Harness handleRef={handleRef} />);
       const input = screen.getByLabelText(LABEL);
 
       let now = 1000;
       vi.spyOn(performance, "now").mockImplementation(() => now);
 
-      fireEvent.change(input, { target: { value: "1" } });
       fireEvent.keyDown(input, { key: "1" });
+      fireEvent.change(input, { target: { value: "1" } });
       now += 100; // slow
-      fireEvent.change(input, { target: { value: "12" } });
       fireEvent.keyDown(input, { key: "2" });
+      fireEvent.change(input, { target: { value: "12" } });
 
       expect(handleRef.current?.isBurst()).toBe(false);
     });
 
     it("resets isBurst state when the field is cleared", () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const handleRef = { current: null } as any;
+      const handleRef = getHandleRef();
       render(<Harness handleRef={handleRef} />);
       const input = screen.getByLabelText(LABEL) as HTMLInputElement;
 
@@ -178,29 +179,28 @@ describe("HmvsSecureInput", () => {
       vi.spyOn(performance, "now").mockImplementation(() => now);
 
       // Make it manual first.
-      fireEvent.change(input, { target: { value: "1" } });
       fireEvent.keyDown(input, { key: "1" });
+      fireEvent.change(input, { target: { value: "1" } });
       now += 100;
-      fireEvent.change(input, { target: { value: "12" } });
       fireEvent.keyDown(input, { key: "2" });
+      fireEvent.change(input, { target: { value: "12" } });
       expect(handleRef.current?.isBurst()).toBe(false);
 
       // Clear the field.
       fireEvent.change(input, { target: { value: "" } });
 
       // New rapid burst.
-      fireEvent.change(input, { target: { value: "3" } });
       fireEvent.keyDown(input, { key: "3" });
+      fireEvent.change(input, { target: { value: "3" } });
       now += 10;
-      fireEvent.change(input, { target: { value: "34" } });
       fireEvent.keyDown(input, { key: "4" });
+      fireEvent.change(input, { target: { value: "34" } });
 
       expect(handleRef.current?.isBurst()).toBe(true);
     });
 
     it("performs synchronous isClean validation", () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const handleRef = { current: null } as any;
+      const handleRef = getHandleRef();
       render(<Harness handleRef={handleRef} />);
       const input = screen.getByLabelText(LABEL);
 

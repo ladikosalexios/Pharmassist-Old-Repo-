@@ -111,7 +111,7 @@ export function DataMatrixScanner({ onScan, disabled, onBlockChange }: DataMatri
     // Detect fast wedge-scanner bursts vs slow human typing.
     const entryMode: ScanEntryMode = secureInputRef.current?.isBurst() ? "non-manual" : "manual";
 
-    onScan(v, entryMode);
+    onScanRef.current(v, entryMode);
     setManualValue("");
   }
 

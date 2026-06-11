@@ -20,6 +20,14 @@ import { useNonLatinInputDetector } from "../hooks/useNonLatinInputDetector";
  */
 export type HmvsBlockReason = "caps-lock" | "keyboard-layout" | "both" | null;
 
+// Detects any code point outside 7-bit ASCII (>= U+0080). Strictly this is a
+// *non-ASCII* test, which is broader than "non-Latin" — é, ü, ñ are Latin
+// yet non-ASCII. For HMVS pack codes, which are ASCII alphanumeric, the
+// distinction is moot: any non-ASCII character is equally a wrong-layout signal.
+// This is consistent with the existing behaviour and ensures strict scan integrity.
+// eslint-disable-next-line no-control-regex
+const NON_ASCII = /[^\x00-\x7F]/;
+
 /**
  * Handle exposed by HmvsSecureInput to allow parent components to perform
  * synchronous validation and check for wedge-scanner "burst" entry.
@@ -104,13 +112,15 @@ export const HmvsSecureInput = forwardRef<HmvsSecureInputHandle, HmvsSecureInput
 
     // Timing and synchronous state tracking for "burst" detection and race prevention.
     const lastKeyTimeRef = useRef<number>(0);
-    const isBurstRef = useRef<boolean>(true);
+    const hasFirstKeyRef = useRef<boolean>(false);
+    const isBurstRef = useRef<boolean>(false);
     const lastCapsLockRef = useRef<boolean>(false);
 
     // Reset burst detection once the field is cleared.
     useEffect(() => {
       if (value === "") {
-        isBurstRef.current = true;
+        isBurstRef.current = false;
+        hasFirstKeyRef.current = false;
         lastKeyTimeRef.current = 0;
       }
     }, [value]);
@@ -120,8 +130,7 @@ export const HmvsSecureInput = forwardRef<HmvsSecureInputHandle, HmvsSecureInput
       () => ({
         isClean: (e) => {
           const caps = e ? e.getModifierState("CapsLock") : lastCapsLockRef.current;
-          // eslint-disable-next-line no-control-regex
-          const layoutBlocked = /[^\x00-\x7F]/.test(value);
+          const layoutBlocked = NON_ASCII.test(value);
           return !caps && !layoutBlocked;
         },
         isBurst: () => isBurstRef.current && value.length > 0,
@@ -173,7 +182,11 @@ export const HmvsSecureInput = forwardRef<HmvsSecureInputHandle, HmvsSecureInput
             lastCapsLockRef.current = e.getModifierState("CapsLock");
 
             const now = performance.now();
-            if (lastKeyTimeRef.current > 0) {
+            if (!hasFirstKeyRef.current) {
+              hasFirstKeyRef.current = true;
+              // First key isn't a burst yet; wait for the second to compare.
+              isBurstRef.current = true;
+            } else {
               const diff = now - lastKeyTimeRef.current;
               // Classify as manual if inter-key timing exceeds ~30ms.
               if (diff > 30) {
