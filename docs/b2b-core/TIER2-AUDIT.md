@@ -611,3 +611,5 @@ recorded the same day (per Alex)** — pausing again for review before any build
 Suggested batch shape mirrors FINISH-TIER1: Batch 1 = the trial slice
 (T2-1/T2-2/T2-3/T2-6 + shell slices) + the T2-8a spike; Batch 2 = T2-4/T2-5/T2-7;
 Batch 3 = the corpus wave (T2-8/9/10), sized by T2-8a's findings.
+
+Build sequence: `docs/b2b-core/TIER2-BUILD-PLAYBOOK.md` (per-feature batches).
