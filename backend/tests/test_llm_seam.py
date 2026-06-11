@@ -241,7 +241,7 @@ def test_missing_config_on_live_path_raises(monkeypatch):
         if saved is None:
             os.environ.pop("LLM_MOCK", None)
         else:
-            os.environ["LLM_MOCK"] = saved
+            os.environ[k] = saved
         get_settings.cache_clear()
 
 
