@@ -173,6 +173,10 @@ def test_each_key_resolves_its_own_location(client):
     b = client.get("/v1/status", headers=_h(KEY_B)).json()
     assert a["location"]["name"] == "PYTEST-B2B-A Store"
     assert b["location"]["name"] == "PYTEST-B2B-B Store"
+    # T2-1: tier resolves through the real auth path and echoes on status. The
+    # raw-SQL inserts omit tier, so the server_default backfills 'core'.
+    assert a["customer"]["tier"] == "core"
+    assert b["customer"]["tier"] == "core"
 
 
 def test_condition_visible_only_to_its_own_location(client, conditions):

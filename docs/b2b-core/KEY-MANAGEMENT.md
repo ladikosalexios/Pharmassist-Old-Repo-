@@ -18,6 +18,19 @@ Operator runbook for the lifecycle of a location's `X-API-Key`. Pairs with
   on a deployment whose mode matches (sandbox = mock = `pa_test_`, live =
   `pa_live_`). A mismatch returns the same indistinguishable 401 as any bad key
   (`services/api_keys.py:58-65`).
+- **Entitlement tier is NOT a key property** — it lives on the *customer* (T2-1 /
+  D-14: the whole estate is one tier), so a key inherits its customer's tier and
+  rotation/revocation never changes it. To grant or revoke Tier-2/Clinical
+  access, move the tier, not the key:
+
+  ```bash
+  python -m scripts.b2b_admin set-tier --customer-id <customer-uuid> --tier clinical
+  ```
+
+  The change takes effect on the next request (the gate reads the customer tier
+  per call). A `core` customer's keys get `tier_required` (403) on every
+  Clinical route; ordinal `platform ≥ clinical ≥ core`. `list` shows each
+  customer's `tier=…`.
 
 All commands run inside the backend container:
 `docker compose exec backend python -m scripts.b2b_admin …`.

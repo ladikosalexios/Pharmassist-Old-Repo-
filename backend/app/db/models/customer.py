@@ -21,4 +21,12 @@ class Customer(Base, TimestampMixin):
     name: Mapped[str] = mapped_column(String, nullable=False)
     contact_email: Mapped[str | None] = mapped_column(String)
     active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    # Entitlement tier (T2-1 / D-14: customer-level — the whole estate is one
+    # tier). Ordinal: platform >= clinical >= core. The /v1 gate reads it through
+    # the customer row get_api_context already loads per request and grants when
+    # the customer's rank meets or exceeds the route's minimum. Validated at the
+    # CLI/app boundary; an unknown value fails safe (ranks as core) in the gate.
+    tier: Mapped[str] = mapped_column(
+        String, nullable=False, default="core", server_default=text("'core'")
+    )
     locations: Mapped[list["Location"]] = relationship(back_populates="customer")

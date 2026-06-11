@@ -45,8 +45,12 @@ reads (`backend/app/routers/v1/patients.py:77-84`), everything else works.
 ## 3. Mint
 
 ```bash
-# a. customer (tenant root) — once per customer, not per location
-python -m scripts.b2b_admin create-customer --name "Chain SA" --email ops@chain.gr
+# a. customer (tenant root) — once per customer, not per location.
+#    --tier sets the entitlement (default core). clinical/platform unlock the
+#    Tier-2 /v1 routes; per D-14 the tier is customer-level (the whole estate),
+#    correctable later with `set-tier`.
+python -m scripts.b2b_admin create-customer --name "Chain SA" --email ops@chain.gr \
+    --tier core            # or clinical / platform
 
 # b. location — --verify validates creds against ΗΔΥΚΑ + cross-checks the unit id
 python -m scripts.b2b_admin create-location \
@@ -81,9 +85,11 @@ curl -s https://api.<domain>/v1/patients/15031962456 -H "X-API-Key: <key>"
 curl -s https://api.<domain>/admin/sync-drug-catalog/status   # admin cookie
 ```
 
-`GET /v1/status` returns customer + location identity, `isEopyy`, `mockMode`,
-and `pharmapiConnected` (`backend/app/routers/v1/__init__.py:23-39`).
-`pharmapiConnected: false` before the first upstream call is normal.
+`GET /v1/status` returns customer identity + its `tier` (T2-1), location
+identity, `isEopyy`, `mockMode`, and `pharmapiConnected`
+(`backend/app/routers/v1/__init__.py:23-39`). `pharmapiConnected: false` before
+the first upstream call is normal. A `core` customer's key gets `tier_required`
+(403) on a Tier-2/Clinical route; raise the tier with `set-tier` to unlock them.
 
 ## 5. Hand off
 

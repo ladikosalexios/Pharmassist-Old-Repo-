@@ -2,7 +2,9 @@
 
 Run inside the backend container (or from backend/ with the venv active):
 
-    python -m scripts.b2b_admin create-customer --name "Chain SA" --email ops@chain.gr
+    python -m scripts.b2b_admin create-customer --name "Chain SA" --email ops@chain.gr \
+        [--tier core|clinical|platform]   # default core
+    python -m scripts.b2b_admin set-tier --customer-id <uuid> --tier clinical
     python -m scripts.b2b_admin create-location --customer-id <uuid> --name "Store 12" \
         --pharmapi-unit-id 70466 --pharmapi-username chain12 [--eopyy] [--verify]
     python -m scripts.b2b_admin mint-key --location-id <uuid> --label "prod-pos"
@@ -36,6 +38,7 @@ from app.db.models.api_key import ApiKey  # noqa: E402
 from app.db.models.customer import Customer  # noqa: E402
 from app.db.models.location import Location  # noqa: E402
 from app.db.session import AsyncSessionLocal  # noqa: E402
+from app.routers.v1.deps import TIER_ORDER  # noqa: E402 — single source of the tier vocabulary
 from app.services.api_keys import generate_api_key, hash_api_key  # noqa: E402
 
 
@@ -51,11 +54,30 @@ def _default_env_label() -> str:
 
 async def create_customer(args: argparse.Namespace) -> None:
     async with AsyncSessionLocal() as db:
-        customer = Customer(name=args.name, contact_email=args.email, active=True)
+        customer = Customer(name=args.name, contact_email=args.email, tier=args.tier, active=True)
         db.add(customer)
         await db.commit()
         await db.refresh(customer)
-        print(f"[b2b-admin] customer created: id={customer.id} name={customer.name!r}")
+        print(
+            f"[b2b-admin] customer created: id={customer.id} name={customer.name!r} "
+            f"tier={customer.tier}"
+        )
+
+
+async def set_tier(args: argparse.Namespace) -> None:
+    """Move a customer's entitlement tier (T2-1). Applies to the whole estate —
+    per D-14 the tier lives on the customer, so every location + key under it
+    gates on the new value immediately (the gate reads it per request)."""
+    async with AsyncSessionLocal() as db:
+        customer = await Customer.get_by_id(db, args.customer_id)
+        if customer is None:
+            sys.exit(f"[b2b-admin] customer {args.customer_id} not found")
+        old = customer.tier
+        customer.tier = args.tier
+        await db.commit()
+        print(
+            f"[b2b-admin] customer {customer.id} ({customer.name!r}) tier {old} -> {customer.tier}"
+        )
 
 
 async def create_location(args: argparse.Namespace) -> None:
@@ -189,7 +211,7 @@ async def list_tenants(_args: argparse.Namespace) -> None:
             return
         for c in customers:
             flag = "" if c.active else "  [INACTIVE]"
-            print(f"customer {c.id}  {c.name}{flag}")
+            print(f"customer {c.id}  {c.name}  tier={c.tier}{flag}")
             for loc in c.locations:
                 flag = "" if loc.active else "  [INACTIVE]"
                 print(
@@ -208,7 +230,18 @@ def _build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("create-customer", help="Create a B2B customer (tenant root)")
     p.add_argument("--name", required=True)
     p.add_argument("--email", default=None)
+    p.add_argument(
+        "--tier",
+        default="core",
+        choices=TIER_ORDER,
+        help="Entitlement tier (default core); clinical/platform unlock Tier-2 /v1 routes",
+    )
     p.set_defaults(func=create_customer)
+
+    p = sub.add_parser("set-tier", help="Change a customer's entitlement tier (whole estate)")
+    p.add_argument("--customer-id", required=True, type=uuid.UUID)
+    p.add_argument("--tier", required=True, choices=TIER_ORDER)
+    p.set_defaults(func=set_tier)
 
     p = sub.add_parser("create-location", help="Create a billable location under a customer")
     p.add_argument("--customer-id", required=True, type=uuid.UUID)
