@@ -134,10 +134,34 @@ secondary to stopping the abuse.
 - A key never expires on its own — rotation is operator-driven by design (no
   silent lockouts).
 
+## Operator audit trail
+
+Every state-changing `b2b_admin` command (`create-customer`, `set-tier`,
+`create-location`, `mint-key`, `rotate-key`, `revoke-key`) appends one
+append-only row to `b2b_admin_audit` **in the same transaction as the change** —
+so a mutation never lands without its audit row, and a failed audit rolls the
+whole thing back. Each row records the actor, action, target id, and a
+before→after `details` payload (e.g. `set-tier` stores `{"tier":{"from":"core",
+"to":"clinical"}}`). The trail is **never** written a raw key or a ΗΔΥΚΑ
+credential.
+
+- **Actor** defaults to the OS user running the CLI; pass `--actor "name"` to
+  attribute a shared-account session to a person.
+- **Read it back** with `list-audit` (most recent first):
+
+  ```bash
+  python -m scripts.b2b_admin list-audit --limit 20
+  python -m scripts.b2b_admin list-audit --target-id <customer|location|key uuid>
+  ```
+
+  `target_id` is plain text (no FK), so a row survives its target's deletion —
+  you can still answer "who revoked this key / moved this tier" after the fact.
+
 ## Notes & limits
 
 - `last_used_at` is a coarse usage signal (5-minute throttle), not an audit
-  trail — use the FT-6 access log for forensics.
+  trail — use `list-audit` for operator actions and the FT-6 access log for
+  per-request `/v1` forensics.
 - In-process rate-limit counters and ΗΔΥΚΑ sessions are per-worker today
   (single worker, FT-7 deferred per D-8); rotation is unaffected (keys resolve
   from the DB on every request).
