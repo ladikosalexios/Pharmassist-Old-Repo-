@@ -168,6 +168,23 @@ def conditions(client):
     return {"a_id": a.json()["id"], "b_id": b.json()["id"]}
 
 
+def test_invalid_tier_rejected_by_check_constraint():
+    # ck_customers_tier (migration c9e1a7b4f203): a raw write can't smuggle an
+    # unknown tier past the CLI's choices= validation. The INSERT rolls back, so
+    # no row survives; the module teardown's PYTEST-B2B-% sweep covers it anyway.
+    with pytest.raises(Exception) as exc:
+        _run_sql(
+            [
+                (
+                    "INSERT INTO customers (name, active, tier) "
+                    "VALUES ('PYTEST-B2B-BADTIER SA', true, 'gold')",
+                    {},
+                )
+            ]
+        )
+    assert "ck_customers_tier" in str(exc.value)
+
+
 def test_each_key_resolves_its_own_location(client):
     a = client.get("/v1/status", headers=_h(KEY_A)).json()
     b = client.get("/v1/status", headers=_h(KEY_B)).json()

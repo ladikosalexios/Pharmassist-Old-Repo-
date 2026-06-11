@@ -3,7 +3,7 @@
 # CASCADE on reseed and must never be able to reach tenant data.
 import uuid
 
-from sqlalchemy import Boolean, String, text
+from sqlalchemy import Boolean, CheckConstraint, String, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -12,6 +12,11 @@ from ..base import Base, TimestampMixin
 
 class Customer(Base, TimestampMixin):
     __tablename__ = "customers"
+    # DB-level guard mirroring migration c9e1a7b4f203 — keep the two in sync if
+    # the tier vocabulary ever changes (also TIER_ORDER in routers/v1/deps.py).
+    __table_args__ = (
+        CheckConstraint("tier IN ('core', 'clinical', 'platform')", name="ck_customers_tier"),
+    )
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         primary_key=True,

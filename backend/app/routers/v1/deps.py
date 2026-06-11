@@ -73,6 +73,10 @@ def require_tier(minimum: str):
     the stable ``tier_required`` envelope code when the customer's tier ranks
     below ``minimum``. Mirrors patients._require_eopyy's envelope-403 pattern.
     """
+    # Intentionally `.index` (not the fail-safe _tier_rank): a typo'd minimum in
+    # a `Depends(require_tier("clinicla"))` decorator raises ValueError at import
+    # time and crashes the worker on boot, rather than silently under-gating a
+    # route at request time. The asymmetry with _tier_rank is deliberate.
     min_rank = TIER_ORDER.index(minimum)
 
     async def _require_tier(ctx: ApiContext = Depends(get_api_context)) -> ApiContext:

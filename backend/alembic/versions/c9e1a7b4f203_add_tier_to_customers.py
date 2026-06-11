@@ -42,8 +42,19 @@ def upgrade() -> None:
     # rows with the server_default, so this matches nothing — it just makes the
     # "existing tenants → core" intent explicit and survives a manual replay.
     op.execute("UPDATE customers SET tier = 'core' WHERE tier IS NULL")
+    # DB-level guard on the entitlement (billing-relevant) column: a raw SQL
+    # write can't smuggle an unknown tier past the CLI's choices= validation.
+    # The gate already fails safe (_tier_rank → core for unknowns), so this is
+    # integrity-in-depth, not a security fix. Mirrored on the model's
+    # __table_args__. Adding a future tier means altering this constraint.
+    op.create_check_constraint(
+        op.f("ck_customers_tier"),
+        "customers",
+        "tier IN ('core', 'clinical', 'platform')",
+    )
 
 
 def downgrade() -> None:
     """Downgrade schema."""
+    op.drop_constraint(op.f("ck_customers_tier"), "customers", type_="check")
     op.drop_column("customers", "tier")
