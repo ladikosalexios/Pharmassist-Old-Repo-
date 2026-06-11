@@ -88,18 +88,24 @@ _AMKA_RE = re.compile(r"(?<!\d)\d{11}(?!\d)")
 # EKAA (European Health Insurance Card) is alphanumeric, typically 10-20 chars.
 # We match 10-22 chars that have at least one letter and one digit to avoid
 # purely numeric AMKA/barcodes and purely alphabetic clinical terms.
+# NOTE: This may match some drug batch/lot numbers or clinical trial IDs
+# (e.g., "LOT-2024A-001"), which is acceptable as these should not appear in
+# patient-supplied free text.
 _EKAA_RE = re.compile(
     r"(?<![A-Za-z0-9-])(?=[A-Za-z0-9-]*[A-Za-z])(?=[A-Za-z0-9-]*\d)[A-Za-z0-9-]{10,22}(?![A-Za-z0-9-])"
 )
 
+# Standalone 12–20 digit run (non-Greek EHIC numeric identifiers, e.g., Swiss)
+_NUMERIC_EHIC_RE = re.compile(r"(?<!\d)\d{12,20}(?!\d)")
+
 
 def assert_no_pii(text: str) -> None:
-    """Raise :class:`PiiBoundaryError` if ``text`` contains an AMKA or
-    EKAA-shaped token.
+    """Raise :class:`PiiBoundaryError` if ``text`` contains an AMKA, EKAA,
+    or numeric EHIC-shaped token.
 
     The authoritative guard, run by :func:`build_prompt` over every assembled
     prompt string before it can be sent or hashed."""
-    if _AMKA_RE.search(text) or _EKAA_RE.search(text):
+    if _AMKA_RE.search(text) or _EKAA_RE.search(text) or _NUMERIC_EHIC_RE.search(text):
         raise PiiBoundaryError(
             "Refusing to dispatch a prompt containing a PII-shaped (AMKA/EKAA) "
             "token — patient identity must never cross the LLM boundary (T2-2)."

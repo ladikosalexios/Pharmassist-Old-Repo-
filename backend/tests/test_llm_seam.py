@@ -122,22 +122,46 @@ def test_scrub_flags_amka_shaped_token():
 
 
 def test_scrub_flags_ekaa_shaped_token():
-    # 20-char German EHIC
+    # 20-char alphanumeric EHIC
     with pytest.raises(PiiBoundaryError):
         assert_no_pii("patient DE801234567890123456 reports a rash")
-    # 11-char Greek-shaped EKAA
+    # 11-char alphanumeric EKAA-shaped
     with pytest.raises(PiiBoundaryError):
-        assert_no_pii("patient GR-EKAA-001 reports a rash")
+        assert_no_pii("patient G1-A2B3C4D5 reports a rash")
+
+
+def test_scrub_flags_numeric_ehic_token():
+    # 20-digit Swiss EHIC
+    with pytest.raises(PiiBoundaryError):
+        assert_no_pii("patient 80756015000123456789 reports a rash")
 
 
 def test_scrub_ignores_non_amka_digit_runs():
-    # A 13-digit medicine barcode and a 10-digit code are not AMKA-shaped.
-    assert_no_pii("barcode 2801234567890, code 0123456789")  # no raise
+    # A 13-digit numeric run matches _NUMERIC_EHIC_RE (12-20 digits).
+    with pytest.raises(PiiBoundaryError):
+        assert_no_pii("barcode 2801234567890")
+    # A 10-digit code is not AMKA (11) and not numeric EHIC (12-20).
+    assert_no_pii("code 0123456789")  # no raise
 
 
 def test_scrub_ignores_long_clinical_terms():
     # ATC codes (7 chars) and long clinical terms (no digits) should pass.
     assert_no_pii("rash after B01AA03; condition ACETYLSALICYLIC intolerance")
+    # Boundary checks:
+    assert_no_pii("A" * 9)    # 9 chars — pass
+    assert_no_pii("A" * 23)   # 23 chars — pass
+
+
+def test_build_prompt_refuses_ekaa_in_free_text():
+    # symptom_text is caller free text — the scrub is what guards it.
+    fields = ClinicalPromptInput(symptom_text="onset noted, card DE801234567890123456")
+    with pytest.raises(PiiBoundaryError):
+        build_prompt(KIND_CLINICAL_SUMMARY, fields)
+
+
+def test_embed_refuses_ekaa_token():
+    with pytest.raises(PiiBoundaryError):
+        asyncio.run(embed(["some text DE801234567890123456"]))
 
 
 def test_build_prompt_refuses_amka_in_free_text():
