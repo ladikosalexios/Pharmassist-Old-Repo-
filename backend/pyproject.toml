@@ -31,6 +31,7 @@ select = ["E", "W", "F", "I", "B", "UP"]
 # that embed long upstream URLs or clinical narrative also opt out.
 "app/services/alerts.py" = ["E501"]
 "app/services/instructions.py" = ["E501"]
+"app/services/llm.py" = ["E501"]
 "app/services/messages.py" = ["E501"]
 "app/services/pharmapi.py" = ["E501"]
 "app/services/prescriptions.py" = ["E501"]

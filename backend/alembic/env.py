@@ -9,6 +9,7 @@ from app.config import get_settings
 from app.db.base import Base
 from app.db.models.adr_event import AdrEvent  # noqa
 from app.db.models.adr_report import AdrReport  # noqa
+from app.db.models.ai_response_cache import AiResponseCache  # noqa
 from app.db.models.api_key import ApiKey  # noqa
 from app.db.models.audit_log import AuditLog  # noqa
 from app.db.models.b2b_admin_audit import B2bAdminAudit  # noqa

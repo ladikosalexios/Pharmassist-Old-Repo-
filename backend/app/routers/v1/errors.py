@@ -6,6 +6,9 @@ Every /v1 error renders as::
 
 with optional ``upstream_code`` when a ΗΔΥΚΑ G-code was identified. Stable
 ``code`` strings are the partner-facing contract; HTTP statuses match them.
+AI (Tier-2) endpoints add one more stable code: ``ai_unavailable`` (503), raised
+by the LLM seam (T2-2) on a timeout / upstream failure so a degraded AI feature
+is distinguishable from a real error; deterministic endpoints never emit it.
 
 B2C is untouched: the app-level handlers delegate to FastAPI's defaults for
 any path outside /v1, so existing ``{"detail": ...}`` bodies are byte-
@@ -26,6 +29,8 @@ from fastapi.exception_handlers import (
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
+
+from app.services.llm import AiUnavailableError
 
 _G_CODE_RE = re.compile(r"\bG\d{2}\b")
 
@@ -118,6 +123,20 @@ def install_v1_exception_handlers(app: FastAPI) -> None:
             code=exc.code,
             message=exc.message,
             headers=exc.headers,
+        )
+
+    @app.exception_handler(AiUnavailableError)
+    async def _ai_unavailable(request: Request, exc: AiUnavailableError):
+        # The T2-2 LLM seam failed (timeout / transport / non-200). Stable
+        # ``ai_unavailable`` code so a partner can distinguish a degraded AI
+        # feature from a real error and retry — never the provider's body (PHI /
+        # internals). Only AI endpoints raise this; deterministic surfaces never
+        # touch the seam (tests/test_no_tier1_llm_import.py).
+        return _envelope_response(
+            request,
+            status_code=503,
+            code="ai_unavailable",
+            message="AI feature temporarily unavailable — please retry shortly",
         )
 
     @app.exception_handler(StarletteHTTPException)

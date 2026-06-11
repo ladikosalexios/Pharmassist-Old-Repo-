@@ -86,6 +86,7 @@ Every `/v1` error renders in one stable shape (`backend/app/routers/v1/errors.py
 | `rate_limited` | 429 | Per-key limit exceeded (§6) | Back off; honour `Retry-After`. |
 | `upstream_session_expired` | 401/409 | ΗΔΥΚΑ session lapsed (G12/G14) — transient | **Retry**; a fresh session is established automatically. |
 | `upstream_error` | 5xx (usu. 502) | ΗΔΥΚΑ itself errored or is down | Retry with backoff; not your bug, not ours. |
+| `ai_unavailable` | 503 | An AI (Tier-2) feature's LLM call timed out or failed (T2-2) — AI endpoints only; deterministic endpoints never emit it | Retry shortly; the deterministic surfaces (safety check, formulary, ADR CRUD) are unaffected. |
 | `internal` | 500 | A bug on our side | Retry once; if it persists, send us the `request_id`. |
 
 `upstream_session_expired` and `upstream_error` are deliberately distinct from

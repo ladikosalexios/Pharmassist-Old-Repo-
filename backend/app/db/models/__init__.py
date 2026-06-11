@@ -1,5 +1,6 @@
 from .adr_event import AdrEvent
 from .adr_report import AdrReport
+from .ai_response_cache import AiResponseCache
 from .api_key import ApiKey
 from .audit_log import AuditLog
 from .b2b_admin_audit import B2bAdminAudit
@@ -38,4 +39,5 @@ __all__ = [
     "B2bPatientCondition",
     "B2bAdminAudit",
     "CatalogSyncRun",
+    "AiResponseCache",
 ]
