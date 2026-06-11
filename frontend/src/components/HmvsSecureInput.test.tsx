@@ -1,8 +1,8 @@
-import { useState } from "react";
+import { useState, type RefObject } from "react";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import i18n from "../lib/i18n";
-import { HmvsSecureInput, type HmvsBlockReason } from "./HmvsSecureInput";
+import { HmvsSecureInput, type HmvsBlockReason, type HmvsSecureInputHandle } from "./HmvsSecureInput";
 
 const CAPS_WARNING = "Απενεργοποιήστε το Caps Lock πριν συνεχίσετε";
 const LAYOUT_WARNING = "Αλλάξτε τη γλώσσα πληκτρολογίου σε αγγλικά πριν συνεχίσετε";
@@ -14,24 +14,30 @@ beforeAll(async () => {
   await i18n.changeLanguage("el");
 });
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+});
 
 /** Controlled wrapper so typing genuinely re-renders the field, like a real form. */
 function Harness({
   onBlock,
   initialValue = "",
+  handleRef,
 }: {
-  onBlock: (reason: HmvsBlockReason) => void;
+  onBlock?: (reason: HmvsBlockReason) => void;
   initialValue?: string;
+  handleRef?: RefObject<HmvsSecureInputHandle>;
 }) {
   const [value, setValue] = useState(initialValue);
   return (
     <HmvsSecureInput
+      ref={handleRef}
       label={LABEL}
       placeholder="Scan or type the pack code"
       value={value}
       onChange={setValue}
-      onBlock={onBlock}
+      onBlock={onBlock ?? (() => {})}
     />
   );
 }
@@ -119,5 +125,99 @@ describe("HmvsSecureInput", () => {
     expect(screen.queryByText(LAYOUT_WARNING)).toBeNull();
     expect(input.getAttribute("aria-invalid")).toBe("false");
     expect(onBlock).toHaveBeenLastCalledWith(null);
+  });
+
+  describe("Handle API (Burst & Synchronous Validation)", () => {
+    it("reports isBurst=true for rapid keystrokes", () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const handleRef = { current: null } as any;
+      render(<Harness handleRef={handleRef} />);
+      const input = screen.getByLabelText(LABEL);
+
+      let now = 1000;
+      vi.spyOn(performance, "now").mockImplementation(() => now);
+
+      fireEvent.change(input, { target: { value: "1" } });
+      fireEvent.keyDown(input, { key: "1" });
+      now += 10;
+      fireEvent.change(input, { target: { value: "12" } });
+      fireEvent.keyDown(input, { key: "2" });
+
+      expect(handleRef.current?.isBurst()).toBe(true);
+    });
+
+    it("reports isBurst=false if inter-key timing exceeds 30ms", () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const handleRef = { current: null } as any;
+      render(<Harness handleRef={handleRef} />);
+      const input = screen.getByLabelText(LABEL);
+
+      let now = 1000;
+      vi.spyOn(performance, "now").mockImplementation(() => now);
+
+      fireEvent.change(input, { target: { value: "1" } });
+      fireEvent.keyDown(input, { key: "1" });
+      now += 100; // slow
+      fireEvent.change(input, { target: { value: "12" } });
+      fireEvent.keyDown(input, { key: "2" });
+
+      expect(handleRef.current?.isBurst()).toBe(false);
+    });
+
+    it("resets isBurst state when the field is cleared", () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const handleRef = { current: null } as any;
+      render(<Harness handleRef={handleRef} />);
+      const input = screen.getByLabelText(LABEL) as HTMLInputElement;
+
+      let now = 1000;
+      vi.spyOn(performance, "now").mockImplementation(() => now);
+
+      // Make it manual first.
+      fireEvent.change(input, { target: { value: "1" } });
+      fireEvent.keyDown(input, { key: "1" });
+      now += 100;
+      fireEvent.change(input, { target: { value: "12" } });
+      fireEvent.keyDown(input, { key: "2" });
+      expect(handleRef.current?.isBurst()).toBe(false);
+
+      // Clear the field.
+      fireEvent.change(input, { target: { value: "" } });
+      
+      // New rapid burst.
+      fireEvent.change(input, { target: { value: "3" } });
+      fireEvent.keyDown(input, { key: "3" });
+      now += 10;
+      fireEvent.change(input, { target: { value: "34" } });
+      fireEvent.keyDown(input, { key: "4" });
+      
+      expect(handleRef.current?.isBurst()).toBe(true);
+    });
+
+    it("performs synchronous isClean validation", () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const handleRef = { current: null } as any;
+      render(<Harness handleRef={handleRef} />);
+      const input = screen.getByLabelText(LABEL);
+
+      fireEvent.change(input, { target: { value: "clean" } });
+      expect(handleRef.current?.isClean()).toBe(true);
+
+      // Greek characters.
+      fireEvent.change(input, { target: { value: "Παρα" } });
+      expect(handleRef.current?.isClean()).toBe(false);
+
+      // Back to clean.
+      fireEvent.change(input, { target: { value: "clean" } });
+      expect(handleRef.current?.isClean()).toBe(true);
+
+      // Caps Lock via event.
+      const event = new KeyboardEvent("keydown", { key: "Enter" });
+      Object.defineProperty(event, "getModifierState", {
+        value: (key: string) => key === "CapsLock",
+      });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      expect(handleRef.current?.isClean(event as any)).toBe(false);
+    });
   });
 });
