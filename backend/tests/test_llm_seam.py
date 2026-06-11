@@ -77,7 +77,6 @@ def _live_llm_env():
         get_settings.cache_clear()
 
 
-
 def _install_fake_post(monkeypatch, *, side_effect=None, return_value=None):
     fake_client = MagicMock()
     fake_client.post = AsyncMock(side_effect=side_effect, return_value=return_value)
