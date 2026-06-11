@@ -148,8 +148,8 @@ def test_scrub_ignores_long_clinical_terms():
     # ATC codes (7 chars) and long clinical terms (no digits) should pass.
     assert_no_pii("rash after B01AA03; condition ACETYLSALICYLIC intolerance")
     # Boundary checks:
-    assert_no_pii("A" * 9)    # 9 chars — pass
-    assert_no_pii("A" * 23)   # 23 chars — pass
+    assert_no_pii("A" * 9)  # 9 chars — pass
+    assert_no_pii("A" * 23)  # 23 chars — pass
 
 
 def test_build_prompt_refuses_ekaa_in_free_text():
