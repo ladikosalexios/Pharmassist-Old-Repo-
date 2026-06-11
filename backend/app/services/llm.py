@@ -300,6 +300,17 @@ async def complete(
     defer the commit; the caller must commit the session manually after any
     additional work.
 
+    WARNING: when ``commit=False``, the concurrent double-miss
+    :class:`IntegrityError` recovery is NOT performed by ``llm.complete`` — the
+    ``try/except IntegrityError`` block is skipped entirely. If a concurrent
+    request inserts the same cache key between ``stage_cached`` and the caller's
+    own ``commit()``, the caller's ``session.commit()`` will raise
+    :class:`IntegrityError`. A rollback then discards ANY other writes staged on
+    that session — silently. The caller receives no winning row (unlike the
+    ``commit=True`` path). The caller must handle :class:`IntegrityError`
+    themselves and re-fetch the winning cache row via ``ai_cache.get_cached`` if
+    needed.
+
     The active model identity ("mock" or the configured model id) is part of the
     cache key, so a model swap or a mock↔live flip auto-invalidates: a hit is
     always an output of the identity that would generate on a miss. Orphaned

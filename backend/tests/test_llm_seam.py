@@ -37,6 +37,7 @@ import httpx  # noqa: E402
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 from pydantic import ValidationError  # noqa: E402
+from sqlalchemy.ext.asyncio import AsyncSession  # noqa: E402
 
 from app.config import get_settings  # noqa: E402
 from app.services import llm as llm_module  # noqa: E402
@@ -267,3 +268,40 @@ def test_ai_unavailable_renders_envelope():
     assert set(body["error"]) == {"code", "message", "request_id"}
     # PHI rule: the generic message never echoes provider internals or identity.
     assert "unavailable" in body["error"]["message"].lower()
+
+
+# ── commit flag: cache write path ─────────────────────────────────────────────
+
+
+def test_complete_commit_false_skips_session_commit(monkeypatch):
+    """commit=False defers session.commit to the caller — it must never be awaited."""
+    session = AsyncMock(spec=AsyncSession)
+    monkeypatch.setattr(llm_module.ai_cache, "cache_key", lambda *a, **kw: "test-key")
+    monkeypatch.setattr(llm_module.ai_cache, "get_cached", AsyncMock(return_value=None))
+    monkeypatch.setattr(llm_module.ai_cache, "stage_cached", MagicMock())
+    asyncio.run(
+        complete(
+            KIND_CLINICAL_SUMMARY,
+            ClinicalPromptInput(atc_codes=["B01AA03"]),
+            cache_session=session,
+            commit=False,
+        )
+    )
+    assert session.commit.await_count == 0
+
+
+def test_complete_commit_true_awaits_session_commit(monkeypatch):
+    """commit=True (default) commits the cache row immediately after a miss."""
+    session = AsyncMock(spec=AsyncSession)
+    monkeypatch.setattr(llm_module.ai_cache, "cache_key", lambda *a, **kw: "test-key")
+    monkeypatch.setattr(llm_module.ai_cache, "get_cached", AsyncMock(return_value=None))
+    monkeypatch.setattr(llm_module.ai_cache, "stage_cached", MagicMock())
+    asyncio.run(
+        complete(
+            KIND_CLINICAL_SUMMARY,
+            ClinicalPromptInput(atc_codes=["B01AA03"]),
+            cache_session=session,
+            commit=True,
+        )
+    )
+    assert session.commit.await_count == 1
