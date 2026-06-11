@@ -49,10 +49,13 @@ X-API-Key: pa_live_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 - A location transacts under its **own** ΗΔΥΚΑ Basic-Auth identity, resolved
   server-side from the key — you never send ΗΔΥΚΑ credentials.
 
-`GET /v1/status` is the auth smoke test: it echoes your customer/location
-identity, the ΕΟΠΥΥ flag, and whether the upstream session is warm
+`GET /v1/status` is the auth smoke test: it echoes your customer identity and
+entitlement `tier` (`core` | `clinical` | `platform`), your location identity,
+the ΕΟΠΥΥ flag, and whether the upstream session is warm
 (`backend/app/routers/v1/__init__.py:23-39`). `pharmapiConnected: false` before
-your first patient call is normal — ΗΔΥΚΑ sessions are established lazily.
+your first patient call is normal — ΗΔΥΚΑ sessions are established lazily. Routes
+above your tier return `tier_required` (403, §3) — the tier is ordinal, so a
+`platform` customer reaches every `clinical` route.
 
 ## 3. Error envelope
 
@@ -76,6 +79,7 @@ Every `/v1` error renders in one stable shape (`backend/app/routers/v1/errors.py
 | `consent_required` | 422 | A consent-gated read was called without `patientConsent=true` | Attest consent (§4), resend. |
 | `unauthorized` | 401 | Bad/missing/revoked key, or env mismatch | Check the key; one 401 covers all causes. |
 | `forbidden` | 403 | Location not in the ΕΟΠΥΥ category for a 609-gated read (§5) | Establish the category (operator), or stop calling intolerances/history. |
+| `tier_required` | 403 | The route needs a higher entitlement tier than this customer holds (T2-1) | Upgrade the customer's tier (contact sales); ordinal `platform ≥ clinical ≥ core`. |
 | `not_found` | 404 | No such patient / drug / prescription / condition | — |
 | `conflict` | 409 | Duplicate (e.g. same condition already recorded at this location) | Treat as already-exists. |
 | `gone` | 410 | Resource withdrawn upstream | — |

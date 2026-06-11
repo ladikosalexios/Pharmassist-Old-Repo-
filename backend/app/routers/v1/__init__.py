@@ -28,7 +28,7 @@ async def v1_status(ctx: ApiContext = Depends(get_api_context)):
     sessions are established lazily per location.
     """
     return {
-        "customer": {"id": str(ctx.customer_id), "name": ctx.customer_name},
+        "customer": {"id": str(ctx.customer_id), "name": ctx.customer_name, "tier": ctx.tier},
         "location": {
             "id": str(ctx.location_id),
             "name": ctx.location_name,

@@ -41,6 +41,7 @@ def _ctx(is_eopyy: bool = True) -> ApiContext:
     return ApiContext(
         customer_id=uuid.uuid4(),
         customer_name="Contract SA",
+        tier="core",
         location_id=location_id,
         location_name="Contract Store",
         api_key_id=uuid.uuid4(),

@@ -52,6 +52,9 @@ extend-immutable-calls = [
     "fastapi.Cookie",
     "fastapi.Path",
     "fastapi.Security",
+    # Our own dependency factory (T2-1): Tier-2 routes gate inline via
+    # `Depends(require_tier("clinical"))` — the same FastAPI default-arg idiom.
+    "app.routers.v1.deps.require_tier",
 ]
 
 [tool.ruff.format]

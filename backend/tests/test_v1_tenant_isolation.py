@@ -168,11 +168,32 @@ def conditions(client):
     return {"a_id": a.json()["id"], "b_id": b.json()["id"]}
 
 
+def test_invalid_tier_rejected_by_check_constraint():
+    # ck_customers_tier (migration c9e1a7b4f203): a raw write can't smuggle an
+    # unknown tier past the CLI's choices= validation. The INSERT rolls back, so
+    # no row survives; the module teardown's PYTEST-B2B-% sweep covers it anyway.
+    with pytest.raises(Exception) as exc:
+        _run_sql(
+            [
+                (
+                    "INSERT INTO customers (name, active, tier) "
+                    "VALUES ('PYTEST-B2B-BADTIER SA', true, 'gold')",
+                    {},
+                )
+            ]
+        )
+    assert "ck_customers_tier" in str(exc.value)
+
+
 def test_each_key_resolves_its_own_location(client):
     a = client.get("/v1/status", headers=_h(KEY_A)).json()
     b = client.get("/v1/status", headers=_h(KEY_B)).json()
     assert a["location"]["name"] == "PYTEST-B2B-A Store"
     assert b["location"]["name"] == "PYTEST-B2B-B Store"
+    # T2-1: tier resolves through the real auth path and echoes on status. The
+    # raw-SQL inserts omit tier, so the server_default backfills 'core'.
+    assert a["customer"]["tier"] == "core"
+    assert b["customer"]["tier"] == "core"
 
 
 def test_condition_visible_only_to_its_own_location(client, conditions):

@@ -3,7 +3,7 @@
 # CASCADE on reseed and must never be able to reach tenant data.
 import uuid
 
-from sqlalchemy import Boolean, String, text
+from sqlalchemy import Boolean, CheckConstraint, String, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -12,6 +12,11 @@ from ..base import Base, TimestampMixin
 
 class Customer(Base, TimestampMixin):
     __tablename__ = "customers"
+    # DB-level guard mirroring migration c9e1a7b4f203 — keep the two in sync if
+    # the tier vocabulary ever changes (also TIER_ORDER in routers/v1/deps.py).
+    __table_args__ = (
+        CheckConstraint("tier IN ('core', 'clinical', 'platform')", name="ck_customers_tier"),
+    )
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         primary_key=True,
@@ -21,4 +26,12 @@ class Customer(Base, TimestampMixin):
     name: Mapped[str] = mapped_column(String, nullable=False)
     contact_email: Mapped[str | None] = mapped_column(String)
     active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    # Entitlement tier (T2-1 / D-14: customer-level — the whole estate is one
+    # tier). Ordinal: platform >= clinical >= core. The /v1 gate reads it through
+    # the customer row get_api_context already loads per request and grants when
+    # the customer's rank meets or exceeds the route's minimum. Validated at the
+    # CLI/app boundary; an unknown value fails safe (ranks as core) in the gate.
+    tier: Mapped[str] = mapped_column(
+        String, nullable=False, default="core", server_default=text("'core'")
+    )
     locations: Mapped[list["Location"]] = relationship(back_populates="customer")

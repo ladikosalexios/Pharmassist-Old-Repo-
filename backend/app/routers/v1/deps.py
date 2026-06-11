@@ -42,11 +42,54 @@ class ApiContext:
 
     customer_id: UUID
     customer_name: str
+    tier: str
     location_id: UUID
     location_name: str
     api_key_id: UUID
     is_eopyy: bool
     pharmapi: PharmapiContext
+
+
+# Entitlement tiers in ascending order of privilege (T2-1 / D-14). The gate is
+# ORDINAL, not exact-match: a higher tier passes every lower tier's gate, so a
+# `platform` customer reaches every `clinical` route.
+TIER_ORDER = ("core", "clinical", "platform")
+
+
+def _tier_rank(tier: str) -> int:
+    """Ordinal rank of a tier; an unknown value fails safe to `core` (0) so a
+    bad row can only ever lose access, never silently gain it."""
+    try:
+        return TIER_ORDER.index(tier)
+    except ValueError:
+        return 0
+
+
+def require_tier(minimum: str):
+    """Dependency factory gating a /v1 route behind a minimum entitlement tier.
+
+    Use as ``ctx: ApiContext = Depends(require_tier("clinical"))`` — it resolves
+    the full ApiContext (so the route gets the context for free) and 403s with
+    the stable ``tier_required`` envelope code when the customer's tier ranks
+    below ``minimum``. Mirrors patients._require_eopyy's envelope-403 pattern.
+    """
+    # Intentionally `.index` (not the fail-safe _tier_rank): a typo'd minimum in
+    # a `Depends(require_tier("clinicla"))` decorator raises ValueError at import
+    # time and crashes the worker on boot, rather than silently under-gating a
+    # route at request time. The asymmetry with _tier_rank is deliberate.
+    min_rank = TIER_ORDER.index(minimum)
+
+    async def _require_tier(ctx: ApiContext = Depends(get_api_context)) -> ApiContext:
+        if _tier_rank(ctx.tier) < min_rank:
+            raise V1Error(
+                "tier_required",
+                403,
+                f"This endpoint requires the '{minimum}' tier or higher — this "
+                f"account is on '{ctx.tier}'. Contact sales to upgrade.",
+            )
+        return ctx
+
+    return _require_tier
 
 
 async def get_api_context(
@@ -104,6 +147,9 @@ async def get_api_context(
     return ApiContext(
         customer_id=customer.id,
         customer_name=customer.name,
+        # `or "core"` covers a not-yet-migrated/unset row defensively — the gate
+        # then treats it as the base tier rather than crashing on a None.
+        tier=customer.tier or "core",
         location_id=location.id,
         location_name=location.name,
         api_key_id=key_row.id,
