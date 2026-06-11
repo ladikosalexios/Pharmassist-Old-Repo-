@@ -121,9 +121,23 @@ def test_scrub_flags_amka_shaped_token():
         assert_no_pii(f"patient {AMKA_TOKEN} reports a rash")
 
 
+def test_scrub_flags_ekaa_shaped_token():
+    # 20-char German EHIC
+    with pytest.raises(PiiBoundaryError):
+        assert_no_pii("patient DE801234567890123456 reports a rash")
+    # 11-char Greek-shaped EKAA
+    with pytest.raises(PiiBoundaryError):
+        assert_no_pii("patient GR-EKAA-001 reports a rash")
+
+
 def test_scrub_ignores_non_amka_digit_runs():
     # A 13-digit medicine barcode and a 10-digit code are not AMKA-shaped.
     assert_no_pii("barcode 2801234567890, code 0123456789")  # no raise
+
+
+def test_scrub_ignores_long_clinical_terms():
+    # ATC codes (7 chars) and long clinical terms (no digits) should pass.
+    assert_no_pii("rash after B01AA03; condition ACETYLSALICYLIC intolerance")
 
 
 def test_build_prompt_refuses_amka_in_free_text():
