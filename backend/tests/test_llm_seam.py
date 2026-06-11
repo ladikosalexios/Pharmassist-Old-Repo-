@@ -73,8 +73,8 @@ def _live_llm_env():
             if v is None:
                 os.environ.pop(k, None)
             else:
-                os.environ["LLM_MOCK"] = saved
-            get_settings.cache_clear()
+                os.environ[k] = v
+        get_settings.cache_clear()
 
 
 
