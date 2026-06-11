@@ -1,7 +1,8 @@
 # Tier-2 B2B "Clinical" — gap audit + tickets (Core → the €32 tier, sellable on /v1)
 
-**Status:** 📋 **Phase 0 — audit + ticket set, awaiting review.** Plan only; zero code
-changes ride this doc.
+**Status:** 📋 **Phase 0 — audit + ticket set; decisions D-14…D-19 ✅ recorded**
+(2026-06-10, per Alex). Plan only; zero code changes ride this doc — build awaits
+batch direction.
 **Date:** 2026-06-10
 **Baseline:** `main` @ 29d74ea (#138) — Tier-1 finished through FINISH-TIER1 Batch 2;
 228 backend tests green incl. the /v1 suite (`tests/test_v1_*.py`, 10 files), B2C
@@ -115,26 +116,32 @@ in T2-11).
 
 ---
 
-**T2-1 · Tier entitlement model + /v1 tier gate** — *build* · **days (1–2)** — blocked by D-14
+**T2-1 · Tier entitlement model + /v1 tier gate** — *build* · **days (1–2)** — D-14 resolved: customer-level
 
-- `locations.tier` (`core | clinical | platform`, server_default `'core'`) + migration
+- `customers.tier` (`core | clinical | platform`, server_default `'core'`) + migration
   (BEFORE-UPDATE trigger + three-place model registration per BC-1's checklist);
-  backfill existing rows `core`.
+  backfill existing rows `core`. Per D-14 the tier lives on the **customer** — the
+  whole estate is one tier; the gate reads it through the customer row that
+  `get_api_context` already loads per request (`routers/v1/deps.py:60-63`).
 - `ApiContext` gains `tier` (`routers/v1/deps.py:39-49`); a `require_tier("clinical")`
   dependency/helper mirroring `_require_eopyy` (`routers/v1/patients.py:77-84`) returns
-  **403 in the envelope** — recommend a new stable code `tier_required` added to the
-  code table (`routers/v1/errors.py:32-41`; additive, so the BC-5 contract holds).
+  **403 in the envelope** — new stable code `tier_required` added to the code table
+  (`routers/v1/errors.py:32-41`; additive, so the BC-5 contract holds). The check is
+  **ordinal, not exact-match**: `platform ≥ clinical ≥ core`, so a `platform` customer
+  passes every `clinical` gate.
 - `GET /v1/status` echoes the tier (`routers/v1/__init__.py:23-39`); `b2b_admin`
-  `create-location --tier` + `set-tier` (CLI pattern `scripts/b2b_admin.py`);
+  `create-customer --tier` + `set-tier` (CLI pattern `scripts/b2b_admin.py`);
   `ONBOARDING.md`/`KEY-MANAGEMENT.md` gain the tier step.
-- AC: a `core` key 403s with the envelope on a gated route while a `clinical` key
-  passes; tier visible on `/v1/status`; existing /v1 + B2C suites green; contract test
-  pins the 403 body.
+- AC: a `core` customer's key 403s with the envelope on a gated route while `clinical`
+  **and** `platform` keys pass (ordinal); tier visible on `/v1/status`; existing /v1 +
+  B2C suites green; contract test pins the 403 body.
 
-**T2-2 · LLM integration seam: EU provider client, PII boundary, mock, cache** — *build* · **week (3–5)** — interface now; live provider after D-15
+**T2-2 · LLM integration seam: EU provider client, PII boundary, mock, cache** — *build* · **week (3–5)** — D-15 resolved: Mistral (EU), standard API
 
 - `app/services/llm.py`: provider-agnostic async client (httpx, same conventions as
-  `services/pharmapi.py`). Settings: `LLM_API_BASE` / `LLM_API_KEY` / `LLM_MODEL`
+  `services/pharmapi.py`); the wired target per D-15 is **Mistral's EU standard API
+  (STANDARD plan, no ZDR)** — ZDR stays a config-level toggle for later, only if a
+  customer contract demands it. Settings: `LLM_API_BASE` / `LLM_API_KEY` / `LLM_MODEL`
   (+ embeddings equivalents for T2-9). Checked **at first use** like
   `CREDENTIAL_ENCRYPTION_KEY` — not a boot fail-fast (a Tier-1-only deployment must boot
   without AI config).
@@ -190,14 +197,20 @@ in T2-11).
 
 ---
 
-**T2-4 · Medication adherence signals** — *build* · **days (3–4)** — after T2-1, D-19
+**T2-4 · Medication adherence signals (dual-source)** — *build* · **week (4–6)** — after T2-1; D-19 resolved: both sources
 
 - `GET /v1/patients/{key}/adherence?patientConsent=true` → per long-term medication:
   `{atcClass, lastDispense, expectedRefill, daysSinceExpected, status:
   ON_TRACK|OVERDUE|LAPSED, evidence, dataCaveats}` (`PharmAssist_Pricing.md:102-108`).
-- Source per D-19 (recommended: upstream medicine history) — rides the existing consent
-  + ΕΟΠΥΥ gates (`routers/v1/patients.py:70-84`, `:131-164`). **Consequence stated in
-  API.md + ONBOARDING.md: non-ΕΟΠΥΥ locations 403 on adherence** (609 rule).
+- **Two signal sources per D-19, merged**: (a) upstream ΗΔΥΚΑ medicine history — rides
+  the existing consent + ΕΟΠΥΥ gates (`routers/v1/patients.py:70-84`, `:131-164`); and
+  (b) **caller-pushed dispense events** — a new `POST /v1/dispense-events` ingest
+  endpoint + location-scoped pushed-events store, for OS vendors who dispense in their
+  own system. The signal computation merges both (dedup when the same dispense arrives
+  via both paths) and the response says which sources fed it. **Caller-push is what
+  covers non-ΕΟΠΥΥ locations** — they get signals from pushed events only; the upstream
+  path still 403s per the 609 rule (stated in API.md + ONBOARDING.md). Ingest only:
+  this records events, it executes nothing (§5).
 - Long-term classes = curated ATC prefix set matching the pricing list exactly
   (`PharmAssist_Pricing.md:104-105`): B01A anticoagulants, C02/C03/C07/C08/C09
   antihypertensives, A10 insulin/antidiabetics, C10 statins, N06A antidepressants.
@@ -207,32 +220,36 @@ in T2-11).
   emit `dataCaveats` ("single dispense — cadence unknown") instead of a fabricated
   status.
 - AC: unit tests on synthetic histories (on-track / overdue / lapsed / single-dispense
-  → caveat, never a status); tier + consent + ΕΟΠΥΥ gate contract tests; mock fixture
-  with a deterministic OVERDUE patient.
-
-**T2-5 · Patient condition inference (rule-based v1)** — *build* · **days (2–4)** — after T2-1, D-18
-
-- `GET /v1/patients/{key}/condition-suggestions?patientConsent=true` →
-  `{suggestions: [{conditionCode, name, confidence: HIGH|MEDIUM, evidence: [drugs]}],
-  suggestionsOnly: true, dataCaveats}` (`PharmAssist_Pricing.md:123-129`).
-- New curated ATC→condition mapping (seeded table `condition_inference_rules` in the
-  `seed_data.py` register — the drug catalog has no condition knowledge,
-  `drug_catalog.py:11-46`). Map onto the **existing condition vocabulary** the safety
-  rules consume (`safety_rule.py:22` `trigger_condition_code`: DIABETES_T2,
-  RENAL_SEVERE, PREGNANCY, G6PD, …) so a confirmed suggestion immediately arms
-  contraindication checks. Confidence from evidence strength (e.g. A10 ≥2 dispenses →
-  DIABETES_T2 HIGH).
-- Input: upstream medicine history — same consent/ΕΟΠΥΥ gates and the same non-ΕΟΠΥΥ
-  sellability consequence as T2-4.
-- **Never writes**: caller confirms via the existing
-  `POST /v1/patients/{key}/conditions` (`routers/v1/patients.py:180-204`). E4 framing
-  structural in the schema (`suggestionsOnly: true`).
-- AC: deterministic tests on fixture histories; an explicit no-write assertion (DB
-  unchanged after the call); tier/consent/ΕΟΠΥΥ gates; mock parity.
+  → caveat, never a status); ingest contract tests + tenant isolation on the events
+  store; merge/dedup test (the same dispense seen via both sources counts once); tier +
+  consent + ΕΟΠΥΥ gate contract tests; mock fixture with a deterministic OVERDUE
+  patient.
 
 ### D — AI builds (need T2-2)
 
 ---
+
+**T2-5 · Patient condition inference (AI, on the seam)** — *build* · **days (3–4)** — after T2-1, T2-2; D-18 resolved: AI/LLM
+
+- `GET /v1/patients/{key}/condition-suggestions?patientConsent=true` →
+  `{suggestions: [{conditionCode, name, confidence: HIGH|MEDIUM, evidence: [drugs]}],
+  suggestionsOnly: true, dataCaveats}` (`PharmAssist_Pricing.md:123-129`).
+- Per D-18 this is an **LLM feature on the T2-2 seam**: the model reviews the patient's
+  dispensing profile (ATC codes + cadence only — no identity crosses the T2-2 boundary)
+  and suggests conditions with confidence + drug evidence. The output is
+  **schema-constrained to the existing condition vocabulary** the safety rules consume
+  (`safety_rule.py:22` `trigger_condition_code`: DIABETES_T2, RENAL_SEVERE, PREGNANCY,
+  G6PD, …) — an out-of-vocabulary suggestion is dropped, never invented — so a
+  confirmed suggestion immediately arms contraindication checks.
+- Input: upstream medicine history — same consent/ΕΟΠΥΥ gates and the same non-ΕΟΠΥΥ
+  sellability consequence as T2-4 (pushed dispense events from T2-4's store can widen
+  the input later).
+- **Never writes**: caller confirms via the existing
+  `POST /v1/patients/{key}/conditions` (`routers/v1/patients.py:180-204`). E4 framing
+  structural in the schema (`suggestionsOnly: true`).
+- AC: constrained-vocabulary test (out-of-vocabulary model output is dropped); an
+  explicit no-write assertion (DB unchanged after the call); PII guard test;
+  tier/consent/ΕΟΠΥΥ gates; `LLM_MOCK` canned suggestions (mock parity).
 
 **T2-6 · AI safety flag explanations (Greek)** — *build* · **days (2–3)** — after T2-1, T2-2
 
@@ -270,11 +287,27 @@ in T2-11).
 
 ---
 
-**T2-8 · SPC corpus: sourcing, ingestion, structured sections** — *build* · **week (1–2, format-dependent)** — after D-16
+**T2-8a · SPC extraction spike (measure before building)** — *spike, throwaway* · **days (0.5–1)** — gates T2-8
 
-- Real Greek ΠΧΠ source per D-16 (ΕΟΦ's SPC repository — the fixture already points at
-  `eof.gr` URLs, `spc.py:12` — plus EMA for centrally-authorised products);
-  licensing/ToS cleared **before** any scraping.
+- Pull ~30–50 real ΕΟΦ SmPC PDFs across the seeded drug set; run **Mistral OCR** over
+  them with **Azure Document Intelligence as a control**; measure and report:
+  native-vs-scanned PDF split, Greek character accuracy, and section-parse success rate
+  for the four load-bearing sections (4.3 / 4.4 / 4.5 / 4.6).
+- Deliverable: a throwaway measurement script + a findings note in `docs/b2b-core/`
+  (BC-13a register). The findings set T2-8's real size and the section-segmentation
+  approach — T2-8 does not start until this lands.
+- AC: findings note carries the three measurements + an explicit resize (or go) call on
+  T2-8.
+
+**T2-8 · SPC corpus: sourcing, ingestion, structured sections** — *build* · **week (1–2, resize per T2-8a)** — after T2-8a; D-16 resolved: official sources, Mistral OCR
+
+- **Official sources only per D-16**: the ΕΟΦ register (the fixture already points at
+  `eof.gr` URLs, `spc.py:12`) + EMA for centrally-authorised products — public/usable
+  per the Greek pharmacy-law confirmation; **no third-party aggregators**. Format is
+  **PDF today** (EU ePI/FHIR structured labels are the future format, not yet available
+  for Greek SmPCs).
+- Extraction via **Mistral OCR** (not AWS Textract — no Greek support), feeding the
+  section segmentation below.
 - `spc_documents` (barcode/ATC link, version, source URL, fetched_at) +
   `spc_sections` (doc FK, `section_ref`, title, text). SPC sections are standardised
   (4.3 contraindications, 4.4 special warnings/populations, 4.5 interactions, 4.6
@@ -284,15 +317,16 @@ in T2-11).
   cadence documented in OPERATIONS.md.
 - B2C `/spc` keeps serving the fixture (`services/spc.py`) — migrating it onto the
   corpus is a separate, later B2C ticket (out of scope here, §5).
-- Sizing honesty: a week if a clean structured source exists; 2+ if it's heterogeneous
-  PDF scraping. D-16 decides which world we're in.
+- Sizing honesty: a week if the PDFs are mostly native and parse cleanly; 2+ if the
+  corpus skews scanned/heterogeneous. **T2-8a measures which world we're in** before
+  this build is committed.
 - AC: N real drugs ingested with all four key sections segmented; re-ingest is
   idempotent; sync failures surface in the status row.
 
-**T2-9 · SPC Q&A (RAG) on /v1** — *build* · **week (3–5)** — after T2-2, T2-8, D-17
+**T2-9 · SPC Q&A (RAG) on /v1** — *build* · **week (3–5)** — after T2-2, T2-8 (D-17 resolved: pgvector)
 
-- Embeddings over `spc_sections` chunks (corpus is non-PII, but stay EU per D-15);
-  pgvector per D-17 (compose has no sidecar today, `compose.yaml:2-64` — the
+- Embeddings over `spc_sections` chunks (corpus is non-PII; Mistral embeddings per
+  D-15); pgvector per D-17 (compose has no sidecar today, `compose.yaml:2-64` — the
   `postgres:16-alpine` image swaps to a pgvector-enabled build in dev + prod compose, an
   operational note for the ticket).
 - `POST /v1/spc/qa` `{barcode|atc, question}` → `{answer, language, sources:
@@ -341,7 +375,7 @@ in T2-11).
 - AC: CI DB-less selection includes the new contract tier; an integrator can exercise
   every Tier-2 endpoint from Postman against the mock stack.
 
-**T2-12 · DPA/data-processing annex: AI amendment** — *write* · **days (0.5–1)** — after D-15
+**T2-12 · DPA/data-processing annex: AI amendment** — *write* · **days (0.5–1)** — D-15 resolved: Mistral standard DPA
 
 - `DATA-PROCESSING.md` amendments FT-14 explicitly deferred to Tier-2: the LLM provider
   as subprocessor (EU region + DPA per D-15), the prompt PII boundary as a security
@@ -349,14 +383,14 @@ in T2-11).
   retention stance, `b2b_adr_reports` in the data inventory (stores patient_amka +
   patient_name + clinical narrative — a **larger stored-PHI surface than conditions**;
   set a retention stance).
-- AC: annex matches the shipped code paths; handed to the D-13 legal owner (still TBD).
+- AC: annex matches the shipped code paths; handed to the D-13 legal owner (**Rekas**).
 
 ---
 
 ## 3. Decisions — needs Alex / the business
 
-> Numbering continues FINISH-TIER1 (D-8…D-13). Each entry: technical context from this
-> audit, a recommendation, and exactly what's needed.
+> Numbering continues FINISH-TIER1 (D-8…D-13). Each entry keeps the audit's context and
+> recommendation as written; resolutions recorded 2026-06-10 (per Alex).
 
 ### D-14 · Tier entitlement shape
 
@@ -370,7 +404,14 @@ entitlement-matrix table until a customer actually needs per-feature grants — 
 bundles are fixed in the pricing doc, and a column is a 30-minute migration away from a
 matrix if that day comes. Customer-level tier rejected: pricing bills per location and
 mixed estates (flagship locations on Clinical, rest on Core) are a plausible sale.
-**Needed from you:** confirm location-level tier column + the new envelope code.
+**✅ RESOLVED (2026-06-10, per Alex): customer-level tier.** `tier` lives on
+`customers`, and the gate reads the customer's tier (the customer row is already loaded
+per request, `routers/v1/deps.py:60-63`). Goes the other way from the recommendation
+above; the accepted trade-off is recorded: **the whole estate is one tier — mixed
+estates are not sellable** under this model, and if a customer ever needs per-location
+tiers the revisit is a small migration (move/copy the column to `locations` and
+re-point the gate). The new `tier_required` envelope code stands. T2-1 is written to
+this shape.
 
 ### D-15 · EU LLM provider + GDPR DPA — procurement
 
@@ -381,9 +422,13 @@ support, an embeddings model (T2-9 — may be a second provider), EU data reside
 both. The seam (T2-2) is provider-agnostic, so interface work starts before the pick —
 but **go-live of every AI feature gates on this**, and like D-13 the paper turnaround is
 the long pole.
-**Needed from you:** provider choice (e.g. Anthropic/OpenAI EU endpoints, Azure
-OpenAI EU, Mistral) + who signs the DPA. This and D-16 are the two external clocks —
-both can start today at zero engineering cost.
+**✅ RESOLVED (2026-06-10, per Alex): Mistral (EU), STANDARD plan, no ZDR.** DPA =
+Mistral's **standard online DPA** (acceptance owned by Rekas — the D-13 owner in
+FINISH-TIER1). Why no zero-data-retention: the T2-2 PII boundary keeps patient identity
+out of every prompt by construction (clinical codes only); the sole residual is the ADR
+free-text `symptom_description` (`adr_report.py:32`), which rides the digit-token
+scrub — so ZDR is a later config-level toggle to revisit only if a customer contract
+demands it, not a launch requirement. Embeddings (T2-9) come from the same provider.
 
 ### D-16 · SPC corpus sourcing/licensing
 
@@ -396,7 +441,12 @@ cadence, redistribution/licensing terms.
 **Recommendation:** a timeboxed probe (BC-13a register, ~0.5 day) of ΕΟΦ's portal
 format + an explicit licensing question to ΕΟΦ in parallel; EMA ingestion as the
 fallback start (legally clean, partial coverage).
-**Needed from you:** approval to approach ΕΟΦ / accept the licensing risk posture.
+**✅ RESOLVED (2026-06-10, per Alex): official sources only** — the ΕΟΦ register +
+EMA, confirmed public/usable per Greek pharmacy law; **no third-party aggregators**.
+Format is **PDF today** — EU ePI/FHIR structured labels are the future format and not
+yet available for Greek SmPCs. Extraction via **Mistral OCR**, explicitly **not AWS
+Textract** (no Greek language support). T2-8's sizing is gated by the **T2-8a spike**
+(~30–50 real ΕΟΦ PDFs measured before the build is committed).
 
 ### D-17 · Vector store: pgvector vs sidecar
 
@@ -409,8 +459,9 @@ in compose/prod, trivially inside the existing backup/restore story
 (pilot-runbook cron). Cost: the postgres image swaps to a pgvector-enabled build (dev +
 prod compose + a one-line migration `CREATE EXTENSION`). A sidecar (Qdrant et al.) only
 if retrieval quality at scale demands it — revisit-trigger, not default.
-**Needed from you:** confirm pgvector (affects the base image, so worth an explicit
-yes).
+**✅ RESOLVED (2026-06-10, per Alex): pgvector.** As recommended — one database,
+Alembic-managed, no new compose service; the base-image swap (pgvector-enabled
+Postgres build) rides T2-9.
 
 ### D-18 · Condition inference: rule-based or AI for v1
 
@@ -423,8 +474,12 @@ immediately arm the safety engine (`safety_rule.py:22`).
 **Recommendation:** **rule-based for v1** (T2-5). An LLM adds nothing to the response
 contract here — the mapping is medical-reference knowledge, better curated than
 generated. Revisit AI assist only if coverage of the curated map becomes the bottleneck.
-**Needed from you:** confirm rule-based v1 (this also moves T2-5 off the T2-2/D-15
-critical path entirely).
+**✅ RESOLVED (2026-06-10, per Alex): AI/LLM inference.** Goes the other way from the
+recommendation above. Consequences recorded: **T2-5 moves onto the LLM seam** —
+blocked by T2-2 + D-15 and scheduled in the AI wave, not the deterministic wave — and
+the model's output is **schema-constrained to the existing condition vocabulary**
+(`safety_rule.py:22`) so suggestions stay confirmable and arm the safety engine;
+out-of-vocabulary output is dropped, never invented.
 
 ### D-19 · Adherence signal source: upstream history vs caller-pushed events
 
@@ -440,58 +495,63 @@ integration ask with data-quality risk.
 whole-market signal and reuses gates that already exist. Document the non-ΕΟΠΥΥ
 limitation in API.md/ONBOARDING.md and the pricing conversation. Caller-push becomes a
 fast-follow if a non-ΕΟΠΥΥ or volume-sensitive customer needs it.
-**Needed from you:** confirm source (a), and that the non-ΕΟΠΥΥ limitation is
-acceptable to sell against.
+**✅ RESOLVED (2026-06-10, per Alex): both sources.** Upstream ΗΔΥΚΑ medicine history
+**and** caller-pushed dispense events (`POST /v1/dispense-events` ingest +
+location-scoped store + source merge — T2-4). Caller-push is what covers non-ΕΟΠΥΥ
+locations (their upstream path still 403s per 609). Ingest only — no dispense
+execution enters scope (§5).
 
 ---
 
 ## 4. Dependency order + sizing
 
 ```
-Wave 0 (now, parallel):
-  T2-1 tier model + gate (1-2d)        [after D-14 — a one-line confirm]
-  [D-15 LLM procurement starts — external clock]
-  [D-16 corpus probe + licensing ask — external clock; 0.5d probe]
-  T2-2 LLM seam interface + mock (3-5d) [live provider wiring lands after D-15]
+Wave 0 (now, parallel — all decisions resolved):
+  T2-1 tier model + gate (1-2d)          [D-14: customer-level]
+  T2-2 LLM seam + mock (3-5d)            [D-15: Mistral EU standard; DPA acceptance — Rekas]
+  T2-8a SPC extraction spike (0.5-1d)    [D-16: official sources; gates T2-8]
 
 Wave 1 (deterministic, after T2-1 — no LLM, no corpus):
   T2-3 ADR on /v1 (2-3d)
-  T2-4 adherence signals (3-4d)        [after D-19]
-  T2-5 condition inference (2-4d)      [after D-18]
+  T2-4 adherence signals, dual-source (4-6d)  [D-19: upstream + caller-push]
 
-Wave 2 (AI on the seam, after T2-2 + D-15):
+Wave 2 (AI on the seam, after T2-2):
   T2-6 Greek safety explanations (2-3d)
-  T2-7 ADR narrative drafting (2-3d)   [after T2-3]
+  T2-5 condition inference — AI (3-4d)   [D-18: AI/LLM, vocabulary-constrained]
+  T2-7 ADR narrative drafting (2-3d)     [after T2-3]
   T2-12 DPA AI amendment (0.5-1d)
 
-Wave 3 (corpus features, after D-16):
-  T2-8 SPC corpus + ingestion (1-2w)
-    └─→ T2-9 SPC Q&A RAG (3-5d)        [after D-17 + T2-2]
-    └─→ T2-10 agentic SPC lookup (3-5d) [after T2-2]
+Wave 3 (corpus features, after T2-8a findings):
+  T2-8 SPC corpus + ingestion (1-2w, resize per T2-8a)  [Mistral OCR]
+    └─→ T2-9 SPC Q&A RAG (3-5d)          [pgvector per D-17; after T2-2]
+    └─→ T2-10 agentic SPC lookup (3-5d)  [after T2-2]
 
 Continuous: T2-11 contract/docs/Postman shell (2-3d total, rides each batch)
 ```
 
 | Ticket | Size | Blocked by |
 |---|---|---|
-| T2-1 tier model + gate | days (1–2) | D-14 |
-| T2-2 LLM seam | **week (3–5)** | D-15 for live wiring (interface unblocked) |
+| T2-1 tier model + gate | days (1–2) | — (D-14 resolved) |
+| T2-2 LLM seam | **week (3–5)** | — (D-15 resolved; live key once Rekas accepts the DPA) |
 | T2-3 ADR on /v1 | days (2–3) | T2-1 |
-| T2-4 adherence signals | days (3–4) | T2-1, D-19 |
-| T2-5 condition inference | days (2–4) | T2-1, D-18 |
+| T2-4 adherence signals (dual-source) | **week (4–6)** | T2-1 (D-19 resolved) |
+| T2-5 condition inference (AI) | days (3–4) | T2-1, T2-2 (D-18 resolved) |
 | T2-6 Greek explanations | days (2–3) | T2-1, T2-2 |
 | T2-7 ADR narrative | days (2–3) | T2-2, T2-3 |
-| T2-8 SPC corpus | **week (1–2)** | D-16 |
-| T2-9 SPC Q&A (RAG) | **week (3–5d)** | T2-2, T2-8, D-17 |
+| T2-8a SPC extraction spike | days (0.5–1) | — (D-16 resolved) |
+| T2-8 SPC corpus | **week (1–2, resize per T2-8a)** | T2-8a |
+| T2-9 SPC Q&A (RAG) | **week (3–5d)** | T2-2, T2-8 (D-17 resolved) |
 | T2-10 agentic SPC lookup | **week (3–5d)** | T2-2, T2-8 |
 | T2-11 tests/docs/Postman | days (2–3 total) | rides each batch |
-| T2-12 DPA AI amendment | days (0.5–1) | D-15 |
+| T2-12 DPA AI amendment | days (0.5–1) | — (D-15 resolved) |
 
-**Roll-up total: ≈ 29–49 dev-days (~6–10 weeks single-dev) to complete Tier-2.** The
-spread is dominated by T2-8 (corpus format unknown until the D-16 probe). As with
-Tier-1, the real long poles are external: **D-15 (LLM DPA) and D-16 (corpus licence)
-gate the differentiated half of the tier and both can start today at zero engineering
-cost.**
+**Roll-up total: ≈ 31–51 dev-days (~6–10 weeks single-dev) to complete Tier-2** (was
+29–49 at audit time; +1–2d for T2-4's caller-push path, T2-5 re-sized as an AI build,
++0.5–1d for the T2-8a spike). The spread is still dominated by T2-8 — now bounded early
+by T2-8a's measurements instead of staying unknown. The external clocks that loomed at
+audit time are gone: **all six decisions resolved same-day**; the only remaining
+external step is Rekas accepting Mistral's standard online DPA (D-15/D-13), which gates
+live AI output but not the build — everything ships and tests on `LLM_MOCK`.
 
 ### Minimal trial slice — the smallest credible Clinical demo
 
@@ -499,17 +559,22 @@ The audit **confirms the hypothesis (ADR-on-/v1 + AI Safety Explanations), with 
 addition**:
 
 > **T2-1 + T2-3 + T2-2 + T2-6** (+ their T2-11/T2-12 slices) ≈ **10–14 dev-days
-> (~2–3 weeks)**, gated externally only by D-14 (a confirm) and D-15 (the DPA).
+> (~2–3 weeks)** — unchanged by the decision round, and **no external gate remains**:
+> the demo runs end-to-end on `LLM_MOCK`, so it is not gated on the Mistral DPA
+> acceptance; live AI output switches on with the standard-plan key once Rekas accepts
+> the DPA.
 
 What that demos to a business: tier provisioning + a Core key bouncing off a Clinical
 route (the commercial story), a complete clinical workflow with state machine, audit
 events, and history filters (ADR), and a visible, Greek, AI capability layered on the
-already-live `POST /v1/safety/check`. It is deliberately corpus-free — the SPC trio is
-the long pole and D-16 is unresolved.
+already-live `POST /v1/safety/check`. It is deliberately corpus-free — the SPC trio
+remains the long pole, sized by the T2-8a spike.
 
-**Best optional extension (+2–4d): T2-5 rule-based condition inference** — zero LLM
-dependency, high demo value ("we suggested DIABETES_T2 from the dispensing history; one
-confirm call armed the metformin/renal contraindication"), closes a fourth matrix row.
+**Best optional extension (+3–4d): T2-5 condition inference** — now an AI feature per
+D-18, so it rides the same seam the slice already builds (and still demos on
+`LLM_MOCK`); high demo value ("we suggested DIABETES_T2 from the dispensing history;
+one confirm call armed the metformin/renal contraindication"), closes a fourth matrix
+row.
 
 Honesty note for the pricing conversation: the trial slice delivers **3 (4 with T2-5) of
 the 7 Clinical matrix rows** (`PharmAssist_Pricing.md:253-259`). The B2C pricing page
@@ -524,9 +589,10 @@ add one, or gate Clinical contracts on the remaining waves.
   reaction network alert agent, insurance pre-auth agent, HMVS
   (`PharmAssist_Pricing.md:222-228`) — including any webhook/push infrastructure (which
   is also why T2-10 ships pull-only).
-- **Prescription execution / dispense** in any form (Tier-3 add-on), including a
-  /v1 dispense surface as an adherence data source (D-19 fallback is a fast-follow, not
-  this plan).
+- **Prescription execution / dispense** (Tier-3 add-on) — nothing in this plan executes
+  a dispense. Note the scope line moved by D-19: caller-pushed dispense **event ingest**
+  (T2-4's `POST /v1/dispense-events`) is now **in** scope — it records events for
+  adherence signals only.
 - **Live ΕΟΦ submission** of ADR reports or narratives — `EOF_REPORTED` stays a tracked
   status, the narrative stays a draft; no regulator transmission is built or implied.
 - **B2C (Motion B) surfaces** of the Tier-2 features — the LLM seam, corpus, and
@@ -535,13 +601,13 @@ add one, or gate Clinical contracts on the remaining waves.
 - **Redis / multi-worker** — D-8's triggers stand; the AI cache (T2-2) is a DB table
   precisely so it doesn't reopen that decision.
 - **Legal text** — T2-12 produces the engineering annex amendment; DPA/ToS authorship
-  remains D-13 (owner still TBD, now more urgent: Tier-2 stores more PHI and adds an AI
-  subprocessor).
+  remains D-13 (owner: **Rekas** — DPA/ToS, the Mistral DPA acceptance, the ΕΟΦ
+  posture); Tier-2 stores more PHI and adds an AI subprocessor.
 
 ## 6. Phase gate
 
-**Phase 0** (this audit + ticket set): ✅ written 2026-06-10 — **pausing here for
-review.** Suggested batch shape mirrors FINISH-TIER1: Batch 1 = decisions D-14…D-19
-recorded + the trial slice (T2-1/T2-2/T2-3/T2-6 + shell slices); Batch 2 = the
-deterministic remainder (T2-4/T2-5); Batch 3 = the corpus wave (T2-8/9/10) once D-16
-lands.
+**Phase 0** (this audit + ticket set): ✅ written 2026-06-10; **decisions D-14…D-19
+recorded the same day (per Alex)** — pausing again for review before any build.
+Suggested batch shape mirrors FINISH-TIER1: Batch 1 = the trial slice
+(T2-1/T2-2/T2-3/T2-6 + shell slices) + the T2-8a spike; Batch 2 = T2-4/T2-5/T2-7;
+Batch 3 = the corpus wave (T2-8/9/10), sized by T2-8a's findings.

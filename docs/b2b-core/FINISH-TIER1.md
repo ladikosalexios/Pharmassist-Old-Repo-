@@ -529,7 +529,9 @@ comparatively small — no LLM subprocessors (Core has no AI features), processi
 annex (data inventory, subprocessors, security measures) so whoever drafts the legal text
 starts from facts, not interviews. This is the **longest external lead time** in the whole
 plan — lawyer or template-service turnaround is weeks regardless of our velocity.
-**⏸ RESOLVED AS DEFERRED (2026-06-10, per Alex):** handed to the team, **owner TBD**.
+**⏸ RESOLVED AS DEFERRED (2026-06-10, per Alex):** handed to the team, **owner: Rekas**
+(DPA/ToS, plus the Mistral DPA acceptance and the ΕΟΦ sourcing posture —
+`TIER2-AUDIT.md` D-15/D-16).
 Explicit framing: legal **gates contract signature, not build** — engineering proceeds at
 full speed; FT-14's technical annex stays on the shelf ready for whoever picks up
 ownership. Re-flag at the first serious integrator conversation: lawyer/template
