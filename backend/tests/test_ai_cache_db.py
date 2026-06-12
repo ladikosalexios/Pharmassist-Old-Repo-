@@ -47,6 +47,15 @@ async def _cleanup():
 
 def test_cache_miss_then_hit_round_trip():
     async def run():
+        # The global async engine's pool may hold connections bound to a prior
+        # test file's now-closed asyncio.run loop (these *_db.py suites are run
+        # manually and may be chained, e.g. after test_v1_tenant_isolation or
+        # test_v1_safety_explain_cache_db). Discard the stale pool first
+        # (close=False — closing would need the original loop) so this loop gets
+        # fresh connections; mirrors test_v1_tenant_isolation's client fixture.
+        from app.db.session import engine
+
+        await engine.dispose(close=False)
         await _cleanup()
         try:
             async with AsyncSessionLocal() as s:
