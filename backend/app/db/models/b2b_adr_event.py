@@ -22,7 +22,8 @@ class B2bAdrEvent(Base, TimestampMixin):
     adr_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("b2b_adr_reports.id"), nullable=False
     )
-    # API-key actor — no pharmacist row on the /v1 surface.
+    # API-key actor — no pharmacist row on the /v1 surface. Default RESTRICT FK
+    # on purpose: keys are soft-revoked, never hard-deleted (see B2bAdrReport).
     actor_api_key_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("api_keys.id"), nullable=True
     )

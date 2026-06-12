@@ -9,7 +9,7 @@ Mock fixtures live in services/v1_mock.py (MOCK_V1_ADR_REPORTS) and share
 the exact same response shape as the live path.
 """
 
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from uuid import UUID
 
 from sqlalchemy import and_, func, select
@@ -197,9 +197,12 @@ async def list_reports(
         from_dt = datetime(from_date.year, from_date.month, from_date.day, tzinfo=UTC)
         filters.append(B2bAdrReport.reported_at >= from_dt)
     if to_date:
-        # inclusive: treat to_date as end-of-day
-        to_dt = datetime(to_date.year, to_date.month, to_date.day, 23, 59, 59, tzinfo=UTC)
-        filters.append(B2bAdrReport.reported_at <= to_dt)
+        # inclusive of the whole to_date day: exclusive bound at next-day midnight
+        # (a 23:59:59 cap would drop sub-second timestamps the mock path keeps)
+        end_excl = datetime(to_date.year, to_date.month, to_date.day, tzinfo=UTC) + timedelta(
+            days=1
+        )
+        filters.append(B2bAdrReport.reported_at < end_excl)
 
     total_q = await session.scalar(
         select(func.count()).select_from(B2bAdrReport).where(and_(*filters))

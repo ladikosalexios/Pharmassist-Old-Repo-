@@ -38,7 +38,9 @@ class B2bAdrReport(Base, TimestampMixin):
     location_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("locations.id"), nullable=False
     )
-    # Nullable so key deletion never orphans ADR rows.
+    # Nullable for inserts without a key actor (admin tooling). The FK keeps the
+    # default RESTRICT on purpose: keys are soft-revoked (active=False), never
+    # hard-deleted, and an audit trail must not lose actor attribution silently.
     created_via_api_key_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("api_keys.id"), nullable=True
     )
