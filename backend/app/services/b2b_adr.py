@@ -59,6 +59,10 @@ def _report_to_dict(r: B2bAdrReport) -> dict:
 
 
 def _event_to_dict(e: B2bAdrEvent) -> dict:
+    # actor_api_key_id is stored but deliberately not exposed: the /v1 consumer
+    # is the tenant itself, and key ids are internal identifiers. Attribution
+    # stays queryable DB-side for operators; surface it later if a customer
+    # needs per-key audit (additive, non-breaking).
     return {
         "id": str(e.id),
         "eventType": e.event_type,

@@ -130,6 +130,21 @@ def test_create_adr_report_201():
     assert body["atcCode"] == "J01CA04"
 
 
+def test_create_eof_report_ref_round_trip():
+    """eofReportRef set on create is returned and persists through GET detail."""
+    r = client.post(
+        "/v1/adr-reports",
+        json={"symptomDescription": "Severe urticaria", "eofReportRef": "EOF-2026-04217"},
+    )
+    assert r.status_code == 201, r.text
+    body = r.json()
+    assert body["eofReportRef"] == "EOF-2026-04217"
+    assert body["reportedAt"] == body["createdAt"]  # single timestamp evaluation
+
+    detail = client.get(f"/v1/adr-reports/{body['id']}").json()
+    assert detail["eofReportRef"] == "EOF-2026-04217"
+
+
 def test_create_adr_report_invalid_severity():
     r = client.post("/v1/adr-reports", json={"symptomDescription": "x", "severity": "EXTREME"})
     _assert_envelope(r, 422, "validation_failed")

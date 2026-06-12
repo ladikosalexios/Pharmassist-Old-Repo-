@@ -158,6 +158,8 @@ async def create_adr_report(
     _validate_causality(body.causality)
 
     if is_mock_pharmapi():
+        # single evaluation — live rows get one now() per transaction
+        now = datetime.now(UTC).isoformat()
         record = {
             "id": str(uuid.uuid4()),
             "locationId": str(ctx.location_id),
@@ -173,8 +175,8 @@ async def create_adr_report(
             "causality": body.causality,
             "status": AdrStatus.PENDING_REVIEW,
             "eofReportRef": body.eofReportRef,
-            "reportedAt": datetime.now(UTC).isoformat(),
-            "createdAt": datetime.now(UTC).isoformat(),
+            "reportedAt": now,
+            "createdAt": now,
         }
         _MOCK_STORE.append(record)
         _MOCK_EVENTS[record["id"]] = [
