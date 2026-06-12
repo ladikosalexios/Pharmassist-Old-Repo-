@@ -229,3 +229,37 @@ MOCK_V1_ADR_REPORTS: list[dict] = [
         "createdAt": "2026-05-20T14:30:00+00:00",
     },
 ]
+
+# Event trails keyed by report id — shape identical to _event_to_dict().  Kept
+# OUTSIDE the report dicts on purpose: the live contract surfaces events only on
+# the detail endpoint, never in list/create/transition responses.
+MOCK_V1_ADR_EVENTS: dict[str, list[dict]] = {
+    _MOCK_ADR_ID_1: [
+        {
+            "id": "bbbbbbbb-0001-0001-0001-000000000001",
+            "eventType": "REPORT_CREATED",
+            "fromStatus": None,
+            "toStatus": "PENDING_REVIEW",
+            "notes": None,
+            "occurredAt": "2026-06-01T10:00:00+00:00",
+        },
+    ],
+    _MOCK_ADR_ID_2: [
+        {
+            "id": "bbbbbbbb-0002-0002-0002-000000000001",
+            "eventType": "REPORT_CREATED",
+            "fromStatus": None,
+            "toStatus": "PENDING_REVIEW",
+            "notes": None,
+            "occurredAt": "2026-05-20T14:30:00+00:00",
+        },
+        {
+            "id": "bbbbbbbb-0002-0002-0002-000000000002",
+            "eventType": "STATUS_CHANGED",
+            "fromStatus": "PENDING_REVIEW",
+            "toStatus": "ESCALATED",
+            "notes": "Bleeding risk — escalated for pharmacovigilance review.",
+            "occurredAt": "2026-05-21T09:00:00+00:00",
+        },
+    ],
+}

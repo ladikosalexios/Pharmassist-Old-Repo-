@@ -15,7 +15,7 @@ from uuid import UUID
 from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.constants import AdrStatus
+from app.constants import AdrEventType, AdrStatus
 from app.db.models.b2b_adr_event import B2bAdrEvent
 from app.db.models.b2b_adr_report import B2bAdrReport
 from app.routers.v1.errors import V1Error
@@ -112,7 +112,7 @@ async def create_report(
         B2bAdrEvent(
             adr_id=report.id,
             actor_api_key_id=api_key_id,
-            event_type="REPORT_CREATED",
+            event_type=AdrEventType.REPORT_CREATED,
             from_status=None,
             to_status=AdrStatus.PENDING_REVIEW,
         )
@@ -144,7 +144,7 @@ async def transition_report(
         B2bAdrEvent(
             adr_id=report.id,
             actor_api_key_id=api_key_id,
-            event_type="STATUS_CHANGED",
+            event_type=AdrEventType.STATUS_CHANGED,
             from_status=old_status,
             to_status=target,
             notes=notes,
@@ -193,7 +193,9 @@ async def list_reports(
     if status:
         filters.append(B2bAdrReport.status == status)
     if from_date:
-        filters.append(B2bAdrReport.reported_at >= from_date)
+        # explicit UTC midnight — a bare date would be cast in the server's timezone
+        from_dt = datetime(from_date.year, from_date.month, from_date.day, tzinfo=UTC)
+        filters.append(B2bAdrReport.reported_at >= from_dt)
     if to_date:
         # inclusive: treat to_date as end-of-day
         to_dt = datetime(to_date.year, to_date.month, to_date.day, 23, 59, 59, tzinfo=UTC)

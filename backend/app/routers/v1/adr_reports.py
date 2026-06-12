@@ -14,10 +14,10 @@ from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.constants import AdrCausality, AdrSeverity, AdrStatus
+from app.constants import AdrCausality, AdrEventType, AdrSeverity, AdrStatus
 from app.db.session import get_session
 from app.services import b2b_adr
-from app.services.v1_mock import MOCK_V1_ADR_REPORTS
+from app.services.v1_mock import MOCK_V1_ADR_EVENTS, MOCK_V1_ADR_REPORTS
 from app.utils.environment import is_mock_pharmapi
 
 from .deps import ApiContext, require_tier
@@ -41,7 +41,10 @@ _VALID_STATUSES = {
 
 # In-memory mock store — a mutable copy so POST/transition tests don't mutate the
 # canonical fixture list; reset between test sessions by re-importing the module.
+# Events live in a separate dict (mirroring the live contract: events appear only
+# on the detail endpoint, never in list/create/transition responses).
 _MOCK_STORE: list[dict] = copy.deepcopy(MOCK_V1_ADR_REPORTS)
+_MOCK_EVENTS: dict[str, list[dict]] = copy.deepcopy(MOCK_V1_ADR_EVENTS)
 
 
 # ── request schemas ───────────────────────────────────────────────────────────
@@ -125,11 +128,17 @@ def _mock_list(
     }
 
 
-def _mock_get(location_id: str, report_id: str) -> dict:
+def _mock_find(location_id: str, report_id: str) -> dict:
+    """Return the live store record (mutable) — 404 if absent or not owned."""
     for r in _MOCK_STORE:
         if r["id"] == report_id and r["locationId"] == location_id:
-            return dict(r, events=[])
+            return r
     raise V1Error("not_found", 404, "ADR report not found")
+
+
+def _mock_get(location_id: str, report_id: str) -> dict:
+    r = _mock_find(location_id, report_id)
+    return dict(r, events=[dict(e) for e in _MOCK_EVENTS.get(report_id, [])])
 
 
 # ── endpoints ─────────────────────────────────────────────────────────────────
@@ -168,6 +177,16 @@ async def create_adr_report(
             "createdAt": datetime.now(UTC).isoformat(),
         }
         _MOCK_STORE.append(record)
+        _MOCK_EVENTS[record["id"]] = [
+            {
+                "id": str(uuid.uuid4()),
+                "eventType": AdrEventType.REPORT_CREATED,
+                "fromStatus": None,
+                "toStatus": AdrStatus.PENDING_REVIEW,
+                "notes": None,
+                "occurredAt": record["createdAt"],
+            }
+        ]
         return record
 
     return await b2b_adr.create_report(
@@ -261,20 +280,28 @@ async def transition_adr_report(
     EOF_REPORTED means the report is marked; PharmAssist does NOT submit to ΕΟΦ.
     """
     if is_mock_pharmapi():
-        report = _mock_get(str(ctx.location_id), str(report_id))
-        target = b2b_adr.next_status(report["status"])
+        record = _mock_find(str(ctx.location_id), str(report_id))
+        target = b2b_adr.next_status(record["status"])
         if target is None:
             raise V1Error(
                 "illegal_transition",
                 409,
-                f"ADR report is in terminal status '{report['status']}' — no further transitions",
+                f"ADR report is in terminal status '{record['status']}' — no further transitions",
             )
-        report["status"] = target
-        # Update in-place in the mock store
-        for r in _MOCK_STORE:
-            if r["id"] == report["id"]:
-                r["status"] = target
-        return report
+        old_status = record["status"]
+        record["status"] = target
+        _MOCK_EVENTS.setdefault(record["id"], []).append(
+            {
+                "id": str(uuid.uuid4()),
+                "eventType": AdrEventType.STATUS_CHANGED,
+                "fromStatus": old_status,
+                "toStatus": target,
+                "notes": body.notes,
+                "occurredAt": datetime.now(UTC).isoformat(),
+            }
+        )
+        # live parity: transition responses carry no events key
+        return dict(record)
 
     return await b2b_adr.transition_report(
         session,

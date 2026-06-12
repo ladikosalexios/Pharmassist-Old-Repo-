@@ -38,9 +38,10 @@ import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 
 from app.db.session import get_session  # noqa: E402
-from app.routers.v1.adr_reports import _MOCK_STORE  # noqa: E402
+from app.routers.v1.adr_reports import _MOCK_EVENTS, _MOCK_STORE  # noqa: E402
 from app.routers.v1.deps import ApiContext, get_api_context  # noqa: E402
 from app.services.pharmapi import PharmapiContext  # noqa: E402
+from app.services.v1_mock import MOCK_V1_ADR_EVENTS  # noqa: E402
 from main import create_app  # noqa: E402
 
 
@@ -196,8 +197,12 @@ def _seed_mock_store():
     """Seed the in-process mock store with location-scoped fixtures for each test."""
     _MOCK_STORE.clear()
     _MOCK_STORE.extend(copy.deepcopy(_SEED_REPORTS))
+    # seed report ids match the canonical fixtures, so the canonical trails apply
+    _MOCK_EVENTS.clear()
+    _MOCK_EVENTS.update(copy.deepcopy(MOCK_V1_ADR_EVENTS))
     yield
     _MOCK_STORE.clear()
+    _MOCK_EVENTS.clear()
 
 
 def test_list_adr_reports_no_filter():
@@ -336,6 +341,30 @@ def test_transition_from_closed_is_409():
 def test_transition_unknown_report_404():
     r = client.post(f"/v1/adr-reports/{uuid.uuid4()}/transition", json={})
     _assert_envelope(r, 404, "not_found")
+
+
+# ── Event trail (mock parity with the live audit trail) ──────────────────────
+
+
+def test_event_trail_recorded_and_scoped_to_detail():
+    """Create + transition builds an event trail; events appear ONLY on the detail endpoint."""
+    created = client.post("/v1/adr-reports", json={"symptomDescription": "Rash"}).json()
+    assert "events" not in created  # live create response carries no events key
+    rid = created["id"]
+
+    r = client.post(f"/v1/adr-reports/{rid}/transition", json={"notes": "escalate"})
+    assert r.status_code == 200, r.text
+    assert "events" not in r.json()  # live transition response carries no events key
+
+    detail = client.get(f"/v1/adr-reports/{rid}").json()
+    assert [e["eventType"] for e in detail["events"]] == ["REPORT_CREATED", "STATUS_CHANGED"]
+    changed = detail["events"][1]
+    assert changed["fromStatus"] == "PENDING_REVIEW"
+    assert changed["toStatus"] == "ESCALATED"
+    assert changed["notes"] == "escalate"
+
+    listing = client.get("/v1/adr-reports").json()
+    assert all("events" not in item for item in listing["items"])
 
 
 # ── Tier gate ─────────────────────────────────────────────────────────────────
