@@ -230,9 +230,7 @@ async def list_reports(
 # ── internal helpers ──────────────────────────────────────────────────────────
 
 
-async def _get_owned(
-    session: AsyncSession, location_id: UUID, report_id: UUID
-) -> B2bAdrReport:
+async def _get_owned(session: AsyncSession, location_id: UUID, report_id: UUID) -> B2bAdrReport:
     """Fetch a report that belongs to this location — 404 if absent or not owned."""
     result = await session.execute(
         select(B2bAdrReport).where(

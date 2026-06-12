@@ -51,10 +51,10 @@ class B2bAdrReport(Base, TimestampMixin):
     symptom_description: Mapped[str] = mapped_column(String, nullable=False)
     onset_timing: Mapped[str | None] = mapped_column(String)
     severity: Mapped[str | None] = mapped_column(String)  # MILD | MODERATE | SEVERE
-    causality: Mapped[str | None] = mapped_column(String)  # Certain | Probable | Possible | Unlikely
-    status: Mapped[str] = mapped_column(
-        String, nullable=False, default=AdrStatus.PENDING_REVIEW
-    )
+    causality: Mapped[str | None] = mapped_column(
+        String
+    )  # Certain | Probable | Possible | Unlikely
+    status: Mapped[str] = mapped_column(String, nullable=False, default=AdrStatus.PENDING_REVIEW)
     eof_report_ref: Mapped[str | None] = mapped_column(String)
     reported_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=text("now()")

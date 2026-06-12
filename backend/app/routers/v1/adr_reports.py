@@ -27,10 +27,16 @@ router = APIRouter(prefix="/adr-reports", tags=["b2b-v1"])
 
 _VALID_SEVERITIES = {AdrSeverity.MILD, AdrSeverity.MODERATE, AdrSeverity.SEVERE}
 _VALID_CAUSALITIES = {
-    AdrCausality.CERTAIN, AdrCausality.PROBABLE, AdrCausality.POSSIBLE, AdrCausality.UNLIKELY
+    AdrCausality.CERTAIN,
+    AdrCausality.PROBABLE,
+    AdrCausality.POSSIBLE,
+    AdrCausality.UNLIKELY,
 }
 _VALID_STATUSES = {
-    AdrStatus.PENDING_REVIEW, AdrStatus.ESCALATED, AdrStatus.EOF_REPORTED, AdrStatus.CLOSED
+    AdrStatus.PENDING_REVIEW,
+    AdrStatus.ESCALATED,
+    AdrStatus.EOF_REPORTED,
+    AdrStatus.CLOSED,
 }
 
 # In-memory mock store — a mutable copy so POST/transition tests don't mutate the
