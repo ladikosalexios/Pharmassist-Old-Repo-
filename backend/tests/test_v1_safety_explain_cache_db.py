@@ -79,6 +79,10 @@ def test_second_identical_call_is_cached_zero_llm_calls():
     async def run():
         await _cleanup_cache()
         calls = {"n": 0}
+        # TODO: reaches into the seam's private _MOCKS dict to count generator calls.
+        # It's the cleanest way to prove "0 LLM calls on a hit" without a network,
+        # but if the seam ever renames _MOCKS this breaks — a documented test hook
+        # (e.g. llm.set_mock) on the T2-2 seam would be more robust. Out of scope here.
         original_mock = llm._MOCKS[KIND_SAFETY_EXPLANATION]
 
         def counting_mock(fields):
@@ -220,6 +224,16 @@ def test_http_explain_round_trip_and_unknown_rule_422():
                 r3 = await ac.post("/v1/safety/explain", json={"ruleCodes": ["NO_SUCH_RULE_XYZ"]})
                 assert r3.status_code == 422, r3.text
                 assert r3.json()["error"]["code"] == "validation_failed"
+
+                # AMKA-shaped condition code → the PII scrub fires inside the route
+                # body; it must envelope as 422, not a raw 500 (end-to-end proof of
+                # the PiiBoundaryError handler).
+                r4 = await ac.post(
+                    "/v1/safety/explain",
+                    json={"ruleCodes": [_RULE.rule_code], "conditionCodes": ["12345678901"]},
+                )
+                assert r4.status_code == 422, r4.text
+                assert r4.json()["error"]["code"] == "validation_failed"
         finally:
             await _set_rule(present=False)
             await _cleanup_cache()

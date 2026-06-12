@@ -60,7 +60,14 @@ _RISK_LEVEL_EL: dict[str, str] = {
 
 
 def _risk_level_el(severity: str) -> str:
-    return _RISK_LEVEL_EL.get(severity, severity)
+    label = _RISK_LEVEL_EL.get(severity)
+    if label is None:
+        # A new engine severity not yet mapped would otherwise emit a raw (English)
+        # value into the Greek riskLevel field — log it so the gap is visible at
+        # runtime rather than shipping silently, but don't break the response.
+        logger.warning("[safety-explain] no Greek risk-level label for severity %r", severity)
+        return severity
+    return label
 
 
 # ── Prompt input from rule fields (the structural PII boundary) ────────────────
@@ -203,7 +210,10 @@ async def explain_rule(
         raise llm.AiUnavailableError("LLM returned an incomplete explanation payload")
     return {
         "rule_code": rule.rule_code,
-        "language": payload.get("language", "el"),
+        # The endpoint contract is always Greek (V1SafetyExplanation.language is
+        # Literal["el"]); we don't trust the model's self-reported language, so a
+        # misbehaving live payload can never break the response shape.
+        "language": "el",
         "rationale": payload["rationale"],
         "mechanism": payload["mechanism"],
         "risk_level": _risk_level_el(rule.severity),

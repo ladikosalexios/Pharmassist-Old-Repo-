@@ -219,7 +219,18 @@ async def _fake_get_session():
 app = create_app()
 app.dependency_overrides[get_api_context] = lambda: CURRENT["ctx"]
 app.dependency_overrides[get_session] = _fake_get_session
-client = TestClient(app)
+
+
+# Throwaway probe (same pattern as test_llm_seam's /v1/_probe/ai_down): the route
+# body of /safety/explain can raise PiiBoundaryError when the scrub trips on a
+# caller-supplied condition code, but that only fires after a DB rule load. This
+# probe exercises the app-level handler directly, DB-free.
+@app.post("/v1/_probe/pii")
+async def _probe_pii():
+    raise llm.PiiBoundaryError("would carry identity")
+
+
+client = TestClient(app, raise_server_exceptions=False)
 
 
 def _assert_envelope(resp, status: int, code: str):
@@ -246,6 +257,25 @@ def test_empty_rule_codes_422():
 def test_missing_rule_codes_field_422():
     r = client.post("/v1/safety/explain", json={"conditionCodes": ["PREGNANCY"]})
     _assert_envelope(r, 422, "validation_failed")
+
+
+def test_too_many_rule_codes_422():
+    # The clinical-key batch cap (Field max_length) fires at request validation,
+    # before the route body — so an oversized batch can never reach the sequential
+    # DB+LLM loop.
+    r = client.post("/v1/safety/explain", json={"ruleCodes": [f"R{i}" for i in range(51)]})
+    _assert_envelope(r, 422, "validation_failed")
+
+
+def test_pii_boundary_error_renders_422_envelope():
+    # A PiiBoundaryError raised inside an AI route body must envelope as 422
+    # validation_failed (caller-data error), never a raw 500 — and the message
+    # must not echo the offending token.
+    r = client.post("/v1/_probe/pii")
+    _assert_envelope(r, 422, "validation_failed")
+    body = r.json()
+    assert set(body["error"]) == {"code", "message", "request_id"}
+    assert "would carry identity" not in body["error"]["message"]
 
 
 # ── /v1/safety/check byte-identical: it never imports the LLM seam ─────────────

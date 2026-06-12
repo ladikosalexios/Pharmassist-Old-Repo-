@@ -12,7 +12,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Literal
 
-from pydantic import field_validator, model_validator
+from pydantic import Field, field_validator, model_validator
 
 from ..constants import AlertStatus
 from .base import AppSchema
@@ -166,21 +166,19 @@ class V1SafetyExplainRequest(AppSchema):
     # The rule codes a /v1/safety/check result produced (e.g. WARFARIN_ASPIRIN_BLEED).
     # Optional condition codes describe the patient's clinical profile (e.g. PREGNANCY)
     # so the rationale is condition-aware — never any patient identity.
-    rule_codes: list[str]
-    condition_codes: list[str] = []
-
-    @field_validator("rule_codes")
-    @classmethod
-    def _non_empty(cls, v: list[str]) -> list[str]:
-        if not v:
-            raise ValueError("at least one ruleCode is required")
-        return v
+    #
+    # Both lists are capped: the explain loop is sequential (one AsyncSession is not
+    # concurrency-safe), so an unbounded batch would be proportionally slow. A check
+    # yields a handful of alerts; 50 is generous headroom. min_length=1 on rule_codes
+    # makes an empty list a 422 (the old _non_empty validator, now structural).
+    rule_codes: list[str] = Field(min_length=1, max_length=50)
+    condition_codes: list[str] = Field(default_factory=list, max_length=50)
 
 
 class V1SafetyExplanation(AppSchema):
     rule_code: str
     # Always "el": the rationale/mechanism/alternatives are generated in Greek.
-    language: str
+    language: Literal["el"]
     rationale: str
     mechanism: str
     # Greek label mapped from the rule's severity (Υψηλός/Μέτριος/Χαμηλός) — anchored
