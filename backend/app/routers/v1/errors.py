@@ -30,7 +30,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from app.services.llm import AiUnavailableError
+from app.services.llm import AiUnavailableError, PiiBoundaryError
 
 _G_CODE_RE = re.compile(r"\bG\d{2}\b")
 
@@ -137,6 +137,24 @@ def install_v1_exception_handlers(app: FastAPI) -> None:
             status_code=503,
             code="ai_unavailable",
             message="AI feature temporarily unavailable — please retry shortly",
+        )
+
+    @app.exception_handler(PiiBoundaryError)
+    async def _pii_boundary(request: Request, exc: PiiBoundaryError):
+        # The T2-2 PII scrub refused a prompt because caller-supplied content
+        # carried a PII-shaped token (e.g. an AMKA in a condition code). That is a
+        # caller-data error, not a server fault — surface it as a 422 rather than a
+        # raw 500, for every AI endpoint at once. The message is fixed and never
+        # echoes the offending token (PHI rule); the exception's own message
+        # already withholds it.
+        return _envelope_response(
+            request,
+            status_code=422,
+            code="validation_failed",
+            message=(
+                "Request contains a PII-shaped token (e.g. an AMKA) in a clinical "
+                "field — patient identity must not be sent to AI endpoints."
+            ),
         )
 
     @app.exception_handler(StarletteHTTPException)

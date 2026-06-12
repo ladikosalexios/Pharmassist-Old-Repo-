@@ -12,7 +12,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Literal
 
-from pydantic import field_validator, model_validator
+from pydantic import Field, field_validator, model_validator
 
 from ..constants import AlertStatus
 from .base import AppSchema
@@ -160,6 +160,38 @@ class V1SafetyCheckResponse(AppSchema):
     # unknownDrug and the formulary dataCaveats: a clean status must never be
     # mistaken for "everything was checked".
     data_caveats: list[str]
+
+
+class V1SafetyExplainRequest(AppSchema):
+    # The rule codes a /v1/safety/check result produced (e.g. WARFARIN_ASPIRIN_BLEED).
+    # Optional condition codes describe the patient's clinical profile (e.g. PREGNANCY)
+    # so the rationale is condition-aware — never any patient identity.
+    #
+    # Both lists are capped: the explain loop is sequential (one AsyncSession is not
+    # concurrency-safe), so an unbounded batch would be proportionally slow. A check
+    # yields a handful of alerts; 50 is generous headroom. min_length=1 on rule_codes
+    # makes an empty list a 422 (the old _non_empty validator, now structural).
+    rule_codes: list[str] = Field(min_length=1, max_length=50)
+    condition_codes: list[str] = Field(default_factory=list, max_length=50)
+
+
+class V1SafetyExplanation(AppSchema):
+    rule_code: str
+    # Always "el": the rationale/mechanism/alternatives are generated in Greek.
+    language: Literal["el"]
+    rationale: str
+    mechanism: str
+    # Greek label mapped from the rule's severity (Υψηλός/Μέτριος/Χαμηλός) — anchored
+    # to the deterministic engine, not generated, so it can never be hallucinated.
+    risk_level: str
+    alternatives: list[str]
+    # True when this rule+condition-profile was served from the AI response cache
+    # (zero LLM calls) rather than freshly generated.
+    cached: bool
+
+
+class V1SafetyExplainResponse(AppSchema):
+    explanations: list[V1SafetyExplanation]
 
 
 class V1Condition(AppSchema):

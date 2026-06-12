@@ -29,7 +29,13 @@ SEAM_FILES = {"services/llm.py", "services/ai_cache.py"}
 # Modules permitted to reference the seam. errors.py only enveloping-translates
 # AiUnavailableError → the ai_unavailable code; it does not call the seam. AI
 # endpoint modules append themselves here as they ship.
-ALLOWED_IMPORTERS = {"routers/v1/errors.py"}
+#   services/safety_explanations.py — T2-6 Greek safety-flag explanations: the
+#   first AI feature on the seam. Its /v1 router (routers/v1/safety_explain.py)
+#   calls this service, not the seam directly, so it does not appear here.
+ALLOWED_IMPORTERS = {
+    "routers/v1/errors.py",
+    "services/safety_explanations.py",
+}
 
 # Import shapes that mean "this module pulls in the seam".
 _SEAM_IMPORT_MARKERS = (
