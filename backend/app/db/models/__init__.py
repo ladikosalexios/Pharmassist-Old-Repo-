@@ -4,6 +4,8 @@ from .ai_response_cache import AiResponseCache
 from .api_key import ApiKey
 from .audit_log import AuditLog
 from .b2b_admin_audit import B2bAdminAudit
+from .b2b_adr_event import B2bAdrEvent
+from .b2b_adr_report import B2bAdrReport
 from .b2b_patient_condition import B2bPatientCondition
 from .catalog_sync_run import CatalogSyncRun
 from .customer import Customer
@@ -37,6 +39,8 @@ __all__ = [
     "Location",
     "ApiKey",
     "B2bPatientCondition",
+    "B2bAdrReport",
+    "B2bAdrEvent",
     "B2bAdminAudit",
     "CatalogSyncRun",
     "AiResponseCache",

@@ -13,6 +13,8 @@ from app.db.models.ai_response_cache import AiResponseCache  # noqa
 from app.db.models.api_key import ApiKey  # noqa
 from app.db.models.audit_log import AuditLog  # noqa
 from app.db.models.b2b_admin_audit import B2bAdminAudit  # noqa
+from app.db.models.b2b_adr_event import B2bAdrEvent  # noqa
+from app.db.models.b2b_adr_report import B2bAdrReport  # noqa
 from app.db.models.b2b_patient_condition import B2bPatientCondition  # noqa
 from app.db.models.catalog_sync_run import CatalogSyncRun  # noqa
 from app.db.models.customer import Customer  # noqa
