@@ -181,3 +181,47 @@ MOCK_V1_PRESCRIPTIONS: list[dict] = [
         "totalRepeats": 1,
     },
 ]
+
+# ADR mock reports — keyed by a deterministic UUID string so contract tests can
+# reference them by id without a DB.  Shape is identical to _report_to_dict().
+_MOCK_ADR_ID_1 = "aaaaaaaaa-0001-0001-0001-000000000001"
+_MOCK_ADR_ID_2 = "aaaaaaaaa-0001-0001-0001-000000000002"
+
+MOCK_V1_ADR_REPORTS: list[dict] = [
+    {
+        "id": _MOCK_ADR_ID_1,
+        "locationId": "mock-location-id",
+        "patientAmka": "15031962456",
+        "patientName": "Maria Stavrou",
+        "rxId": "1262602210000100",
+        "medicineBarcode": "3661001",
+        "medicineName": "Warfarin 5 mg",
+        "atcCode": "B01AA03",
+        "symptomDescription": "Dark stools and gum bleeding after second dose.",
+        "onsetTiming": "8 hours after the second dose",
+        "severity": "SEVERE",
+        "causality": "Probable",
+        "status": "PENDING_REVIEW",
+        "eofReportRef": None,
+        "reportedAt": "2026-06-01T10:00:00+00:00",
+        "createdAt": "2026-06-01T10:00:00+00:00",
+    },
+    {
+        "id": _MOCK_ADR_ID_2,
+        "locationId": "mock-location-id",
+        "patientAmka": "08111947033",
+        "patientName": "Nikos Papadopoulos",
+        "rxId": None,
+        "medicineBarcode": "3661002",
+        "medicineName": "Aspirin 100 mg",
+        "atcCode": "B01AC06",
+        "symptomDescription": "Persistent nosebleeds.",
+        "onsetTiming": "48 hours after starting",
+        "severity": "MODERATE",
+        "causality": "Possible",
+        "status": "ESCALATED",
+        "eofReportRef": None,
+        "reportedAt": "2026-05-20T14:30:00+00:00",
+        "createdAt": "2026-05-20T14:30:00+00:00",
+    },
+]
