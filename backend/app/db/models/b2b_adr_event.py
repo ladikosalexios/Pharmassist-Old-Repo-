@@ -3,7 +3,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, String, text
+from sqlalchemy import DateTime, ForeignKey, Index, String, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -12,6 +12,7 @@ from ..base import Base, TimestampMixin
 
 class B2bAdrEvent(Base, TimestampMixin):
     __tablename__ = "b2b_adr_events"
+    __table_args__ = (Index("ix_b2b_adr_events_adr_id", "adr_id"),)
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         primary_key=True,

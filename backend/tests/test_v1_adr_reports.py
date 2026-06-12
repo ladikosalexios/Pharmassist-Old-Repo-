@@ -15,6 +15,7 @@ Tests run in-process (no DB, no docker) by overriding get_api_context and get_se
 """
 
 import base64
+import copy
 import os
 
 os.environ.setdefault("ENV", "test")
@@ -148,95 +149,56 @@ def test_create_adr_report_missing_symptom():
 
 # ── GET list — each filter ────────────────────────────────────────────────────
 
+_LOCATION_ID = str(_CLINICAL_CTX.location_id)
+
+_SEED_REPORTS = [
+    {
+        "id": "aaaaaaaa-0001-0001-0001-000000000001",
+        "locationId": _LOCATION_ID,
+        "patientAmka": "15031962456",
+        "patientName": "Maria Stavrou",
+        "rxId": None,
+        "medicineBarcode": "3661001",
+        "medicineName": "Warfarin 5 mg",
+        "atcCode": "B01AA03",
+        "symptomDescription": "Dark stools",
+        "onsetTiming": "8h",
+        "severity": "SEVERE",
+        "causality": "Probable",
+        "status": "PENDING_REVIEW",
+        "eofReportRef": None,
+        "reportedAt": "2026-06-01T10:00:00+00:00",
+        "createdAt": "2026-06-01T10:00:00+00:00",
+    },
+    {
+        "id": "aaaaaaaa-0001-0001-0001-000000000002",
+        "locationId": _LOCATION_ID,
+        "patientAmka": "08111947033",
+        "patientName": "Nikos Papadopoulos",
+        "rxId": None,
+        "medicineBarcode": "3661002",
+        "medicineName": "Aspirin 100 mg",
+        "atcCode": "B01AC06",
+        "symptomDescription": "Nosebleed",
+        "onsetTiming": "48h",
+        "severity": "MODERATE",
+        "causality": "Possible",
+        "status": "ESCALATED",
+        "eofReportRef": None,
+        "reportedAt": "2026-05-20T14:30:00+00:00",
+        "createdAt": "2026-05-20T14:30:00+00:00",
+    },
+]
+
 
 @pytest.fixture(autouse=True)
 def _seed_mock_store():
     """Seed the in-process mock store with location-scoped fixtures for each test."""
-    location_id = str(_CLINICAL_CTX.location_id)
     _MOCK_STORE.clear()
-    _MOCK_STORE.extend(
-        [
-            {
-                "id": "aaaaaaaa-0001-0001-0001-000000000001",
-                "locationId": location_id,
-                "patientAmka": "15031962456",
-                "patientName": "Maria Stavrou",
-                "rxId": None,
-                "medicineBarcode": "3661001",
-                "medicineName": "Warfarin 5 mg",
-                "atcCode": "B01AA03",
-                "symptomDescription": "Dark stools",
-                "onsetTiming": "8h",
-                "severity": "SEVERE",
-                "causality": "Probable",
-                "status": "PENDING_REVIEW",
-                "eofReportRef": None,
-                "reportedAt": "2026-06-01T10:00:00+00:00",
-                "createdAt": "2026-06-01T10:00:00+00:00",
-            },
-            {
-                "id": "aaaaaaaa-0001-0001-0001-000000000002",
-                "locationId": location_id,
-                "patientAmka": "08111947033",
-                "patientName": "Nikos Papadopoulos",
-                "rxId": None,
-                "medicineBarcode": "3661002",
-                "medicineName": "Aspirin 100 mg",
-                "atcCode": "B01AC06",
-                "symptomDescription": "Nosebleed",
-                "onsetTiming": "48h",
-                "severity": "MODERATE",
-                "causality": "Possible",
-                "status": "ESCALATED",
-                "eofReportRef": None,
-                "reportedAt": "2026-05-20T14:30:00+00:00",
-                "createdAt": "2026-05-20T14:30:00+00:00",
-            },
-        ]
-    )
+    _MOCK_STORE.extend(copy.deepcopy(_SEED_REPORTS))
     yield
-    # post-test: restore to canonical two-item fixture
     _MOCK_STORE.clear()
-    _MOCK_STORE.extend(
-        [
-            {
-                "id": "aaaaaaaa-0001-0001-0001-000000000001",
-                "locationId": location_id,
-                "patientAmka": "15031962456",
-                "patientName": "Maria Stavrou",
-                "rxId": None,
-                "medicineBarcode": "3661001",
-                "medicineName": "Warfarin 5 mg",
-                "atcCode": "B01AA03",
-                "symptomDescription": "Dark stools",
-                "onsetTiming": "8h",
-                "severity": "SEVERE",
-                "causality": "Probable",
-                "status": "PENDING_REVIEW",
-                "eofReportRef": None,
-                "reportedAt": "2026-06-01T10:00:00+00:00",
-                "createdAt": "2026-06-01T10:00:00+00:00",
-            },
-            {
-                "id": "aaaaaaaa-0001-0001-0001-000000000002",
-                "locationId": location_id,
-                "patientAmka": "08111947033",
-                "patientName": "Nikos Papadopoulos",
-                "rxId": None,
-                "medicineBarcode": "3661002",
-                "medicineName": "Aspirin 100 mg",
-                "atcCode": "B01AC06",
-                "symptomDescription": "Nosebleed",
-                "onsetTiming": "48h",
-                "severity": "MODERATE",
-                "causality": "Possible",
-                "status": "ESCALATED",
-                "eofReportRef": None,
-                "reportedAt": "2026-05-20T14:30:00+00:00",
-                "createdAt": "2026-05-20T14:30:00+00:00",
-            },
-        ]
-    )
+    _MOCK_STORE.extend(copy.deepcopy(_SEED_REPORTS))
 
 
 def test_list_adr_reports_no_filter():

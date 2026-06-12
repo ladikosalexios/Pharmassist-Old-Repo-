@@ -184,13 +184,17 @@ MOCK_V1_PRESCRIPTIONS: list[dict] = [
 
 # ADR mock reports — keyed by a deterministic UUID string so contract tests can
 # reference them by id without a DB.  Shape is identical to _report_to_dict().
-_MOCK_ADR_ID_1 = "aaaaaaaaa-0001-0001-0001-000000000001"
-_MOCK_ADR_ID_2 = "aaaaaaaaa-0001-0001-0001-000000000002"
+_MOCK_ADR_ID_1 = "aaaaaaaa-0001-0001-0001-000000000001"
+_MOCK_ADR_ID_2 = "aaaaaaaa-0001-0001-0001-000000000002"
+# Sentinel location that matches the seeded dev API key's location; tests
+# override _MOCK_STORE via _seed_mock_store so this is only hit in live
+# mock-mode dev (PHARMAPI_MOCK=true with a real API key).
+_MOCK_LOCATION_ID = "cccccccc-cccc-cccc-cccc-cccccccccccc"
 
 MOCK_V1_ADR_REPORTS: list[dict] = [
     {
         "id": _MOCK_ADR_ID_1,
-        "locationId": "mock-location-id",
+        "locationId": _MOCK_LOCATION_ID,
         "patientAmka": "15031962456",
         "patientName": "Maria Stavrou",
         "rxId": "1262602210000100",
@@ -208,7 +212,7 @@ MOCK_V1_ADR_REPORTS: list[dict] = [
     },
     {
         "id": _MOCK_ADR_ID_2,
-        "locationId": "mock-location-id",
+        "locationId": _MOCK_LOCATION_ID,
         "patientAmka": "08111947033",
         "patientName": "Nikos Papadopoulos",
         "rxId": None,

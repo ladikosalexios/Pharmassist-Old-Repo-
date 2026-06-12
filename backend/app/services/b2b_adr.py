@@ -12,7 +12,7 @@ the exact same response shape as the live path.
 from datetime import UTC, date, datetime
 from uuid import UUID
 
-from sqlalchemy import and_, select
+from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.constants import AdrStatus
@@ -198,8 +198,6 @@ async def list_reports(
         # inclusive: treat to_date as end-of-day
         to_dt = datetime(to_date.year, to_date.month, to_date.day, 23, 59, 59, tzinfo=UTC)
         filters.append(B2bAdrReport.reported_at <= to_dt)
-
-    from sqlalchemy import func
 
     total_q = await session.scalar(
         select(func.count()).select_from(B2bAdrReport).where(and_(*filters))

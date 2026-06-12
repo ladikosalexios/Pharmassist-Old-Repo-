@@ -8,7 +8,7 @@ EOF_REPORTED is a tracked status label — this endpoint does NOT transmit to Ε
 
 import copy
 import uuid
-from datetime import date
+from datetime import UTC, date, datetime
 
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
@@ -164,8 +164,8 @@ async def create_adr_report(
             "causality": body.causality,
             "status": AdrStatus.PENDING_REVIEW,
             "eofReportRef": body.eofReportRef,
-            "reportedAt": "2026-06-11T12:00:00+00:00",
-            "createdAt": "2026-06-11T12:00:00+00:00",
+            "reportedAt": datetime.now(UTC).isoformat(),
+            "createdAt": datetime.now(UTC).isoformat(),
         }
         _MOCK_STORE.append(record)
         return record
