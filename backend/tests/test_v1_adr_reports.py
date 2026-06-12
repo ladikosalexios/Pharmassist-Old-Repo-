@@ -198,7 +198,6 @@ def _seed_mock_store():
     _MOCK_STORE.extend(copy.deepcopy(_SEED_REPORTS))
     yield
     _MOCK_STORE.clear()
-    _MOCK_STORE.extend(copy.deepcopy(_SEED_REPORTS))
 
 
 def test_list_adr_reports_no_filter():
