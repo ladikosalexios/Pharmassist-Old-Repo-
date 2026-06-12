@@ -162,6 +162,40 @@ class V1SafetyCheckResponse(AppSchema):
     data_caveats: list[str]
 
 
+class V1SafetyExplainRequest(AppSchema):
+    # The rule codes a /v1/safety/check result produced (e.g. WARFARIN_ASPIRIN_BLEED).
+    # Optional condition codes describe the patient's clinical profile (e.g. PREGNANCY)
+    # so the rationale is condition-aware — never any patient identity.
+    rule_codes: list[str]
+    condition_codes: list[str] = []
+
+    @field_validator("rule_codes")
+    @classmethod
+    def _non_empty(cls, v: list[str]) -> list[str]:
+        if not v:
+            raise ValueError("at least one ruleCode is required")
+        return v
+
+
+class V1SafetyExplanation(AppSchema):
+    rule_code: str
+    # Always "el": the rationale/mechanism/alternatives are generated in Greek.
+    language: str
+    rationale: str
+    mechanism: str
+    # Greek label mapped from the rule's severity (Υψηλός/Μέτριος/Χαμηλός) — anchored
+    # to the deterministic engine, not generated, so it can never be hallucinated.
+    risk_level: str
+    alternatives: list[str]
+    # True when this rule+condition-profile was served from the AI response cache
+    # (zero LLM calls) rather than freshly generated.
+    cached: bool
+
+
+class V1SafetyExplainResponse(AppSchema):
+    explanations: list[V1SafetyExplanation]
+
+
 class V1Condition(AppSchema):
     id: uuid.UUID
     amka: str
