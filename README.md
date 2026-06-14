@@ -18,6 +18,12 @@ The project runs in Docker. Containers are managed by Docker Compose.
 4. Run `docker compose build` (first time only)
 5. Run `docker compose up -d`
 
+> **After pulling changes that touch frontend dependencies** (`frontend/package.json` /
+> `package-lock.json`), rebuild the frontend image: `docker compose build frontend && docker compose up -d frontend`.
+> `node_modules` is baked into the image rather than volume-mounted (see the comment in `compose.yaml`),
+> so a new dependency won't appear until the image is rebuilt — otherwise Vite fails with
+> `Failed to resolve import` for the new package.
+
 ### 2. Demo login
 
 Navigate to http://localhost:5173/login
