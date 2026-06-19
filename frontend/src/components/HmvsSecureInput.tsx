@@ -129,14 +129,18 @@ export const HmvsSecureInput = forwardRef<HmvsSecureInputHandle, HmvsSecureInput
       forwardedRef,
       () => ({
         isClean: (e) => {
-          const caps = e ? e.getModifierState("CapsLock") : lastCapsLockRef.current;
+          // `capsLockOn` is the latched state (a scanner burst can't clear it),
+          // so it stays authoritative even though the scanner's own Enter event
+          // reports CapsLock=off. OR the event/ref readings so a manual Enter
+          // with Caps Lock down is still caught before React re-renders.
+          const caps = capsLockOn || (e ? e.getModifierState("CapsLock") : lastCapsLockRef.current);
           const layoutBlocked = NON_ASCII.test(value);
           return !caps && !layoutBlocked;
         },
         isBurst: () => isBurstRef.current && value.length > 0,
         focus: () => inputElRef.current?.focus(),
       }),
-      [value, inputElRef],
+      [value, inputElRef, capsLockOn],
     );
 
     const reason: HmvsBlockReason =

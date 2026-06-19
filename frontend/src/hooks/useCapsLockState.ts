@@ -3,13 +3,28 @@ import { useEffect, useState, type RefObject } from "react";
 /**
  * Live Caps Lock state for the element behind `ref`.
  *
- * Detection is strictly event-driven: we read
- * `KeyboardEvent.getModifierState("CapsLock")` on keydown and keyup. There is no
- * browser API to *query* the lock state outside of a keyboard event, so we never
- * poll — polling would burn cycles and still only ever be as fresh as the last
- * keystroke. Listeners are bound to the passed element (not `window`), so the
- * hook reports solely on the field that owns the ref and never reacts to typing
- * in other inputs.
+ * Detection is event-driven: we read `KeyboardEvent.getModifierState("CapsLock")`
+ * on keydown and keyup. There is no browser API to *query* the lock state
+ * outside of a keyboard event, so we never poll.
+ *
+ * The two readings are treated **asymmetrically**, to stay robust against
+ * handheld barcode scanners. A wedge scanner emits its payload as a rapid
+ * keystroke burst and — crucially — reports `CapsLock=OFF` on those synthetic
+ * events even when the lock is physically engaged (it sends correct-case
+ * characters regardless of the host lock). A naive "read the latest event"
+ * detector therefore lets a scan silently dismiss the warning. So:
+ *
+ *   - ANY event reporting `CapsLock=ON` turns the warning on — the lock is
+ *     unambiguously engaged, whoever the keystroke came from.
+ *   - Only the **physical Caps Lock key** (`event.key === "CapsLock"`) is
+ *     allowed to turn it back off. A regular key reporting OFF (e.g. a scanner
+ *     burst) is ignored, so a scan can never clear the warning while Caps Lock
+ *     is still down. This is the HMVO scan-integrity requirement: the submit
+ *     stays blocked until the user physically releases Caps Lock.
+ *
+ * Consequence: once engaged, the warning clears only when the user toggles
+ * Caps Lock off while the field is focused. Erring toward "still on" is the
+ * safe side for an HMVS submit gate.
  *
  * Caveat: the state can only refresh once a key is pressed while the field is
  * focused. If the user toggles Caps Lock with the field blurred, the warning
@@ -23,7 +38,17 @@ export function useCapsLockState(ref: RefObject<HTMLElement>): boolean {
     if (!el) return;
 
     const sync = (event: KeyboardEvent) => {
-      setCapsLockOn(event.getModifierState("CapsLock"));
+      const on = event.getModifierState("CapsLock");
+      if (event.key === "CapsLock") {
+        // Physical toggle of the lock key — authoritative in both directions.
+        setCapsLockOn(on);
+      } else if (on) {
+        // Any other key reporting the lock engaged turns the warning on.
+        setCapsLockOn(true);
+      }
+      // A non-CapsLock key reporting "off" is deliberately ignored: it may be a
+      // wedge scanner whose burst doesn't carry the host Caps Lock state, and we
+      // must not let a scan dismiss an active warning.
     };
 
     el.addEventListener("keydown", sync);

@@ -60,6 +60,20 @@ function pressKeyWithCaps(input: HTMLElement, capsOn: boolean) {
   fireEvent(input, event);
 }
 
+/**
+ * Dispatch the physical Caps Lock *key* itself — the only signal allowed to
+ * turn the warning back off (a wedge scanner can't fake it). `capsOn` is the
+ * lock state the event reports after the toggle.
+ */
+function toggleCapsLockKey(input: HTMLElement, capsOn: boolean) {
+  const event = new KeyboardEvent("keyup", { key: "CapsLock", bubbles: true });
+  Object.defineProperty(event, "getModifierState", {
+    configurable: true,
+    value: (key: string) => key === "CapsLock" && capsOn,
+  });
+  fireEvent(input, event);
+}
+
 describe("HmvsSecureInput", () => {
   it("resolves the hmvs.* keys to the required Greek copy", () => {
     // The constants below pin the exact spec'd wording; this also proves the
@@ -119,8 +133,8 @@ describe("HmvsSecureInput", () => {
     pressKeyWithCaps(input, true);
     expect(onBlock).toHaveBeenLastCalledWith("both");
 
-    // Caps Lock released — only the layout warning remains.
-    pressKeyWithCaps(input, false);
+    // Caps Lock physically released (the lock key) — only the layout warning remains.
+    toggleCapsLockKey(input, false);
     expect(screen.queryByText(CAPS_WARNING)).toBeNull();
     expect(onBlock).toHaveBeenLastCalledWith("keyboard-layout");
 
@@ -128,6 +142,33 @@ describe("HmvsSecureInput", () => {
     fireEvent.change(input, { target: { value: "" } });
     expect(screen.queryByText(LAYOUT_WARNING)).toBeNull();
     expect(input.getAttribute("aria-invalid")).toBe("false");
+    expect(onBlock).toHaveBeenLastCalledWith(null);
+  });
+
+  it("keeps the Caps Lock warning when a scanner burst reports caps off", () => {
+    // Regression for the HMVO finding: a handheld scanner emits its payload as
+    // a keystroke burst reporting CapsLock=off even while the lock is engaged,
+    // which used to silently dismiss the warning and re-enable submit.
+    const onBlock = vi.fn();
+    render(<Harness onBlock={onBlock} />);
+    const input = screen.getByLabelText(LABEL);
+
+    // Caps Lock physically engaged (detected from a real keystroke).
+    pressKeyWithCaps(input, true);
+    expect(onBlock).toHaveBeenLastCalledWith("caps-lock");
+
+    // The scanner "types" its payload — every synthetic key reports caps off.
+    pressKeyWithCaps(input, false);
+    pressKeyWithCaps(input, false);
+
+    // Warning persists: only the physical Caps Lock key may clear it.
+    expect(screen.getByText(CAPS_WARNING)).toBeTruthy();
+    expect(input.getAttribute("aria-invalid")).toBe("true");
+    expect(onBlock).toHaveBeenLastCalledWith("caps-lock");
+
+    // Physically toggling Caps Lock off finally clears it.
+    toggleCapsLockKey(input, false);
+    expect(screen.queryByText(CAPS_WARNING)).toBeNull();
     expect(onBlock).toHaveBeenLastCalledWith(null);
   });
 
