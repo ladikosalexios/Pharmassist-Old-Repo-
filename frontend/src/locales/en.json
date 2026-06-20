@@ -508,6 +508,7 @@
     "step1DescBefore": "Scan the DataMatrix on the back of the",
     "step1DescAfter": "box. This confirms the pack is genuine and decommissions it from the EU FMD registry.",
     "nhrnLabel": "NHRN",
+    "serialLabel": "Serial Number",
     "verifyFailedTitle": "Pack verification failed",
     "scanPrompt": "Scan or type the DataMatrix payload",
     "proceedToConfirm": "Proceed to confirm",

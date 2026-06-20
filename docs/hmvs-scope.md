@@ -45,14 +45,20 @@ verify        GET   /pharmapi/hmvs/product/gs1/{GTIN}/pack/{serial}?batch={batch
 state change  PATCH (same URL)  body { state: "Supplied" | "Active" | … }
 ```
 
-### Status — stubs until H6
+### Status — built
 
-The backend `/pharmapi/hmvs` proxy is **not built yet**; it lands in **Phase 2**
-and is **test-book driven**. Until **H6**, all three functions are stubs that
-fail fast with a clear `ApiError(501, "… not yet available …")`. Their
-signatures and request shapes already match the contract above, so wiring is a
-localized change to `hmvs.ts` (decode `qr` → GS1 fields, build the URL, issue
-the `fetch`) with no change to callers.
+The integration is **built and exercised against the NMVO ITE / Greek IQE
+sandbox** (not yet in production). `frontend/src/lib/hmvs.ts` issues the live
+`GET` / `PATCH` calls above against the backend `/pharmapi/hmvs` proxy, and
+`backend/app/services/hmvs.py` is a full OAuth2 client-credentials client —
+token mint + caching, idempotent state-change (no double-supply on retry), and
+store-and-forward replay for transient upstream failures. The three operations
+and their request shapes match the contract above.
+
+HMVS calls run live only when `HMVS_MOCK=false`; the flag **defaults to `true`
+in dev/CI**, returning canned ITE-style responses with no token fetch. Live
+qualification (IQE) runs set `HMVS_MOCK=false` with the registered equipment's
+OAuth2 credentials.
 
 ## How the boundary is enforced
 

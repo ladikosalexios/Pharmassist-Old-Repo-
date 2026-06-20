@@ -12,9 +12,13 @@ i18n
       en: { translation: en },
       el: { translation: el },
     },
+    // Default to Greek (HMVO req. 1): a fresh load with no ?lng and no stored
+    // preference resolves to "el". "navigator" is intentionally omitted from the
+    // detection order so a non-Greek browser doesn't render the app in English;
+    // an explicit ?lng=en or a stored pharmassist_lang still switches to English.
     fallbackLng: "el",
     detection: {
-      order: ["querystring", "localStorage", "navigator"],
+      order: ["querystring", "localStorage"],
       lookupLocalStorage: "pharmassist_lang",
     },
     supportedLngs: ["el", "en"],
