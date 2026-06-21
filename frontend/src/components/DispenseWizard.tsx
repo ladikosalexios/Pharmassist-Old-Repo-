@@ -737,6 +737,9 @@ function PackRow({
             </span>
             <PackStatusBadge pack={pack} />
           </div>
+          <p className="mt-0.5 text-[11.5px] text-slate-500 dark:text-slate-400">
+            {t("dispense.serialLabel")}: <span className="mono break-all">{serial}</span>
+          </p>
           {productName && (
             <p className="mt-0.5 truncate text-[12px] text-slate-500 dark:text-slate-400">
               {productName}

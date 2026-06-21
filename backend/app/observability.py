@@ -94,8 +94,21 @@ class V1AccessLogMiddleware(BaseHTTPMiddleware):
             return response
         finally:
             duration_ms = round((time.perf_counter() - started) * 1000, 1)
-            route = request.scope.get("route")
-            route_path = getattr(route, "path", "(unmatched)")  # template, not rendered URL
+            # Reconstruct the route template from the rendered URL + matched
+            # path params. Using route.path directly misses the parent-router
+            # prefix in Starlette builds where scope["route"] is set by the
+            # innermost sub-router (e.g. returns "/patients/{patient_key}"
+            # instead of "/v1/patients/{patient_key}"). Substituting values
+            # back also ensures no PHI (AMKA/EKAA) survives in the log field.
+            if request.scope.get("route") is not None:
+                route_path = request.url.path
+                for key, val in sorted(
+                    request.scope.get("path_params", {}).items(),
+                    key=lambda kv: -len(str(kv[1])),
+                ):
+                    route_path = route_path.replace(str(val), "{" + key + "}", 1)
+            else:
+                route_path = "(unmatched)"
             fields: dict[str, object] = {
                 "request_id": getattr(request.state, "request_id", None),
                 "method": request.method,
