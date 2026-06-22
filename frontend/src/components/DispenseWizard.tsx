@@ -727,8 +727,7 @@ function PackRow({
   const serial = pack.key?.serial ?? "—";
   const productName = pack.verify?.productName ?? null;
   const nhrn = pack.verify?.nhrn ?? null;
-  // Surface the registry alert id (raised on e.g. stolen/recalled/unknown packs)
-  // alongside the warning, so the HMVO testbook alert screenshots show it.
+  // Surface alongside warning so HMVO testbook alert screenshots show the registry id.
   const alertId = pack.verify?.alertId ?? pack.supply?.alertId ?? null;
   return (
     <li className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/50 px-3.5 py-2.5">
