@@ -41,11 +41,44 @@ describe("parseGs1", () => {
     });
   });
 
-  it("aborts on an unknown AI rather than silently skipping", () => {
-    // AI 99 is unknown — parse should stop after the GTIN.
-    const payload = `010570012345678999XYZ`;
-    expect(parseGs1(payload).gtin).toBe("05700123456789");
-    expect(parseGs1(payload).serial).toBeUndefined();
+  it("skips an unknown variable-length AI and keeps parsing", () => {
+    // AI 91 (unknown, variable) between GTIN and serial — skipped to FNC1, and
+    // the serial after it is still recovered (packs may carry extra AIs).
+    const payload = `0105700123456789` + `91FOO` + GS + `21ABC123` + GS + `17260101`;
+    const out = parseGs1(payload);
+    expect(out.gtin).toBe("05700123456789");
+    expect(out.serial).toBe("ABC123");
+    expect(out.expiry).toBe("260101");
+  });
+
+  it("skips an additional fixed-length AI (no FNC1) and keeps parsing", () => {
+    // AI 11 (production date, 6 digits, no separator) sits before the serial.
+    const payload = `0105700123456789` + `11230501` + `21ABC123` + GS + `10LOT1` + GS + `17260101`;
+    expect(parseGs1(payload)).toEqual({
+      gtin: "05700123456789",
+      serial: "ABC123",
+      batch: "LOT1",
+      expiry: "260101",
+    });
+  });
+
+  it("extracts the four AIs from a pack carrying NHRN + production date (testbook CS_4)", () => {
+    // 01 / 21 / 10 / 17 plus (11) production date and (710) NHRN — extras skipped.
+    const payload =
+      `0105700123456789` +
+      `21SN12345` +
+      GS +
+      `10LOT9` +
+      GS +
+      `17261231` +
+      `11230501` +
+      `710NHRN999`;
+    expect(parseGs1(payload)).toEqual({
+      gtin: "05700123456789",
+      serial: "SN12345",
+      batch: "LOT9",
+      expiry: "261231",
+    });
   });
 
   it("rejects non-digit characters in fixed-length AIs (01, 17)", () => {
