@@ -727,6 +727,9 @@ function PackRow({
   const serial = pack.key?.serial ?? "—";
   const productName = pack.verify?.productName ?? null;
   const nhrn = pack.verify?.nhrn ?? null;
+  // Surface the registry alert id (raised on e.g. stolen/recalled/unknown packs)
+  // alongside the warning, so the HMVO testbook alert screenshots show it.
+  const alertId = pack.verify?.alertId ?? pack.supply?.alertId ?? null;
   return (
     <li className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/50 px-3.5 py-2.5">
       <div className="flex items-start justify-between gap-3">
@@ -752,6 +755,11 @@ function PackRow({
           )}
           {pack.error && pack.status !== "verified" && pack.status !== "supplied" && (
             <p className="mt-1 text-[12px] text-red-700 dark:text-red-400">{pack.error}</p>
+          )}
+          {alertId && (
+            <p className="mt-0.5 text-[11.5px] text-red-700 dark:text-red-400">
+              {t("dispense.alertIdLabel")}: <span className="mono break-all">{alertId}</span>
+            </p>
           )}
         </div>
         {!compact && (
