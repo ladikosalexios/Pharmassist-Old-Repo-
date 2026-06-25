@@ -81,12 +81,12 @@ describe("parseGs1", () => {
     });
   });
 
-  it("rejects non-digit characters in fixed-length AIs (01, 17)", () => {
-    // A garbled GTIN with a letter — the upstream would 404 / 422 the lookup.
-    // The parser drops the field locally so isCompletePack stays false and the
-    // scanner shows "scanMalformed" without a phone-home round-trip.
-    expect(parseGs1("0105700X23456789").gtin).toBeUndefined();
-    expect(parseGs1("17270A31").expiry).toBeUndefined();
+  it("retains non-digit content in 01/17 so the registry can 422 it (testbook case 12)", () => {
+    // Content is NOT validated locally — an invalid GTIN/expiry is kept so the
+    // pack is sent and HMVS returns the appropriate 422 (e.g. 61020008/61020007),
+    // confirmed live against IQE. (Missing AIs are still rejected via isCompletePack.)
+    expect(parseGs1("0105700X23456789").gtin).toBe("05700X23456789");
+    expect(parseGs1("17270A31").expiry).toBe("270A31");
   });
 
   it("tolerates the combined AIM prefix + leading FNC1 (Zebra style)", () => {
