@@ -109,17 +109,16 @@ function findFnc1(s: string, from: number): number {
   return s.length;
 }
 
-// GS1 spec says AIs (01) and (17) are digit-only. A scan that produces letters in
-// those positions is corrupt — dropping the field locally keeps isCompletePack
-// false so the scanner shows "scanMalformed" without a phone-home round-trip.
-const DIGITS = /^[0-9]+$/;
-
+// We do NOT validate AI *content* locally (e.g. that GTIN/expiry are digit-only).
+// The EMVS/HMVO qualification testbook (case 12_INVALID_GS1_ELEMENTS) requires a
+// pack with an invalid GTIN or expiry to be SENT so the registry returns the
+// appropriate 422 (e.g. 61020008 / 61020007) — confirmed live against IQE. A
+// genuinely unreadable scan (missing AIs) is still rejected locally because
+// isCompletePack stays false; only *malformed content* in present AIs is sent.
 function assign(out: Gs1Fields, ai: string, val: string): void {
-  if (ai === "01") {
-    if (DIGITS.test(val)) out.gtin = val;
-  } else if (ai === "17") {
-    if (DIGITS.test(val)) out.expiry = val;
-  } else if (ai === "10") out.batch = val;
+  if (ai === "01") out.gtin = val;
+  else if (ai === "17") out.expiry = val;
+  else if (ai === "10") out.batch = val;
   else if (ai === "21") out.serial = val;
 }
 
