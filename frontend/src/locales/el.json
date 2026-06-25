@@ -510,6 +510,7 @@
     "nhrnLabel": "Κωδικός ΕΟΦ",
     "serialLabel": "Σειριακός Αριθμός",
     "alertIdLabel": "Αναγνωριστικό ειδοποίησης",
+    "operationCodeLabel": "Κωδικός λειτουργίας",
     "verifyFailedTitle": "Η επαλήθευση συσκευασίας απέτυχε",
     "scanPrompt": "Σαρώστε ή πληκτρολογήστε το περιεχόμενο του DataMatrix",
     "proceedToConfirm": "Συνέχεια στην επιβεβαίωση",
