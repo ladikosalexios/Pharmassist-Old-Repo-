@@ -88,7 +88,10 @@ async def _resolve_credentials(db: AsyncSession, pharmacist_id: str) -> tuple[st
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
 
-@router.get("/product/gs1/{gtin}/pack/{serial}")
+# `serial:path` so a GS1 serial containing "/" (valid in GS1 character set 82, e.g.
+# testbook case 11_CHARACTER_SET) isn't split into extra path segments and 404 on
+# route match. The decoded value is re-encoded by the service for the upstream call.
+@router.get("/product/gs1/{gtin}/pack/{serial:path}")
 async def verify_pack(
     gtin: str,
     serial: str,
@@ -143,7 +146,7 @@ async def verify_pack(
     return _body(result, gtin, serial)
 
 
-@router.patch("/product/gs1/{gtin}/pack/{serial}")
+@router.patch("/product/gs1/{gtin}/pack/{serial:path}")
 async def change_pack_state(
     gtin: str,
     serial: str,
