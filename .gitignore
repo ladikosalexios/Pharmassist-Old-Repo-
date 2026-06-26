@@ -26,3 +26,8 @@ docs/release-readiness-audit-*.md
 
 # Claude session state (per-session locks, transcripts)
 .claude/
+
+# HMVO IQE qualification run artifacts (local only — logs + scratch manifests)
+backend/scripts/iqe_dryrun_*.jsonl
+backend/scripts/iqe_oneshot.json
+backend/scripts/iqe_invalid.json
