@@ -34,6 +34,25 @@ export interface DataMatrixScannerProps {
   onBlockChange?: (reason: HmvsBlockReason) => void;
 }
 
+// Dev-only convenience: a well-formed GS1 DataMatrix payload that mock HMVS
+// verifies as Active — so the dispense flow can be driven without a hardware
+// scanner. Real scans carry the FNC1 (0x1D) separator after variable-length AIs;
+// a keyboard can't type it, so a hand-keyed string is impossible. This injects a
+// correct one: (01) GTIN, (17) expiry, (10) batch, ⟨FNC1⟩, (21) serial-last.
+// The serial is letter-only + random so repeated clicks add distinct packs and
+// never contain "404" (the mock's unknown-pack sentinel). Gated behind
+// import.meta.env.DEV — tree-shaken out of production builds.
+function devSamplePack(): string {
+  const FNC1 = "\u001d"; // GS1 group separator (0x1D)
+  const alpha = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+  const bytes = new Uint8Array(10);
+  globalThis.crypto?.getRandomValues?.(bytes);
+  let serial = "DEV";
+  for (const b of bytes) serial += alpha[b % alpha.length];
+  // "01"+GTIN(14) "17"+expiry(6) "10"+batch ⟨FNC1⟩ "21"+serial(last, no terminator)
+  return "]d2" + "01" + "05201234500031" + "17" + "271231" + "10" + "LOT42" + FNC1 + "21" + serial;
+}
+
 export function DataMatrixScanner({ onScan, disabled, onBlockChange }: DataMatrixScannerProps) {
   const { t } = useTranslation();
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -153,6 +172,16 @@ export function DataMatrixScanner({ onScan, disabled, onBlockChange }: DataMatri
               {t("dispense.addPack")}
             </button>
           </div>
+          {import.meta.env.DEV && (
+            <button
+              type="button"
+              onClick={() => onScanRef.current(devSamplePack(), "non-manual")}
+              disabled={disabled}
+              className="mt-2 w-full rounded-lg border border-dashed border-amber-300 dark:border-amber-500/40 bg-amber-50/50 dark:bg-amber-500/5 px-3 py-1.5 text-[12px] font-semibold text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-500/10 disabled:opacity-50"
+            >
+              DEV · fill test pack
+            </button>
+          )}
           {cameraError && (
             <p className="mt-2 flex items-center gap-1.5 text-[12px] text-amber-700 dark:text-amber-400">
               <AlertTriangleIcon width={13} height={13} className="shrink-0" />
