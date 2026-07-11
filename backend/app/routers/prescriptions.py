@@ -135,9 +135,11 @@ async def get_prescription_for_verification(
     In live mode, rx_id is the ΗΔΥΚΑ barcode.
 
     Both modes run checks_for_prescription and attach safetyChecks. In live
-    mode the incoming drug's ATC is resolved from drug_catalog; interaction
-    checks (section 1) don't fire because Pharmapi history lacks medicine
-    barcodes — see safety_engine.py for the full gap description.
+    mode the incoming drug's ATC is resolved from drug_catalog; co-medication
+    interactions (section 1) and intolerance contraindications (section 2) are
+    revived via services/substance_resolver, which maps the commercialName /
+    activeSubstance that Pharmapi returns (no barcode) to an ATC — see
+    safety_engine.py.
     """
     if is_mock_pharmapi():
         rx = MOCK_PRESCRIPTIONS.get(rx_id)

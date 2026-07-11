@@ -15,15 +15,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..constants import AdrSeverity, AlertStatus, CheckType
 from ..db.models.safety_rule import SafetyRule
 from ..schemas.safety import STATUS_ORDER, SafetyAlertPayload, SafetyChecksPayload
-from .patients import conditions, rx_history
+from ..utils.environment import is_mock_pharmapi
+from .patients import conditions, patient_intolerances, rx_history
 from .prescriptions import MOCK_PRESCRIPTIONS
 from .safety_checks import MOCK_SAFETY_CHECKS
+from .substance_resolver import DrugHint, resolve_atcs
 
-# Intolerances fallback for mock mode. Live intolerances are fetched from
-# Pharmapi in patients.resolve() but carry activeSubstance + intolerance type
-# with no ATC code — a drug_catalog/activesubstances lookup is needed to map
-# them to ATC before the engine can use them. Until that mapping is in place,
-# the mock covers the demo patients used in development.
+# Intolerances fixture for MOCK mode only. In live mode intolerances are fetched
+# from Pharmapi (patients.patient_intolerances) and their activeSubstance is
+# mapped to an ATC via services/substance_resolver — see _load_intolerances.
 MOCK_INTOLERANCES: dict = {
     # P001 Maria Stavrou — "Penicillin (anaphylaxis)" allergy maps to J01CA (penicillins)
     "15031962456": [
@@ -80,6 +80,58 @@ def live_rx_to_engine_shape(rx: dict, atc: str | None) -> dict:
     }
 
 
+def _intolerance_hint(item: dict) -> DrugHint:
+    """Build a resolver hint from a raw ΗΔΥΚΑ intolerance item. ``activeSubstance``
+    is either an INN string or a ``{code, description}`` object."""
+    sub = item.get("activeSubstance")
+    if isinstance(sub, dict):
+        code = sub.get("code")
+        return DrugHint(
+            substance_code=str(code) if code is not None else None,
+            substance_name=sub.get("description"),
+            raw=str(sub),
+        )
+    name = sub if isinstance(sub, str) else None
+    return DrugHint(substance_name=name, raw=name)
+
+
+def _intolerance_name(item: dict) -> str:
+    sub = item.get("activeSubstance")
+    if isinstance(sub, dict):
+        return sub.get("description") or "Recorded intolerance"
+    return sub if isinstance(sub, str) and sub else "Recorded intolerance"
+
+
+async def _load_intolerances(session: AsyncSession, amka: str) -> list[dict]:
+    """Normalised intolerance list (``{atcCode, name, severity}``) for §2.
+
+    Mock mode → the ``MOCK_INTOLERANCES`` fixture (carries curated severity). Live
+    mode → fetch from Pharmapi and resolve each ``activeSubstance`` to an ATC via
+    the substance resolver; rows that don't resolve to a catalog ATC are dropped
+    (they can't be matched safely). Live severity is unknown from ΗΔΥΚΑ, so a
+    recorded intolerance defaults to MODERATE → REVIEW: surfaced prominently
+    without hard-blocking a dispense on incomplete data. Parsing the intolerance
+    TYPE into a real severity is a follow-up."""
+    if is_mock_pharmapi():
+        return MOCK_INTOLERANCES.get(amka, [])
+    raw = await patient_intolerances(amka)
+    if not raw:
+        return []
+    resolved = await resolve_atcs(session, [_intolerance_hint(i) for i in raw])
+    out: list[dict] = []
+    for item, res in zip(raw, resolved, strict=True):
+        if res is None:
+            continue
+        out.append(
+            {
+                "atcCode": res.atc_code,
+                "name": _intolerance_name(item),
+                "severity": AdrSeverity.MODERATE,
+            }
+        )
+    return out
+
+
 async def load_active_safety_rules(session: AsyncSession) -> list[SafetyRule]:
     """One-shot load of every active safety rule.
 
@@ -132,6 +184,7 @@ async def evaluate_safety(
     rules: list[SafetyRule] | None = None,
     history_atcs: set[str] | None = None,
     patient_conditions: list | None = None,
+    intolerances: list[dict] | None = None,
 ) -> SafetyChecksPayload:
     """Evaluate a single prescription against the safety-rule catalogue.
 
@@ -152,6 +205,12 @@ async def evaluate_safety(
     * `patient_conditions` — pre-loaded condition rows (each carrying a
       `.condition_code`). When provided, the per-pharmacy DB read is skipped;
       /v1 loads them from b2b_patient_conditions scoped to its location.
+    * `intolerances` — pre-loaded intolerance dicts (`{atcCode, name, severity}`).
+      When provided, the internal load is skipped. `None` triggers the B2C load
+      (`_load_intolerances`: MOCK fixture in mock mode, live Pharmapi fetch +
+      substance→ATC resolution in live mode). The /v1 path passes an explicit
+      list (empty until it opts into consented allergy screening) so the engine
+      never makes a legacy-credential intolerance call under a B2B context.
     """
     if rules is None:
         rules = await load_active_safety_rules(session)
@@ -168,21 +227,29 @@ async def evaluate_safety(
     # --- 1. Drug-drug interactions & duplicate therapy ---
     # Pre-filter rules so we don't make the rx_history call (Pharmapi round-trip
     # in live mode) when no interaction/duplicate rules can possibly match.
-    # Live mode gap: Pharmapi medicine history returns commercialName but no
-    # medicine barcode, so ATC resolution via drug_catalog is not yet possible.
-    # history_atcs will be empty in live mode; interaction checks don't fire.
+    # Live mode: Pharmapi history returns commercialName + no barcode, so
+    # co-medication ATCs are resolved from the brand name via the substance
+    # resolver (drug_catalog brand→ATC); mock history resolves via MOCK_PRESCRIPTIONS.
     interaction_rules = [
         r for r in rules if r.check_type in (CheckType.INTERACTIONS, CheckType.DUPLICATE_THERAPY)
     ]
     if rx_atc and interaction_rules and (history_atcs is not None or patient_id):
         if history_atcs is None:
             history = await rx_history(patient_id)
-            history_atcs = {
-                hist_rx["medication"]["atcCode"]
-                for entry in history
-                if entry["rxId"] != rx["rxId"]
-                and (hist_rx := MOCK_PRESCRIPTIONS.get(entry["rxId"]))
-            }
+            history_atcs = set()
+            brand_hints: list[DrugHint] = []
+            for entry in history:
+                if entry["rxId"] == rx["rxId"]:
+                    continue
+                hist_rx = MOCK_PRESCRIPTIONS.get(entry["rxId"])
+                if hist_rx:
+                    history_atcs.add(hist_rx["medication"]["atcCode"])
+                elif entry.get("drugName"):
+                    brand_hints.append(
+                        DrugHint(commercial_name=entry["drugName"], raw=entry["drugName"])
+                    )
+            if brand_hints:
+                history_atcs |= {r.atc_code for r in await resolve_atcs(session, brand_hints) if r}
 
         if history_atcs:
             # Bidirectional ATC match: WARFARIN_ASPIRIN_BLEED fires whether
@@ -200,7 +267,9 @@ async def evaluate_safety(
     # that a penicillin intolerance catches all J01CA-* drugs, not just the
     # exact molecule recorded.
     if rx_atc and amka:
-        for intol in MOCK_INTOLERANCES.get(amka, []):
+        if intolerances is None:
+            intolerances = await _load_intolerances(session, amka)
+        for intol in intolerances:
             if rx_atc[:4] == intol["atcCode"][:4]:
                 key = f"INTOLERANCE_{intol['atcCode'][:4]}"
                 if key not in seen:
