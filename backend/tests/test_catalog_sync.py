@@ -142,6 +142,8 @@ _COVERAGE_ROW = SimpleNamespace(
     with_participation=16,
     with_form=20,
     with_substance=20,
+    with_atc=19,
+    with_inn_name=15,
 )
 
 
@@ -184,6 +186,10 @@ def test_status_endpoint_returns_runs_and_coverage():
     assert run["triggered_by"] == "cron"
     assert body["coverage"]["total_active"] == 20
     assert body["coverage"]["with_coverage"] == 18
+    # Resolver-readiness triad surfaced alongside the formulary counts.
+    assert body["coverage"]["with_atc"] == 19
+    assert body["coverage"]["with_inn_name"] == 15
+    assert body["coverage"]["with_substance"] == 20
 
 
 def test_status_endpoint_requires_admin():

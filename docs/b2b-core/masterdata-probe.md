@@ -46,3 +46,47 @@ onlyByProtocol, limitedExecution, etc.)
 - `eopyy_coverage` stays nullable (tri-state): rows synced before this migration and the
   20 seed rows have no upstream value until the next full sync; the formulary endpoint
   reports `dataCaveats` when candidates have unknown coverage.
+
+---
+
+# BC-13b — First full-sync dry-run (test env)
+
+**Date:** 2026-07-11 · **Against:** same test env, `PHARMAPI_MOCK=false` one-off ·
+full `run_sync(None)` end-to-end (paginate → upsert → coverage).
+
+## Volume & duration
+
+- **11,135 active rows**, `totalPages`/`totalEntries` returned on every page (so
+  volume is knowable up front for a progress bar / scheduler budget).
+- **Full sync ≈ 64s** at 500 rows/page. A nightly full re-sync is cheap; the
+  `/updates?since=` incremental path only matters for latency, not load.
+- Non-destructive: matched on `barcode`/`gns_code`, so the existing seed rows
+  persist alongside synced rows.
+
+## Resolver-readiness (services/substance_resolver — the new coverage triad)
+
+Over the 11,135 rows:
+
+| field | populated | % | resolver use |
+|---|---|---|---|
+| `atc_code` (non-blank) | 11,016 | **98.9%** | resolution target + rx-side ATC |
+| `name_en` (INN) | 9,807 | **88.1%** | Pass 2 (INN-name match) |
+| `substance_code` | 7,955 | **71.4%** | Pass 1 (exact substance) |
+
+So intolerance / co-medication resolution has strong headroom: 71% resolve by
+exact substance code, and INN-name (88%) backfills most of the rest. The ~1% with
+no ATC can never match a rule regardless — an upstream data gap, not a resolver one.
+
+## Caveats specific to this run
+
+- **Values are still test-grade.** The first rows are literal placeholders
+  (`atcCode="1"`, `commercialNameOnly="1"`, INN `"TESTING ACTIVE SUBSTANCE"`). The
+  ~99%/88% fill rates prove the *fields are populated at realistic scale*, but they
+  do NOT validate value *correctness* (e.g. that "Amoxicillin" → `J01CA04`). That
+  can only be checked against a **production** sync — the BC-13a caveat stands.
+- **Brand→ATC matching (resolver Pass 3) is unproven here** — it needs the real
+  `medicineCommercialName` ↔ `name_gr` formats from production history to know its
+  true hit rate. This remains the weakest pass and the clearest target for the
+  future AI-enrichment step.
+- The dry-run leaves ~11k test rows in the dev `drug_catalog`; `python -m
+  scripts.seed` restores the curated 20-row dev set.

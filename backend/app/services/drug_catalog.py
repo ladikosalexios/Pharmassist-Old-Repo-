@@ -220,13 +220,21 @@ async def _finish_run(
 
 
 async def catalog_coverage(session: AsyncSession) -> dict:
-    """Formulary data-quality counts over ACTIVE rows (FT-3 launch gate).
+    """Formulary + safety-resolver data-quality counts over ACTIVE rows.
 
     One query, FILTER-per-column: how complete is the catalogue for every
-    field the formulary ranks or filters on. The onboarding gate reads this
-    after the first full production sync — near-zero with_coverage means the
-    sync hasn't run (or upstream stopped supplying positiveList) and the
-    `strict` coverage filter would return nothing.
+    field the formulary ranks/filters on AND every field the substance
+    resolver keys on. The onboarding gate reads this after the first full
+    production sync — near-zero with_coverage means the sync hasn't run (or
+    upstream stopped supplying positiveList) and the `strict` coverage filter
+    would return nothing.
+
+    `with_atc` / `with_inn_name` / `with_substance` are the resolver-readiness
+    triad (services/substance_resolver): live intolerance + co-medication
+    checks can only resolve a drug name→ATC when these are populated, so a
+    formulary-green sync with empty ATC/INN would still leave those checks
+    silent. `atc_code` is NOT NULL (stored "" when upstream omits it), so it is
+    counted non-blank rather than non-null.
     """
 
     def _non_null(col):
@@ -239,6 +247,8 @@ async def catalog_coverage(session: AsyncSession) -> dict:
         _non_null(DrugCatalog.participation_pct).label("with_participation"),
         _non_null(DrugCatalog.form_code).label("with_form"),
         _non_null(DrugCatalog.substance_code).label("with_substance"),
+        func.count(DrugCatalog.id).filter(DrugCatalog.atc_code != "").label("with_atc"),
+        _non_null(DrugCatalog.name_en).label("with_inn_name"),
     ).where(DrugCatalog.active.is_(True))
     row = (await session.execute(stmt)).one()
     return {
@@ -248,6 +258,8 @@ async def catalog_coverage(session: AsyncSession) -> dict:
         "with_participation": row.with_participation,
         "with_form": row.with_form,
         "with_substance": row.with_substance,
+        "with_atc": row.with_atc,
+        "with_inn_name": row.with_inn_name,
     }
 
 

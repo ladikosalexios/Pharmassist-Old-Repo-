@@ -39,6 +39,10 @@ class CatalogCoveragePayload(BaseModel):
     with_participation: int
     with_form: int
     with_substance: int
+    # Resolver-readiness triad (services/substance_resolver) — live intolerance /
+    # co-medication checks stay silent unless a drug name resolves to an ATC.
+    with_atc: int
+    with_inn_name: int
 
 
 class SyncDrugCatalogStatusResponse(BaseModel):
