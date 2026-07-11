@@ -88,6 +88,11 @@ async def safety_check(
             rules=rules,
             history_atcs=other_atcs,
             patient_conditions=conditions,
+            # Explicit empty list: allergy screening on /v1 is gated behind
+            # consent + ΕΟΠΥΥ (see _INTOLERANCE_CAVEAT). Passing it stops the
+            # engine's B2C internal fetch from firing a legacy-credential
+            # intolerance call under this location's context.
+            intolerances=[],
         )
         for check in payload.checks:
             if _STATUS_RANK[check.status] > _STATUS_RANK[worst]:

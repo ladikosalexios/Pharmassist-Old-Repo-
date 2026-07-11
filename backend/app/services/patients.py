@@ -580,6 +580,23 @@ async def rx_history(patient_id: str) -> list:
     return _mock_rx_rows(patient_id)
 
 
+async def patient_intolerances(patient_key: str) -> list[dict]:
+    """Raw ΗΔΥΚΑ intolerance items for the safety engine (live only; ``[]`` in mock).
+
+    The engine's mock branch uses its own ``MOCK_INTOLERANCES`` fixture, so this
+    only ever runs the live upstream call. Each item carries ``activeSubstance``
+    (INN description or a ``{code, description}`` object) which the substance
+    resolver maps to an ATC. Failures degrade to ``[]`` — a missing intolerance
+    list must never break a safety evaluation."""
+    if is_mock_pharmapi():
+        return []
+    try:
+        return await pharmapi_get_patient_intolerances(patient_key)
+    except Exception as exc:  # upstream/consent hiccup — evaluate without allergy data
+        logger.warning("Failed to fetch intolerances for %s: %s", patient_key, exc)
+        return []
+
+
 async def rx_history_page(patient_id: str, page: int = 0, size: int = 50) -> dict:
     """Paginated prescription history for the patient profile tab.
 
