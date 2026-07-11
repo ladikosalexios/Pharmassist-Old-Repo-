@@ -66,8 +66,13 @@ async def get_active_alerts(
     for rx in pending:
         atc = barcode_to_atc.get(rx.get("medicineBarcode") or "")
         shaped = live_rx_to_engine_shape(rx, atc)
+        # intolerances=[] — the dashboard is a triage list over up to 100
+        # prescriptions; letting the engine load intolerances per rx would fire
+        # one (consent-gated) ΗΔΥΚΑ intolerance call per prescription. Allergy
+        # screening runs in the single-rx verification view instead. Dashboard-
+        # wide live allergy screening is a future feature (batch per AMKA).
         payload = await checks_for_prescription(
-            session, shaped["rxId"], shaped, pharmacy.id, rules=rules
+            session, shaped["rxId"], shaped, pharmacy.id, rules=rules, intolerances=[]
         )
         alerts.extend(c for c in payload.checks if c.status != AlertStatus.OK)
     return alerts

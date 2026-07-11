@@ -109,9 +109,11 @@ async def _load_intolerances(session: AsyncSession, amka: str) -> list[dict]:
     mode → fetch from Pharmapi and resolve each ``activeSubstance`` to an ATC via
     the substance resolver; rows that don't resolve to a catalog ATC are dropped
     (they can't be matched safely). Live severity is unknown from ΗΔΥΚΑ, so a
-    recorded intolerance defaults to MODERATE → REVIEW: surfaced prominently
-    without hard-blocking a dispense on incomplete data. Parsing the intolerance
-    TYPE into a real severity is a follow-up."""
+    recorded intolerance defaults to SEVERE → BLOCK — matching the curated mock's
+    posture for the same case (a documented allergy to the dispensed drug's class
+    is a stop-and-confirm, not a soft note; BLOCK is advisory/overridable here, so
+    conservative is correct and going live is never weaker than the demo). Parsing
+    the intolerance TYPE into a graded severity is a follow-up."""
     if is_mock_pharmapi():
         return MOCK_INTOLERANCES.get(amka, [])
     raw = await patient_intolerances(amka)
@@ -126,7 +128,7 @@ async def _load_intolerances(session: AsyncSession, amka: str) -> list[dict]:
             {
                 "atcCode": res.atc_code,
                 "name": _intolerance_name(item),
-                "severity": AdrSeverity.MODERATE,
+                "severity": AdrSeverity.SEVERE,
             }
         )
     return out
@@ -149,6 +151,7 @@ async def checks_for_prescription(
     rx: dict | None,
     pharmacy_id: UUID,
     rules: list[SafetyRule] | None = None,
+    intolerances: list[dict] | None = None,
 ) -> SafetyChecksPayload:
     """Single source of truth for a prescription's safety checks.
 
@@ -158,6 +161,11 @@ async def checks_for_prescription(
     verification view (/safety-checks/{rx}) call this, so the two views can
     never disagree about a prescription — a block on one is a block on the
     other by construction.
+
+    ``intolerances`` is forwarded to ``evaluate_safety``: the live dashboard
+    passes ``[]`` so a per-rx loop does NOT fire one ΗΔΥΚΑ intolerance call per
+    prescription; the single-rx verification view leaves it ``None`` so allergy
+    screening runs where a specific prescription is scrutinised.
     """
     mock_checks = MOCK_SAFETY_CHECKS.get(rx_id)
     if mock_checks is not None:
@@ -174,7 +182,7 @@ async def checks_for_prescription(
         return SafetyChecksPayload(rx_id=rx_id, checks=checks, source="mock")
     if rx is None:
         raise HTTPException(status_code=404, detail=f"Prescription {rx_id} not found")
-    return await evaluate_safety(session, rx, pharmacy_id, rules=rules)
+    return await evaluate_safety(session, rx, pharmacy_id, rules=rules, intolerances=intolerances)
 
 
 async def evaluate_safety(

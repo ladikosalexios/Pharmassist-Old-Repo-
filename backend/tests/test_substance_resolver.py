@@ -36,7 +36,7 @@ import uuid  # noqa: E402
 
 import app.services.safety_engine as engine  # noqa: E402
 import app.services.substance_resolver as resolver  # noqa: E402
-from app.constants import AdrSeverity, CheckType  # noqa: E402
+from app.constants import AdrSeverity, AlertStatus, CheckType  # noqa: E402
 from app.db.models.safety_rule import SafetyRule  # noqa: E402
 from app.services.substance_resolver import DrugHint, ResolvedAtc, resolve_atcs  # noqa: E402
 
@@ -121,7 +121,34 @@ def test_live_intolerance_contraindication_fires(monkeypatch):
             "medication": {"atcCode": "J01CA01"},  # same J01C class as the intolerance
         }
         payload = await engine.evaluate_safety(None, rx, uuid.uuid4(), rules=[])
-        assert any(c.check_type == CheckType.CONTRAINDICATIONS for c in payload.checks)
+        contra = [c for c in payload.checks if c.check_type == CheckType.CONTRAINDICATIONS]
+        assert contra, "a recorded live intolerance should raise a contraindication"
+        # Going live must not be weaker than the mock: a recorded allergy to the
+        # dispensed drug's class defaults to SEVERE → BLOCK, not a soft REVIEW.
+        assert contra[0].status == AlertStatus.BLOCK
+
+    asyncio.run(_run())
+
+
+def test_explicit_empty_intolerances_skips_live_fetch(monkeypatch):
+    """The dashboard fix: intolerances=[] must NOT trigger a per-rx ΗΔΥΚΑ fetch,
+    even in live mode — otherwise a 100-prescription dashboard fires 100 calls."""
+
+    async def _run():
+        monkeypatch.setattr(engine, "is_mock_pharmapi", lambda: False)
+
+        async def boom(_amka):
+            raise AssertionError("patient_intolerances must not be called when intolerances=[]")
+
+        monkeypatch.setattr(engine, "patient_intolerances", boom)
+
+        rx = {
+            "rxId": "RX1",
+            "patient": {"id": AMKA, "amka": AMKA},
+            "medication": {"atcCode": "J01CA01"},
+        }
+        payload = await engine.evaluate_safety(None, rx, uuid.uuid4(), rules=[], intolerances=[])
+        assert all(c.check_type != CheckType.CONTRAINDICATIONS for c in payload.checks)
 
     asyncio.run(_run())
 
