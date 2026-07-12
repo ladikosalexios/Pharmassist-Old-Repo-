@@ -6,7 +6,7 @@
 // to a safety verdict via the mock backend and shows it. This is the research
 // prototype of the parasitic agent in docs/parasitic-agent-plan.md.
 
-const { app, BrowserWindow, globalShortcut, screen, ipcMain } = require("electron");
+const { app, BrowserWindow, globalShortcut, screen, ipcMain, shell } = require("electron");
 const path = require("path");
 const fs = require("fs");
 const { Backend } = require("./backend");
@@ -16,6 +16,7 @@ const cfg = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "config.json")
 
 let win = null;
 let backend = null;
+let currentRxId = null; // the prescription currently on the card — target of the SPA handoff
 let lastStatus = { ok: false, text: "Starting…", autoHideMs: cfg.overlay.autoHideMs };
 
 const WIN_W = 380;
@@ -116,9 +117,11 @@ async function showPrescription(rxId) {
   try {
     const rx = await backend.prescription(rxId);
     if (rx.notFound) {
+      currentRxId = null;
       send("scan-error", { code: rxId, message: "No prescription found for " + rxId });
       return;
     }
+    currentRxId = rx.rxId || rxId;
     send("scan-result", rx);
   } catch (e) {
     send("scan-error", { code: rxId, message: e.message });
@@ -159,11 +162,24 @@ app.whenReady().then(async () => {
     console.log(`[agent] hotkey ${accel} → ${rxId}: ${ok ? "registered" : "FAILED (in use?)"}`);
   });
 
+  // Notice → act handoff: open the current prescription's FULL verification
+  // view in the web SPA (deep work: all checks, SPC, override-with-reason, ADR).
+  // The agent is the heads-up display; the SPA is the console you drop into.
+  globalShortcut.register("CommandOrControl+Alt+Return", () => {
+    if (!currentRxId) return;
+    const url = cfg.webAppUrl.replace(/\/$/, "") + "/prescription/" + encodeURIComponent(currentRxId);
+    console.log("[agent] open full review →", url);
+    shell.openExternal(url);
+  });
+
   globalShortcut.register("CommandOrControl+Shift+H", () => {
     if (!win) return;
     win.isVisible() ? win.hide() : win.showInactive(); // showInactive → never focuses
   });
-  globalShortcut.register("CommandOrControl+Shift+C", () => send("clear"));
+  globalShortcut.register("CommandOrControl+Shift+C", () => {
+    currentRxId = null;
+    send("clear");
+  });
   globalShortcut.register("CommandOrControl+Shift+Q", () => app.quit());
 });
 
