@@ -1,0 +1,29 @@
+{
+  "name": "pharmassist-agent",
+  "version": "0.1.0",
+  "private": true,
+  "description": "PharmAssist scan-riding safety overlay — research prototype (parasitic local agent). See docs/parasitic-agent-plan.md.",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron .",
+    "barcodes": "node scripts/gen-barcodes.js",
+    "dist": "electron-builder",
+    "dist:mac": "electron-builder --mac",
+    "dist:win": "electron-builder --win"
+  },
+  "dependencies": {
+    "uiohook-napi": "^1.5.4"
+  },
+  "devDependencies": {
+    "bwip-js": "^4.5.0",
+    "electron": "^32.1.2",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "gr.pharmassist.agent",
+    "productName": "PharmAssist Agent",
+    "files": ["src/**", "config.json"],
+    "mac": { "target": ["dmg", "zip"], "category": "public.app-category.medical" },
+    "win": { "target": ["nsis", "portable"] }
+  }
+}

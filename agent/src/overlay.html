@@ -1,0 +1,29 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="overlay.css" />
+  </head>
+  <body>
+    <div id="app" class="idle">
+      <!-- Idle pill -->
+      <div id="pill" class="pill">
+        <span id="dot" class="dot"></span>
+        <span id="pill-text">Starting…</span>
+      </div>
+
+      <!-- Result card -->
+      <div id="card" class="card hidden">
+        <div class="card-head">
+          <span id="badge" class="badge">—</span>
+          <span id="rx" class="rx"></span>
+          <button id="close" title="Dismiss (⌘⇧C)">×</button>
+        </div>
+        <div id="who" class="who"></div>
+        <div id="drug" class="drug"></div>
+        <ul id="checks" class="checks"></ul>
+      </div>
+    </div>
+    <script src="overlay.js"></script>
+  </body>
+</html>
