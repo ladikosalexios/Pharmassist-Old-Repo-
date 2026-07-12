@@ -12,11 +12,23 @@ const RANK = { block: 3, review: 2, ok: 1 };
 let hideTimer = null;
 let autoHideMs = 20000;
 
+// Ask the main process to size the window to exactly the current content, after
+// layout settles — so a long card never clips and the idle pill leaves no big
+// invisible window. Runs on every state change.
+function fit() {
+  requestAnimationFrame(() => {
+    const el = card.classList.contains("hidden") ? pill : card;
+    const h = Math.ceil(el.getBoundingClientRect().height) + 16; // + #app padding
+    window.agent.resize(h);
+  });
+}
+
 function showPill(text, cls) {
   card.classList.add("hidden");
   pill.classList.remove("hidden");
   pillText.textContent = text;
   dot.className = "dot" + (cls ? " " + cls : "");
+  fit();
 }
 
 function worst(checks) {
@@ -55,6 +67,7 @@ function renderResult(rx) {
     ul.appendChild(li);
   }
 
+  fit();
   clearTimeout(hideTimer);
   hideTimer = setTimeout(() => showPill("Listening for scans", "ok"), autoHideMs);
 }
@@ -71,4 +84,3 @@ window.agent.onError((d) => {
   hideTimer = setTimeout(() => showPill("Listening for scans", "ok"), 6000);
 });
 window.agent.onClear(() => showPill("Listening for scans", "ok"));
-$("close").addEventListener("click", () => showPill("Listening for scans", "ok"));
