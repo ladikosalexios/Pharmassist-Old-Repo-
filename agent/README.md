@@ -94,13 +94,60 @@ scenarios directly, need no scanner and no Accessibility permission. You can als
 type an rx_id fast and press Enter into any field: the burst detector treats a
 fast-typed `RX2024-005⏎` as a scan.
 
-## Packaging (later)
+## Distribution — installing on a pharmacy machine
 
-`npm run dist:mac` / `npm run dist:win` (electron-builder). Distribution needs
-code-signing — an unsigned build trips Gatekeeper/SmartScreen and, more
-importantly, a global keyboard hook + always-on-top overlay is exactly the
-behavioural signature AV/EDR flags. Budget for a signing cert + keeping the hook
-scoped to sentinel-framed scans (see `config.json` → `scan.sentinelPrefix`).
+### Build the app
+
+```bash
+CSC_IDENTITY_AUTO_DISCOVERY=false npm run dist:mac    # → dist/…-arm64-mac.zip + .app
+npm run dist:win                                      # → NSIS installer + portable .exe
+```
+
+- **Native module caveat.** `uiohook-napi` is compiled per-arch. Building the
+  **native** arch works with Xcode Command Line Tools alone (verified: an
+  arm64 Mac produces a runnable arm64 `.zip`). **Cross-arch fails** (e.g. x64
+  from an arm64 Mac) without full Xcode, and **Windows can't be built from a
+  Mac**. For Intel-Mac + Windows binaries, build on those machines or a
+  **GitHub Actions matrix** (clean runners have the full toolchain) — that's the
+  real answer for multi-platform releases.
+
+### Point a build at a hosted backend (no rebuild)
+
+The bundled `config.json` defaults to `localhost`. To run on a machine with no
+local backend, host the (mock) backend somewhere and override at launch:
+
+```bash
+PHARMASSIST_BACKEND_URL=https://demo-api.example.com \
+PHARMASSIST_WEBAPP_URL=https://demo.example.com \
+open "PharmAssist Agent.app"
+```
+
+Env vars win over `config.json`, so **one binary serves both local dev and a
+cloud demo**. (For a double-clicked app, ship a tiny `.command`/shortcut that
+sets these, or bake the hosted URL into `config.json` before building.)
+
+### First-run on an UNSIGNED demo build
+
+No cert yet → the OS will warn. Walk the pharmacy through it once:
+
+- **macOS:** unzip → **right-click the app → Open** (bypasses Gatekeeper once) →
+  System Settings → Privacy & Security → **Accessibility** → enable it (required
+  for global scan capture) → relaunch.
+- **Windows:** run the portable `.exe` → **"More info → Run anyway"** past
+  SmartScreen.
+
+That's enough for a hand-delivered research demo. It is **not** enough to hand
+out at scale.
+
+### Going past demos (production)
+
+- **Code-signing + notarization** — Apple Developer ID + notarize (mac); a
+  Windows code-signing cert, EV preferred (SmartScreen). Unsigned = scary prompts.
+- **AV / EDR** — a global keyboard hook + always-on-top overlay is exactly the
+  behavioural signature endpoint security flags. Test on the pharmacy's actual
+  AV before a visit; a wide rollout needs the signed binary allowlisted with
+  their vendor. Keeping the hook scoped to a `scan.sentinelPrefix` helps.
+- **Permissions at scale** — pre-grant macOS Accessibility via MDM/Intune.
 
 ## How a scan is detected
 

@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "description": "PharmAssist scan-riding safety overlay — research prototype (parasitic local agent). See docs/parasitic-agent-plan.md.",
+  "author": "PharmAssist",
   "main": "src/main.js",
   "scripts": {
     "start": "electron .",
