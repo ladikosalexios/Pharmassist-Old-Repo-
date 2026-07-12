@@ -120,6 +120,7 @@ Each hotkey (and each real pack, mapped deterministically) shows one scenario:
 ## Hotkeys
 
 - `⌘/Ctrl + Alt + 1…8` — fire scenario 1–8
+- `⌘/Ctrl + Alt + Enter` — open the current prescription's full review in the web app
 - `⌘/Ctrl + Shift + C` — dismiss the current card
 - `⌘/Ctrl + Shift + H` — hide / show the overlay
 - `⌘/Ctrl + Shift + Q` — quit the agent

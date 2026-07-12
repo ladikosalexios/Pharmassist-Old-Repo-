@@ -1,5 +1,6 @@
 {
   "backendUrl": "http://localhost:8000",
+  "webAppUrl": "http://localhost:5173",
   "login": {
     "email": "ladikosalexios@gmail.com",
     "password": "test1234"

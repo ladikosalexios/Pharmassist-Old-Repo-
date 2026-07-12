@@ -176,6 +176,25 @@ body {
   font-size: 13px;
   line-height: 1.35;
 }
+.hint {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px 12px;
+  font-size: 11px;
+  color: var(--muted);
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+.hint kbd {
+  font-family: -apple-system, "Segoe UI", sans-serif;
+  font-size: 11px;
+  padding: 1px 5px;
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.09);
+}
+.hint .sep {
+  opacity: 0.4;
+}
 .hidden {
   display: none !important;
 }

@@ -73,6 +73,7 @@ if the Eyoyo isn't to hand.
 ### Hotkeys
 
 - `⌘/Ctrl + Alt + 1…8` — fire demo scenario 1–8 (simulated scan)
+- `⌘/Ctrl + Alt + Enter` — open the current prescription's **full review** in the web app (`webAppUrl` in config; needs the SPA running + a logged-in browser)
 - `⌘/Ctrl + Shift + H` — hide / show the overlay
 - `⌘/Ctrl + Shift + C` — dismiss the current card
 - `⌘/Ctrl + Shift + Q` — quit the daemon
