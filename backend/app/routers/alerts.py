@@ -22,12 +22,19 @@ from ..services.safety_engine import (
 router = APIRouter(prefix="/alerts", tags=["alerts"])
 
 
-@router.get("/active", response_model=list[SafetyAlertPayload])
+@router.get("/active", response_model=list[SafetyAlertPayload], deprecated=True)
 async def get_active_alerts(
     current: dict = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ):
-    """Return active safety alerts for the dashboard."""
+    """DEPRECATED — the dashboard prescription-queue this powered was retired.
+
+    Under the parasitic-agent model (docs/agent-vs-spa-surface-split.md) alerts
+    surface at scan time via the agent / per-rx verification view, not as a
+    batch list; and ΗΔΥΚΑ has no pull-based "prescriptions waiting" queue to
+    back it live (docs/going-real-live-mode-ux.md). The SPA no longer calls
+    this. Kept (deprecated) rather than deleted so it's a reversible retirement;
+    safe to remove with its tests once nothing depends on it."""
     pharmacy = await find_pharmacy_by_name(session, current["pharmacy"])
     if pharmacy is None:
         raise HTTPException(status_code=400, detail="Pharmacy not found for current user")

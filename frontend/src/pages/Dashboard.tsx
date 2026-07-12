@@ -1,22 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Link, useNavigate } from "react-router-dom";
-import {
-  BarcodeIcon,
-  KeyIcon,
-  ShieldIcon,
-  ChevronRightIcon,
-  CheckIcon,
-  CheckCircleIcon,
-  FlagIcon,
-  AlertCircleIcon,
-  AlertTriangleIcon,
-} from "../components/Icons";
-import { SafetyAlertsPanel } from "../components/SafetyAlertsPanel";
+import { useNavigate } from "react-router-dom";
+import { BarcodeIcon, KeyIcon, ShieldIcon } from "../components/Icons";
 import { useAuth } from "../lib/auth";
 import { useToast } from "../components/Toast";
-import { ApiError, getActiveAlerts, listPrescriptions } from "../lib/api";
-import type { ActiveAlert, QueueItem } from "../types";
 
 // Platform-aware shortcut hint (⌘K on Apple, Ctrl+K elsewhere). Computed once;
 // `navigator` is always present in the browser, guarded for SSR/tests.
@@ -24,11 +11,12 @@ const IS_APPLE =
   typeof navigator !== "undefined" &&
   /Mac|iPhone|iPad|iPod/.test(navigator.platform || navigator.userAgent || "");
 
-interface AlertMeta {
-  count: number;
-  hasBlock: boolean;
-}
-
+// Thin home. The pharmacist's real workflow lives in their pharmacy software +
+// the scan-riding agent (docs/agent-vs-spa-surface-split.md); the SPA is the
+// deep-work console you drop into for a specific prescription — via the agent's
+// ⌘⌥↵ handoff, or by scanning / entering a barcode here. The old prescription
+// queue + active-alerts rail were retired: ΗΔΥΚΑ has no pull-based queue, and
+// alerts now surface at scan time.
 export function Dashboard() {
   const { t, i18n } = useTranslation();
   const { user } = useAuth();
@@ -42,56 +30,6 @@ export function Dashboard() {
     month: "long",
     day: "numeric",
   });
-
-  const [queue, setQueue] = useState<QueueItem[] | null>(null);
-  const [queueError, setQueueError] = useState<string | null>(null);
-  const [alerts, setAlerts] = useState<ActiveAlert[]>([]);
-
-  useEffect(() => {
-    let active = true;
-    listPrescriptions()
-      .then((items) => {
-        if (active) setQueue(items);
-      })
-      .catch((e: unknown) => {
-        if (!active) return;
-        setQueueError(e instanceof ApiError ? e.message : t("dashboard.queueLoadError"));
-      });
-    // The in-progress rows show per-prescription alert chips; the right rail's
-    // SafetyAlertsPanel fetches /alerts/active independently (cached server-side).
-    getActiveAlerts()
-      .then((data) => {
-        if (active) setAlerts(data);
-      })
-      .catch(() => {
-        /* the SafetyAlertsPanel surfaces the rail error; chips just stay neutral */
-      });
-    return () => {
-      active = false;
-    };
-  }, [t]);
-
-  // rxId -> { count, hasBlock } so each in-progress row can show its alert chip
-  // and a critical accent without a second fetch.
-  const alertsByRx = useMemo(() => {
-    const m = new Map<string, AlertMeta>();
-    for (const a of alerts) {
-      if (!a.rxId) continue;
-      const cur = m.get(a.rxId) ?? { count: 0, hasBlock: false };
-      cur.count += 1;
-      if (a.status === "block") cur.hasBlock = true;
-      m.set(a.rxId, cur);
-    }
-    return m;
-  }, [alerts]);
-
-  // "In progress" = the active verification worklist (not yet dispensed);
-  // "Today" = prescriptions already completed. Both come from /prescriptions.
-  const inProgress = useMemo(
-    () => (queue ?? []).filter((q) => q.status === "PENDING" || q.status === "FLAGGED"),
-    [queue],
-  );
-  const todayDone = useMemo(() => (queue ?? []).filter((q) => q.status === "COMPLETED"), [queue]);
 
   const onScan = (value: string) => {
     const v = value.trim();
@@ -116,7 +54,7 @@ export function Dashboard() {
     <div className="flex h-full flex-col">
       <SessionStrip />
 
-      <div className="mx-auto w-full max-w-[1100px] px-4 py-6 sm:px-6 lg:px-8">
+      <div className="mx-auto w-full max-w-[760px] px-4 py-6 sm:px-6 lg:px-8">
         <header className="mb-6">
           <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
             {t("dashboard.title")}
@@ -139,30 +77,6 @@ export function Dashboard() {
           onScan={onScan}
           onPaperless={() => toast(t("dashboard.paperlessSoon"), "info")}
         />
-
-        <div className="mt-7 grid grid-cols-1 gap-7 lg:grid-cols-[1fr_320px]">
-          <div className="space-y-7">
-            {queueError ? (
-              <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-400">
-                <AlertCircleIcon width={14} height={14} className="mt-0.5 shrink-0" />
-                <span>{queueError}</span>
-              </div>
-            ) : queue === null ? (
-              <div className="flex items-center gap-2 px-1 py-6 text-sm text-slate-500 dark:text-slate-400">
-                <span className="spinner text-brand-600" /> {t("dashboard.loadingQueue")}
-              </div>
-            ) : (
-              <>
-                <InProgressList items={inProgress} alertsByRx={alertsByRx} />
-                <TodayList items={todayDone} />
-              </>
-            )}
-          </div>
-
-          <div>
-            <SafetyAlertsPanel title={t("dashboard.safetyTitle")} />
-          </div>
-        </div>
 
         <div className="mt-8 flex items-center justify-center gap-1.5 text-xs text-slate-400 dark:text-slate-500">
           <kbd className="rounded border border-slate-200 bg-white px-1.5 py-0.5 text-[11px] font-semibold text-slate-500 shadow-card dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400">
@@ -321,158 +235,6 @@ function ScanHero({
           </form>
         )}
       </div>
-    </section>
-  );
-}
-
-/* ── status chip for an in-progress row ── */
-function StatusChip({
-  meta,
-  status,
-}: {
-  meta: AlertMeta | undefined;
-  status: QueueItem["status"];
-}) {
-  const { t } = useTranslation();
-  if (meta?.hasBlock) {
-    return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2 py-0.5 text-[11.5px] font-semibold text-red-700 dark:bg-red-500/15 dark:text-red-400">
-        <AlertCircleIcon width={12} height={12} />{" "}
-        {t("dashboard.alertsCount", { count: meta.count })}
-      </span>
-    );
-  }
-  if (meta && meta.count > 0) {
-    return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[11.5px] font-semibold text-amber-700 dark:bg-amber-500/15 dark:text-amber-400">
-        <AlertTriangleIcon width={12} height={12} />{" "}
-        {t("dashboard.alertsCount", { count: meta.count })}
-      </span>
-    );
-  }
-  if (status === "FLAGGED") {
-    return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[11.5px] font-semibold text-amber-700 dark:bg-amber-500/15 dark:text-amber-400">
-        <FlagIcon width={12} height={12} /> {t("dashboard.statusFlagged")}
-      </span>
-    );
-  }
-  return (
-    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11.5px] font-semibold text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-400">
-      <CheckIcon width={12} height={12} strokeWidth={3} /> {t("dashboard.ok")}
-    </span>
-  );
-}
-
-/* ── In progress list ── */
-function InProgressList({
-  items,
-  alertsByRx,
-}: {
-  items: QueueItem[];
-  alertsByRx: Map<string, AlertMeta>;
-}) {
-  const { t } = useTranslation();
-  return (
-    <section>
-      <div className="mb-2.5 flex items-center gap-2">
-        <h3 className="text-[14px] font-bold text-slate-900 dark:text-slate-100">
-          {t("dashboard.inProgress")}
-        </h3>
-        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11.5px] font-semibold text-slate-500 dark:bg-slate-800 dark:text-slate-400">
-          {items.length}
-        </span>
-      </div>
-      {items.length === 0 ? (
-        <p className="rounded-xl border border-dashed border-slate-200 bg-white/50 px-4 py-3 text-[13px] italic text-slate-500 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-400">
-          {t("dashboard.inProgressEmpty")}
-        </p>
-      ) : (
-        <div className="card overflow-hidden">
-          {items.map((it, i) => {
-            const meta = alertsByRx.get(it.rxId);
-            return (
-              <Link
-                key={it.rxId}
-                to={`/prescription/${it.rxId}`}
-                className={`group relative flex items-center gap-4 px-4 py-3.5 transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/60 ${
-                  i > 0 ? "border-t border-slate-100 dark:border-slate-800" : ""
-                }`}
-              >
-                {meta?.hasBlock && <span className="absolute left-0 top-0 h-full w-1 bg-red-500" />}
-                <span className="mono w-[120px] shrink-0 truncate text-[13px] text-slate-500 dark:text-slate-400">
-                  {it.rxId}
-                </span>
-                <span className="min-w-0 flex-1 truncate text-[14px] font-medium text-slate-900 dark:text-slate-100">
-                  {it.patientName}
-                </span>
-                <StatusChip meta={meta} status={it.status} />
-                <span className="text-slate-300 transition-all group-hover:translate-x-0.5 group-hover:text-brand-600 dark:text-slate-600 dark:group-hover:text-brand-400">
-                  <ChevronRightIcon width={16} height={16} />
-                </span>
-              </Link>
-            );
-          })}
-        </div>
-      )}
-    </section>
-  );
-}
-
-/* ── Today (completed) list ── */
-function TodayList({ items }: { items: QueueItem[] }) {
-  const { t } = useTranslation();
-  return (
-    <section>
-      <div className="mb-2.5 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <h3 className="text-[14px] font-bold text-slate-900 dark:text-slate-100">
-            {t("dashboard.today")}
-          </h3>
-          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11.5px] font-semibold text-slate-500 dark:bg-slate-800 dark:text-slate-400">
-            {items.length}
-          </span>
-        </div>
-        <Link
-          to="/history"
-          className="flex items-center gap-0.5 text-[12.5px] font-medium text-brand-600 hover:text-brand-700 dark:text-brand-400"
-        >
-          {t("dashboard.fullHistory")} →
-        </Link>
-      </div>
-      {items.length === 0 ? (
-        <p className="rounded-xl border border-dashed border-slate-200 bg-white/50 px-4 py-3 text-[13px] italic text-slate-500 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-400">
-          {t("dashboard.todayEmpty")}
-        </p>
-      ) : (
-        <div className="card overflow-hidden">
-          {items.map((it, i) => (
-            <Link
-              key={it.rxId}
-              to={`/prescription/${it.rxId}`}
-              className={`flex items-center gap-4 px-4 py-3 transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/60 ${
-                i > 0 ? "border-t border-slate-100 dark:border-slate-800" : ""
-              }`}
-            >
-              <span className="shrink-0 text-emerald-500 dark:text-emerald-400">
-                <CheckCircleIcon width={16} height={16} />
-              </span>
-              <span className="mono hidden w-[88px] shrink-0 text-[12.5px] text-slate-400 dark:text-slate-500 sm:block">
-                {it.rxId}
-              </span>
-              <span className="min-w-0 flex-1 truncate text-[13.5px] font-medium text-slate-800 dark:text-slate-200">
-                {it.patientName}
-              </span>
-              <span className="hidden truncate text-[12.5px] text-slate-500 dark:text-slate-400 md:block md:w-[150px]">
-                {it.medication}
-              </span>
-              <span className="mono shrink-0 text-[12.5px] text-slate-400 dark:text-slate-500">
-                {it.date}
-              </span>
-            </Link>
-          ))}
-        </div>
-      )}
     </section>
   );
 }
