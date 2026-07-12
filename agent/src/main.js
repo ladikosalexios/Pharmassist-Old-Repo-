@@ -69,20 +69,49 @@ async function connect() {
   }
 }
 
-async function onScan(code) {
-  console.log("[agent] scan:", code);
-  send("checking", code);
+const DEMO = cfg.demo || { mapUnknownToDemo: false, prescriptions: [] };
+const RX_RE = /^RX\d{4}-\d{3}$/i;
+
+// Deterministic pick so the SAME pack always maps to the SAME scenario — a
+// scripted research demo stays reproducible run to run.
+function hashPick(str, list) {
+  let h = 0;
+  for (let i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) >>> 0;
+  return list[h % list.length];
+}
+
+// A scanned code is either a printed RX barcode (use directly) or a real GS1
+// medicine pack with no prescription attached (map to a demo scenario).
+function resolveCode(code) {
+  if (RX_RE.test(code)) return { rxId: code.toUpperCase(), mappedFrom: null };
+  if (DEMO.mapUnknownToDemo && DEMO.prescriptions.length) {
+    return { rxId: hashPick(code, DEMO.prescriptions), mappedFrom: code };
+  }
+  return { rxId: code.toUpperCase(), mappedFrom: null };
+}
+
+async function showPrescription(rxId) {
+  send("checking", rxId);
   try {
-    const rx = await backend.prescription(code);
+    const rx = await backend.prescription(rxId);
     if (rx.notFound) {
-      send("scan-error", { code, message: "No prescription found for " + code });
+      send("scan-error", { code: rxId, message: "No prescription found for " + rxId });
       return;
     }
     send("scan-result", rx);
   } catch (e) {
-    send("scan-error", { code, message: e.message });
-    console.error("[agent] scan lookup failed:", e.message);
+    send("scan-error", { code: rxId, message: e.message });
+    console.error("[agent] lookup failed:", e.message);
   }
+}
+
+async function onScan(code) {
+  const { rxId, mappedFrom } = resolveCode(code);
+  // Log the mapping for the facilitator; the overlay shows only the (real-
+  // looking) prescription, so the research subject never sees the wiring.
+  if (mappedFrom) console.log(`[agent] pack ${mappedFrom.slice(0, 20)}… → demo ${rxId}`);
+  else console.log("[agent] scan:", rxId);
+  await showPrescription(rxId);
 }
 
 app.whenReady().then(async () => {
@@ -97,6 +126,17 @@ app.whenReady().then(async () => {
     setStatus(false, "Scanner hook failed: " + e.message);
     console.error("[agent] scanner failed:", e.message);
   }
+
+  // Simulated-scan fallback: fire a specific demo scenario with no scanner and
+  // no Accessibility permission (globalShortcut needs neither). Cmd/Ctrl+Alt+N.
+  (DEMO.prescriptions || []).slice(0, 8).forEach((rxId, i) => {
+    const accel = `CommandOrControl+Alt+${i + 1}`;
+    const ok = globalShortcut.register(accel, () => {
+      console.log(`[agent] hotkey ${accel} → ${rxId}`);
+      showPrescription(rxId);
+    });
+    console.log(`[agent] hotkey ${accel} → ${rxId}: ${ok ? "registered" : "FAILED (in use?)"}`);
+  });
 
   globalShortcut.register("CommandOrControl+Shift+H", () => {
     if (!win) return;

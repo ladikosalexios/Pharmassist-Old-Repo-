@@ -48,8 +48,31 @@ from the app you're in. That's the whole point.
 **RX2024-005** (Maria Stavrou, Warfarin): a red **BLOCK** for an amiodarone
 interaction plus an amber aspirin review.
 
+### Scanning real medicine packs (the Eyoyo)
+
+Your Eyoyo packs are **GS1 medicine packs** (GTIN / serial / lot / expiry) with
+**no prescription attached** — so a raw pack scan can't resolve to a real rx. The
+agent handles this: any scanned code that isn't an `RX2024-xxx` is
+**deterministically mapped to a demo prescription** (`config.json → demo`). Same
+pack → same scenario every run, so you can script a session ("scan the blue pack →
+they see the Warfarin BLOCK"). The overlay shows only the real-looking
+prescription; the pack→scenario mapping is logged to the console for the
+facilitator, never shown to the research subject.
+
+So: scan any pack with the Eyoyo and you get a real-feeling safety verdict. The
+printed `RX2024-xxx` barcodes (`npm run barcodes`) still resolve directly to
+their own scenario.
+
+### Simulated scan (no scanner / no permission)
+
+`⌘/Ctrl + Alt + 1…8` each fire a specific demo scenario directly — no scanner
+and **no Accessibility grant needed** (global hotkeys use a different API). `1`
+is the Warfarin BLOCK headliner. Use these for UX-only sessions, or as a backup
+if the Eyoyo isn't to hand.
+
 ### Hotkeys
 
+- `⌘/Ctrl + Alt + 1…8` — fire demo scenario 1–8 (simulated scan)
 - `⌘/Ctrl + Shift + H` — hide / show the overlay
 - `⌘/Ctrl + Shift + C` — dismiss the current card
 - `⌘/Ctrl + Shift + Q` — quit the daemon
@@ -65,11 +88,10 @@ Global keyboard capture needs OS permission:
 
 ## No scanner handy?
 
-You can still exercise the pipe: with `barcodes.html` open, focus it and use a
-phone/other scanner, or temporarily type an rx_id fast and press Enter into any
-field (the burst detector treats a fast-typed `RX2024-005⏎` as a scan). For
-pure-UI iteration, scans are the only trigger by design (real parasitic
-behavior) — flip on a simulated trigger later if UX-only testing is needed.
+Use the simulated-scan hotkeys (`⌘/Ctrl + Alt + 1…8`) above — they fire the demo
+scenarios directly, need no scanner and no Accessibility permission. You can also
+type an rx_id fast and press Enter into any field: the burst detector treats a
+fast-typed `RX2024-005⏎` as a scan.
 
 ## Packaging (later)
 

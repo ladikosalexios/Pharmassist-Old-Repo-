@@ -47,8 +47,9 @@ function startScanner(scanCfg, onScan) {
     const now = Date.now();
 
     if (e.keycode === ENTER) {
-      // A scan terminates in Enter. Require the burst to be recent + long enough.
-      if (buf.length >= minLen && now - last <= maxGap * 3) {
+      // A scan terminates in Enter. buf only ever holds a fast contiguous burst
+      // (a slow gap wipes it below), so a non-empty buf here IS a scan.
+      if (buf.length >= minLen && now - last <= maxGap * 4) {
         let code = buf;
         buf = "";
         if (prefix) {
@@ -62,15 +63,16 @@ function startScanner(scanCfg, onScan) {
       return;
     }
 
+    // A slow gap between keys means this isn't (or is no longer) a scan burst —
+    // start fresh. Human typing lands here every keystroke and never assembles.
+    if (now - last > maxGap) buf = "";
+
+    // Accumulate payload chars. Unmapped keys (GS1 FNC1/group separators,
+    // punctuation a DataMatrix pack emits) are SKIPPED, not reset — so scanning
+    // a real medicine pack still yields a stable alphanumeric string (GTIN +
+    // serial + lot), which the agent maps to a demo prescription.
     const ch = KEY[e.keycode];
-    if (ch == null) {
-      // A non-payload key breaks a scan burst (unless it's part of one arriving
-      // fast — but for our alphanumeric barcodes, treat it as a reset).
-      buf = "";
-      return;
-    }
-    // Fast enough to be a scanner? chain it; otherwise start a fresh buffer.
-    buf = now - last <= maxGap ? buf + ch : ch;
+    if (ch != null) buf += ch;
     last = now;
   });
 
