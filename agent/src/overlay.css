@@ -1,0 +1,188 @@
+/* Cluely-style: frosted, dark, floats in the corner over whatever app is focused. */
+:root {
+  --block: #ff5a5a;
+  --review: #ffb020;
+  --ok: #35c88a;
+  --ink: #f4f6fb;
+  --muted: #a7b0c0;
+}
+* {
+  box-sizing: border-box;
+  margin: 0;
+  font-family: -apple-system, "Segoe UI", system-ui, sans-serif;
+}
+html,
+body {
+  background: transparent;
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+}
+#app {
+  padding: 8px;
+}
+
+/* Idle pill */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: rgba(20, 24, 33, 0.82);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  color: var(--ink);
+  font-size: 13px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+.dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--muted);
+  box-shadow: 0 0 0 0 rgba(53, 200, 138, 0.5);
+}
+.dot.ok {
+  background: var(--ok);
+  animation: pulse 2s infinite;
+}
+.dot.err {
+  background: var(--block);
+}
+.dot.busy {
+  background: var(--review);
+  animation: pulse 0.9s infinite;
+}
+@keyframes pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(53, 200, 138, 0.45);
+  }
+  70% {
+    box-shadow: 0 0 0 7px rgba(53, 200, 138, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(53, 200, 138, 0);
+  }
+}
+
+/* Result card */
+.card {
+  width: 360px;
+  border-radius: 16px;
+  background: rgba(18, 22, 30, 0.9);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  color: var(--ink);
+  box-shadow: 0 16px 50px rgba(0, 0, 0, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  overflow: hidden;
+  animation: rise 0.16s ease-out;
+}
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.card.edge-block {
+  border-top: 3px solid var(--block);
+}
+.card.edge-review {
+  border-top: 3px solid var(--review);
+}
+.card.edge-ok {
+  border-top: 3px solid var(--ok);
+}
+.card-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px 6px;
+}
+.badge {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: 6px;
+  color: #10141b;
+}
+.badge.block {
+  background: var(--block);
+}
+.badge.review {
+  background: var(--review);
+}
+.badge.ok {
+  background: var(--ok);
+}
+.rx {
+  font-size: 12px;
+  color: var(--muted);
+  flex: 1;
+}
+#close {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+.who {
+  padding: 0 14px;
+  font-size: 15px;
+  font-weight: 600;
+}
+.drug {
+  padding: 2px 14px 8px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.checks {
+  list-style: none;
+  padding: 4px 8px 10px;
+}
+.checks li {
+  display: flex;
+  gap: 9px;
+  padding: 7px 8px;
+  border-radius: 9px;
+}
+.checks li + li {
+  margin-top: 2px;
+}
+.cdot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-top: 6px;
+  flex: none;
+}
+.cdot.block {
+  background: var(--block);
+}
+.cdot.review {
+  background: var(--review);
+}
+.cdot.ok {
+  background: var(--ok);
+}
+.cbody .cname {
+  font-size: 12px;
+  color: var(--muted);
+}
+.cbody .cmsg {
+  font-size: 13px;
+  line-height: 1.35;
+}
+.hidden {
+  display: none !important;
+}

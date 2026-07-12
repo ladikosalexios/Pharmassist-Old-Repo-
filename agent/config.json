@@ -1,0 +1,20 @@
+{
+  "backendUrl": "http://localhost:8000",
+  "login": {
+    "email": "ladikosalexios@gmail.com",
+    "password": "test1234"
+  },
+  "scan": {
+    "minLength": 4,
+    "interKeyMs": 120,
+    "sentinelPrefix": ""
+  },
+  "overlay": {
+    "autoHideMs": 20000
+  },
+  "_notes": {
+    "login": "Seeded DEV credentials (README.md / scripts.seed). Mock backend must be up: docker compose up -d backend db.",
+    "scan.interKeyMs": "A keystroke burst whose keys arrive within this gap is treated as a scanner (humans type slower). Terminated by Enter.",
+    "scan.sentinelPrefix": "PRODUCTION posture: program the Eyoyo with a distinctive prefix and set it here so the hook reacts ONLY to sentinel-framed scans, never general typing. Empty = burst-timing detection (fine for research)."
+  }
+}
