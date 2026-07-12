@@ -6,7 +6,7 @@
 // to a safety verdict via the mock backend and shows it. This is the research
 // prototype of the parasitic agent in docs/parasitic-agent-plan.md.
 
-const { app, BrowserWindow, globalShortcut, screen } = require("electron");
+const { app, BrowserWindow, globalShortcut, screen, ipcMain } = require("electron");
 const path = require("path");
 const fs = require("fs");
 const { Backend } = require("./backend");
@@ -18,23 +18,34 @@ let win = null;
 let backend = null;
 let lastStatus = { ok: false, text: "Starting…", autoHideMs: cfg.overlay.autoHideMs };
 
+const WIN_W = 380;
+const WIN_MARGIN = 16;
+
+function anchorTopRight(height) {
+  const { workArea } = screen.getPrimaryDisplay();
+  const h = Math.min(Math.max(Math.round(height), 48), workArea.height - WIN_MARGIN * 2);
+  win.setBounds({
+    x: workArea.x + workArea.width - WIN_W - WIN_MARGIN,
+    y: workArea.y + WIN_MARGIN,
+    width: WIN_W,
+    height: h,
+  });
+}
+
 function createWindow() {
   const { workArea } = screen.getPrimaryDisplay();
-  const W = 380;
-  const H = 300;
-  const margin = 16;
   win = new BrowserWindow({
-    width: W,
-    height: H,
-    x: workArea.x + workArea.width - W - margin,
-    y: workArea.y + margin,
+    width: WIN_W,
+    height: 120,
+    x: workArea.x + workArea.width - WIN_W - WIN_MARGIN,
+    y: workArea.y + WIN_MARGIN,
     frame: false,
     transparent: true,
     resizable: false,
-    movable: true,
+    movable: false,
     alwaysOnTop: true,
     skipTaskbar: true,
-    focusable: false, // never steal focus from the pharmacist's real app
+    focusable: false, // never take key focus from the pharmacist's real app
     hasShadow: false,
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
@@ -44,10 +55,20 @@ function createWindow() {
   });
   win.setAlwaysOnTop(true, "screen-saver");
   win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+  // Click-through: the transparent area (and the card itself) must never
+  // intercept a click or steal focus — the pharmacist works right through it.
+  // Dismiss/interaction is via hotkeys, so we lose nothing.
+  win.setIgnoreMouseEvents(true, { forward: true });
   win.loadFile(path.join(__dirname, "overlay.html"));
   // Push the current status once the page is ready (avoids a load/IPC race).
   win.webContents.on("did-finish-load", () => send("status", lastStatus));
 }
+
+// The renderer measures its content and asks for exactly that height, so a long
+// card never clips and the idle pill never leaves a big invisible window.
+ipcMain.on("resize", (_e, height) => {
+  if (win && !win.isDestroyed()) anchorTopRight(height);
+});
 
 function send(channel, payload) {
   if (win && !win.isDestroyed()) win.webContents.send(channel, payload);
@@ -140,7 +161,7 @@ app.whenReady().then(async () => {
 
   globalShortcut.register("CommandOrControl+Shift+H", () => {
     if (!win) return;
-    win.isVisible() ? win.hide() : win.show();
+    win.isVisible() ? win.hide() : win.showInactive(); // showInactive → never focuses
   });
   globalShortcut.register("CommandOrControl+Shift+C", () => send("clear"));
   globalShortcut.register("CommandOrControl+Shift+Q", () => app.quit());

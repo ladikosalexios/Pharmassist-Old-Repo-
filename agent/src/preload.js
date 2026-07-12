@@ -8,4 +8,5 @@ contextBridge.exposeInMainWorld("agent", {
   onResult: (cb) => ipcRenderer.on("scan-result", (_e, rx) => cb(rx)),
   onError: (cb) => ipcRenderer.on("scan-error", (_e, d) => cb(d)),
   onClear: (cb) => ipcRenderer.on("clear", () => cb()),
+  resize: (height) => ipcRenderer.send("resize", height),
 });
