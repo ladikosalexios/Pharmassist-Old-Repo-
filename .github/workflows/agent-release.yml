@@ -1,0 +1,70 @@
+name: Build agent installers
+
+# Builds the PharmAssist desktop agent into installable artifacts for BOTH
+# macOS (.dmg + .zip, arm64 + x64) and Windows (NSIS installer + portable .exe).
+# Windows can't be built from a Mac (native uiohook + NSIS), so CI on clean
+# runners with full toolchains is the real multi-platform path.
+#
+# Trigger: push a tag like `agent-v0.1.0` (attaches the installers to a GitHub
+# Release), or run manually via the Actions tab (artifacts only).
+#
+# Builds are UNSIGNED for now — Gatekeeper/SmartScreen will warn. To sign later,
+# add the cert secrets (mac: CSC_LINK + CSC_KEY_PASSWORD; win: WIN_CSC_LINK +
+# WIN_CSC_KEY_PASSWORD) and drop CSC_IDENTITY_AUTO_DISCOVERY.
+
+on:
+  push:
+    tags: ["agent-v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write # attach installers to the Release on a tag
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: agent
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: "false" # unsigned until certs are wired
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: agent/package-lock.json
+
+      - run: npm ci
+
+      - name: Build macOS installers
+        if: runner.os == 'macOS'
+        run: npx electron-builder --mac --arm64 --x64
+
+      - name: Build Windows installers
+        if: runner.os == 'Windows'
+        run: npx electron-builder --win
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: agent-${{ runner.os }}
+          path: |
+            agent/dist/*.dmg
+            agent/dist/*.zip
+            agent/dist/*.exe
+          if-no-files-found: warn
+
+      - name: Attach installers to the Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            agent/dist/*.dmg
+            agent/dist/*.zip
+            agent/dist/*.exe
