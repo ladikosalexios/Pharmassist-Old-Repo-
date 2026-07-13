@@ -18,7 +18,7 @@
   "devDependencies": {
     "bwip-js": "^4.5.0",
     "electron": "^32.1.2",
-    "electron-builder": "^25.1.8"
+    "electron-builder": "^26.15.3"
   },
   "build": {
     "appId": "gr.pharmassist.agent",
