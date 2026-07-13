@@ -2,7 +2,7 @@
 
 Stand up the **mock** PharmAssist backend + SPA on one small EC2 box with a real
 HTTPS URL, so the desktop agent (and anyone) can hit it over the normal internet
-— no VPN, no Tailscale, nothing to install on the pharmacy side.
+— no VPN, nothing to install on the pharmacy side.
 
 ## What you get
 

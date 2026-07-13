@@ -4,7 +4,7 @@
 # Target AMI: Amazon Linux 2023. Runs as root on first boot (cloud-init).
 #
 # What it does:
-#   1. Installs Docker + the Compose plugin (no VPN, no Tailscale).
+#   1. Installs Docker + the Compose plugin (no VPN).
 #   2. Derives a public HTTPS hostname from the box's public IPv4 via sslip.io
 #      (`<ip>.sslip.io` resolves publicly → Caddy issues a real Let's Encrypt
 #      cert, with zero DNS setup). Set PILOT_DOMAIN below to use your own domain.

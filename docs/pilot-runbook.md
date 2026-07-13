@@ -288,7 +288,7 @@ docker compose -f compose.prod.yaml --env-file .env.prod down -v
 
 Deployment moved to a single **public-HTTPS** path — one small EC2 box, real cert
 via your domain or a free `<ip>.sslip.io` name, reachable over the normal
-internet. The Tailscale-only variant was removed.
+internet.
 
 See **[`aws-public-deploy.md`](aws-public-deploy.md)** for the full walkthrough:
 launch a `t3.small`, open ports 80/443, paste `deploy/aws/user-data.sh` (it

@@ -11,8 +11,8 @@ The pilot runbook (`docs/pilot-runbook.md`) covers the same stack against
 > v2 and a clone of this repo on the host.
 
 > **Test data is synthetic but the stack stays HTTPS + access-restricted** —
-> either fronted by Caddy's `tls internal` over Tailscale, or by login-gated
-> auto-HTTPS at a public DNS name. The upstream sandboxes (testeps + ITE)
+> fronted by Caddy's auto-HTTPS at a public DNS name (or a free `<ip>.sslip.io`
+> name) and login-gated. The upstream sandboxes (testeps + ITE)
 > contain no real-patient data, but pharmacist credentials and pack QR codes
 > can still link back to real equipment, so do not expose this stack on an
 > open internet without auth.
@@ -268,7 +268,7 @@ stacks co-exist on the same host because the compose project names
 >   reach the stack at `https://<host>:8443/`. CORS / `PILOT_DOMAIN` follow
 >   the same hostname; no other changes needed.
 > * Or — the recommended deploy shape — give each stack its own host
->   (or Tailscale node) so both can keep 443 and a real DNS name.
+>   so both can keep 443 and a real DNS name.
 
 ---
 

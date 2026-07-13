@@ -27,7 +27,8 @@ The gap is not the API surface — that exists, is tested, and has a runnable Po
 contract suite. The gap is everything around it:
 
 1. The API can be reached at a **public TLS URL in live (non-mock) mode** — doesn't exist
-   today (the only prod-flavour deployment is the Tailscale-only **mock** pilot box).
+   today (the only prod-flavour deployment is the **mock** pilot box — public HTTPS,
+   but still `PHARMAPI_MOCK=true`).
 2. Abuse from one tenant can't degrade the others (**per-key rate limiting** — missing).
 3. We can **see** error-rate/uptime and get paged before the customer notices
    (observability is opt-in and not enabled in any prod compose).
@@ -53,7 +54,7 @@ contract suite. The gap is everything around it:
 | B1 | Per-location session store | **PARTIAL by design** | In-process `PharmapiSessionStore` with per-key `asyncio.Lock` and an explicit narrow seam for Redis (`services/pharmapi.py:103-134`). Single worker pinned: `Dockerfile.prod:41` (`--workers 1`), documented in `docs/test-env-runbook.md:34-36` and `docs/pilot-runbook.md:305`. slowapi notes the same Redis swap path (`observability.py:133-137`). B2B sessions are lazy (`pharmapi.py:228-241`) so a restart costs one `/user/me` per location, not an outage. |
 | B2 | Paid-API observability (error-rate / uptime) | **PARTIAL** | Request-id middleware exists (`observability.py:36-45`); JSON logging and Sentry are **opt-in and not enabled in the prod compose** (`observability.py:87-99`, `:105-128`; `compose.prod.yaml:73-102` sets neither `LOG_FORMAT` nor `SENTRY_DSN`). No per-request access log, no tenant attribution in any log line, no uptime monitoring, no error-rate alerting. `/health` exists but reports the **legacy** session, not /v1 health (`routers/health.py`). The only usage signal is `api_keys.last_used_at`, throttled to 5-minute granularity (`routers/v1/deps.py:25`, `:76-79`). |
 | B3 | API-key rotation / revocation | **PARTIAL** | Mint + revoke CLI work end-to-end (`scripts/b2b_admin.py:98-126`); multiple active keys per location are supported (only `key_hash` is unique — `db/models/api_key.py`), so zero-downtime rotation (mint → deploy → revoke) is already possible. No runbook exists: no documented rotation procedure, no compromised-key procedure, no cadence. |
-| B4 | Stable TLS-fronted /v1 deployment | **MISSING** | The only prod-flavour stack is the **mock pilot**: `compose.prod.yaml:79` hard-sets `PHARMAPI_MOCK: "true"`; the AWS box is Tailscale-only with `CADDY_TLS="tls internal"` (`deploy/aws/user-data.sh`, `docs/pilot-runbook.md:301-311`) — not publicly reachable, not live-mode. Caddy auto-HTTPS capability is wired but unused publicly (`compose.prod.yaml:42-46`). No deployment target exists where an integrator's `pa_live_…` key would work. |
+| B4 | Stable TLS-fronted /v1 deployment | **MISSING** | The only prod-flavour stack is the **mock pilot**: `compose.prod.yaml:79` hard-sets `PHARMAPI_MOCK: "true"`; the AWS box is public-HTTPS (`<ip>.sslip.io` or a domain, `deploy/aws/user-data.sh`, `docs/aws-public-deploy.md`) but mock-mode — publicly reachable, but not live-mode. No deployment target exists where an integrator's `pa_live_…` key would work. |
 | B5 | Masterdata sync operations | **PARTIAL** — found during this audit | `run_sync` swallows every exception into a `print` (`services/drug_catalog.py:149-159`); the admin trigger 202s regardless and says "check container logs" (`routers/admin.py:69-84`); there is no schedule (the pilot cron covers DB dumps only, `docs/pilot-runbook.md:216-224`) and no recorded last-sync status. Formulary quality silently decays if the sync stops. |
 | C1 | Per-tenant provisioning runbook | **PARTIAL** | The tooling is complete: `create-customer` / `create-location --verify` (validates creds against ΗΔΥΚΑ + warns on unit-id mismatch, `scripts/b2b_admin.py:60-73`) / `mint-key` / `revoke-key` / `list`. `postman/README.md` contains a 3-step demo skeleton. Not written: how to collect a location's ΗΔΥΚΑ creds securely, how to establish the ΕΟΠΥΥ category (`--eopyy` ⇄ ΗΔΥΚΑ isIka, the 609 rule), sandbox-vs-prod sequencing, post-mint verification, who runs it. |
 | C2 | Sandbox vs prod key separation | **PARTIAL** (cosmetic only) | `mint-key --env test\|live` only changes the `pa_<env>_` prefix string (`services/api_keys.py:22-24`, `scripts/b2b_admin.py:41-43`, `:189`) — both kinds resolve identically against the same DB and the same upstream (`pharmapi_base` is a single deployment-wide setting, `app/config.py:155`, consumed in `routers/v1/deps.py:71`). "Sandbox" has no enforced semantics today. |
@@ -299,15 +300,15 @@ one dev who knows the codebase, tests included.
 > separate box from the B2C pilot; SLA TBD) — scoped, NOT deployed in Batch 1. FT-8 and
 > the FT-13 sandbox stack queue behind it.
 
-- What exists vs what's needed: `compose.prod.yaml` is mock-mode + SPA-fronting + private
-  (`:79` mock pin; Tailscale-only `tls internal` per `user-data.sh`); an integrator needs
+- What exists vs what's needed: `compose.prod.yaml` is mock-mode + SPA-fronting
+  (`:79` mock pin; public HTTPS per `user-data.sh`); an integrator needs
   public DNS + real auto-HTTPS + `PHARMAPI_MOCK=false` + the FT-8 env enabled.
 - Deliverable: a B2B deployment definition — either `compose.b2b.yaml` (backend + db +
   Caddy `api.<domain>` JSON-API vhost, no SPA) or a parameterised compose.prod — plus a
   `deploy/` bootstrap mirroring `user-data.sh` and a runbook section. Caddy already
-  handles ACME when `CADDY_TLS` is empty + a real `PILOT_DOMAIN` (`compose.prod.yaml:44-46`).
-- Separate box vs shared with the B2C pilot: recommendation **separate** (pilot box is
-  Tailscale-only by design, runs mock mode, and has tester-driven deploy cadence;
+  handles ACME automatically for a real `PILOT_DOMAIN` (`compose.prod.yaml`).
+- Separate box vs shared with the B2C pilot: recommendation **separate** (pilot box
+  runs mock mode and has tester-driven deploy cadence;
   a paying tenant shouldn't share its blast radius) — cost input in D-11. EU region
   (GDPR/data-residency feeds FT-14).
 - Single worker stands (FT-7 deferred) — document the restart story: deploys drop
@@ -490,7 +491,7 @@ rides FT-12.
 ### D-11 · Hosting + SLA for the paid endpoint
 
 **Context:** there is currently no deployment a paying integrator could call — the only
-prod-flavour stack is the Tailscale-only **mock** pilot (`compose.prod.yaml:79`,
+prod-flavour stack is the **mock** pilot (`compose.prod.yaml:79`,
 `user-data.sh`). FT-10 is scoped and small (2–4 days) but every one of its inputs is a
 business choice: public domain (e.g. `api.pharmassist.gr`), AWS account/region (**EU
 region** — feeds the D-13 DPA), **separate box vs shared with the pilot**
