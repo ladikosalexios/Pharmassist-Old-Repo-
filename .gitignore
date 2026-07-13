@@ -31,3 +31,6 @@ docs/release-readiness-audit-*.md
 backend/scripts/iqe_dryrun_*.jsonl
 backend/scripts/iqe_oneshot.json
 backend/scripts/iqe_invalid.json
+
+# local-only demo deploy secrets (never commit)
+deploy/aws/.demo-secrets

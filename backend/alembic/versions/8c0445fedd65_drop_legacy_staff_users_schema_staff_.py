@@ -31,26 +31,31 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    """Drop the legacy staff_users table and its dangling FK columns."""
+    """Drop the legacy staff_users schema **if present**.
+
+    These objects are pre-existing schema DRIFT — no migration in the chain ever
+    created them (see module docstring). So a DB that carries the drift needs the
+    cleanup, but a fresh ``upgrade head`` (production, CI) never has them. Every
+    drop is therefore guarded with ``IF EXISTS`` so both paths pass; without the
+    guard a fresh DB aborts here (constraint/table "does not exist") and never
+    reaches the `pharmacists`-creating revisions.
+    """
     # 1. audit_log.staff_id (superseded by pharmacist_id/pharmacy_id).
-    op.drop_constraint(
-        op.f("fk_audit_log_staff_id_staff_users"), "audit_log", type_="foreignkey"
-    )
-    op.drop_column("audit_log", "staff_id")
+    op.execute("ALTER TABLE audit_log DROP CONSTRAINT IF EXISTS fk_audit_log_staff_id_staff_users")
+    op.execute("ALTER TABLE audit_log DROP COLUMN IF EXISTS staff_id")
 
     # 2. invitations.invited_by_staff_id (superseded by invited_by -> pharmacists).
-    op.drop_constraint(
-        op.f("fk_invitations_invited_by_staff_id_staff_users"),
-        "invitations",
-        type_="foreignkey",
+    op.execute(
+        "ALTER TABLE invitations DROP CONSTRAINT IF EXISTS "
+        "fk_invitations_invited_by_staff_id_staff_users"
     )
-    op.drop_column("invitations", "invited_by_staff_id")
+    op.execute("ALTER TABLE invitations DROP COLUMN IF EXISTS invited_by_staff_id")
 
     # 3. Tighten invited_by to match the model (Mapped[uuid.UUID], nullable=False).
     op.alter_column("invitations", "invited_by", existing_type=sa.UUID(), nullable=False)
 
     # 4. The now-unreferenced legacy table.
-    op.drop_table("staff_users")
+    op.execute("DROP TABLE IF EXISTS staff_users")
 
 
 def downgrade() -> None:

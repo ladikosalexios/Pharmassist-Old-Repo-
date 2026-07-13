@@ -39,11 +39,12 @@ services:
       - "80:80"
       - "443:443"
     environment:
-      # Public hostname → auto-HTTPS. Leave as localhost for a local-cert smoke
-      # test. See the Caddyfile / runbook §6.
+      # Public hostname → automatic HTTPS (Let's Encrypt over ACME). Use your
+      # own domain, or a free `<public-ip>.sslip.io` name (no domain purchase —
+      # sslip.io resolves the embedded IP publicly, so Caddy can issue a real
+      # cert). Leave as localhost only for a local-cert smoke test. See the
+      # Caddyfile / docs/aws-public-deploy.md.
       PILOT_DOMAIN: ${PILOT_DOMAIN:-localhost}
-      # "tls internal" for a Tailscale-only deployment; empty = auto-HTTPS.
-      CADDY_TLS: ${CADDY_TLS:-}
     depends_on:
       backend:
         condition: service_healthy
