@@ -14,6 +14,13 @@ const { startScanner } = require("./scanner");
 
 const cfg = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "config.json"), "utf8"));
 
+// Point a shipped build at a hosted demo backend WITHOUT rebuilding: env vars
+// win over the bundled config.json. Use these in a launcher (.command / shortcut)
+// so one signed binary can serve localhost dev and a cloud demo server alike.
+if (process.env.PHARMASSIST_BACKEND_URL) cfg.backendUrl = process.env.PHARMASSIST_BACKEND_URL;
+if (process.env.PHARMASSIST_WEBAPP_URL) cfg.webAppUrl = process.env.PHARMASSIST_WEBAPP_URL;
+console.log("[agent] backend:", cfg.backendUrl, "· webapp:", cfg.webAppUrl);
+
 let win = null;
 let backend = null;
 let currentRxId = null; // the prescription currently on the card — target of the SPA handoff

@@ -1,6 +1,6 @@
 {
-  "backendUrl": "http://localhost:8000",
-  "webAppUrl": "http://localhost:5173",
+  "backendUrl": "https://18.198.105.149.sslip.io",
+  "webAppUrl": "https://18.198.105.149.sslip.io",
   "login": {
     "email": "ladikosalexios@gmail.com",
     "password": "test1234"
@@ -27,7 +27,7 @@
     ]
   },
   "_notes": {
-    "login": "Seeded DEV credentials (README.md / scripts.seed). Mock backend must be up: docker compose up -d backend db.",
+    "login": "Seeded DEV credentials (README.md / scripts.seed). Defaults point at the hosted AWS demo box (public HTTPS, mock data) so the agent works with nothing local. For local dev, override: PHARMASSIST_BACKEND_URL=http://localhost:8000 PHARMASSIST_WEBAPP_URL=http://localhost:5173 (needs docker compose up -d backend db).",
     "scan.interKeyMs": "A keystroke burst whose keys arrive within this gap is treated as a scanner (humans type slower). Terminated by Enter.",
     "scan.sentinelPrefix": "PRODUCTION posture: program the Eyoyo with a distinctive prefix and set it here so the hook reacts ONLY to sentinel-framed scans, never general typing. Empty = burst-timing detection (fine for research).",
     "demo": "Your Eyoyo packs are GS1 MEDICINE packs with no prescription attached. mapUnknownToDemo maps any scanned code that isn't an RX id to a demo prescription, deterministically (same pack → same scenario) — so you scan real packs and get a real-feeling safety verdict. Printed RX2024-xxx barcodes (npm run barcodes) still resolve directly. prescriptions[0] is the headliner (Warfarin BLOCK); the list also backs the Cmd/Ctrl+Alt+1..8 hotkeys."
