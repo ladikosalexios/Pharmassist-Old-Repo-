@@ -49,8 +49,6 @@ services:
       - "${TEST_HTTPS_PORT:-443}:443"
     environment:
       PILOT_DOMAIN: ${PILOT_DOMAIN:-localhost}
-      # "tls internal" for a Tailscale-only deployment; empty = auto-HTTPS.
-      CADDY_TLS: ${CADDY_TLS:-}
     depends_on:
       backend:
         condition: service_healthy
