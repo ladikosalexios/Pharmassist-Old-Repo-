@@ -27,6 +27,7 @@ jobs:
       matrix:
         os: [macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 30 # a real build is ~15-20 min; fail fast on a hung runner
     defaults:
       run:
         working-directory: agent
