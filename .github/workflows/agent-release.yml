@@ -35,6 +35,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # uiohook-napi compiles from source (no prebuilds), so node-gyp needs a
+      # toolchain. Python 3.12 (the runner default) dropped `distutils` which
+      # node-gyp imports → pin 3.11, which still ships it. This also gives
+      # node-gyp a Python it can drive on Windows.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
       - uses: actions/setup-node@v4
         with:
           node-version: 20
