@@ -5,25 +5,17 @@
 # production mirror of frontend/vite.config.ts `server.proxy` — keep the two in
 # lockstep when you add or rename a backend path.
 #
-# ── TLS — pick ONE mode (see docs/pilot-runbook.md §6) ───────────────────────
-#   • Public pilot  : set PILOT_DOMAIN=pilot.example.gr and leave CADDY_TLS
-#                     unset. Caddy provisions a real cert automatically over
-#                     ACME (Let's Encrypt / ZeroSSL). Ports 80+443 must be
-#                     reachable from the internet and the DNS A/AAAA record must
-#                     point here.
-#   • Tailscale-only: set CADDY_TLS="tls internal" for a cert from Caddy's own
-#                     internal CA — no public DNS or open ports needed. Testers
-#                     reach it over the tailnet at https://<tailscale-host> (the
-#                     stack publishes 443). Install Caddy's root CA on clients,
-#                     or set PILOT_DOMAIN to the node's MagicDNS name.
-# PILOT_DOMAIN defaults to localhost, which makes Caddy mint a local cert — handy
-# for a smoke test of this exact config on a dev box.
+# ── TLS — automatic HTTPS ────────────────────────────────────────────────────
+# Set PILOT_DOMAIN to a public hostname and Caddy provisions a real cert over
+# ACME (Let's Encrypt / ZeroSSL). Two ways to get one:
+#   • Your own domain: point an A/AAAA record here.
+#   • No domain: use `<public-ip>.sslip.io` (sslip.io resolves the embedded IP
+#     publicly, so ACME works with zero DNS setup — ideal for a cheap demo box).
+# Either way, ports 80 + 443 must be reachable from the internet.
+# PILOT_DOMAIN defaults to localhost, which makes Caddy mint a local cert —
+# handy for a smoke test of this exact config on a dev box.
 
 {$PILOT_DOMAIN:localhost} {
-	# Expands to `tls internal` for tailnet deployments; empty (auto-HTTPS)
-	# otherwise. Env vars are substituted before the Caddyfile is parsed.
-	{$CADDY_TLS:}
-
 	encode zstd gzip
 	root * /srv/dist
 
