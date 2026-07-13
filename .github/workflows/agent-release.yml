@@ -52,6 +52,18 @@ jobs:
 
       - run: npm ci
 
+      # Windows only: the transitive node-gyp (9.x) can't reliably detect the
+      # runner's VS2022. Point @electron/rebuild at a fresh node-gyp binary via
+      # the env var electron-builder honors — a binary-level override (NOT an
+      # npm `overrides` dependency swap, which hangs @electron/rebuild). Mac is
+      # untouched and keeps its proven build.
+      - name: Windows — modern node-gyp for VS2022
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          npm i -g node-gyp@10
+          echo "npm_config_node_gyp=$(npm root -g)/node-gyp/bin/node-gyp.js" >> "$GITHUB_ENV"
+
       - name: Build macOS installers
         if: runner.os == 'macOS'
         run: npx electron-builder --mac --arm64 --x64

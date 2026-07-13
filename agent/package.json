@@ -20,10 +20,6 @@
     "electron": "^32.1.2",
     "electron-builder": "^25.1.8"
   },
-  "//overrides": "Force a modern node-gyp everywhere so the native uiohook build detects VS2022 on the Windows CI runner (the transitive node-gyp only knew VS2013/2015).",
-  "overrides": {
-    "node-gyp": "^10.2.0"
-  },
   "build": {
     "appId": "gr.pharmassist.agent",
     "productName": "PharmAssist Agent",
