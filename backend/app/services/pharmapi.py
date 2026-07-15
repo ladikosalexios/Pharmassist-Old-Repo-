@@ -20,7 +20,6 @@ import asyncio
 import logging
 import re
 import time
-import uuid
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -581,137 +580,8 @@ async def pharmapi_check_version() -> None:
         logger.warning("Pharmapi version check failed — %s", exc)
 
 
-# ── eDispensation POST (P3 — POST /prescriptions/{rx}/approve live wiring) ───
-PHARMAPI_DISPENSE_PATH = "/api/v1/prescriptions/dispense"
-# Spec: Accept: "application/x-hl7, application/xml", Content-Type: application/x-hl7.
+# Spec: Accept: "application/x-hl7, application/xml" for CDA-returning endpoints.
 PHARMAPI_HL7_CONTENT_TYPE = "application/x-hl7"
-# Synthetic stub CDA used by the mock branch so dispense_log.response_cda has a
-# non-empty value with the same outer shape ΗΔΥΚΑ would return. NOT a full CDA
-# — it's the absolute minimum parse_dispense_response needs (executionNo +
-# inFulfillmentOf barcode + effectiveTime) so callers can round-trip through
-# the same envelope shape.
-_MOCK_RESPONSE_TEMPLATE = (
-    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
-    '<ClinicalDocument xmlns="urn:hl7-org:v3">\n'
-    '  <templateId root="1.3.6.1.4.1.12559.11.10.1.3.1.1.2"/>\n'
-    '  <id extension="{barcode}" root="1.21"/>\n'
-    '  <effectiveTime value="{effective_time}"/>\n'
-    "  <inFulfillmentOf>\n"
-    "    <order>\n"
-    '      <id extension="{barcode}" root="1.21"/>\n'
-    "    </order>\n"
-    "  </inFulfillmentOf>\n"
-    "  <component><structuredBody><component><section><entry><act>\n"
-    '    <id extension="{exec_ref}" root="1.22"/>\n'
-    "  </act></entry></section></component></structuredBody></component>\n"
-    "</ClinicalDocument>\n"
-)
-
-
-def _mock_dispense_envelope(barcode: str) -> dict:
-    """Mock-mode dispense response — same envelope shape as live."""
-    # Imported lazily so cda.py (and lxml) stays optional for callers that
-    # only need the search/patient surfaces in mock mode.
-    from .cda import parse_dispense_response
-
-    exec_ref = f"MOCK-EXEC-{uuid.uuid4().hex[:12].upper()}"
-    now = datetime.now(UTC)
-    stub_xml = _MOCK_RESPONSE_TEMPLATE.format(
-        barcode=barcode,
-        effective_time=now.strftime("%Y%m%d%H%M%S"),
-        exec_ref=exec_ref,
-    )
-    envelope = parse_dispense_response(stub_xml).to_envelope()
-    envelope["response_cda"] = stub_xml
-    return envelope
-
-
-async def pharmapi_dispense(
-    *,
-    barcode: str,
-    cda_xml: bytes,
-    doctor_ip: str,
-    ctx: PharmapiContext | None = None,
-) -> dict:
-    """POST an eDispensation CDA to ΗΔΥΚΑ and return the parsed receipt.
-
-    Endpoint, headers, and body shape from the IDIKA spec
-    (``info.description`` → ``## Εκτέλεση Συνταγής``):
-
-      POST /api/v1/prescriptions/dispense
-      Content-Type: application/x-hl7
-      Accept: application/x-hl7, application/xml
-      Api-Key: <pharmapi api key>
-      X-DOCTOR-IP: <real external IP of the calling pharmacist>
-      Authorization: Basic <pharmapi user:pass>
-
-    Returns ``{exec_ref, executed_at, status, barcode, response_cda}`` —
-    identical shape in mock and live mode so the router and dispense_log
-    writer stay mode-blind. Raises HTTPException on upstream error; callers
-    MUST NOT persist a success log on a raised exception.
-
-    PHI guard: the request and response CDAs carry patient identifiers.
-    They MUST NOT be logged here; the upstream status code + ΗΔΥΚΑ error
-    code is safe.
-    """
-    if not doctor_ip:
-        # X-DOCTOR-IP is mandatory per spec. Raise loudly rather than send
-        # blank — ΗΔΥΚΑ may reject silently or log an unattributable call.
-        raise HTTPException(500, "pharmapi_dispense: doctor_ip is required (X-DOCTOR-IP)")
-
-    # FAIL-LIVE default (unset ⇒ live) — dispense is the most safety-critical
-    # call in this module; rationale + the 3fcf012 history live on the helper.
-    if is_mock_pharmapi_explicit():
-        return _mock_dispense_envelope(barcode)
-
-    # Imported here so the module's existing import-time cost stays unchanged
-    # for the search/patient endpoints; cda is only needed in the live path.
-    from .cda import parse_dispense_response
-
-    url = f"{_ctx_base(ctx)}{PHARMAPI_DISPENSE_PATH}"
-    headers = pharmapi_headers(ctx)
-    headers["Accept"] = f"{PHARMAPI_HL7_CONTENT_TYPE}, application/xml"
-    headers["Content-Type"] = PHARMAPI_HL7_CONTENT_TYPE
-    headers["X-DOCTOR-IP"] = doctor_ip
-
-    # Deliberately short log line — never the CDA body (PHI).
-    logger.info(
-        "[Pharmapi] POST %s barcode=%s doctor_ip=%s body_bytes=%d",
-        url,
-        barcode,
-        doctor_ip,
-        len(cda_xml),
-    )
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        r = await client.post(
-            url,
-            auth=_ctx_auth(ctx),
-            headers=headers,
-            content=cda_xml,
-        )
-
-    if r.status_code == 200:
-        try:
-            parsed = parse_dispense_response(r.content)
-        except ValueError as exc:
-            raise HTTPException(502, f"Pharmapi: dispense response unparseable — {exc}") from exc
-        envelope = parsed.to_envelope()
-        envelope["response_cda"] = r.text
-        return envelope
-
-    err = _parse_pharmapi_error(r)
-    if "G14" in err or "914" in err or "Connection time limit" in err:
-        raise HTTPException(401, "Pharmapi session expired — please re-login (G14)")
-    if "G15" in err:
-        raise HTTPException(500, "Pharmapi: Api-Key missing — set PHARMAPI_API_KEY env var")
-    if "G11" in err:
-        raise HTTPException(500, "Pharmapi: Api-Key invalid — check PHARMAPI_API_KEY value")
-    for code, (status, message) in _PHARMAPI_RX_ERRORS.items():
-        if re.search(rf"\b{re.escape(code)}\b", err):
-            raise HTTPException(status, f"Pharmapi: {message} ({code})")
-    if r.status_code == 401:
-        raise HTTPException(502, f"Pharmapi: bad credentials — {err}")
-    raise HTTPException(502, f"Pharmapi dispense error {r.status_code}: {err}")
 
 
 async def pharmapi_get_prescription(

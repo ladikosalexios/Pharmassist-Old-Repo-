@@ -1,11 +1,9 @@
 """FT-5 — the two PHARMAPI_MOCK helpers and their opposite unset-defaults.
 
 The collapse of the three inline reads onto utils/environment MUST NOT flip
-the fail-live default (the 3fcf012 dispense bug). These tests pin both
-helpers' env-unset behaviour and prove the safety-critical paths (credential
-verify, masterdata) go LIVE when the flag is missing. The dispense
-counterpart already exists and keeps guarding through the refactor:
-tests/test_pharmapi_dispense.py::test_unset_mock_defaults_to_live.
+the fail-live default (the 3fcf012 bug). These tests pin both helpers'
+env-unset behaviour and prove the safety-critical paths (credential verify,
+masterdata) go LIVE when the flag is missing.
 """
 
 import asyncio
