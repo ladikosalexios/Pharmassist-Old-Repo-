@@ -9,10 +9,8 @@ from .b2b_adr_report import B2bAdrReport
 from .b2b_patient_condition import B2bPatientCondition
 from .catalog_sync_run import CatalogSyncRun
 from .customer import Customer
-from .dispense_log import DispenseLog
 from .documentation_log import DocumentationLog
 from .drug_catalog import DrugCatalog
-from .hmvs_operation import HmvsOperation
 from .invitation import Invitation
 from .location import Location
 from .patient_condition import PatientCondition
@@ -27,14 +25,12 @@ __all__ = [
     "PharmacistPharmacy",
     "Invitation",
     "PatientCondition",
-    "DispenseLog",
     "DocumentationLog",
     "AdrReport",
     "AdrEvent",
     "AuditLog",
     "DrugCatalog",
     "SafetyRule",
-    "HmvsOperation",
     "Customer",
     "Location",
     "ApiKey",

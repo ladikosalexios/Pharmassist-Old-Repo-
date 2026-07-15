@@ -18,10 +18,8 @@ from app.db.models.b2b_adr_report import B2bAdrReport  # noqa
 from app.db.models.b2b_patient_condition import B2bPatientCondition  # noqa
 from app.db.models.catalog_sync_run import CatalogSyncRun  # noqa
 from app.db.models.customer import Customer  # noqa
-from app.db.models.dispense_log import DispenseLog  # noqa
 from app.db.models.documentation_log import DocumentationLog  # noqa
 from app.db.models.drug_catalog import DrugCatalog  # noqa
-from app.db.models.hmvs_operation import HmvsOperation  # noqa
 from app.db.models.invitation import Invitation  # noqa
 from app.db.models.location import Location  # noqa
 from app.db.models.patient_condition import PatientCondition  # noqa
