@@ -1,23 +1,34 @@
 # PharmAssist — Pricing & Packaging
 
-**Version:** June 2026
+**Version:** July 2026 (retrieval-only revision — supersedes the June 2026 proposal)
 **Market:** Greece
+
+> **What changed vs. June 2026:** PharmAssist no longer executes prescriptions.
+> Dispensing stays in the pharmacy's existing software; PharmAssist is the
+> **clinical safety and review layer that rides alongside it**. The Prescription
+> Execution add-on and HMVS Medicine Verification were removed from the catalog
+> (code preserved at git tag `hmvs-certified`), and the B2C motion was
+> repositioned from "replacement dispensing system" to "counter safety
+> companion". This file is the canonical version; the old PDF twin was retired.
 
 PharmAssist is sold through **two go-to-market motions** that share a single capability
 catalog:
 
 - **B2B API** — for companies that already run their own pharmacy software or operational
   system (pharmacy chains, cooperatives, OS vendors, healthcare platforms). Priced **per
-  location / month**. API-only; no pharmacist-facing UI is provided or assumed. Prescription
-  execution is an optional add-on.
-- **B2C Direct** — for **individual independent pharmacies that do not run a partner OS**.
-  They use PharmAssist's own pharmacist-facing app as their dispensing and safety system.
-  Priced **per seat / month**, where a **seat is one pharmacist** and a single pharmacy can
-  hold multiple seats. Prescription execution is included.
+  location / month**. API-only; no pharmacist-facing UI is provided or assumed.
+- **B2C Direct** — for **individual pharmacies**, regardless of which dispensing ERP they
+  run. They get the PharmAssist safety companion: a **counter agent** that rides their
+  existing software and surfaces safety alerts at scan time, plus the **review console**
+  (web app) for deep work — prescription review, patient conditions, ADR reporting, and the
+  legal documentation trail. Priced **per seat / month**, where a **seat is one pharmacist**
+  and a single pharmacy can hold multiple seats.
 
 The same clinical intelligence stack powers both motions. The difference is the delivery
-surface (API vs. app), the billing unit (location vs. seat), and how prescription execution
-is packaged.
+surface (API vs. agent + app) and the billing unit (location vs. seat). **Neither motion
+executes the dispense** — the pharmacy's own system remains the system of record for the
+transaction, which means adopting PharmAssist requires no rip-and-replace, no ΗΔΥΚΑ
+execution liability transfer, and no retraining of the counter workflow.
 
 ---
 
@@ -26,12 +37,13 @@ is packaged.
 PharmAssist exposes its clinical intelligence stack two ways:
 
 1. **As a B2B API** for companies that have their own pharmacy software or operational
-   systems and want to layer prescription safety, ΗΔΥΚΑ integration, and agentic clinical
+   systems and want to layer prescription safety, ΗΔΥΚΑ retrieval, and agentic clinical
    features on top — without building or maintaining any of that infrastructure themselves.
-2. **As a B2C direct-to-pharmacy app** for independent pharmacies that have no such system.
-   For these pharmacies PharmAssist is the front line: the pharmacist works the prescription
-   queue, runs safety checks, executes the prescription, counsels the patient, and keeps the
-   legal documentation trail — all inside PharmAssist.
+2. **As a B2C safety companion** for individual pharmacies. The pharmacist keeps
+   dispensing in the software they already know; PharmAssist watches the counter (scan-time
+   safety alerts via the local agent), and one keystroke opens the full review console for
+   the hard cases — safety checks, SPC lookups, patient history and conditions, flagging a
+   discrepancy to the prescriber, ADR reporting, and the exportable documentation log.
 
 The two motions draw from the same **Shared Capability Catalog** below.
 
@@ -40,16 +52,16 @@ The two motions draw from the same **Shared Capability Catalog** below.
 ## Shared Capability Catalog
 
 Every feature is built once and delivered through both motions. B2B exposes them as API
-endpoints; B2C surfaces them in the pharmacist-facing app. The tier tables in each motion
-reference these capabilities.
+endpoints; B2C surfaces them in the counter agent and the review console. The tier tables
+in each motion reference these capabilities.
 
-### Pharmapi (ΗΔΥΚΑ) Proxy
+### Pharmapi (ΗΔΥΚΑ) Proxy — retrieval
 
 - Patient lookup by AMKA or EKAA — returns demographics (name, DOB, sex, phone, address)
-- Prescription search (pending + history with AMKA)
+- Prescription retrieval — barcode-direct lookup (incl. paperless/άυλη) and search
+  (pending + history with AMKA)
 - Patient insurance details — fund identity, ΕΟΠΥΥ-coverage flag, and patient co-pay
-  exemption records; drug-level participation % via the drug catalog (ΗΔΥΚΑ supplies no
-  numeric patient-level co-pay % — the effective rate is computed at dispense time)
+  exemption records; drug-level participation % via the drug catalog
 - Patient intolerances from ΗΔΥΚΑ (requires ΕΟΠΥΥ-category account)
 - Patient medicine history from ΗΔΥΚΑ (requires ΕΟΠΥΥ-category account)
 - Drug catalog — full national medicines list, ATC codes, active substance, GNS codes
@@ -74,11 +86,11 @@ reference these capabilities.
 
 ### Agentic SPC Contraindication Lookup
 
-- On every prescription submitted, a background agent reads the full SPC for each drug and
+- On every prescription reviewed, a background agent reads the full SPC for each drug and
   checks contraindications, special population warnings (renal, hepatic, elderly, pregnancy),
   and interaction sections against the patient's known conditions
-- Returns structured findings with the exact SPC section cited before any dispensing action
-  is taken
+- Returns structured findings with the exact SPC section cited while the prescription is
+  still on the counter
 - Catches rare and newly updated contraindications that the rule-based safety engine does not
   cover
 - Response includes: drug name, SPC section reference, finding text, severity classification,
@@ -122,8 +134,8 @@ reference these capabilities.
 
 ### Patient Condition Inference
 
-- Background agent reviews a patient's dispensing history and returns suggested conditions for
-  confirmation
+- Background agent reviews a patient's medication history and returns suggested conditions
+  for confirmation
 - Returns: suggested condition, confidence signal (HIGH / MEDIUM), supporting evidence (drugs
   that indicate the condition)
 - Suggestions only — caller confirms before writing to patient conditions
@@ -132,9 +144,18 @@ reference these capabilities.
 
 - Generates patient counselling instructions per prescription (Greek / English), with optional
   side-effect and lifestyle sections, delivered by print or digital
-- Writes a legal documentation/audit log entry for every dispensing action, capturing the
-  safety-check snapshot, prescriber, pharmacist, and delivery method at the time of action
+- Writes a legal documentation/audit log entry for every review, flag, and counselling
+  action, capturing the safety-check snapshot, prescriber, pharmacist, and delivery method
+  at the time of action
 - Exportable audit trail (PDF / CSV), per record or full report
+
+### Prescriber Communication (Flag Discrepancy)
+
+- Flag a prescription discrepancy (dose error, interaction, missing info, suspected forgery)
+  with structured reason + notes, recorded on the documentation log
+- Optional physician notification with the flag context attached
+- The prescription is never executed by PharmAssist — the flag is triage input for the
+  pharmacist's decision inside their own dispensing system
 
 ### Pharmacovigilance Signal Detection
 
@@ -151,14 +172,14 @@ reference these capabilities.
 - Monitors EOF and EMA recall feeds continuously
 - When a recalled drug or batch is detected, fires a webhook to the customer's endpoint within
   minutes
-- Payload includes: recalled drug/batch details, list of locations that dispensed it,
+- Payload includes: recalled drug/batch details, list of locations that handled it,
   estimated patient count, recommended patient outreach template
 - On-demand check: `GET /recalls/check?gns_code=X&batch=Y`
 
 ### Reaction Network Alert Agent
 
 - When a serious ADR is recorded at any location, the agent identifies all other locations in
-  the customer's network that have dispensed the same drug to the same patient
+  the customer's network that have seen the same drug for the same patient
 - Fires an internal network notification to those locations immediately
 - Payload: patient identifier, drug, reaction summary, locations affected, recommended action
 
@@ -170,24 +191,6 @@ reference these capabilities.
 - `POST /prescriptions/{barcode}/preauth` — submit
 - `GET /prescriptions/{barcode}/preauth/status` — check status
 
-### HMVS Medicine Verification
-
-- `GET /api/medicines/lot/qr` — verify a medicine QR code (SINGLE VERIFY)
-- `POST /api/medicines/decommission` — decommission a pack (sample / destruction)
-- `POST /api/otcm/reactivate` — reactivate a QR code in case of dispensing error
-- Requires the customer to be registered with HMVO (hmvo.gr/it_suppliers/) — PharmAssist
-  proxies the call but cannot substitute for HMVO registration
-
-### Prescription Execution (live ΗΔΥΚΑ dispense)
-
-- Submits the prescription to ΗΔΥΚΑ to complete the dispense, recording the execution
-  reference against the legal documentation log
-- The dispensing workflow and UI (`DispenseWizard`, approve/flag, audit snapshot) are
-  complete; the live ΗΔΥΚΑ dispense POST is in final wiring
-- **Packaging differs by motion:** an optional **add-on for B2B** (OS companies usually
-  dispense through their own system), and **included in B2C tiers** (an independent pharmacy
-  has no other way to dispense)
-
 ---
 
 ## Motion A — B2B API
@@ -197,17 +200,19 @@ reference these capabilities.
 pharmacist-facing UI is provided or assumed.
 
 PharmAssist exposes its clinical intelligence stack as a B2B API for companies that have their
-own pharmacy software and want to layer prescription safety, ΗΔΥΚΑ integration, and agentic
+own pharmacy software and want to layer prescription safety, ΗΔΥΚΑ retrieval, and agentic
 clinical features on top — without building or maintaining any of that infrastructure
-themselves.
+themselves. Because PharmAssist never executes the dispense, the integration carries no
+transaction liability: the customer's system keeps full control of the dispensing act, and
+PharmAssist is pure decision support.
 
 ### Tier 1 — Core · €15 / location / month
 
-The "cheaper than building it yourself" tier. Covers the full Pharmapi integration layer and
+The "cheaper than building it yourself" tier. Covers the full Pharmapi retrieval layer and
 the safety engine — everything a company would need 3–6 months of engineering to replicate,
 plus the clinical rule layer they could not build at all.
 
-Includes: **Pharmapi Proxy**, **Safety Engine**, **Formulary Substitution**.
+Includes: **Pharmapi Proxy (retrieval)**, **Safety Engine**, **Formulary Substitution**.
 
 ### Tier 2 — Clinical · €32 / location / month
 
@@ -219,27 +224,20 @@ Adds: **Agentic SPC Contraindication Lookup**, **AI Safety Flag Explanations**, 
 (RAG)**, **Medication Adherence Signals**, **ADR Reporting**, **AI ADR Narrative Drafting**,
 **Patient Condition Inference**.
 
-### Tier 3 — Platform · €52 / location / month
+### Tier 3 — Platform · €48 / location / month
 
 Everything in Clinical, plus network-scale intelligence features that are only possible at
 multi-location scale. These features become more valuable as the customer's network grows.
 
 Adds: **Pharmacovigilance Signal Detection**, **Drug Recall Webhook**, **Reaction Network
-Alert Agent**, **Insurance Pre-Authorization Agent**, **HMVS Medicine Verification**.
-
-### Add-on — Prescription Execution (live ΗΔΥΚΑ dispense) · +€8 / location / month
-
-Available to Platform-tier customers. Exposes the live ΗΔΥΚΑ dispense endpoint so callers can
-complete the dispense through PharmAssist. Optional because most OS customers execute the
-dispense through their own system; offered for those who want PharmAssist to own the full
-transaction. (Workflow complete; live ΗΔΥΚΑ POST in final wiring.)
+Alert Agent**, **Insurance Pre-Authorization Agent**.
 
 ### B2B Feature Matrix
 
 | Feature | Core | Clinical | Platform |
 |---|---|---|---|
 | Patient lookup (AMKA / EKAA) | ✅ | ✅ | ✅ |
-| Prescription search | ✅ | ✅ | ✅ |
+| Prescription retrieval (barcode + search) | ✅ | ✅ | ✅ |
 | Patient insurance details | ✅ | ✅ | ✅ |
 | Patient intolerances (ΗΔΥΚΑ) | ✅ | ✅ | ✅ |
 | Patient medicine history (ΗΔΥΚΑ) | ✅ | ✅ | ✅ |
@@ -261,8 +259,6 @@ transaction. (Workflow complete; live ΗΔΥΚΑ POST in final wiring.)
 | Drug recall webhook | — | — | ✅ |
 | Reaction network alert agent | — | — | ✅ |
 | Insurance pre-auth agent (ΕΟΠΥΥ) | — | — | ✅ |
-| HMVS medicine verification | — | — | ✅ |
-| Prescription execution (live ΗΔΥΚΑ) | — | — | Add-on (+€8) |
 
 ### B2B Pricing Summary
 
@@ -270,8 +266,7 @@ transaction. (Workflow complete; live ΗΔΥΚΑ POST in final wiring.)
 |---|---|---|---|
 | Core | €15 | €15,000 | €180,000 |
 | Clinical | €32 | €32,000 | €384,000 |
-| Platform | €52 | €52,000 | €624,000 |
-| Prescription Execution add-on | +€8 | +€8,000 | +€96,000 |
+| Platform | €48 | €48,000 | €576,000 |
 
 ### B2B One-Time Fees
 
@@ -290,50 +285,55 @@ transaction. (Workflow complete; live ΗΔΥΚΑ POST in final wiring.)
 | 3-year | 20% |
 
 Indicative 3-year TCV — Platform tier at 1,000 locations (20% discount):
-€52,000 × 12 × 3 × 0.80 = ~€1.5M + onboarding.
+€48,000 × 12 × 3 × 0.80 = ~€1.38M + onboarding.
 
 ---
 
-## Motion B — B2C Direct
+## Motion B — B2C Direct (Counter Safety Companion)
 
 **Billing unit:** per seat / month, where **a seat is one pharmacist**. A single pharmacy can
-hold **multiple seats** — one per pharmacist who needs to log in and dispense. **Target:**
-individual independent pharmacies that do not run a partner OS. **Delivery:** the full
-PharmAssist pharmacist-facing app (prescription queue, verification, dispensing, patient
-counselling, documentation).
+hold **multiple seats** — one per pharmacist who needs to log in. **Target:** individual
+pharmacies of any size, **on any dispensing ERP** — PharmAssist rides alongside whatever they
+already run. **Delivery:** the **counter agent** (a lightweight local app that watches
+prescription scans in the pharmacy's existing software and surfaces safety alerts the moment
+the barcode is read) plus the **review console** (web app: full prescription review, safety
+checks, SPC lookups, patient profile & conditions, flag-discrepancy / contact-prescriber,
+ADR reporting, documentation log with export).
 
-For these pharmacies PharmAssist is the system of record at the counter, so **prescription
-execution is included** in every tier — it is the reason an independent pharmacy adopts
-PharmAssist rather than a layer on top of something else.
+This is the decisive difference from a dispensing-system sale: **there is nothing to
+replace**. The pharmacy keeps its ERP, its workflow, and its muscle memory; PharmAssist adds
+the clinical safety layer none of the incumbent ERPs provide. Adoption is an install, not a
+migration — which also means the trial-to-paid path is measured in days, not quarters.
 
 ### How seats work
 
-- The **first seat** activates the pharmacy account and includes ΗΔΥΚΑ onboarding and the
-  pharmacy's connection setup.
+- The **first seat** activates the pharmacy account and includes ΗΔΥΚΑ retrieval onboarding
+  and the counter-agent installation.
 - Each **additional pharmacist** is added as a seat via the in-app invite flow (the pharmacy
   admin invites a pharmacist by email; the pharmacist accepts and links to the pharmacy).
 - Seats are billed monthly; a pharmacy adds or removes seats as its team changes.
 
-### Tier 1 — Essential · €45 / seat / month
+### Tier 1 — Essential · €29 / seat / month
 
-The full dispensing app. Everything an independent pharmacy needs to work the counter safely
-and compliantly.
+The counter safety layer. Everything a pharmacy needs to catch the dangerous prescription
+before it is dispensed — in their own software.
 
 Includes:
 
-- **Prescription queue & verification** — pending + history from ΗΔΥΚΑ, full prescription
-  detail
-- **Prescription Execution (included)** — the `DispenseWizard` dispensing flow with approve /
-  flag-discrepancy
+- **Counter agent** — scan-time safety alerts riding the pharmacy's existing ERP, one-key
+  handoff into the review console
+- **Prescription review** — barcode / scan lookup with full prescription detail from ΗΔΥΚΑ
+  (incl. paperless), pending + history search
 - **Safety Engine** — drug-drug interactions, duplicate therapy, condition-based
   contraindications, severity grading
 - **Patient profile, history & conditions** — demographics, Rx history, allergies /
   intolerances, safety flags
+- **Flag discrepancy / contact prescriber** — structured triage with physician notification
 - **Patient Instructions** — Greek / English counselling notes, print or digital
-- **Documentation / legal audit log** — every dispensing action recorded with safety snapshot;
-  PDF / CSV export
+- **Documentation / legal audit log** — every review, flag, and counselling action recorded
+  with safety snapshot; PDF / CSV export
 
-### Tier 2 — Clinical · €75 / seat / month
+### Tier 2 — Clinical · €55 / seat / month
 
 Everything in Essential, plus the AI clinical intelligence layer.
 
@@ -351,16 +351,17 @@ Adds:
 |---|---|
 | Seat-volume discount | Seats 4+ at −15% (a multi-pharmacist pharmacy does not pay linearly) |
 | Annual prepay | −15% (≈2 months free) on the whole subscription |
-| Onboarding | €390 one-time (includes ΗΔΥΚΑ setup + 4h training), **waived on annual prepay** |
+| Onboarding | €290 one-time (ΗΔΥΚΑ setup + agent install + 2h training), **waived on annual prepay** |
 
 ### B2C Feature Matrix
 
 | Capability | Essential | Clinical |
 |---|---|---|
-| Prescription queue & verification | ✅ | ✅ |
-| **Prescription execution (dispense)** | ✅ included | ✅ included |
+| Counter agent (scan-time alerts in the pharmacy's own ERP) | ✅ | ✅ |
+| Prescription review (barcode + search, incl. paperless) | ✅ | ✅ |
 | Safety engine (interactions, duplication, contraindications) | ✅ | ✅ |
 | Patient profile, history & conditions | ✅ | ✅ |
+| Flag discrepancy / contact prescriber | ✅ | ✅ |
 | Patient instructions (Greek / English) | ✅ | ✅ |
 | Documentation / legal audit log + export | ✅ | ✅ |
 | SPC Q&A / RAG · Agentic SPC lookup | — | ✅ |
@@ -369,11 +370,10 @@ Adds:
 | Patient condition inference | — | ✅ |
 | Medication adherence signals | — | ✅ |
 
-> **Implementation note (B2C):** the dispensing workflow, safety engine, patient/ADR/
-> documentation and instructions surfaces are live in the app today; live ΗΔΥΚΑ dispense
-> submission is in final wiring (see notes). Several Clinical-tier AI capabilities are
-> rolling out — confirm current availability with the customer before contracting the
-> Clinical tier.
+> **Implementation note (B2C):** the review console (prescription review, safety engine,
+> patient/ADR/documentation and instructions surfaces) is live today; the counter agent is
+> in pilot. Several Clinical-tier AI capabilities are rolling out — confirm current
+> availability with the customer before contracting the Clinical tier.
 
 ### B2C Worked Examples
 
@@ -381,36 +381,35 @@ Monthly figures are before the annual-prepay discount. The seats-4+ volume break
 −15% to the per-seat rate from seat 4 onward; the **Annual** column then applies a further
 −15% to the resulting 12-month total.
 
-**Essential — €45 / seat / month** (seats 4+ at €38.25)
+**Essential — €29 / seat / month** (seats 4+ at €24.65)
 
 | Pharmacy size | Seats | Monthly | Annual (−15%) |
 |---|---|---|---|
-| Solo | 1 | €45.00 | €459.00 |
-| Small team | 3 | €135.00 | €1,377.00 |
-| Larger team | 5 | €211.50 (3×€45 + 2×€38.25) | €2,157.30 |
+| Solo | 1 | €29.00 | €295.80 |
+| Small team | 3 | €87.00 | €887.40 |
+| Larger team | 5 | €136.30 (3×€29 + 2×€24.65) | €1,390.26 |
 
-**Clinical — €75 / seat / month** (seats 4+ at €63.75)
+**Clinical — €55 / seat / month** (seats 4+ at €46.75)
 
 | Pharmacy size | Seats | Monthly | Annual (−15%) |
 |---|---|---|---|
-| Solo | 1 | €75.00 | €765.00 |
-| Small team | 3 | €225.00 | €2,295.00 |
-| Larger team | 5 | €352.50 (3×€75 + 2×€63.75) | €3,595.50 |
+| Solo | 1 | €55.00 | €561.00 |
+| Small team | 3 | €165.00 | €1,683.00 |
+| Larger team | 5 | €258.50 (3×€55 + 2×€46.75) | €2,636.70 |
 
 ### Competitive positioning (vs. incumbent ERP — e.g. PYLON Farmakon)
 
 A Greek pharmacy ERP today is sold as a perpetual licence (≈€950 core including **one** user,
-**+€150 per extra seat**, ≈€264–340/yr support, +€130 install). PharmAssist B2C is
-positioned differently:
+**+€150 per extra seat**, ≈€264–340/yr support, +€130 install). PharmAssist B2C is **not a
+competitor to that purchase** — it is the layer the ERP does not have:
 
-- **SaaS, no upfront capEx** — monthly per-seat, cancel or scale seats anytime.
-- **AI clinical intelligence + compliance** the incumbent ERP does not offer — SPC Q&A, AI
-  safety explanations, ADR narrative drafting, condition inference, and a built-in legal
-  documentation/audit trail.
-- **Included prescription execution** — dispensing is part of the app, not a bolt-on.
-- PharmAssist is a **clinical-grade dispensing and safety system, not a full inventory / POS /
-  accounting ERP** — it complements or replaces the dispensing side of a pharmacy's stack
-  rather than its back office.
+- **Complements, never replaces** — the pharmacy keeps its ERP for dispensing, inventory,
+  POS, and accounting. PharmAssist adds what no incumbent offers: scan-time clinical safety,
+  AI clinical intelligence, and a compliance-grade documentation trail.
+- **Zero switching cost** — no data migration, no workflow change, no ΗΔΥΚΑ re-registration.
+  Install the agent, sign in, done.
+- **SaaS, no upfront capEx** — monthly per-seat, cancel or scale seats anytime; priced so a
+  solo pharmacy pays less than a phone bill for a second pair of clinical eyes on every scan.
 
 ---
 
@@ -422,15 +421,17 @@ require the pharmacy's ΗΔΥΚΑ accounts to be in the ΕΟΠΥΥ category (`is
 category through ΗΔΥΚΑ (Hd@idika.gr). PharmAssist cannot grant this permission. (Applies to
 both motions.)
 
-**On HMVS (B2B Platform tier):** HMVS endpoints proxy calls to the Hellenic Medicines
-Verification System. Each customer must independently register with HMVO
-(hmvo.gr/it_suppliers/) — PharmAssist provides the integration layer but cannot substitute
-for HMVO registration.
+**On prescription execution (why it is not in the catalog):** PharmAssist deliberately does
+not execute/dispense prescriptions. The pharmacy's own dispensing system remains the system
+of record for the transaction and its regulatory obligations (eDispensation, EU-FMD/HMVS
+decommissioning). This keeps PharmAssist's integration liability-free for the customer and
+its adoption friction near zero. A complete, previously HMVO-reviewed execution
+implementation is preserved at git tag `hmvs-certified` should the packaging ever change.
 
 **On pharmacovigilance signal detection (B2B Platform tier):** Signal quality is directly
 proportional to network data volume. For the first 6 months of a Platform contract, an
-introductory rate of €42/location/month is recommended, stepping automatically to the full
-€52 rate at month 7. This should be written into the contract rather than offered as a
+introductory rate of €40/location/month is recommended, stepping automatically to the full
+€48 rate at month 7. This should be written into the contract rather than offered as a
 negotiated concession.
 
 **On AI features (B2B Clinical/Platform and B2C Clinical):** AI features (safety
@@ -438,9 +439,3 @@ explanations, SPC Q&A, ADR narrative drafting, condition inference) depend on an
 provider endpoint with a GDPR Data Processing Agreement in place. No patient PII (AMKA, name,
 address) is transmitted to the LLM — prompts are constructed from clinical data only (drug
 codes, ATC classes, rule descriptions, anonymised demographics).
-
-**On prescription execution:** Prescription execution submits the dispense to ΗΔΥΚΑ
-(HL7 CDA format). The PharmAssist dispensing workflow, UI, approve/flag actions, and audit
-snapshot are complete; the live ΗΔΥΚΑ dispense POST is in final wiring. It is packaged as an
-**optional add-on for B2B** (Platform tier, +€8/location/month) and is **included in all B2C
-tiers**.
