@@ -31,7 +31,7 @@ claim verified against file:line).
 |---|---|---|---|---|
 | 1 | Patient lookup by AMKA | **EXISTS** | `GET /patients/{id}` → `services/patients.resolve()` → `pharmapi_get_patient` (`services/pharmapi.py:764`) | **Reuse** service, new /v1 router + typed schema |
 | 2 | Patient lookup by EKAA | **EXISTS** | Same path; non-11-digit key → `patientekaa` param (`services/patients.py:802-808`) | **Reuse**; add EKAA mock fixture (none exist) |
-| 3 | Prescription search (pending + history by AMKA) | **EXISTS** | `GET /pharmapi/prescriptions/{queue,history}` → `pharmapi_search_prescriptions` (`pharmapi.py:686`) | **Reuse**; fix silent history degrade w/o AMKA (`routers/pharmapi.py:114-117`) |
+| 3 | Prescription search (pending + history by AMKA) | **EXISTS** | `pharmapi_search_prescriptions` (`services/pharmapi.py`) — the old `/pharmapi/prescriptions/{queue,history}` routes were removed (caller-less); /v1 calls the service directly | **Reuse**; fix silent history degrade w/o AMKA |
 | 4 | Patient insurance details (ΕΟΠΥΥ, co-pay %) | **PARTIAL** | `GET /patients/{id}/insurances` (`routers/patients.py:171`) — payload has fund identity but **no co-pay % field** (`schemas/patient_insurances.py:15-24`) | **Reuse**; co-pay % is a contract decision (see D-7) |
 | 5 | Patient intolerances (ΗΔΥΚΑ) | **PARTIAL** | Service exists (`pharmapi.py:851`) but only embedded inside the profile response; pharmacy id read from the **global session** | **Reuse** service + **build** standalone endpoint; needs BC-4 |
 | 6 | Patient medicine history (ΗΔΥΚΑ) | **PARTIAL** | `GET /patients/{id}/prescriptions` (`pharmapi.py:866`, 609→`blocked` envelope) — pharmacy id from **global session** | **Reuse**; keep pagination + `blocked` envelope; needs BC-4 |

@@ -1,6 +1,6 @@
 ---
 name: screen-convert
-description: Use this skill when the user asks to redesign / restyle / convert a page to match one of the reference mockups in frontend/redesign-reference/*.html (e.g. "match 01-sign-in.html", "redesign Dashboard per 03-counter.html"). Encodes the lessons from the FR-1 Counter, FR-2 Review, FR-3 Dispense Wizard, Login, and AcceptInvite conversions — preserve API wiring, reuse Icons + i18n, never port the mockup's StateSwitcher, always run typecheck + lint + format, smoke against the running compose stack.
+description: Use this skill when the user asks to redesign / restyle / convert a page to match one of the reference mockups in frontend/redesign-reference/*.html (e.g. "match 01-sign-in.html", "redesign Dashboard per 03-counter.html"). Encodes the lessons from the FR-1 Counter, FR-2 Review, Login, and AcceptInvite conversions — preserve API wiring, reuse Icons + i18n, never port the mockup's StateSwitcher, always run typecheck + lint + format, smoke against the running compose stack. (The dispense wizard was removed at tag hmvs-certified; 05-dispense-wizard.html is historical.)
 ---
 
 # screen-convert — HTML reference → React/TSX page
@@ -160,7 +160,7 @@ Attach screenshots from both locales to the PR description.
   container has deps baked in.
 - Do not call cross-namespace i18n keys (e.g. `t("login.showPassword")`
   from inside AcceptInvite). Move generic keys to `common.*`.
-- Do not assume the page's smoke test can reuse a Rx already dispensed in
+- Do not assume the page's smoke test can reuse a Rx already flagged in
   an earlier run — restart the backend container to reset mock state.
 
 ## Output

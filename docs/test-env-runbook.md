@@ -1,21 +1,24 @@
 # PharmAssist — Test Environment Runbook
 
 Operational guide for the **test stack** (`compose.test.yaml`) — a second,
-production-flavour deploy pointed at the **real upstream test systems**:
-ΗΔΥΚΑ `testeps` for Pharmapi and the NMVO **ITE** sandbox for HMVS.
+production-flavour deploy pointed at the **real upstream test system**:
+ΗΔΥΚΑ `testeps` for Pharmapi.
 
 The pilot runbook (`docs/pilot-runbook.md`) covers the same stack against
 **mock** upstreams; this document only documents what differs.
+
+> **Retrieval-only note:** the HMVS/FMD and eDispensation sections that used
+> to live here were removed with the execution path — see tag
+> `hmvs-certified` for the full historical runbook.
 
 > **Audience:** whoever operates the test box. Assumes Docker + Docker Compose
 > v2 and a clone of this repo on the host.
 
 > **Test data is synthetic but the stack stays HTTPS + access-restricted** —
 > fronted by Caddy's auto-HTTPS at a public DNS name (or a free `<ip>.sslip.io`
-> name) and login-gated. The upstream sandboxes (testeps + ITE)
-> contain no real-patient data, but pharmacist credentials and pack QR codes
-> can still link back to real equipment, so do not expose this stack on an
-> open internet without auth.
+> name) and login-gated. The upstream sandbox (testeps) contains no
+> real-patient data, but pharmacist credentials can still link back to real
+> accounts, so do not expose this stack on an open internet without auth.
 
 ---
 
@@ -24,12 +27,9 @@ The pilot runbook (`docs/pilot-runbook.md`) covers the same stack against
 | Concern | `compose.prod.yaml` (mock pilot) | `compose.test.yaml` (test stack) |
 |---|---|---|
 | ΗΔΥΚΑ Pharmapi | `PHARMAPI_MOCK=true` — canned data | `PHARMAPI_MOCK=false` — live `testeps.e-prescription.gr/pharmapiv2` |
-| HMVS verify/supply | `HMVS_MOCK=true` — canned ITE-style results | `HMVS_MOCK=false` — live `api-ite.nmvo.eu` |
-| HMVS creds | shared Test-Book pair (dev) | **PharmAssist-IQE-1** equipment creds (qualification evidence) |
 | Compose project | `pharmassist-pilot` | `pharmassist-test` |
 | Postgres volume | `pgdata` | `pgdata_test` (separate — never shares rows) |
 | Observability | optional | **Sentry + JSON logs**, slowapi rate limit on `/auth/login` |
-| TLS startup probe | n/a | HEAD `developer-ite.nmvo.eu` on boot (R18 H-cert) |
 
 The single-uvicorn-worker constraint still applies — the in-process Pharmapi
 session tracker (`pharmapi_session`) is per-process state. Bumping workers
@@ -39,13 +39,7 @@ above 1 is gated on moving that to Redis (post-pilot B4).
 
 ## 1. Prereqs
 
-* **H6.1 must be merged** on `main` — wires `HMVS_*` into the prod compose
-  and fixes the token-failure path (F1). The TLS startup probe and the
-  `test-env-smoke` script both assume H6.1's HMVS plumbing.
 * A working ΗΔΥΚΑ account on **testeps**, plus its API key.
-* PharmAssist-IQE-1 equipment creds (`HMVS_CLIENT_ID` / `HMVS_CLIENT_SECRET`).
-  These are different from the shared Test-Book ITE creds — keep them out of
-  shared docs; in AWS deploys they live in SSM.
 * (Optional) A Sentry DSN. Unset → no init, no overhead.
 
 ---
@@ -58,19 +52,6 @@ cp .env.test.example .env.test
 
 Fill in `.env.test` (it is gitignored alongside `.env.prod`). Generate the
 crypto material the same way as the pilot runbook §1.
-
-**URL caveat** — confirmed against `backend/app/config.py:140-141` and
-`backend/app/services/hmvs.py:192`:
-
-* `HMVS_IDENTITY_URL` must NOT carry the `/identity` suffix.
-  Code assembles `{HMVS_IDENTITY_URL}/identity/connect/token`. If you set
-  `HMVS_IDENTITY_URL=https://api-ite.nmvo.eu/identity`, the token POST goes to
-  `.../identity/identity/connect/token` and 404s — every dispense fails.
-* `HMVS_VERIFICATION_URL` DOES carry `/verification`. Code assembles
-  `{HMVS_VERIFICATION_URL}/product/gs1/{gtin}/pack/{serial}`.
-
-The example file pre-populates both correctly; only change them when pointing
-at IQE/PROD rather than ITE.
 
 `SENTRY_DSN` is optional; leave it empty for a quiet stack. `LOG_FORMAT=json`
 is set by the compose file unconditionally so log aggregators get structured
@@ -91,10 +72,7 @@ docker compose -f compose.test.yaml --env-file .env.test logs -f backend
 1. ΗΔΥΚΑ version check from `pharmapi_check_version` — confirms credentials
    reach `testeps`. A 401 here is the canonical "creds wrong / Api-Key wrong"
    signal.
-2. `[HMVS][TLS] developer-ite reachable (http=...)` — the R18 H-cert probe.
-   A `handshake to ... FAILED` line means the host trust store is missing the
-   NMVO CA. Fix the host (typically `update-ca-certificates`) and reboot.
-3. `Application startup complete` — uvicorn ready.
+2. `Application startup complete` — uvicorn ready.
 
 ---
 
@@ -123,8 +101,7 @@ click-through (§6) work without further setup.
 > `70014` for happy-path screenshots and `70466` to prove the empty-state
 > rendering survives.
 
-Record the `Local login:` email **and the pharmacy / pharmacist UUIDs** the
-seed prints — the HMVS smoke (§7) needs the UUIDs.
+Record the `Local login:` email the seed prints.
 
 ---
 
@@ -149,95 +126,9 @@ Anything that 502s here is a real upstream issue — capture the exact request
 ID from the backend logs (now JSON-formatted under `LOG_FORMAT=json`) before
 re-running.
 
-### 5a. Real eDispensation POST — manual test against pharmacy 70014
-
-P3 wired `POST /prescriptions/{rx_id}/approve` to the live ΗΔΥΚΑ
-`POST /api/v1/prescriptions/dispense` endpoint (Content-Type:
-`application/x-hl7`, X-DOCTOR-IP required — see
-`backend/app/services/pharmapi.py:pharmapi_dispense`). Until live data
-sourcing for `therapy_line_id` lands (TODOs in
-`backend/app/routers/prescriptions.py:_rx_to_dispense_items`), the upstream
-POST is intended to be exercised **manually** against ΗΔΥΚΑ test pharmacy
-**70014**, not in an automated test:
-
-1. From the verification screen of a real pending Rx on pharmacy 70014,
-   click **Approve & dispense**.
-2. Backend logs will show one line of the form
-   `[Pharmapi] POST /api/v1/prescriptions/dispense barcode=… doctor_ip=… body_bytes=…`
-   (the CDA body is **never** logged — PHI guard).
-3. On HTTP 200: record the returned `executionNo` from the JSON response
-   (it's also persisted on `dispense_logs.exec_ref` and on
-   `documentation_logs.pharmapi_exec_ref`):
-   ```sql
-   SELECT id, barcode, exec_ref, created_at
-     FROM dispense_logs
-    WHERE barcode = '<rx barcode>'
-    ORDER BY created_at DESC LIMIT 1;
-   ```
-4. Re-POSTing the same barcode (any `X-Request-Id`) must return
-   `{"idempotent": true, "execId": "<same>", "dispenseLogId": "<same>"}`
-   with NO second upstream call — the
-   `uq_dispense_logs_pharmacy_id` constraint on
-   `(pharmacy_id, barcode)` is the DB-enforced backstop.
-5. Common upstream errors are mapped to HTTP 4xx by error code:
-   `G02` (already executed) → 409, `G14` (session expired) → 401, etc. —
-   see `_PHARMAPI_RX_ERRORS` in `services/pharmapi.py`. If you hit
-   anything that 502s, save the response body and the backend request
-   line and ship a follow-up PR with the new mapping.
-
-Partial dispense and reversal are intentionally out of scope (the CDA
-builder raises `NotImplementedError` for `execution_case != 1` — TODOs
-in `backend/app/services/cda.py`).
-
 ---
 
-## 6. First real HMVS call — the qualification gate
-
-This is the headline test: ONE verify against a known ITE Test-Book pack,
-end to end through the live OAuth2 + verification chain. Pass = the stack is
-qualified to run real dispenses. Fail = stop and fix.
-
-Run the canned smoke from inside the backend container so it can introspect
-the in-process token cache AND the DB:
-
-```bash
-docker compose -f compose.test.yaml --env-file .env.test exec backend \
-  python -m scripts.test_env_smoke \
-    --gtin    09501101020917 \
-    --serial  <REAL_TEST_BOOK_SERIAL> \
-    --batch   <REAL_BATCH> \
-    --expiry  YYMMDD \
-    --pharmacy-id   <UUID-from-seed> \
-    --pharmacist-id <UUID-from-seed>
-```
-
-The script asserts, in order:
-
-* **(c) OAuth token came from `/identity/connect/token`** — the in-process
-  token cache (`hmvs._token_cache[<client_id>]`) is non-empty after the call.
-  If this fails the most likely cause is the `/identity` suffix caveat in §2.
-* **(a) Real `HmvsResult`** — `nhrn != "GR-0000-0000-0000"` (the mock
-  sentinel). If the live registry 404s on the pack you passed, the smoke
-  reports "wiring proved but pack ID bogus" and exits non-zero — re-run with
-  a real Test-Book / IQE pack.
-* **(b) `audit_log` `HMVS_VERIFIED` row** — written via the same
-  `fire_hmvs_audit` plumbing the router uses, found in the last 30 s by
-  `resource_id=<serial>` and `pharmacy_id=<UUID>`.
-
-If the **token endpoint** returns 401 / non-200, **stop**. That is the
-H6.1 / F1 failure mode — H6.1's token-failure branch maps it to a 502 with
-an audit row, but a hard-401 means the IDP rejected the IQE creds and there
-is nothing for the test stack to do until the equipment registration is
-fixed at the NMVO end.
-
-**Record this run as the first-real-HMVS-call evidence** — capture the smoke
-stdout (it prints the `nhrn`, the `audit_log` row ID, and the operation
-code), the backend container logs around the call, and the SSM parameter
-version of `HMVS_CLIENT_ID` that produced it.
-
----
-
-## 7. Observability spot-checks
+## 6. Observability spot-checks
 
 * **JSON logs** — `docker compose ... logs backend | tail -1 | jq .` parses.
 * **Sentry** — with `SENTRY_DSN` set, force an error
@@ -251,7 +142,7 @@ version of `HMVS_CLIENT_ID` that produced it.
 
 ---
 
-## 8. Day-2 ops
+## 7. Day-2 ops
 
 Identical to the pilot runbook §8–§10 — substitute `compose.test.yaml` /
 `.env.test` everywhere `compose.prod.yaml` / `.env.prod` appears. The two
@@ -272,14 +163,11 @@ stacks co-exist on the same host because the compose project names
 
 ---
 
-## 9. Tearing down
+## 8. Tearing down
 
 ```bash
 docker compose -f compose.test.yaml --env-file .env.test down       # keep data
 docker compose -f compose.test.yaml --env-file .env.test down -v    # nuke pgdata_test + caddy_data
 ```
 
-`down -v` deletes the test pharmacist / pack-state rows but does NOT touch
-anything upstream — the ITE registry retains whatever state changes you
-issued (which is fine for the Test-Book pack lifecycle, but means the same
-pack cannot be re-supplied without reactivating it first).
+`down -v` deletes the local test rows but does NOT touch anything upstream.
