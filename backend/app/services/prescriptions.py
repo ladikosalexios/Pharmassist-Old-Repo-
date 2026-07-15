@@ -407,6 +407,93 @@ MOCK_PRESCRIPTIONS: dict = {
     # Engine-test prescriptions: not in MOCK_SAFETY_CHECKS, so they are evaluated
     # by the safety engine. Each is paired with a seeded PatientCondition that
     # triggers a condition-based rule.
+    # ── Multi-medicine prescription (ΗΔΥΚΑ therapy lines) ────────────────────
+    # `medications` is the full line list; `medication` stays the FIRST line so
+    # every single-med consumer (queue label, instructions, engine fallback)
+    # keeps working. Deliberately triggers STATIN_CLARITHROMYCIN_MYOPATHY
+    # between line 2 (atorvastatin) and line 3 (clarithromycin) — the classic
+    # "acute macrolide added to a chronic statin" pharmacist catch.
+    "RX2024-010": {
+        "rxId": "RX2024-010",
+        "code": "RX2024-010",
+        "dateIssued": "2026-07-10",
+        "status": PrescriptionStatus.PENDING,
+        "spcVersion": "SPC v2024.3",
+        "patient": {
+            "id": "P011",
+            "name": "Georgios Alexopoulos",
+            "age": 67,
+            "dateOfBirth": "1959-02-11",
+            "amka": "11025905932",
+            "conditions": ["Type II Diabetes", "Hyperlipidemia"],
+            "allergies": "None known",
+        },
+        "medication": {
+            "drugName": "Metformin",
+            "atcCode": "A10BA02",
+            "nhrn": "5201234500101",
+            "dose": "850 mg",
+            "form": "Tablet",
+            "route": "Oral",
+            "frequency": "Twice daily",
+            "treatmentDuration": "30 days",
+            "spcRecommendedDosage": (
+                "Adults: start 500–850 mg 2–3 times daily with or after meals; "
+                "titrate over 10–15 days. Max 3 g/day in divided doses."
+            ),
+        },
+        "medications": [
+            {
+                "drugName": "Metformin",
+                "atcCode": "A10BA02",
+                "nhrn": "5201234500101",
+                "dose": "850 mg",
+                "form": "Tablet",
+                "route": "Oral",
+                "frequency": "Twice daily",
+                "treatmentDuration": "30 days",
+                "spcRecommendedDosage": (
+                    "Adults: start 500–850 mg 2–3 times daily with or after meals; "
+                    "titrate over 10–15 days. Max 3 g/day in divided doses."
+                ),
+            },
+            {
+                "drugName": "Atorvastatin",
+                "atcCode": "C10AA05",
+                "nhrn": "5201234500102",
+                "dose": "20 mg",
+                "form": "Tablet",
+                "route": "Oral",
+                "frequency": "Once daily, in the evening",
+                "treatmentDuration": "30 days",
+                "spcRecommendedDosage": (
+                    "Usual starting dose 10–20 mg once daily; adjust at intervals "
+                    "of ≥4 weeks. Max 80 mg/day."
+                ),
+            },
+            {
+                "drugName": "Clarithromycin",
+                "atcCode": "J01FA09",
+                "nhrn": "5201234500103",
+                "dose": "500 mg",
+                "form": "Film-coated tablet",
+                "route": "Oral",
+                "frequency": "Twice daily",
+                "treatmentDuration": "7 days",
+                "spcRecommendedDosage": (
+                    "Adults: 250–500 mg every 12 hours for 6–14 days depending "
+                    "on indication and severity."
+                ),
+            },
+        ],
+        "prescriber": {
+            "name": "Dr. Eleni Vasileiou",
+            "licenceId": "MD-51377",
+            "specialty": "General Practice",
+            "contact": "+30 210 555 0181",
+            "email": "e.vasileiou@clinic.gr",
+        },
+    },
     "RX-ENGINE-001": {
         "rxId": "RX-ENGINE-001",
         "code": "RX-ENGINE-001",
@@ -695,11 +782,17 @@ MOCK_PRESCRIPTIONS: dict = {
 
 # Derived from MOCK_PRESCRIPTIONS so the dashboard queue cannot drift from the
 # detail records. Keep in sync by adding new entries above only.
+def _queue_label(rx: dict) -> str:
+    """First drug name, with a "+N" suffix for multi-medicine prescriptions."""
+    extra = len(rx.get("medications") or []) - 1
+    return rx["medication"]["drugName"] + (f" +{extra}" if extra > 0 else "")
+
+
 MOCK_QUEUE_BASE: list = [
     {
         "rxId": rx["rxId"],
         "patientName": rx["patient"]["name"],
-        "medication": rx["medication"]["drugName"],
+        "medication": _queue_label(rx),
         "physician": rx["prescriber"]["name"],
         "date": rx["dateIssued"],
         "status": rx["status"],

@@ -583,7 +583,14 @@
     "flagged": "Flagged",
     "flagDiscrepancy": "Flag discrepancy",
     "prescriptionAlreadyCompleted": "Prescription is already completed.",
-    "prescriptionAlreadyFlagged": "Prescription is already flagged."
+    "prescriptionAlreadyFlagged": "Prescription is already flagged.",
+    "medicationOf": "Medicine {{n}} of {{total}}",
+    "precautions": "Precautions",
+    "precautionsHint": "Require caution or monitoring — not contraindications (SPC §4.4)",
+    "storageTitle": "Storage & disposal",
+    "afterOpening": "After opening",
+    "disposal": "Disposal",
+    "foodInstructions": "Food & intake"
   },
   "rxDetails": {
     "title": "Prescription Details",

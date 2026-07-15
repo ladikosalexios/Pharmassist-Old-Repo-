@@ -583,7 +583,14 @@
     "flagged": "Σημειωμένη",
     "flagDiscrepancy": "Σημείωση ασυμφωνίας",
     "prescriptionAlreadyCompleted": "Η συνταγή έχει ήδη ολοκληρωθεί.",
-    "prescriptionAlreadyFlagged": "Η συνταγή είναι ήδη σημειωμένη."
+    "prescriptionAlreadyFlagged": "Η συνταγή είναι ήδη σημειωμένη.",
+    "medicationOf": "Φάρμακο {{n}} από {{total}}",
+    "precautions": "Προφυλάξεις",
+    "precautionsHint": "Απαιτούν προσοχή ή παρακολούθηση — δεν είναι αντενδείξεις (SPC §4.4)",
+    "storageTitle": "Φύλαξη & απόρριψη",
+    "afterOpening": "Μετά το άνοιγμα",
+    "disposal": "Απόρριψη",
+    "foodInstructions": "Λήψη με τροφή"
   },
   "rxDetails": {
     "title": "Λεπτομέρειες Συνταγής",

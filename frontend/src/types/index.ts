@@ -22,6 +22,14 @@ export interface Medication {
   spcRecommendedDosage: string;
 }
 
+// SPC §6.3/§6.4 storage + §6.6 disposal. `afterOpening` is the in-use shelf
+// life (e.g. a reconstituted suspension) — null for plain tablets.
+export interface SpcStorage {
+  conditions: string;
+  afterOpening?: string | null;
+  disposal?: string | null;
+}
+
 export interface SpcDetails {
   atcCode: string;
   drugName: string;
@@ -32,6 +40,12 @@ export interface SpcDetails {
   recommendedDosage: string;
   contraindications: string[];
   majorInteractions: Interaction[];
+  // §4.4 warnings/precautions — extra care or monitoring, NOT the same as
+  // §4.3 contraindications (which forbid use).
+  precautions?: string[];
+  storage?: SpcStorage | null;
+  // §4.2 food guidance — null/absent when the drug has no food instruction.
+  foodInstructions?: string | null;
 }
 
 export interface Prescriber {
@@ -69,6 +83,10 @@ export interface Prescription {
   spcVersion: string;
   patient: Patient;
   medication: Medication;
+  // Multi-medicine prescriptions (ΗΔΥΚΑ therapy lines): every line, in order.
+  // `medication` stays the first line for single-med consumers. Live-mode
+  // lines may carry only drugName/atcCode/nhrn.
+  medications?: Partial<Medication>[];
   prescriber: Prescriber;
   spcQuickReference: SpcQuickReference;
   safetyChecks: SafetyCheck[];
