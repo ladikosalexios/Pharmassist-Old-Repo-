@@ -231,11 +231,11 @@ async def record_prescription_action(
     ip_address: str | None,
     user_agent: str | None,
 ) -> DocumentationLog:
-    """Persist a documentation_logs row for an approve/flag action.
+    """Persist a documentation_logs row for a prescription action.
 
-    Single write path used by both POST /prescriptions/{id}/approve and
-    PATCH /prescriptions/{id} when status flips to FLAGGED. Computes the
-    pharmacist_signature documented on the model and commits.
+    Single write path, called by PATCH /prescriptions/{id} when status flips
+    to FLAGGED. Computes the pharmacist_signature documented on the model and
+    commits.
     """
     pharmacist_id, pharmacy_id, _ = await _resolve_pharmacist_default_pharmacy(
         session, pharmacist_email

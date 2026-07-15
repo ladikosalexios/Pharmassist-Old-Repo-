@@ -92,7 +92,7 @@
     "inviteSend": "Send invite",
     "youBadge": "You",
     "auditTitle": "Audit log",
-    "auditDesc": "Read-only record of dispenses, patient-data access, and logins.",
+    "auditDesc": "Read-only record of prescription reviews, patient-data access, and logins.",
     "auditExport": "Export CSV",
     "auditAll": "All",
     "auditReview": "Review",
@@ -294,7 +294,7 @@
     "requestConsent": "Request consent →",
     "reportSideEffect": "Report side effect",
     "viewDocumentation": "View documentation",
-    "startDispense": "Start paperless dispense",
+    "reviewPrescription": "Review a prescription",
     "dispensedHere": "Dispensed at our pharmacy",
     "dispensedElsewhere": "Dispensed at another pharmacy",
     "details": "Details",
@@ -327,7 +327,7 @@
     "profileUnavailable": "Patient profile not available."
   },
   "login": {
-    "tagline": "Prescription verification & dispensing for Greek pharmacies.",
+    "tagline": "Prescription verification & safety checks for Greek pharmacies.",
     "emailLabel": "Email",
     "emailPlaceholder": "pharmacist@demo.gr",
     "passwordLabel": "Password",
@@ -597,17 +597,6 @@
     "updatedLabel": "Updated",
     "outdatedTooltip": "SPC updated after prescription date — review recommended"
   },
-  "safetyAlerts": {
-    "title": "Safety Alerts",
-    "activeCount": "{{count}} active",
-    "loading": "Loading alerts…",
-    "loadError": "Could not load active alerts.",
-    "empty": "No active alerts.",
-    "summaryTitle": "Alert Summary",
-    "severityCritical": "Critical",
-    "severityReview": "Review",
-    "viewPrescription": "View Prescription"
-  },
   "safetyChecks": {
     "title": "Automated Safety Checks",
     "live": "live",
@@ -619,14 +608,6 @@
     "tagReview": "REVIEW",
     "tagOk": "OK",
     "details": "Details"
-  },
-  "shortcuts": {
-    "title": "Keyboard Shortcuts",
-    "dashboard": "Go to dashboard",
-    "nextPending": "Open next pending prescription",
-    "flag": "Flag discrepancy (on a prescription)",
-    "closeModal": "Close any open modal or drawer",
-    "note": "Shortcuts pause while an input is focused or a dialog is open."
   },
   "spc": {
     "title": "SPC Quick Reference",

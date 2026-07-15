@@ -1,8 +1,8 @@
 """Patient profiles + per-patient prescription / ADR history.
 
 Reads live status from the prescriptions service for any rxId that has a full
-record there, so flag/approve actions on the verification page show up
-immediately in a patient's history.
+record there, so flag actions on the verification page show up immediately in
+a patient's history.
 """
 
 import asyncio
@@ -312,7 +312,7 @@ PATIENT_PROFILES: dict = {
 
 # Static prescription history per patient (additional rxs that aren't part of
 # the verification mock). The current status of any rx that is also seeded in
-# MOCK_PRESCRIPTIONS is overlaid live so flag/approve actions reflect.
+# MOCK_PRESCRIPTIONS is overlaid live so flag actions reflect.
 PATIENT_RX_HISTORY_BASE: dict = {
     "P001": [
         {
