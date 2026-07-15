@@ -86,23 +86,6 @@ export interface QueueItem {
   status: PrescriptionStatus;
 }
 
-export type AlertType =
-  | "interactions"
-  | "contraindications"
-  | "duplicate_therapy"
-  | "dose_validation"
-  | "pregnancy"
-  | "G6PD";
-
-export interface ActiveAlert {
-  id: string;
-  type: AlertType;
-  status: CheckStatus;
-  description: string;
-  rxId?: string | null;
-  createdAt: string | null;
-}
-
 export type InstructionsLanguage = "el" | "en" | "other";
 
 export interface InstructionsOptions {

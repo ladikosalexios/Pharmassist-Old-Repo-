@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Link, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
   ArrowLeftIcon,
@@ -10,7 +10,6 @@ import {
 } from "../components/Icons";
 import { SafetyChecksPanel } from "../components/SafetyChecksPanel";
 import { FlagDiscrepancyModal } from "../components/FlagDiscrepancyModal";
-import { DispenseWizard } from "../components/DispenseWizard";
 import { ContactPrescriberDrawer } from "../components/ContactPrescriberDrawer";
 import { useToast } from "../components/Toast";
 import { useKeyboardShortcuts } from "../lib/keyboard";
@@ -212,17 +211,13 @@ function MedicationCard({ rx, loading }: { rx: Prescription | null; loading: boo
 
 export function PrescriptionVerification() {
   const { rxId = "" } = useParams<{ rxId: string }>();
-  const navigate = useNavigate();
   const { toast } = useToast();
   const { t } = useTranslation();
   const [rx, setRx] = useState<Prescription | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [flagOpen, setFlagOpen] = useState(false);
-  const [approveOpen, setApproveOpen] = useState(false);
   const [contactOpen, setContactOpen] = useState(false);
-  const [hasBlock, setHasBlock] = useState(false);
-  const [checksLoading, setChecksLoading] = useState(true);
   const [conditions, setConditions] = useState<PatientCondition[] | null>(null);
   const [conditionsError, setConditionsError] = useState<string | null>(null);
 
@@ -266,36 +261,7 @@ export function PrescriptionVerification() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rx?.patient?.amka]);
 
-  function onClickApprove() {
-    if (!rx) return;
-    if (hasBlock) return;
-    setApproveOpen(true);
-  }
-
-  function onDispensed(status: string) {
-    if (!rx) return;
-    setRx({ ...rx, status });
-    toast(t("review.prescriptionApprovedRecorded"), "success");
-  }
-
-  const handleWizardClose = useCallback(() => {
-    setApproveOpen(false);
-    if (rx?.status === "COMPLETED") navigate("/dashboard");
-  }, [rx?.status, navigate]);
-
   useKeyboardShortcuts({
-    c: () => {
-      if (!rx) return;
-      if (rx.status === "COMPLETED") {
-        toast(t("review.prescriptionAlreadyCompleted"), "info");
-        return;
-      }
-      if (rx.status === "FLAGGED") {
-        toast(t("review.prescriptionFlaggedClearFirst"), "info");
-        return;
-      }
-      onClickApprove();
-    },
     f: () => {
       if (!rx) return;
       if (rx.status === "FLAGGED") {
@@ -336,7 +302,6 @@ export function PrescriptionVerification() {
 
   const isCompleted = rx?.status === "COMPLETED";
   const isFlagged = rx?.status === "FLAGGED";
-  const approveDisabled = loading || checksLoading || hasBlock || isCompleted || isFlagged;
 
   return (
     <div className="mx-auto max-w-[1240px] px-4 py-6 sm:px-6 lg:px-8">
@@ -380,28 +345,6 @@ export function PrescriptionVerification() {
             <FlagIcon width={15} height={15} />{" "}
             {isFlagged ? t("review.flagged") : t("review.flagDiscrepancy")}
           </button>
-
-          <div className="group relative">
-            <button
-              type="button"
-              onClick={onClickApprove}
-              disabled={approveDisabled}
-              className={`flex min-h-[40px] items-center gap-1.5 rounded-lg px-4 py-2 text-[13px] font-semibold shadow-card transition-colors ${
-                approveDisabled
-                  ? "cursor-not-allowed bg-slate-200 text-slate-400 dark:bg-slate-800 dark:text-slate-500"
-                  : "bg-brand-600 text-white hover:bg-brand-700 dark:hover:bg-brand-500"
-              }`}
-            >
-              {isCompleted ? t("review.completed") : t("review.approveAndDispense")}
-              <ChevronRightIcon width={15} height={15} />
-            </button>
-            {hasBlock && (
-              <div className="pointer-events-none absolute right-0 top-full z-10 mt-2 w-64 rounded-lg bg-slate-900 px-3 py-2 text-[12px] leading-snug text-white opacity-0 shadow-cardLg transition-opacity group-hover:opacity-100 dark:bg-slate-700">
-                {t("review.resolveCriticalAlerts")}
-                <span className="absolute -top-1 right-6 h-2 w-2 rotate-45 bg-slate-900 dark:bg-slate-700" />
-              </div>
-            )}
-          </div>
         </div>
       </div>
 
@@ -413,16 +356,6 @@ export function PrescriptionVerification() {
             open={flagOpen}
             onClose={() => setFlagOpen(false)}
             onFlagged={(status) => setRx((cur) => (cur ? { ...cur, status } : cur))}
-          />
-          <DispenseWizard
-            open={approveOpen}
-            rxId={rx.rxId}
-            barcode={rx.code}
-            nhrn={rx.medication.nhrn}
-            patientName={rx.patient.name}
-            drugName={rx.medication.drugName}
-            onClose={handleWizardClose}
-            onDispensed={onDispensed}
           />
           <ContactPrescriberDrawer
             open={contactOpen}
@@ -443,11 +376,7 @@ export function PrescriptionVerification() {
           loading={loading}
         />
         <MedicationCard rx={rx} loading={loading} />
-        <SafetyChecksPanel
-          rxId={rxId}
-          onBlockChange={setHasBlock}
-          onLoadingChange={setChecksLoading}
-        />
+        <SafetyChecksPanel rxId={rxId} />
       </div>
     </div>
   );

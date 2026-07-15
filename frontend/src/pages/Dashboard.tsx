@@ -109,7 +109,7 @@ function SessionStrip() {
 // AMKA+PIN entry is only a fallback. Flip to `true` once that endpoint lands.
 const SHOW_PAPERLESS: boolean = false;
 
-/* ── "Start a dispense" scanner hero ── */
+/* ── "Scan to review" scanner hero ── */
 function ScanHero({
   scannerRef,
   onScan,
