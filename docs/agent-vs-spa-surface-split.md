@@ -7,9 +7,13 @@ SPA stops being the "primary workflow app" and becomes the **deep-work console
 you drop into** when the agent's heads-up says "look closer" (the ⌘⌥↵ handoff to
 `/prescription/:rxId`).
 
-This doc reviews each SPA surface against that reframing. **It's a
-recommendation, not a done deletion** — the verdicts depend on the go-to-market
-fork below.
+This doc reviews each SPA surface against that reframing.
+
+> **Status (2026-07-15): implemented.** The Dashboard was reframed into the
+> thin scan-to-review home, `/alerts/active` was deleted, and — going further
+> than this doc — the whole execution path (eDispensation + HMVS/FMD, incl.
+> the `/hmvs-check` demo) was removed at tag `hmvs-certified`. PharmAssist is
+> retrieval-only; the pharmacist dispenses in their own software.
 
 ## The fork that decides everything
 
@@ -32,7 +36,7 @@ The rest of this assumes **parasitic-first**, since that's the wedge we chose.
 | **Instructions** (`/instructions`) | 🟡 Keep (review) | Counseling content — useful as reference, but check whether it's exercised in the parasitic flow or just legacy. |
 | **Settings** (`/settings`) | 🟢 Keep | Session/credential/config. |
 | **Login / Accept-Invite** (`/login`, `/accept-invite`) | 🟢 Keep | Auth + B2B onboarding. (The agent reuses the same login.) |
-| **HMVS Check** (`/hmvs-check`) | ⚪ Unaffected | HMVO recording demo, not in nav, separate concern. |
+| **HMVS Check** (`/hmvs-check`) | 🔴 Removed | Went with the execution path (tag `hmvs-certified`). |
 
 ## The one clear removal
 
@@ -59,7 +63,8 @@ The deep-work surfaces stay and some (patient conditions) matter more.
 
 ## Net
 
-- **Remove/reframe:** Dashboard prescription-queue + its `/alerts/active` backing.
+- **Remove/reframe:** Dashboard prescription-queue + its `/alerts/active` backing. _(done)_
 - **Promote:** `/prescription/:rxId` (handoff target), patient conditions.
 - **Keep:** documentation, ADR, patients, settings, auth.
-- **Unchanged:** the backend brain; HMVS demo.
+- **Unchanged:** the backend brain.
+- **Also removed (beyond this doc):** the dispense/HMVS execution path — tag `hmvs-certified`.

@@ -1,6 +1,6 @@
 ---
 name: audit-log
-description: Use this skill when adding regulator-facing audit-trail entries to backend endpoints (dispense, ADR submission, prescription patch, settings change, credential rotation, HMVS verify/decommission/reactivate). Encodes the fire-and-forget pattern from PR #76 plus the shutdown drain handler so audit rows survive graceful restarts.
+description: Use this skill when adding regulator-facing audit-trail entries to backend endpoints (ADR submission, prescription patch/flag, settings change, credential rotation). Encodes the fire-and-forget pattern from PR #76 plus the shutdown drain handler so audit rows survive graceful restarts.
 ---
 
 # audit-log — write append-only audit rows from a state-changing endpoint
@@ -8,9 +8,9 @@ description: Use this skill when adding regulator-facing audit-trail entries to 
 ## When to use
 
 The user is adding or modifying a backend endpoint that mutates state and
-should leave an EOF-inspector-defensible audit trail. Concretely: dispense,
-prescription approve/flag, ADR submit, settings change, credential rotation,
-HMVS verify / decommission / reactivate, staff invite acceptance.
+should leave an EOF-inspector-defensible audit trail. Concretely:
+prescription flag, ADR submit, settings change, credential rotation,
+staff invite acceptance.
 
 ## What "audit log" means here
 
@@ -51,19 +51,16 @@ task.add_done_callback(_background_tasks.discard)
 ## Rules for writing the audit call
 
 ### Action naming
-- Format: `<RESOURCE>_<VERB_PAST>` — e.g. `PRESCRIPTION_APPROVED`,
-  `PRESCRIPTION_FLAGGED`, `ADR_SUBMITTED`, `HMVS_VERIFIED`,
-  `HMVS_DECOMMISSIONED`, `SETTINGS_CHANGED`.
+- Format: `<RESOURCE>_<VERB_PAST>` — e.g. `PRESCRIPTION_FLAGGED`,
+  `ADR_SUBMITTED`, `SETTINGS_CHANGED`.
 - Existing actions live in `app/services/audit.py` — extend the literal
   type union there; never accept arbitrary strings.
 
 ### Resource identification
 - `resource_type` is a coarse bucket: `PRESCRIPTION`, `ADR_REPORT`,
-  `HMVS_PACK`, `STAFF_INVITE`, `SETTINGS`.
+  `STAFF_INVITE`, `SETTINGS`.
 - `resource_id` is the natural identifier the inspector will search for —
-  Rx barcode, pack serial (NOT full QR), invite token, etc.
-- **Never put a full QR code in `resource_id`** — it contains the serial
-  which is privacy-sensitive (HMVO guidance).
+  Rx barcode, invite token, etc. Never a secret or privacy-sensitive code.
 
 ### Fire-and-forget plumbing
 - Create the task via `asyncio.create_task(...)`.

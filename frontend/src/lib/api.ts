@@ -1,5 +1,4 @@
 import type {
-  ActiveAlert,
   AdrSort,
   DeliveryMethod,
   DeliveryMethodFilter,
@@ -203,69 +202,6 @@ export async function getSafetyChecks(rxId: string): Promise<SafetyCheck[]> {
   }
   return data.checks;
 }
-
-export async function getActiveAlerts(): Promise<ActiveAlert[]> {
-  const r = await fetch(`${API_BASE}/alerts/active`, { credentials: "include" });
-  const data = await handle(r);
-  if (!Array.isArray(data)) {
-    throw new ApiError(
-      0,
-      "Unexpected response from /alerts/active. Is the API running and proxied?",
-    );
-  }
-  return data.map((a) => ({
-    id: a.id,
-    type: a.checkType,
-    status: a.status,
-    description: a.message,
-    rxId: a.rxId ?? null,
-    createdAt: a.createdAt ?? null,
-  }));
-}
-
-export interface ApproveResponse {
-  success: boolean;
-  rxId: string;
-  status: string;
-  completedAt: string;
-  execId: string;
-  executionNo: string;
-  // documentationLogId is null on an idempotent retry — no new counsel log
-  // is written when the cached receipt is replayed. Treat any consumer of
-  // this field as needing a null check.
-  documentationLogId: string | null;
-  dispenseLogId: string;
-  // True when this response was served from dispense_logs (cached) instead
-  // of by re-POSTing to ΗΔΥΚΑ. The client can use this to suppress duplicate
-  // toasts / animations on retries.
-  idempotent: boolean;
-}
-
-// A verified + supplied HMVS pack (GS1 fields off the 2D DataMatrix). Sent on
-// approve so the eDispensation carries the real ΕΟΦ/QR serial per dispensed unit
-// instead of the synthetic placeholder ΗΔΥΚΑ rejects.
-export interface DispensePack {
-  gtin: string;
-  serial: string;
-  batch: string;
-  expiry: string; // YYMMDD
-}
-
-export async function approvePrescription(
-  rxId: string,
-  packs: DispensePack[] = [],
-): Promise<ApproveResponse> {
-  const r = await fetch(`${API_BASE}/prescriptions/${encodeURIComponent(rxId)}/approve`, {
-    method: "POST",
-    credentials: "include",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ packs }),
-  });
-  return handle(r) as Promise<ApproveResponse>;
-}
-
-// HMVS/FMD pack verification & decommission live in lib/hmvs.ts (the single
-// dispense-only gateway for /pharmapi/hmvs/*). See docs/hmvs-scope.md.
 
 export type DiscrepancyType =
   | "dose_error"

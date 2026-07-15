@@ -171,14 +171,14 @@ ideal for a cheap demo box (see [`aws-public-deploy.md`](aws-public-deploy.md)).
 
 ## 7. Demo data — IDs for testers
 
-All seeded; available in the Counter queue immediately after §3. Drive the core
-flow **Counter → Review → Dispense Wizard** with these.
+All seeded; available immediately after §3. Drive the core flow
+**Counter (scan) → Review** with these.
 
-**Happy path (clean dispense):**
+**Happy path (clean review):**
 
 | Rx ID         | Patient        | Drug          | Notes |
 |---------------|----------------|---------------|-------|
-| `RX2024-005`  | Maria Stavrou  | Warfarin 5 mg | PENDING, top of the queue — straightforward dispense |
+| `RX2024-005`  | Maria Stavrou  | Warfarin 5 mg | PENDING — straightforward review |
 | `RX2024-001`  | Sarah Johnson  | Amoxicillin   | PENDING |
 | `RX2024-002`  | (queue)        | Warfarin      | PENDING |
 
@@ -277,7 +277,7 @@ docker compose -f compose.prod.yaml --env-file .env.prod down -v
 - [ ] `docker compose -f compose.prod.yaml --env-file .env.prod ps` — all healthy
 - [ ] `curl -sk https://<host>/health` returns `{"status":"ok", …}`
 - [ ] Login with the seeded admin succeeds; the session cookie is `Secure`
-- [ ] Counter → click `RX2024-005` → Review → Dispense Wizard completes (mock)
+- [ ] Counter → enter `RX2024-005` → Review page renders with safety checks (mock)
 - [ ] An engine Rx (`RX-ENGINE-001`) shows the contraindication alert
 - [ ] Hard-refresh on `https://<host>/documentation` renders the page (no 404)
 - [ ] An invited tester can open their `/accept-invite?token=…` link

@@ -78,16 +78,6 @@ services:
       COOKIE_SECURE: "true"
       # Mock pilot: serve synthetic upstream data at runtime.
       PHARMAPI_MOCK: "true"
-      # HMVS (EU-FMD) integration. HMVS_MOCK=false flips dispense to the live
-      # ITE sandbox — opt-in per deploy so a forgotten env doesn't silently 503
-      # every supply. The two URLs default to the ITE sandbox; the two secrets
-      # use the ${VAR:?msg} required-var pattern so a live flip without creds
-      # fails at compose-up rather than at first dispense.
-      HMVS_MOCK: ${HMVS_MOCK:-true}
-      HMVS_IDENTITY_URL: ${HMVS_IDENTITY_URL:-https://api-gr-iqe.nmvo.eu}
-      HMVS_VERIFICATION_URL: ${HMVS_VERIFICATION_URL:-https://api-gr-iqe.nmvo.eu/verification}
-      HMVS_CLIENT_ID: ${HMVS_CLIENT_ID:?set HMVS_CLIENT_ID}
-      HMVS_CLIENT_SECRET: ${HMVS_CLIENT_SECRET:?set HMVS_CLIENT_SECRET}
       # Pin CORS to the pilot origin. The SPA is same-origin via Caddy, so this
       # is defence-in-depth — but config.py defaults to "*", which with
       # credentials=True is a spec-invalid no-op. Follows PILOT_DOMAIN; for a

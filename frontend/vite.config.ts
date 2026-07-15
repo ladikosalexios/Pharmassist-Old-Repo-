@@ -24,7 +24,6 @@ export default defineConfig({
       "/prescriptions": "http://backend:8000",
       "/safety-checks": "http://backend:8000",
       "/spc": "http://backend:8000",
-      "/alerts": "http://backend:8000",
       "/messages": "http://backend:8000",
       "/notifications": "http://backend:8000",
       "/health": "http://backend:8000",

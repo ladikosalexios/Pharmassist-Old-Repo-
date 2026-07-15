@@ -31,7 +31,7 @@ claim verified against file:line).
 |---|---|---|---|---|
 | 1 | Patient lookup by AMKA | **EXISTS** | `GET /patients/{id}` → `services/patients.resolve()` → `pharmapi_get_patient` (`services/pharmapi.py:764`) | **Reuse** service, new /v1 router + typed schema |
 | 2 | Patient lookup by EKAA | **EXISTS** | Same path; non-11-digit key → `patientekaa` param (`services/patients.py:802-808`) | **Reuse**; add EKAA mock fixture (none exist) |
-| 3 | Prescription search (pending + history by AMKA) | **EXISTS** | `GET /pharmapi/prescriptions/{queue,history}` → `pharmapi_search_prescriptions` (`pharmapi.py:686`) | **Reuse**; fix silent history degrade w/o AMKA (`routers/pharmapi.py:114-117`) |
+| 3 | Prescription search (pending + history by AMKA) | **EXISTS** | `pharmapi_search_prescriptions` (`services/pharmapi.py`) — the old `/pharmapi/prescriptions/{queue,history}` routes were removed (caller-less); /v1 calls the service directly | **Reuse**; fix silent history degrade w/o AMKA |
 | 4 | Patient insurance details (ΕΟΠΥΥ, co-pay %) | **PARTIAL** | `GET /patients/{id}/insurances` (`routers/patients.py:171`) — payload has fund identity but **no co-pay % field** (`schemas/patient_insurances.py:15-24`) | **Reuse**; co-pay % is a contract decision (see D-7) |
 | 5 | Patient intolerances (ΗΔΥΚΑ) | **PARTIAL** | Service exists (`pharmapi.py:851`) but only embedded inside the profile response; pharmacy id read from the **global session** | **Reuse** service + **build** standalone endpoint; needs BC-4 |
 | 6 | Patient medicine history (ΗΔΥΚΑ) | **PARTIAL** | `GET /patients/{id}/prescriptions` (`pharmapi.py:866`, 609→`blocked` envelope) — pharmacy id from **global session** | **Reuse**; keep pagination + `blocked` envelope; needs BC-4 |
@@ -88,8 +88,9 @@ Redis (already documented in `docs/test-env-runbook.md`).
 
 **Credential threading:** a frozen `PharmapiContext` dataclass
 (`username, password, api_key, base_url, pharmacy_unit_id, session_key`) passed explicitly
-through `pharmapi_get`, `pharmapi_dispense`, `pharmapi_get_prescription` and everything
-built on them. A module-level `legacy_context()` built from today's env settings is the
+through `pharmapi_get`, `pharmapi_get_prescription` and everything built on them.
+(`pharmapi_dispense` was in the original list; it was deleted with the execution path —
+tag `hmvs-certified`.) A module-level `legacy_context()` built from today's env settings is the
 default, so **every existing B2C call site keeps working unchanged**. The G14 auto-refresh
 re-auths with the *context's* creds (today it would heal one tenant's call with another's
 identity). `get_pharmacy_id()` becomes `ctx.pharmacy_unit_id`. The keepalive loop stays
@@ -232,9 +233,9 @@ formulary (BC-13/14) → tests + Postman (BC-15/16). BC-13a (probe) can run any 
 - Implement D-1: `PharmapiContext` (frozen dataclass) + `PharmapiSessionStore` (in-process
   dict keyed by `session_key`, per-key `asyncio.Lock`, clean seam for Redis).
 - Thread `ctx` through `pharmapi_get` (fixes ~9 capabilities at once — search, patient,
-  insurances, intolerances, history, masterdata, version, errorslist),
-  `pharmapi_dispense`, `pharmapi_get_prescription`. Default `ctx=legacy_context()`
-  preserves every existing call site.
+  insurances, intolerances, history, masterdata, version, errorslist) and
+  `pharmapi_get_prescription`. Default `ctx=legacy_context()` preserves every existing
+  call site.
 - G14 auto-refresh re-auths with `ctx` creds and updates only `ctx.session_key`'s entry;
   `get_pharmacy_id()` → `ctx.pharmacy_unit_id` (B2C legacy context keeps the
   session-derived value); keepalive stays legacy-only; B2B re-auths lazily.
@@ -407,12 +408,11 @@ scoped to the `ApiContext` location, mock-parity maintained, camelCase via the e
 | Single shared upstream `Api-Key` across tenants may be contractually wrong | Low (now) | Open question to ΗΔΥΚΑ; per-location Basic Auth carries identity meanwhile; `api_key` already lives in `PharmapiContext` so a per-location key is a data change |
 | `X-API-Key` in logs/proxies | Low | Key never logged; hash-only at rest; document TLS-only in Postman README |
 
-## 5. Explicitly out of scope (Tier-3 / add-on — do not pull in)
+## 5. Explicitly out of scope (do not pull in)
 
-Dispense/execution (`pharmapi_dispense`, CDA, `/approve`), HMVS endpoints, SPC agents,
-AI explanations, ADR endpoints, adherence, recalls, pre-auth, pharmacovigilance. BC-4
-threads context through `pharmapi_dispense` only because it shares the module — no /v1
-endpoint exposes it.
+Dispense/execution and HMVS were **deleted from the codebase entirely** (retrieval-only
+pivot — tag `hmvs-certified`), so they are out of scope by construction. Also out: SPC
+agents, AI explanations, ADR endpoints, adherence, recalls, pre-auth, pharmacovigilance.
 
 ## 6. Questions for review (blocking items marked ●)
 

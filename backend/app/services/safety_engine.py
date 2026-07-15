@@ -138,7 +138,7 @@ async def load_active_safety_rules(session: AsyncSession) -> list[SafetyRule]:
     """One-shot load of every active safety rule.
 
     Intended for callers that batch many evaluate_safety calls per request
-    (e.g. the alerts dashboard) so the per-rx WHERE-filtering moves to
+    (e.g. the /v1 safety endpoint) so the per-rx WHERE-filtering moves to
     Python and the DB sees a single query instead of N.
     """
     result = await session.scalars(select(SafetyRule).where(SafetyRule.active == true()))
@@ -157,7 +157,7 @@ async def checks_for_prescription(
 
     Demo prescriptions (rx_id in MOCK_SAFETY_CHECKS) are served from their
     curated, clinically-authored checklist; everything else is evaluated by
-    the rule engine. BOTH the dashboard (/alerts/active) and the per-rx
+    the rule engine. BOTH the prescription detail view and the per-rx
     verification view (/safety-checks/{rx}) call this, so the two views can
     never disagree about a prescription — a block on one is a block on the
     other by construction.

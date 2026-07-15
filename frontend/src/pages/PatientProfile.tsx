@@ -632,7 +632,7 @@ export function PatientProfile() {
               onClick={() => navigate("/dashboard")}
               className="flex items-center gap-1.5 rounded-lg bg-brand-600 px-4 py-2 text-[13px] font-semibold text-white shadow-card transition-colors hover:bg-brand-700"
             >
-              {t("patientProfile.startDispense")} <ChevronRightIcon width={15} height={15} />
+              {t("patientProfile.reviewPrescription")} <ChevronRightIcon width={15} height={15} />
             </button>
           </div>
         </div>

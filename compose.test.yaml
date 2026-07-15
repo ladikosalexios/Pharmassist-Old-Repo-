@@ -1,5 +1,5 @@
 # PharmAssist test-environment stack — a second production-flavour deploy that
-# points at the REAL upstream test systems (ΗΔΥΚΑ testeps + NMVO ITE for HMVS).
+# points at the REAL upstream test system (ΗΔΥΚΑ testeps).
 #
 # Boot it with an env file that holds the test secrets (see .env.test.example):
 #
@@ -9,10 +9,6 @@
 #   • PHARMAPI_MOCK=false — every Pharmapi call goes to testeps.e-prescription.gr
 #     for real. PHARMAPI_USERNAME/PASSWORD/API_KEY must be a working ΗΔΥΚΑ
 #     account on testeps.
-#   • HMVS_MOCK=false — every pack verify/state-change goes to the NMVO ITE
-#     sandbox. HMVS_CLIENT_ID/SECRET are the PharmAssist-IQE-1 equipment
-#     creds (our own equipment, not the shared Test-Book pair — this feeds
-#     qualification evidence later).
 #   • Distinct compose `name`, pgdata volume, and DB hostname so the test stack
 #     can sit alongside the mock-pilot stack on the same host without colliding.
 #
@@ -93,22 +89,6 @@ services:
       PHARMAPI_PASSWORD: ${PHARMAPI_PASSWORD:?set PHARMAPI_PASSWORD}
       PHARMAPI_API_KEY: ${PHARMAPI_API_KEY:?set PHARMAPI_API_KEY}
       PHARMAPI_KEEPALIVE_ENABLED: ${PHARMAPI_KEEPALIVE_ENABLED:-true}
-
-      # ── HMVS (NMVO ITE sandbox) ─────────────────────────────────────────────
-      # Confirmed against backend/app/config.py:140-141 + services/hmvs.py:192 —
-      # the token URL is assembled as `{HMVS_IDENTITY_URL}/identity/connect/token`.
-      # So HMVS_IDENTITY_URL must NOT include the `/identity` suffix, or the
-      # request goes to `.../identity/identity/connect/token` and 404s.
-      # Verification is assembled as `{HMVS_VERIFICATION_URL}/product/gs1/...`
-      # so the `/verification` suffix DOES belong here.
-      HMVS_MOCK: "false"
-      HMVS_IDENTITY_URL: ${HMVS_IDENTITY_URL:-https://api-ite.nmvo.eu}
-      HMVS_VERIFICATION_URL: ${HMVS_VERIFICATION_URL:-https://api-ite.nmvo.eu/verification}
-      # Equipment creds for PharmAssist-IQE-1 (our own ITE equipment, not the
-      # shared Test-Book pair). Required-var pattern: a forgotten secret aborts
-      # compose-up rather than 503-ing every pack verify at runtime.
-      HMVS_CLIENT_ID: ${HMVS_CLIENT_ID:?set HMVS_CLIENT_ID}
-      HMVS_CLIENT_SECRET: ${HMVS_CLIENT_SECRET:?set HMVS_CLIENT_SECRET}
 
       # Pin CORS to the test origin (defence-in-depth; the SPA is same-origin).
       CORS_ALLOW_ORIGINS: "https://${PILOT_DOMAIN:-localhost}"

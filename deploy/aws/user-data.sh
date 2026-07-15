@@ -87,11 +87,6 @@ POSTGRES_PASSWORD=$(gen_hex)
 PHARMAPI_USERNAME=$PHARMAPI_USERNAME
 PHARMAPI_PASSWORD=$PHARMAPI_PASSWORD
 PHARMAPI_API_KEY=$PHARMAPI_API_KEY
-# HMVS is unused in the mock demo, but compose.prod.yaml requires the two vars;
-# mock mode + placeholders satisfy the required-var guard without a live flip.
-HMVS_MOCK=true
-HMVS_CLIENT_ID=mock
-HMVS_CLIENT_SECRET=mock
 PILOT_DOMAIN=$DOMAIN
 ENVEOF
 fi

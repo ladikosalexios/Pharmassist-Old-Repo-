@@ -62,36 +62,9 @@ def _env_required(key: str) -> str:
     return value
 
 
-def _validate_hmvs_identity_url(url: str, *, hmvs_mock: bool) -> None:
-    """Fail-fast on the common HMVS_IDENTITY_URL foot-gun.
-
-    services/hmvs.py assembles the token URL as
-    ``{HMVS_IDENTITY_URL}/identity/connect/token`` — so setting
-    ``HMVS_IDENTITY_URL=https://api-ite.nmvo.eu/identity`` (matching the NMVO
-    Postman env, which lists identity + verification symmetrically) yields a
-    double ``/identity/identity/...`` path that 404s every token mint. The
-    smoke script's (c) assertion catches it at first verify, but by then the
-    stack is already accepting traffic. Catch it at boot instead.
-
-    Skipped in mock mode — the token URL is never built there, so a
-    cosmetically wrong env var can't cause a runtime failure."""
-    if hmvs_mock:
-        return
-    normalized = url.rstrip("/").lower()
-    if normalized.endswith("/identity") or "/connect/token" in normalized:
-        raise RuntimeError(
-            f"HMVS_IDENTITY_URL={url!r} looks wrong: the code appends "
-            "'/identity/connect/token' itself, so the env var must be the IDP "
-            "host WITHOUT the '/identity' suffix (e.g. "
-            "'https://api-ite.nmvo.eu'). See docs/test-env-runbook.md §2 — "
-            "this is the no-/identity-suffix caveat."
-        )
-
-
 def _validated_v1_rate_limit(spec: str) -> str:
     """Fail-fast on a malformed V1_RATE_LIMIT — a bad spec must break the boot,
-    not 500 every authenticated /v1 request at first enforcement (same
-    philosophy as _validate_hmvs_identity_url)."""
+    not 500 every authenticated /v1 request at first enforcement."""
     try:
         parse_rate_limit(spec)
     except ValueError as exc:
@@ -130,18 +103,6 @@ class Settings(BaseModel):
     pharmapi_keepalive_enabled: bool
     pharmapi_keepalive_interval_seconds: int
 
-    # ── HMVS (Hellenic Medicines Verification System / EU FMD) ──────────────
-    # OAuth2 client-credentials bridge to the ITE sandbox. None of these are
-    # fail-fast: HMVS_MOCK (default true) skips the live calls entirely, exactly
-    # like the Pharmapi mock branch. The client_id/secret are the ITE shared
-    # published credentials in dev and the IQE equipment creds (via SSM) in prod.
-    hmvs_mock: bool
-    hmvs_identity_url: str
-    hmvs_verification_url: str
-    hmvs_client_id: str
-    hmvs_client_secret: str
-    hmvs_token_skew_seconds: int
-
     # ── B2B /v1 ──────────────────────────────────────────────────────────────
     # Per-API-key fixed-window limit (FT-1), e.g. "120/minute". Enforced in
     # routers/v1/deps.get_api_context; validated fail-fast at startup below.
@@ -177,9 +138,6 @@ def get_settings() -> Settings:
     # T2-2: same fail-fast for the LLM seam's mock flag (a typo'd LLM_MOCK would
     # otherwise silently serve canned AI outputs on a live Tier-2 box).
     validate_llm_mock_token()
-    hmvs_mock = _env_bool("HMVS_MOCK", True)
-    hmvs_identity_url = os.getenv("HMVS_IDENTITY_URL", "https://api-ite.nmvo.eu")
-    _validate_hmvs_identity_url(hmvs_identity_url, hmvs_mock=hmvs_mock)
     return Settings(
         app_title=os.getenv("APP_TITLE", "PharmAssist POC"),
         app_description=os.getenv(
@@ -206,18 +164,6 @@ def get_settings() -> Settings:
             "PHARMAPI_KEEPALIVE_INTERVAL_SECONDS",
             12 * 3600,  # 12h — comfortably within the 24h ΗΔΥΚΑ window
         ),
-        hmvs_mock=hmvs_mock,
-        # Token host: POST {hmvs_identity_url}/identity/connect/token. The
-        # /identity suffix is appended by services/hmvs.py — NEVER put it in
-        # this env var. _validate_hmvs_identity_url enforces that at boot.
-        hmvs_identity_url=hmvs_identity_url,
-        # Verify/state-change base: {hmvs_verification_url}/product/gs1/...
-        hmvs_verification_url=os.getenv(
-            "HMVS_VERIFICATION_URL", "https://api-ite.nmvo.eu/verification"
-        ),
-        hmvs_client_id=os.getenv("HMVS_CLIENT_ID", ""),
-        hmvs_client_secret=os.getenv("HMVS_CLIENT_SECRET", ""),
-        hmvs_token_skew_seconds=_env_int("HMVS_TOKEN_SKEW_SECONDS", 60),
         v1_rate_limit=_validated_v1_rate_limit(os.getenv("V1_RATE_LIMIT", "120/minute")),
         # LLM seam (T2-2). Defaults: Mistral's EU API + a sensible model; the key
         # is empty until provisioned (checked at first use, never at boot). The

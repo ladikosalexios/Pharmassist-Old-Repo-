@@ -10,7 +10,6 @@ import { Patients } from "./pages/Patients";
 import { PatientProfile } from "./pages/PatientProfile";
 import { Instructions } from "./pages/Instructions";
 import { Settings } from "./pages/Settings";
-import { HmvsCheck } from "./pages/HmvsCheck";
 
 export function App() {
   return (
@@ -27,9 +26,6 @@ export function App() {
         <Route path="/patients/:id" element={<PatientProfile />} />
         <Route path="/instructions" element={<Instructions />} />
         <Route path="/settings" element={<Settings />} />
-        {/* H1 HMVS-input safeguards demo (Caps Lock + keyboard-layout). Not in
-            nav — reachable at /hmvs-check for the HMVO recording. Mock-only. */}
-        <Route path="/hmvs-check" element={<HmvsCheck />} />
       </Route>
       <Route path="/" element={<Navigate to="/dashboard" replace />} />
       <Route path="*" element={<Navigate to="/dashboard" replace />} />

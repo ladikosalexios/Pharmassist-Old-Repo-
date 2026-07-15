@@ -35,34 +35,16 @@ Navigate to http://localhost:5173/login
 
 ## Dev / mock modes
 
-The Docker stack runs **fully offline** — no live ΗΔΥΚΑ or HMVS calls — via two
-toggles set in `compose.yaml`. Both default to `true` for local dev.
+The Docker stack runs **fully offline** — no live ΗΔΥΚΑ calls — via one toggle
+set in `compose.yaml`. It defaults to `true` for local dev.
 
 | Toggle | Effect |
 |--------|--------|
 | `PHARMAPI_MOCK=true` | Skip live ΗΔΥΚΑ Pharmapi calls; routers serve canned `MOCK_*` data. |
-| `HMVS_MOCK=true` | Skip the EU FMD registry; pack verify / decommission return canned ITE-style results, selected by sentinel serial (`404` → unknown pack, `409` → invalid transition, anything else → Active / success). |
 
-### Driving the dispense flow without a scanner
-
-The dispense wizard's step 1 verifies a medicine pack by scanning its GS1
-DataMatrix. A real pack code separates its variable-length fields with an
-invisible **FNC1 byte (0x1D)** that a hardware scanner or the camera emits but
-**a keyboard cannot type** — so you can't hand-key a pack in.
-
-For dev, a dashed **"DEV · fill test pack"** button sits under the scan input.
-It injects a well-formed GS1 payload (GTIN / expiry / batch / random serial with
-the FNC1 separator) that mock HMVS verifies as **Active**, so the pack lands in
-the list and **"Συνέχεια στην επιβεβαίωση"** enables. Click it once per pack.
-
-The button is gated behind Vite's `import.meta.env.DEV`, which is `true` only
-under `npm run dev` (the Docker `frontend` service) and `false` for `vite build`
-— so it is statically tree-shaken out of any production bundle and never reaches
-the HMVO testbook or a real deployment.
-
-> With `HMVS_MOCK=false` (live registry), use a real carton and the hardware
-> scanner or the **Χρήση κάμερας** button instead — the dev button still injects
-> mock serials, which the live registry will reject.
+> PharmAssist is **retrieval-only**: it reviews prescriptions and runs safety
+> checks; dispensing happens in the pharmacist's own pharmacy software. The
+> eDispensation + HMVS/FMD execution path was removed at tag `hmvs-certified`.
 
 ## Required secrets
 
@@ -137,7 +119,7 @@ if you ran it in the foreground).
 - Encrypted Pharmapi credential storage per pharmacy
 - Safety engine (drug-drug interactions)
 - Patient history / conditions
-- Dispense flow
+- Prescription review (scan-to-review, retrieval-only)
 - React frontend with TanStack Query + Zustand
 
 ## Auto-generated API docs

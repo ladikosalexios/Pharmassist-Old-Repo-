@@ -559,9 +559,9 @@ const MOCK_AUDIT = [
   {
     ts: "31/05/2026 14:31:08",
     actor: "—",
-    action: "settings.auditActionDispense",
+    action: "settings.auditActionReview",
     target: "barcode …",
-    type: "dispense",
+    type: "review",
   },
   {
     ts: "31/05/2026 13:58:12",
@@ -579,7 +579,7 @@ const MOCK_AUDIT = [
   },
 ];
 
-type AuditFilter = "all" | "dispense" | "access" | "login";
+type AuditFilter = "all" | "review" | "access" | "login";
 
 function AuditPage() {
   const { t } = useTranslation();
@@ -587,7 +587,7 @@ function AuditPage() {
 
   const auditTabs: { value: AuditFilter; label: string }[] = [
     { value: "all", label: t("settings.auditAll") },
-    { value: "dispense", label: t("settings.auditDispense") },
+    { value: "review", label: t("settings.auditReview") },
     { value: "access", label: t("settings.auditAccess") },
     { value: "login", label: t("settings.auditLogin") },
   ];
@@ -595,7 +595,7 @@ function AuditPage() {
   const visibleAudit = filter === "all" ? MOCK_AUDIT : MOCK_AUDIT.filter((a) => a.type === filter);
 
   const TYPE_TONE: Record<string, string> = {
-    dispense: "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
+    review: "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
     access: "bg-brand-50 dark:bg-brand-500/10 text-brand-700 dark:text-brand-300",
     login: "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300",
   };

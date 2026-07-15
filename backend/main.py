@@ -48,11 +48,9 @@ from app.observability import (
 )
 from app.routers import (
     admin,
-    alerts,
     auth,
     documentation,
     health,
-    hmvs,
     instructions,
     messages,
     notifications,
@@ -66,9 +64,8 @@ from app.routers import (
 )
 from app.routers.v1.errors import install_v1_exception_handlers
 from app.services.audit import _background_tasks
-from app.services.hmvs import probe_developer_tls
 from app.services.pharmapi import keepalive_loop, pharmapi_check_version
-from app.utils.environment import is_mock_hmvs, is_mock_pharmapi
+from app.utils.environment import is_mock_pharmapi
 
 logger = logging.getLogger(__name__)
 
@@ -77,13 +74,6 @@ logger = logging.getLogger(__name__)
 async def lifespan(_app: FastAPI):
     if not is_mock_pharmapi():
         await pharmapi_check_version()
-
-    # Startup TLS probe — only when HMVS is live. Cheap (one HEAD) and never
-    # blocks the boot: it logs a distinct [HMVS][TLS] error and returns, so an
-    # unknown-CA situation surfaces in the boot logs rather than at the first
-    # dispense. Skip in mock mode (no upstream, no chain to validate).
-    if not is_mock_hmvs():
-        await probe_developer_tls()
 
     # Proactive ΗΔΥΚΑ session keep-alive (opt-in via PHARMAPI_KEEPALIVE_ENABLED).
     # Guarantees a /user/me call well within the 24h window so the upstream
@@ -105,7 +95,7 @@ async def lifespan(_app: FastAPI):
             with contextlib.suppress(asyncio.CancelledError):
                 await keepalive_task
         # Drain in-flight fire-and-forget audit tasks so a graceful restart
-        # doesn't drop a pharmacist's last logged action (e.g. an HMVS supply).
+        # doesn't drop a pharmacist's last logged action.
         if _background_tasks:
             await asyncio.gather(*_background_tasks, return_exceptions=True)
 
@@ -118,11 +108,9 @@ _ROUTER_MODULES = (
     auth,
     admin,
     pharmapi,
-    hmvs,
     prescriptions,
     safety_checks,
     spc,
-    alerts,
     messages,
     documentation,
     instructions,

@@ -154,7 +154,7 @@ class _JsonFormatter(logging.Formatter):
     """Minimal single-line JSON formatter — no extra dep.
 
     Emits the fields a log aggregator typically wants (level, name, message,
-    timestamp), plus anything an HMVS / Pharmapi log line tagged via
+    timestamp), plus anything a Pharmapi log line tagged via
     ``logger.info(..., extra={...})``. Exception info goes under ``exc``.
     """
 

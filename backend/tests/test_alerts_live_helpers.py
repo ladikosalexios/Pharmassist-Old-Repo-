@@ -1,5 +1,5 @@
-"""Tests for the T9 live-mode helpers in routers/alerts.py and the
-defensive paths added to services/safety_engine.evaluate_safety.
+"""Tests for the T9 live-mode reshaping helpers and the defensive paths
+added to services/safety_engine.evaluate_safety.
 
 No DB and no real Pharmapi are involved — pure dict reshaping plus
 evaluate_safety invocations with an explicit empty rules list and the
