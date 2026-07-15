@@ -47,3 +47,18 @@ jobs:
           # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
           # or https://code.claude.com/docs/en/cli-reference for available options
 
+      # The action hides Claude's output, so an is_error:true failure is
+      # undiagnosable from the job log alone (e.g. expired OAuth token vs.
+      # usage-limit exhaustion vs. upstream error). Surface just the error
+      # text from the execution log on failure.
+      - name: Print Claude error on failure
+        if: failure()
+        run: |
+          f=/home/runner/work/_temp/claude-execution-output.json
+          if [ -f "$f" ]; then
+            echo "── result / error fields from claude-execution-output.json ──"
+            jq -r '.[] | select(.type=="result") | {subtype, is_error, result, errors} | @json' "$f" || cat "$f" | tail -5
+          else
+            echo "no claude-execution-output.json found"
+          fi
+
