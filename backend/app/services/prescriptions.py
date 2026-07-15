@@ -546,7 +546,7 @@ MOCK_PRESCRIPTIONS: dict = {
     # ── Historical prescriptions designed to trigger interaction alerts ─────
     # Referenced from PATIENT_RX_HISTORY_BASE (see app/services/patients.py).
     # Each `medication.atcCode` here pairs with a seeded safety_rule so that
-    # evaluate_safety produces visible output on /alerts/active in mock mode.
+    # evaluate_safety produces visible output in mock mode.
     # Patient-condition rules (PREGNANCY/G6PD/RENAL_SEVERE) fire via DB rows
     # seeded by scripts/seed.py — re-run that script to exercise them.
     "RX-HIST-001": {

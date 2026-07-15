@@ -22,7 +22,7 @@ async def get_safety_checks(
     """Return automated safety checks for a prescription.
 
     Delegates to checks_for_prescription — the single source shared with the
-    dashboard's /alerts/active — so the two views can never disagree. Demo
+    prescription detail view — so the two views can never disagree. Demo
     rx_ids resolve from the curated MOCK_SAFETY_CHECKS; everything else is
     evaluated by the rule engine.
     """

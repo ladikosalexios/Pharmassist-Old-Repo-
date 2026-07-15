@@ -2,8 +2,8 @@
 
 Builds an isolated app via create_app() with get_current_user overridden so
 auth is bypassed, then drives the real routers. Session-backed endpoints
-(/documentation, /alerts/active) hit the live seeded dev DB the backend
-container is wired to; /patients/{id} resolves from the in-memory mock.
+(/documentation) hit the live seeded dev DB the backend container is wired
+to; /patients/{id} resolves from the in-memory mock.
 
 These run against the running compose stack (seeded DB + PHARMAPI_MOCK=true).
 pytest is not part of CI, so DB availability here is expected.
@@ -33,7 +33,7 @@ from main import create_app  # noqa: E402
 
 # The seed pulls the pharmacy name from live ΗΔΥΚΑ /user/me, so it drifts with
 # the account — resolve it from the dev DB instead of hardcoding, so the
-# /alerts lookup (find_pharmacy_by_name) always matches what's actually seeded.
+# pharmacy lookup (find_pharmacy_by_name) always matches what's actually seeded.
 def _seeded_pharmacy_name() -> str:
     import asyncio
 
@@ -97,12 +97,6 @@ def test_documentation_returns_items_total_stats(client):
     assert isinstance(body["items"], list)
     assert isinstance(body["total"], int)
     assert isinstance(body["stats"], dict)
-
-
-def test_alerts_active_returns_list(client):
-    r = client.get("/alerts/active")
-    assert r.status_code == 200, r.text
-    assert isinstance(r.json(), list)
 
 
 def test_get_patient_returns_profile(client):
