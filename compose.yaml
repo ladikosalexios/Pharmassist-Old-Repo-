@@ -22,7 +22,10 @@ services:
       # Override config.py default — `localhost` would mean the backend
       # container itself; we want the `db` service on the compose network.
       DATABASE_URL: postgresql+asyncpg://pharmassist:pharmassist_dev@db:5432/pharmassist
-      PHARMAPI_MOCK: "true"
+      # Default mock; flip the dev stack onto live testeps with:
+      #   PHARMAPI_MOCK=false docker compose up -d
+      # (PHARMAPI_BASE already defaults to testeps.e-prescription.gr/pharmapiv2.)
+      PHARMAPI_MOCK: ${PHARMAPI_MOCK:-true}
       # LLM seam (T2-2) stays mocked in dev — deterministic canned AI outputs,
       # no Mistral key needed. A live Tier-2 box sets LLM_MOCK=false + LLM_API_KEY
       # (the standard-plan key, via env/SSM) once Rekas accepts the DPA (D-15).

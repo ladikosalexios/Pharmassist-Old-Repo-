@@ -3,30 +3,22 @@
 Usage (from backend/):
     python -m scripts.seed_drug_catalog                       # full sync
     python -m scripts.seed_drug_catalog --since 2026-05-01   # incremental
+
+Requires PHARMAPI_MOCK=false (the mock branch returns an empty catalogue).
+Delegates to services.drug_catalog.run_sync, which records a
+catalog_sync_runs row — check GET /admin/sync-drug-catalog/status or the
+log line it emits for the fetched/upserted/skipped summary.
 """
 
 import argparse
 import asyncio
+import logging
 import os
 import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from app.db.session import AsyncSessionLocal
-from app.services.drug_catalog import sync_drug_catalog
-
-
-async def main(since: str | None) -> None:
-    label = f"since {since}" if since else "full catalogue"
-    print(f"[seed_drug_catalog] Starting sync ({label})...")
-    async with AsyncSessionLocal() as db:
-        summary = await sync_drug_catalog(db, since=since)
-    print(
-        f"[seed_drug_catalog] Done — "
-        f"fetched={summary['fetched']}  upserted={summary['upserted']}  "
-        f"skipped={summary['skipped']}"
-    )
-
+from app.services.drug_catalog import run_sync
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
@@ -34,4 +26,7 @@ if __name__ == "__main__":
     )
     parser.add_argument("--since", default=None, help="ISO date YYYY-MM-DD for incremental update")
     args = parser.parse_args()
-    asyncio.run(main(args.since))
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
+    label = f"since {args.since}" if args.since else "full catalogue"
+    print(f"[seed_drug_catalog] Starting sync ({label})...")
+    asyncio.run(run_sync(args.since, triggered_by="scripts.seed_drug_catalog"))
