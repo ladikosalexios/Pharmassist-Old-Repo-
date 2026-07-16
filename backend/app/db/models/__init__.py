@@ -17,6 +17,7 @@ from .patient_condition import PatientCondition
 from .pharmacist import Pharmacist
 from .pharmacist_pharmacy import PharmacistPharmacy
 from .pharmacy import Pharmacy
+from .prescription_scan import PrescriptionScan
 from .safety_rule import SafetyRule
 
 __all__ = [
@@ -25,6 +26,7 @@ __all__ = [
     "PharmacistPharmacy",
     "Invitation",
     "PatientCondition",
+    "PrescriptionScan",
     "DocumentationLog",
     "AdrReport",
     "AdrEvent",

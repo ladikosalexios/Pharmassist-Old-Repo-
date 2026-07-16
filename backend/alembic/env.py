@@ -26,6 +26,7 @@ from app.db.models.patient_condition import PatientCondition  # noqa
 from app.db.models.pharmacist import Pharmacist  # noqa
 from app.db.models.pharmacist_pharmacy import PharmacistPharmacy  # noqa
 from app.db.models.pharmacy import Pharmacy  # noqa
+from app.db.models.prescription_scan import PrescriptionScan  # noqa
 from app.db.models.safety_rule import SafetyRule  # noqa
 
 config = context.config
