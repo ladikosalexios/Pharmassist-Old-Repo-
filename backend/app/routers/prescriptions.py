@@ -146,11 +146,30 @@ async def get_prescription_for_verification(
     if rx is None:
         raise HTTPException(status_code=404, detail=f"Prescription {rx_id} not found")
 
+    # Resolve ATCs for EVERY therapy line in one query so multi-medicine
+    # prescriptions get per-line safety evaluation (sibling-line interactions
+    # fire in the engine) and the UI can render one card per medicine. Falls
+    # back to the single medicineBarcode when the source had no line list.
+    lines = rx.get("therapyLines") or []
+    line_barcodes = [ln.get("medicineBarcode") for ln in lines if ln.get("medicineBarcode")]
     medicine_barcode = rx.get("medicineBarcode")
-    atc_map = await atc_codes_for_barcodes(session, [medicine_barcode] if medicine_barcode else [])
+    barcodes = line_barcodes or ([medicine_barcode] if medicine_barcode else [])
+    atc_map = await atc_codes_for_barcodes(session, barcodes)
     atc = atc_map.get(medicine_barcode) if medicine_barcode else None
 
     shaped_rx = live_rx_to_engine_shape(rx, atc)
+    if lines:
+        rx["medications"] = [
+            {
+                "drugName": ln.get("name"),
+                "atcCode": atc_map.get(ln.get("medicineBarcode")),
+                "nhrn": ln.get("medicineBarcode"),
+            }
+            for ln in lines
+        ]
+        shaped_rx["medications"] = [
+            {"atcCode": m["atcCode"]} for m in rx["medications"] if m["atcCode"]
+        ]
     payload = await checks_for_prescription(session, shaped_rx["rxId"], shaped_rx, pharmacy.id)
     return {**rx, "safetyChecks": [c.model_dump(by_alias=True) for c in payload.checks]}
 

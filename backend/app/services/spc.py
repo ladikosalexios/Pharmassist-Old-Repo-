@@ -56,6 +56,26 @@ MOCK_SPC: dict = {
                 "effect": "Marked CYP2C9 inhibition; INR can rise sharply within 3–5 days.",
             },
         ],
+        # SPC §4.4 — warnings/precautions require extra care or monitoring but do
+        # NOT forbid use; distinct from §4.3 contraindications above.
+        "precautions": [
+            "Regular INR monitoring is essential — more frequently after any change in dose, diet, or co-medication",
+            "Increased bleeding risk in the elderly, in hepatic/renal impairment, and with concurrent antiplatelets",
+            "Counsel the patient to report signs of bleeding: unusual bruising, dark stools, blood in urine",
+            "Avoid intramuscular injections while anticoagulated (haematoma risk)",
+        ],
+        # SPC §6.3/§6.4 storage + §6.6 disposal.
+        "storage": {
+            "conditions": "Store below 25 °C in the original package, protected from light and moisture.",
+            "afterOpening": None,  # tablets — no in-use shelf life
+            "disposal": "Return unused or expired tablets to the pharmacy; do not dispose of via household waste or wastewater.",
+        },
+        # SPC §4.2 food guidance — None when there is no food-related instruction.
+        "foodInstructions": (
+            "Take at the same time each day, with or without food. Keep vitamin K intake "
+            "(green leafy vegetables) CONSISTENT — sudden dietary changes shift the INR. "
+            "Avoid cranberry juice and limit alcohol."
+        ),
     },
     "J01CA04": {
         "atcCode": "J01CA04",
@@ -98,5 +118,197 @@ MOCK_SPC: dict = {
                 "effect": "May potentiate anticoagulant effect; monitor INR during and after a course.",
             },
         ],
+        "precautions": [
+            "A generalised erythematous rash in patients with glandular fever (EBV) is common — avoid if infectious mononucleosis is suspected",
+            "Extend the dosing interval in renal impairment (CrCl < 30 mL/min)",
+            "Prolonged use may lead to overgrowth of non-susceptible organisms; antibiotic-associated (C. difficile) colitis is possible — stop and review if severe diarrhoea develops",
+        ],
+        "storage": {
+            "conditions": "Capsules/tablets: store below 25 °C in a dry place.",
+            # The classic in-use shelf-life example: reconstituted suspension.
+            "afterOpening": (
+                "Oral suspension: once reconstituted, store in the refrigerator (2–8 °C) "
+                "and discard after 14 days. Shake well before each dose."
+            ),
+            "disposal": "Return any remaining suspension to the pharmacy after the course — do not keep leftover antibiotics.",
+        },
+        "foodInstructions": (
+            "May be taken with or without food; taking it at the start of a meal reduces "
+            "stomach upset. Complete the full prescribed course."
+        ),
+    },
+    "A10BA02": {
+        "atcCode": "A10BA02",
+        "drugName": "Metformin",
+        "version": "v3.1",
+        "updatedAt": "2026-03-02T00:00:00Z",
+        "fullSpcUrl": "https://www.eof.gr/spc/metformin",
+        "recommendedDosage": (
+            "Adults: start 500–850 mg 2–3 times daily with or after meals; titrate over "
+            "10–15 days against blood glucose. Maximum 3 g/day in divided doses."
+        ),
+        "fullSpcText": (
+            "1. THERAPEUTIC INDICATIONS\n"
+            "Treatment of type 2 diabetes mellitus, particularly in overweight patients, when "
+            "dietary management and exercise alone do not result in adequate glycaemic control.\n\n"
+            "2. POSOLOGY AND METHOD OF ADMINISTRATION\n"
+            "Start 500–850 mg 2–3 times daily during or after meals; titrate slowly to reduce "
+            "gastrointestinal side effects. Assess renal function before initiation.\n\n"
+            "3. CONTRAINDICATIONS\n"
+            "See Key Contraindications section.\n\n"
+            "4. SPECIAL WARNINGS AND PRECAUTIONS\n"
+            "Lactic acidosis is a rare but serious metabolic complication — risk rises with renal "
+            "impairment, dehydration, and iodinated contrast media."
+        ),
+        "contraindications": [
+            "Severe renal failure (GFR < 30 mL/min)",
+            "Acute conditions with the potential to alter renal function (dehydration, severe infection, shock)",
+            "Acute or chronic disease which may cause tissue hypoxia (cardiac or respiratory failure, recent MI)",
+            "Hepatic insufficiency, acute alcohol intoxication, alcoholism",
+        ],
+        "majorInteractions": [
+            {
+                "drug": "Iodinated contrast media",
+                "effect": "Risk of contrast-induced nephropathy → lactic acidosis; pause metformin before or at the time of imaging and restart ≥48 h after, once renal function is re-checked.",
+            },
+            {
+                "drug": "Alcohol",
+                "effect": "Acute intoxication potentiates the risk of lactic acidosis, especially when fasting or with hepatic impairment.",
+            },
+            {
+                "drug": "Diuretics (especially loop)",
+                "effect": "May impair renal function and raise metformin accumulation risk — monitor creatinine.",
+            },
+        ],
+        "precautions": [
+            "Check renal function (eGFR) before initiation and at least annually thereafter — more often in the elderly",
+            "Pause during acute illness with dehydration (vomiting, diarrhoea, fever) and around iodinated-contrast imaging",
+            "Counsel on lactic-acidosis warning signs: muscle cramps, abdominal pain, deep laboured breathing, unusual fatigue",
+            "Long-term use can reduce vitamin B12 levels — consider periodic monitoring",
+        ],
+        "storage": {
+            "conditions": "No special storage conditions; keep below 30 °C in the original package.",
+            "afterOpening": None,
+            "disposal": "Return unused tablets to the pharmacy; do not dispose of via household waste.",
+        },
+        "foodInstructions": (
+            "Take WITH or immediately AFTER meals to reduce stomach upset (nausea, diarrhoea) — "
+            "the most common reason patients stop taking it. Swallow whole with a glass of water."
+        ),
+    },
+    "C10AA05": {
+        "atcCode": "C10AA05",
+        "drugName": "Atorvastatin",
+        "version": "v2.2",
+        "updatedAt": "2026-02-18T00:00:00Z",
+        "fullSpcUrl": "https://www.eof.gr/spc/atorvastatin",
+        "recommendedDosage": (
+            "Usual starting dose 10–20 mg once daily; adjust at intervals of 4 weeks or more. "
+            "Maximum 80 mg once daily."
+        ),
+        "fullSpcText": (
+            "1. THERAPEUTIC INDICATIONS\n"
+            "Hypercholesterolaemia and prevention of cardiovascular disease as an adjunct to "
+            "correction of other risk factors.\n\n"
+            "2. POSOLOGY AND METHOD OF ADMINISTRATION\n"
+            "10–80 mg once daily, at any time of day, with or without food.\n\n"
+            "3. CONTRAINDICATIONS\n"
+            "See Key Contraindications section.\n\n"
+            "4. SPECIAL WARNINGS AND PRECAUTIONS\n"
+            "Myopathy/rhabdomyolysis risk rises with interacting medicines (strong CYP3A4 "
+            "inhibitors), high doses, hypothyroidism, and renal impairment."
+        ),
+        "contraindications": [
+            "Active liver disease or unexplained persistent elevation of serum transaminases (> 3× ULN)",
+            "Pregnancy and breast-feeding",
+            "Hypersensitivity to atorvastatin or any excipient",
+        ],
+        "majorInteractions": [
+            {
+                "drug": "Clarithromycin (and other strong CYP3A4 inhibitors)",
+                "effect": "Markedly increased atorvastatin exposure → myopathy/rhabdomyolysis risk; suspend the statin for the antibiotic course or cap the dose per SPC.",
+            },
+            {
+                "drug": "Ciclosporin",
+                "effect": "Greatly increased statin exposure; combination should be avoided.",
+            },
+            {
+                "drug": "Gemfibrozil / fibrates",
+                "effect": "Additive myopathy risk; use only if clearly indicated, at the lowest statin dose.",
+            },
+        ],
+        "precautions": [
+            "Liver function tests before initiation and if symptoms of hepatic injury appear",
+            "Counsel the patient to report unexplained muscle pain, tenderness, or weakness promptly — especially with fever or malaise",
+            "Higher myopathy risk in hypothyroidism, renal impairment, age > 70, and high alcohol intake",
+            "Measure CK before starting in patients with predisposing factors for rhabdomyolysis",
+        ],
+        "storage": {
+            "conditions": "Store below 25 °C.",
+            "afterOpening": None,
+            "disposal": "Return unused tablets to the pharmacy.",
+        },
+        "foodInstructions": (
+            "Can be taken at any time of day, with or without food. AVOID large quantities of "
+            "grapefruit juice (more than ~1 L/day) — it raises atorvastatin levels."
+        ),
+    },
+    "J01FA09": {
+        "atcCode": "J01FA09",
+        "drugName": "Clarithromycin",
+        "version": "v1.8",
+        "updatedAt": "2026-01-22T00:00:00Z",
+        "fullSpcUrl": "https://www.eof.gr/spc/clarithromycin",
+        "recommendedDosage": (
+            "Adults: 250–500 mg every 12 hours for 6–14 days depending on indication and "
+            "severity. Renal impairment (CrCl < 30 mL/min): halve the dose."
+        ),
+        "fullSpcText": (
+            "1. THERAPEUTIC INDICATIONS\n"
+            "Infections caused by susceptible organisms: pharyngitis, sinusitis, acute exacerbation "
+            "of chronic bronchitis, community-acquired pneumonia, skin and soft-tissue infections, "
+            "and H. pylori eradication regimens.\n\n"
+            "2. POSOLOGY AND METHOD OF ADMINISTRATION\n"
+            "250–500 mg twice daily. Tablets may be taken with or without food.\n\n"
+            "3. CONTRAINDICATIONS\n"
+            "See Key Contraindications section.\n\n"
+            "4. SPECIAL WARNINGS AND PRECAUTIONS\n"
+            "Clarithromycin is a strong CYP3A4 inhibitor and prolongs the QT interval — screen "
+            "co-medication carefully before dispensing."
+        ),
+        "contraindications": [
+            "Hypersensitivity to macrolide antibiotics",
+            "Concomitant ergot alkaloids, or QT-prolonging agents such as pimozide",
+            "History of QT prolongation or ventricular arrhythmia (torsades de pointes)",
+            "Severe hepatic failure combined with renal impairment",
+        ],
+        "majorInteractions": [
+            {
+                "drug": "Statins (atorvastatin, simvastatin)",
+                "effect": "Strong CYP3A4 inhibition raises statin exposure → myopathy/rhabdomyolysis; suspend or dose-cap the statin for the course.",
+            },
+            {
+                "drug": "Warfarin",
+                "effect": "Potentiates anticoagulation; monitor INR during and shortly after the course.",
+            },
+            {
+                "drug": "Colchicine",
+                "effect": "Life-threatening colchicine toxicity possible, particularly in renal impairment — avoid.",
+            },
+        ],
+        "precautions": [
+            "Screen ALL co-medication for CYP3A4 and QT interactions before dispensing — this is the highest-yield pharmacist check for macrolides",
+            "Use with caution in patients with cardiac disease, bradycardia, or electrolyte disturbances (QT prolongation)",
+            "Severe diarrhoea during or after treatment may indicate C. difficile colitis",
+        ],
+        "storage": {
+            "conditions": "Tablets: store below 30 °C in the original package.",
+            "afterOpening": (
+                "Granules for oral suspension: once reconstituted, store below 25 °C (do NOT "
+                "refrigerate — the suspension thickens) and discard after 14 days."
+            ),
+            "disposal": "Return any remaining medicine to the pharmacy after the course.",
+        },
+        "foodInstructions": None,  # immediate-release tablets: no food requirement
     },
 }

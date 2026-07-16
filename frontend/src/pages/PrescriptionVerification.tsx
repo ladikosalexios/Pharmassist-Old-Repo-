@@ -13,8 +13,8 @@ import { FlagDiscrepancyModal } from "../components/FlagDiscrepancyModal";
 import { ContactPrescriberDrawer } from "../components/ContactPrescriberDrawer";
 import { useToast } from "../components/Toast";
 import { useKeyboardShortcuts } from "../lib/keyboard";
-import { ApiError, getPrescription, getPatientConditions } from "../lib/api";
-import type { Prescription, PatientCondition } from "../types";
+import { ApiError, getPrescription, getPatientConditions, getSpc } from "../lib/api";
+import type { Medication, PatientCondition, Prescription, SpcDetails } from "../types";
 
 function Skl({ w = "100%", h = 14, mt = 0 }: { w?: string; h?: number; mt?: number }) {
   return (
@@ -139,7 +139,134 @@ function PatientCard({
   );
 }
 
-function MedicationCard({ rx, loading }: { rx: Prescription | null; loading: boolean }) {
+/** SPC-derived guidance for one medicine: precautions (§4.4 — caution, not the
+ *  §4.3 contraindications the safety panel covers), storage / in-use shelf life
+ *  / disposal (§6.3-6.6), and food instructions (§4.2, shown only when the SPC
+ *  has one). Fetched per ATC; drugs without SPC coverage render nothing. */
+function SpcExtras({ atcCode }: { atcCode?: string }) {
+  const { t } = useTranslation();
+  const [spc, setSpc] = useState<SpcDetails | null>(null);
+
+  useEffect(() => {
+    if (!atcCode) return;
+    let active = true;
+    getSpc(atcCode)
+      .then((data) => {
+        if (active) setSpc(data);
+      })
+      .catch(() => {
+        // Partial SPC coverage is expected — a missing SPC just means no
+        // extras section, never an error state on the review page.
+      });
+    return () => {
+      active = false;
+    };
+  }, [atcCode]);
+
+  if (!spc) return null;
+  const storage = spc.storage;
+  return (
+    <div className="mt-4 flex flex-col gap-3 border-t border-slate-100 pt-4 dark:border-slate-800">
+      {spc.precautions && spc.precautions.length > 0 && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-500/25 dark:bg-amber-500/10">
+          <div className="text-[11px] font-bold uppercase tracking-wide text-amber-700 dark:text-amber-400">
+            {t("review.precautions")}
+          </div>
+          <div className="mt-0.5 text-[11px] text-amber-600/80 dark:text-amber-400/70">
+            {t("review.precautionsHint")}
+          </div>
+          <ul className="mt-1.5 list-disc space-y-1 pl-4 text-[12.5px] leading-snug text-amber-800 dark:text-amber-200">
+            {spc.precautions.map((p, i) => (
+              <li key={i}>{p}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {storage && (
+        <div>
+          <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
+            {t("review.storageTitle")}
+          </dt>
+          <dd className="mt-1 text-[12.5px] leading-snug text-slate-700 dark:text-slate-300">
+            {storage.conditions}
+          </dd>
+          {storage.afterOpening && (
+            <dd className="mt-1.5 rounded-lg bg-slate-50 p-2.5 text-[12.5px] leading-snug text-slate-700 dark:bg-slate-800/60 dark:text-slate-300">
+              <span className="font-semibold">{t("review.afterOpening")}: </span>
+              {storage.afterOpening}
+            </dd>
+          )}
+          {storage.disposal && (
+            <dd className="mt-1.5 text-[12px] leading-snug text-slate-500 dark:text-slate-400">
+              <span className="font-semibold">{t("review.disposal")}: </span>
+              {storage.disposal}
+            </dd>
+          )}
+        </div>
+      )}
+
+      {spc.foodInstructions && (
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 dark:border-emerald-500/25 dark:bg-emerald-500/10">
+          <div className="text-[11px] font-bold uppercase tracking-wide text-emerald-700 dark:text-emerald-400">
+            {t("review.foodInstructions")}
+          </div>
+          <p className="mt-1 text-[12.5px] leading-snug text-emerald-800 dark:text-emerald-200">
+            {spc.foodInstructions}
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MedicationCard({
+  med,
+  index,
+  total,
+}: {
+  med: Partial<Medication>;
+  index: number;
+  total: number;
+}) {
+  const { t } = useTranslation();
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-card dark:border-slate-800 dark:bg-slate-900">
+      <CardHead>
+        {total > 1 ? t("review.medicationOf", { n: index, total }) : t("review.medication")}
+      </CardHead>
+      <div className="text-[16px] font-bold leading-snug text-slate-900 dark:text-slate-100">
+        {med.drugName}
+      </div>
+      <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12.5px] text-slate-500 dark:text-slate-400">
+        {med.atcCode && (
+          <span className="mono rounded bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+            ATC {med.atcCode}
+          </span>
+        )}
+        {med.nhrn && (
+          <span className="mono rounded bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+            {t("review.nhrnLabel")} {med.nhrn}
+          </span>
+        )}
+      </div>
+      {(med.dose || med.form || med.route || med.frequency || med.treatmentDuration) && (
+        <dl className="mt-5 grid grid-cols-2 gap-x-4 gap-y-4">
+          {med.dose && <Field label={t("review.dose")}>{med.dose}</Field>}
+          {med.form && <Field label={t("review.form")}>{med.form}</Field>}
+          {med.route && <Field label={t("review.route")}>{med.route}</Field>}
+          {med.frequency && <Field label={t("review.frequency")}>{med.frequency}</Field>}
+          {med.treatmentDuration && (
+            <Field label={t("review.duration")}>{med.treatmentDuration}</Field>
+          )}
+        </dl>
+      )}
+      <SpcExtras atcCode={med.atcCode} />
+    </div>
+  );
+}
+
+function MedicationColumn({ rx, loading }: { rx: Prescription | null; loading: boolean }) {
   const { t } = useTranslation();
   if (loading || !rx) {
     return (
@@ -159,34 +286,16 @@ function MedicationCard({ rx, loading }: { rx: Prescription | null; loading: boo
     );
   }
 
-  const m = rx.medication;
+  // Multi-medicine prescriptions carry every therapy line in `medications`;
+  // single-med prescriptions fall back to the legacy `medication` object.
+  const meds: Partial<Medication>[] = rx.medications?.length ? rx.medications : [rx.medication];
   const d = rx.prescriber;
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-card dark:border-slate-800 dark:bg-slate-900">
-      <CardHead>{t("review.medication")}</CardHead>
-      <div className="text-[16px] font-bold leading-snug text-slate-900 dark:text-slate-100">
-        {m.drugName}
-      </div>
-      <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12.5px] text-slate-500 dark:text-slate-400">
-        {m.atcCode && (
-          <span className="mono rounded bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-600 dark:bg-slate-800 dark:text-slate-300">
-            ATC {m.atcCode}
-          </span>
-        )}
-        {m.nhrn && (
-          <span className="mono rounded bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-600 dark:bg-slate-800 dark:text-slate-300">
-            {t("review.nhrnLabel")} {m.nhrn}
-          </span>
-        )}
-      </div>
-      <dl className="mt-5 grid grid-cols-2 gap-x-4 gap-y-4">
-        <Field label={t("review.dose")}>{m.dose}</Field>
-        <Field label={t("review.form")}>{m.form}</Field>
-        <Field label={t("review.route")}>{m.route}</Field>
-        <Field label={t("review.frequency")}>{m.frequency}</Field>
-        <Field label={t("review.duration")}>{m.treatmentDuration}</Field>
-      </dl>
-      <div className="mt-5 border-t border-slate-100 pt-4 dark:border-slate-800">
+    <div className="flex flex-col gap-5">
+      {meds.map((m, i) => (
+        <MedicationCard key={m.nhrn ?? m.atcCode ?? i} med={m} index={i + 1} total={meds.length} />
+      ))}
+      <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-card dark:border-slate-800 dark:bg-slate-900">
         <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
           {t("review.prescriber")}
         </dt>
@@ -375,7 +484,7 @@ export function PrescriptionVerification() {
           conditionsError={conditionsError}
           loading={loading}
         />
-        <MedicationCard rx={rx} loading={loading} />
+        <MedicationColumn rx={rx} loading={loading} />
         <SafetyChecksPanel rxId={rxId} />
       </div>
     </div>
