@@ -249,6 +249,18 @@ def _parse_pharmapi_error(r: httpx.Response) -> str:
         return r.text[:200]
 
 
+def _pharmapi_error_description(r: httpx.Response) -> str | None:
+    """Human-readable ``<description>`` from an XML ``<ApiError>`` body.
+
+    The CDA-returning endpoints (e.g. /prescriptions/get/{barcode}) reply with
+    XML errors whose description is display-ready Greek — e.g. «Η συνταγή δεν
+    ανήκει σε ασφαλισμένο του ΕΟΠΥΥ». Returns None when no description exists.
+    """
+    m = re.search(r"<description>(.*?)</description>", r.text or "", re.DOTALL)
+    text = (m.group(1).strip() if m else "") or None
+    return text
+
+
 async def pharmapi_get(
     path: str,
     accept_xml: bool = False,
@@ -476,6 +488,12 @@ _PHARMAPI_STATUS_MAP = {
     "CANCELLED": PrescriptionStatus.FLAGGED,
     "EXPIRED": PrescriptionStatus.FLAGGED,
     "PARTIAL": PrescriptionStatus.PENDING,  # partially dispensed — still actionable
+    # Greek display statuses observed live on testeps (the medicine-history
+    # payload carries the Greek label, not the English enum — 2026-07-16):
+    "ΕΚΤΕΛΕΣΜΕΝΗ": PrescriptionStatus.COMPLETED,
+    "ΜΕΡΙΚΩΣ ΕΚΤΕΛΕΣΜΕΝΗ": PrescriptionStatus.PENDING,  # repeats remain — still actionable
+    "ΑΝΕΚΤΕΛΕΣΤΗ": PrescriptionStatus.PENDING,
+    "ΑΚΥΡΩΜΕΝΗ": PrescriptionStatus.FLAGGED,
 }
 
 
@@ -658,6 +676,14 @@ async def pharmapi_get_prescription(
         raise HTTPException(404, f"Prescription {barcode} not found")
     if r.status_code == 401:
         raise HTTPException(502, f"Pharmapi: bad credentials — {err}")
+    if r.status_code == 400:
+        # Domain refusals (non-ΕΟΠΥΥ patient, already-executed, …) arrive as a
+        # 400 with a display-ready Greek <description>. Surface it as a clean
+        # 422 the UI can show verbatim instead of a raw 502 wall of XML; the
+        # caller (_fetch_live_rx) still gets a /search fallback shot first.
+        description = _pharmapi_error_description(r)
+        if description:
+            raise HTTPException(422, f"ΗΔΥΚΑ: {description}")
     raise HTTPException(502, f"Pharmapi get-prescription error {r.status_code}: {err}")
 
 

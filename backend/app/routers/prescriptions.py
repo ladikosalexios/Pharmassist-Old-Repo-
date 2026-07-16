@@ -24,6 +24,7 @@ the fixed path before the catch-all.
 """
 
 import ipaddress
+import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -40,6 +41,7 @@ from ..services.pharmacy import find_pharmacy_by_name
 from ..services.pharmapi import pharmapi_get_prescription, pharmapi_search_prescriptions
 from ..services.prescriptions import MOCK_PRESCRIPTIONS, MOCK_QUEUE_BASE
 from ..services.safety_engine import checks_for_prescription, live_rx_to_engine_shape
+from ..services.scan_log import fire_scan_record
 
 router = APIRouter(prefix="/prescriptions", tags=["prescriptions"])
 
@@ -134,7 +136,15 @@ async def get_prescription_for_verification(
         if pharmacy is None:
             raise HTTPException(status_code=400, detail="Pharmacy not found for current user")
         payload = await checks_for_prescription(session, rx_id, rx, pharmacy.id)
-        return {**rx, "safetyChecks": [c.model_dump(by_alias=True) for c in payload.checks]}
+        result = {**rx, "safetyChecks": [c.model_dump(by_alias=True) for c in payload.checks]}
+        fire_scan_record(
+            pharmacy_id=pharmacy.id,
+            pharmacist_id=uuid.UUID(current["pharmacist_id"]),
+            barcode=rx_id,
+            rx=result,
+            source="mock",
+        )
+        return result
 
     # Live mode: resolve by barcode via GET /prescriptions/get/{barcode} (the
     # source CDA — surfaces paperless άυλη prescriptions), falling back to
@@ -152,7 +162,15 @@ async def get_prescription_for_verification(
 
     shaped_rx = live_rx_to_engine_shape(rx, atc)
     payload = await checks_for_prescription(session, shaped_rx["rxId"], shaped_rx, pharmacy.id)
-    return {**rx, "safetyChecks": [c.model_dump(by_alias=True) for c in payload.checks]}
+    result = {**rx, "safetyChecks": [c.model_dump(by_alias=True) for c in payload.checks]}
+    fire_scan_record(
+        pharmacy_id=pharmacy.id,
+        pharmacist_id=uuid.UUID(current["pharmacist_id"]),
+        barcode=rx_id,
+        rx=result,
+        source="live",
+    )
+    return result
 
 
 async def _fetch_live_rx(rx_id: str, pharmacy, request: Request) -> dict | None:
@@ -171,15 +189,26 @@ async def _fetch_live_rx(rx_id: str, pharmacy, request: Request) -> dict | None:
     # the proxy IP to ΗΔΥΚΑ misattributes the call on the regulator-facing log.
     # See docs/OPEN-ISSUES.md (X-DOCTOR-IP).
     doctor_ip = ip or "0.0.0.0"
+    primary_exc: HTTPException | None = None
     try:
         return await pharmapi_get_prescription(
             barcode=rx_id, pharmacy_id=pharmacy.pharmapi_unit_id, doctor_ip=doctor_ip
         )
     except HTTPException as exc:
-        if exc.status_code != 404:
+        # 404 → plain not-found; 422 → a domain refusal from ΗΔΥΚΑ with a
+        # display-ready Greek description (non-ΕΟΠΥΥ patient, already executed,
+        # …). Both get a /search fallback shot; anything else is a real fault.
+        if exc.status_code not in (404, 422):
             raise
+        primary_exc = exc
     results = await pharmapi_search_prescriptions(barcode=rx_id)
-    return results[0] if results else None
+    if results:
+        return results[0]
+    if primary_exc is not None and primary_exc.status_code == 422:
+        # Nothing found via search either — surface the upstream refusal
+        # verbatim rather than a misleading "not found".
+        raise primary_exc
+    return None
 
 
 # ── Actions (flag / patch) ───────────────────────────────────────────────────
