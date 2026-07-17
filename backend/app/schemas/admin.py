@@ -98,3 +98,11 @@ class SpcCoveragePayload(BaseModel):
 class SpcStatusResponse(BaseModel):
     runs: list[SpcSyncRunPayload]
     coverage: SpcCoveragePayload
+
+
+class SpcFetchRequest(BaseModel):
+    """Either a single product fetch (barcode) or a batch over the top-N
+    most-scanned uncovered products."""
+
+    barcode: str | None = None
+    top: int | None = None
