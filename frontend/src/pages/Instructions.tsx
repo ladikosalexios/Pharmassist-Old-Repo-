@@ -14,11 +14,12 @@ import { useToast } from "../components/Toast";
 import {
   ApiError,
   createDocumentationEntry,
+  generateInstructions,
   getPrescription,
   listPrescriptions,
   sendInstructions,
 } from "../lib/api";
-import { defaultAdditionalNotes, renderInstructions } from "../lib/instructions";
+import { defaultAdditionalNotes } from "../lib/instructions";
 import type { DeliveryMethod, InstructionsLanguage, Prescription, QueueItem } from "../types";
 
 // `label` is the canonical English string persisted to the documentation log
@@ -146,28 +147,46 @@ export function Instructions() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rxId]);
 
+  // Every scanned/completed prescription is counsellable — in live mode the
+  // list is the pharmacy's recent scans, which are mostly PENDING (retrieval-
+  // only: we review and counsel; the dispense happens in the pharmacy's own
+  // software), so no status gate here.
   const eligible = useMemo(() => {
     if (!queue) return [];
     const seen = new Set<string>();
     const items: QueueItem[] = [];
     for (const q of queue) {
-      if (q.status === "COMPLETED" || q.rxId === rxId) {
-        if (!seen.has(q.rxId)) {
-          seen.add(q.rxId);
-          items.push(q);
-        }
+      if (!seen.has(q.rxId)) {
+        seen.add(q.rxId);
+        items.push(q);
       }
     }
     return items;
-  }, [queue, rxId]);
+  }, [queue]);
 
-  const preview = useMemo(() => {
-    if (!rx) return "";
-    return renderInstructions(rx, language, {
+  // Preview is rendered SERVER-SIDE (POST /instructions/generate) — one
+  // template, SPC-enriched per medicine; the old client-side mirror is gone.
+  const [preview, setPreview] = useState("");
+  useEffect(() => {
+    if (!rx) {
+      setPreview("");
+      return;
+    }
+    let active = true;
+    generateInstructions(rx.rxId, language, {
       additionalNotes: notes,
       includeSideEffects,
       includeLifestyle,
-    });
+    })
+      .then((g) => {
+        if (active) setPreview(g.content);
+      })
+      .catch(() => {
+        if (active) setPreview("");
+      });
+    return () => {
+      active = false;
+    };
   }, [rx, language, notes, includeSideEffects, includeLifestyle]);
 
   function onPrint() {
@@ -181,7 +200,7 @@ export function Instructions() {
     try {
       await sendInstructions({
         rxId: rx.rxId,
-        patientId: rx.patient.amka,
+        patientId: rx.patient?.amka ?? (rx as unknown as { patientAmka?: string }).patientAmka,
         content: preview,
         method,
       });

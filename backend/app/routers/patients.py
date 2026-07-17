@@ -8,6 +8,7 @@ sub-resource paths win over the catch-all profile fetch.
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.schemas.patient_conditions import (
@@ -21,6 +22,7 @@ from app.services.pharmacy import find_pharmacy_by_name
 from app.services.pharmapi import pharmapi_get_patient_insurances
 from app.utils.environment import is_mock_pharmapi
 
+from ..db.models.patient import Patient
 from ..db.session import get_session
 from ..deps import get_current_user
 from ..services.patients import (
@@ -182,13 +184,53 @@ async def get_patient_insurances(patient_id: str, current: dict = Depends(get_cu
 
 
 @router.get("/recent")
-async def get_recent_patients(current: dict = Depends(get_current_user)):
+async def get_recent_patients(
+    current: dict = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
     """Recently-seen patients for the Patients landing-page chips.
 
     Declared before ``/{patient_id}`` so the static path wins over the
-    catch-all profile fetch. Empty in live mode (no upstream feed).
+    catch-all profile fetch. Mock mode keeps the curated fixture; live mode
+    reads the local patient registry that every barcode scan upserts
+    (services/scan_log.py) — ΗΔΥΚΑ has no "my patients" feed to pull.
     """
-    return recent_patients()
+    if is_mock_pharmapi():
+        return recent_patients()
+
+    pharmacy = await find_pharmacy_by_name(session, current["pharmacy"])
+    if pharmacy is None:
+        return []
+    rows = await session.scalars(
+        select(Patient)
+        .where(Patient.pharmacy_id == pharmacy.id)
+        .order_by(Patient.last_seen_at.desc())
+        .limit(6)
+    )
+
+    def _intolerance_names(profile: dict | None) -> list[str]:
+        out: list[str] = []
+        for item in (profile or {}).get("intolerances") or []:
+            if isinstance(item, dict):
+                name = item.get("activeSubstance") or item.get("name")
+            else:
+                name = item if isinstance(item, str) else None
+            # ΗΔΥΚΑ lists one row per recorded reaction — the same substance
+            # repeats. The chips only need distinct substances.
+            if name and str(name) not in out:
+                out.append(str(name))
+        return out
+
+    return [
+        {
+            "amka": p.amka,
+            "name": p.name or "Άγνωστος",
+            "age": p.age,
+            "sex": p.sex,
+            "intolerances": _intolerance_names(p.profile),
+        }
+        for p in rows
+    ]
 
 
 @router.get("/search")

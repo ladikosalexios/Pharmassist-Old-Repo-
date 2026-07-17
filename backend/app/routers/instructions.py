@@ -1,9 +1,21 @@
-"""Patient instructions: server-side render + delivery dispatch."""
+"""Patient instructions: server-side render + delivery dispatch.
+
+Mock mode resolves the prescription from MOCK_PRESCRIPTIONS; live mode from
+the LATEST prescription_scans row for the barcode — the scan log is the local
+record of what crossed the counter, so anything the pharmacist scanned can get
+an instruction sheet without another ΗΔΥΚΑ round-trip.
+"""
 
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.utils.environment import is_mock_pharmapi
+
+from ..db.models.prescription_scan import PrescriptionScan
+from ..db.session import get_session
 from ..deps import get_current_user
 from ..schemas.instructions import InstructionsGenerate, InstructionsSend
 from ..services.instructions import INSTRUCTION_DELIVERIES, render_instructions
@@ -12,12 +24,25 @@ from ..services.prescriptions import MOCK_PRESCRIPTIONS
 router = APIRouter(prefix="/instructions", tags=["instructions"])
 
 
+async def _resolve_rx(session: AsyncSession, rx_id: str) -> dict | None:
+    if is_mock_pharmapi():
+        return MOCK_PRESCRIPTIONS.get(rx_id)
+    scan = await session.scalar(
+        select(PrescriptionScan)
+        .where(PrescriptionScan.barcode == rx_id)
+        .order_by(PrescriptionScan.created_at.desc())
+        .limit(1)
+    )
+    return scan.rx_payload if scan else None
+
+
 @router.post("/generate")
 async def generate_instructions(
     payload: InstructionsGenerate,
     current: dict = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
 ):
-    rx = MOCK_PRESCRIPTIONS.get(payload.rxId)
+    rx = await _resolve_rx(session, payload.rxId)
     if rx is None:
         raise HTTPException(status_code=404, detail=f"Prescription {payload.rxId} not found")
     text = render_instructions(rx, payload.language, payload.options or {})
@@ -25,13 +50,18 @@ async def generate_instructions(
 
 
 @router.post("/send", status_code=201)
-async def send_instructions(payload: InstructionsSend, current: dict = Depends(get_current_user)):
-    rx = MOCK_PRESCRIPTIONS.get(payload.rxId)
+async def send_instructions(
+    payload: InstructionsSend,
+    current: dict = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    rx = await _resolve_rx(session, payload.rxId)
     if rx is None:
         raise HTTPException(status_code=404, detail=f"Prescription {payload.rxId} not found")
+    patient = rx.get("patient") if isinstance(rx.get("patient"), dict) else {}
     entry = {
         "rxId": payload.rxId,
-        "patientId": payload.patientId or rx["patient"]["id"],
+        "patientId": payload.patientId or patient.get("id") or rx.get("patientAmka"),
         "method": payload.method.upper(),
         "sentAt": datetime.now(UTC).isoformat(),
         "by": current["email"],
