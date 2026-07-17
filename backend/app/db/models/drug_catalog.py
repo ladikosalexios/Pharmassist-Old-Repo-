@@ -43,3 +43,7 @@ class DrugCatalog(Base, TimestampMixin):
     participation_pct: Mapped[Decimal | None] = mapped_column(Numeric)
     substance_code: Mapped[str | None] = mapped_column(String)  # main activeSubstance.code
     package_size: Mapped[str | None] = mapped_column(String)  # piecesPerPackage
+    # ΕΟΦ product code from masterdata `eofCode` — the key the ΕΟΦ portal's
+    # product search understands (SPC/ΦΟΧ document lookup). Nullable: rows
+    # synced before this column filled on the next full sync.
+    eof_code: Mapped[str | None] = mapped_column(String, index=True)

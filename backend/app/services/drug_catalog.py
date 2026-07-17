@@ -33,6 +33,7 @@ _SYNC_UPDATE_COLUMNS = (
     "participation_pct",
     "substance_code",
     "package_size",
+    "eof_code",
 )
 
 
@@ -87,6 +88,7 @@ def _to_row(item: dict) -> dict | None:
         "participation_pct": item.get("participationPercentage"),
         "substance_code": _substance_code(item),
         "package_size": str(pieces) if pieces is not None else None,
+        "eof_code": str(item["eofCode"]) if item.get("eofCode") is not None else None,
     }
 
 

@@ -29,6 +29,9 @@ from app.db.models.pharmacist_pharmacy import PharmacistPharmacy  # noqa
 from app.db.models.pharmacy import Pharmacy  # noqa
 from app.db.models.prescription_scan import PrescriptionScan  # noqa
 from app.db.models.safety_rule import SafetyRule  # noqa
+from app.db.models.spc_document import SpcDocument  # noqa
+from app.db.models.spc_fetch_state import SpcFetchState  # noqa
+from app.db.models.spc_sync_run import SpcSyncRun  # noqa
 
 config = context.config
 settings = get_settings()
