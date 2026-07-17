@@ -101,8 +101,10 @@ class SpcStatusResponse(BaseModel):
 
 
 class SpcFetchRequest(BaseModel):
-    """Either a single product fetch (barcode) or a batch over the top-N
-    most-scanned uncovered products."""
+    """Either a single product fetch (barcode) or a batch: scope="scans"
+    (default — top-N most-scanned uncovered products) or scope="catalog"
+    (pre-ingestion sweep: one representative product per uncovered ATC)."""
 
     barcode: str | None = None
     top: int | None = None
+    scope: str = "scans"

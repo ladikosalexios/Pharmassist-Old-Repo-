@@ -183,8 +183,10 @@ async def trigger_spc_fetch(
     if body.barcode:
         background_tasks.add_task(fetch_for_product, body.barcode)
         return {"message": f"Fetch started for {body.barcode}."}
-    background_tasks.add_task(run_batch, body.top or 50, triggered_by)
-    return {"message": "Batch fetch started — poll GET /admin/spc/status."}
+    if body.scope not in ("scans", "catalog"):
+        raise HTTPException(422, "scope must be 'scans' or 'catalog'")
+    background_tasks.add_task(run_batch, body.top or 50, triggered_by, scope=body.scope)
+    return {"message": f"Batch fetch ({body.scope}) started — poll GET /admin/spc/status."}
 
 
 @router.get("/spc/status", response_model=SpcStatusResponse)

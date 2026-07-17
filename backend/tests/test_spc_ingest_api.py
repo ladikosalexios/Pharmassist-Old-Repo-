@@ -230,3 +230,10 @@ def test_instructions_render_mock_parity(client, monkeypatch):
     assert r.status_code == 200, r.text
     content = r.json()["content"]
     assert "Take WITH or immediately AFTER meals" in content  # mock metformin SPC text
+
+
+def test_batch_fetch_scope_validation(client):
+    r = client.post("/admin/spc/fetch", json={"scope": "everything"})
+    assert r.status_code == 422
+    r = client.post("/admin/spc/fetch", json={"scope": "catalog", "top": 5})
+    assert r.status_code == 202

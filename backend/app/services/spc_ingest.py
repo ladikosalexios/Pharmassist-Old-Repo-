@@ -371,20 +371,84 @@ def fire_spc_fetch_for_meds(medications: list[dict] | None) -> None:
     task.add_done_callback(_background_tasks.discard)
 
 
-async def run_batch(top_n: int = 50, triggered_by: str | None = None) -> None:
-    """Batch-fetch SPC docs for the most-scanned uncovered products.
-
-    Candidate ranking comes from prescription_scans frequency — counter
-    reality decides what matters first. Never raises; bookkeeping lands in
-    spc_sync_runs (same philosophy as drug_catalog.run_sync).
-    """
+async def _scan_candidates(session: AsyncSession, top_n: int) -> list[str]:
+    """Most-recently-scanned barcodes — counter reality decides what matters."""
     from ..db.models.prescription_scan import PrescriptionScan
+
+    rows = await session.execute(
+        select(PrescriptionScan.rx_payload["medications"].label("meds"))
+        .order_by(PrescriptionScan.created_at.desc())
+        .limit(500)
+    )
+    candidates: list[str] = []
+    for (meds,) in rows:
+        for med in meds or []:
+            barcode = med.get("nhrn") if isinstance(med, dict) else None
+            if barcode and barcode not in candidates:
+                candidates.append(barcode)
+        if len(candidates) >= top_n:
+            break
+    return candidates
+
+
+async def _catalog_candidates(session: AsyncSession, top_n: int) -> list[str]:
+    """Pre-ingestion sweep: ONE representative in-circulation product per
+    UNCOVERED ATC, ΕΟΠΥΥ-covered products first.
+
+    Serving falls back ATC-level (resolve_spc), so one document per ATC lights
+    up the whole molecule across every brand/pack — ~1.8k fetches instead of
+    ~11.5k covers the entire catalog at ATC granularity. Per-product
+    refinement then happens organically via the scan-triggered fetch.
+    """
+    covered = {
+        row
+        for row in (
+            await session.scalars(
+                select(SpcDocument.atc_code).where(SpcDocument.parse_status != "failed")
+            )
+        ).all()
+    }
+    rows = (
+        await session.scalars(
+            select(DrugCatalog)
+            .where(DrugCatalog.active.is_(True), DrugCatalog.atc_code != "")
+            # ΕΟΠΥΥ-covered (dispensed-on-prescription) products first; prefer
+            # rows that carry an eof_code (exact ΕΟΦ-portal search key).
+            .order_by(
+                DrugCatalog.eopyy_coverage.desc().nulls_last(),
+                DrugCatalog.eof_code.isnot(None).desc(),
+                DrugCatalog.atc_code,
+            )
+        )
+    ).all()
+    candidates: list[str] = []
+    seen_atcs: set[str] = set(covered)
+    for row in rows:
+        if row.atc_code in seen_atcs:
+            continue
+        seen_atcs.add(row.atc_code)
+        candidates.append(row.gns_code)
+        if len(candidates) >= top_n:
+            break
+    return candidates
+
+
+async def run_batch(
+    top_n: int = 50, triggered_by: str | None = None, *, scope: str = "scans"
+) -> None:
+    """Batch-fetch SPC docs. Never raises; bookkeeping in spc_sync_runs.
+
+    ``scope="scans"`` (default): most-scanned uncovered products — the
+    steady-state mode for a running pharmacy. ``scope="catalog"``: the
+    pre-ingestion sweep — one representative product per uncovered ATC across
+    the whole drug catalog (see _catalog_candidates).
+    """
     from ..db.models.spc_sync_run import SpcSyncRun
     from ..db.session import AsyncSessionLocal
 
     try:
         async with AsyncSessionLocal() as session:
-            run = SpcSyncRun(mode="batch", status="running", triggered_by=triggered_by)
+            run = SpcSyncRun(mode=f"batch:{scope}", status="running", triggered_by=triggered_by)
             session.add(run)
             await session.commit()
             await session.refresh(run)
@@ -397,23 +461,10 @@ async def run_batch(top_n: int = 50, triggered_by: str | None = None) -> None:
     error: str | None = None
     try:
         async with AsyncSessionLocal() as session:
-            # Most-scanned barcodes first; scans carry per-line meds in the
-            # payload, but the scan barcode itself ranks the prescription.
-            rows = await session.execute(
-                select(
-                    PrescriptionScan.rx_payload["medications"].label("meds"),
-                )
-                .order_by(PrescriptionScan.created_at.desc())
-                .limit(500)
-            )
-            candidates: list[str] = []
-            for (meds,) in rows:
-                for med in meds or []:
-                    barcode = med.get("nhrn") if isinstance(med, dict) else None
-                    if barcode and barcode not in candidates:
-                        candidates.append(barcode)
-                if len(candidates) >= top_n:
-                    break
+            if scope == "catalog":
+                candidates = await _catalog_candidates(session, top_n)
+            else:
+                candidates = await _scan_candidates(session, top_n)
 
         for barcode in candidates[:top_n]:
             examined += 1
