@@ -1,9 +1,9 @@
-"""Admin-only endpoints — pharmacist invitations and catalogue management."""
+"""Admin-only endpoints — pharmacist invitations, catalogue + SPC management."""
 
 import uuid
 from datetime import UTC, datetime, timedelta
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, UploadFile
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -16,12 +16,14 @@ from ..deps import get_current_user
 from ..schemas.admin import (
     CatalogCoveragePayload,
     CatalogSyncRunPayload,
+    SpcDocumentPayload,
     SyncDrugCatalogRequest,
     SyncDrugCatalogResponse,
     SyncDrugCatalogStatusResponse,
 )
 from ..schemas.auth import InviteRequest, InviteResponse
 from ..services.drug_catalog import catalog_coverage, run_sync
+from ..services.spc_ingest import ingest_pdf_bytes
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -120,3 +122,39 @@ async def drug_catalog_sync_status(
         runs=[CatalogSyncRunPayload.model_validate(r) for r in runs],
         coverage=CatalogCoveragePayload(**coverage),
     )
+
+
+@router.post("/spc/upload", response_model=SpcDocumentPayload, status_code=201)
+async def upload_spc_document(
+    file: UploadFile = File(...),
+    atc_code: str = Form(...),
+    doc_type: str = Form("spc"),
+    barcode: str | None = Form(None),
+    language: str = Form("el"),
+    current: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_session),
+) -> SpcDocumentPayload:
+    """Manually ingest an SPC (ΠΧΠ) / patient-leaflet (ΦΟΧ) PDF. Admin only.
+
+    The always-working ingestion path — automated ΕΟΦ/EMA fetching is
+    best-effort, but an uploaded official PDF parses through the exact same
+    pipeline and serves immediately (labeled auto-extracted until verified).
+    """
+    if current.get("role") != "admin":
+        raise HTTPException(403, "Admin role required")
+    pdf = await file.read()
+    if not pdf:
+        raise HTTPException(422, "Empty file")
+    try:
+        doc = await ingest_pdf_bytes(
+            db,
+            pdf=pdf,
+            source="upload",
+            doc_type=doc_type,
+            atc_code=atc_code.strip(),
+            barcode=barcode.strip() if barcode else None,
+            language=language,
+        )
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    return SpcDocumentPayload.model_validate(doc)

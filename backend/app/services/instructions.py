@@ -42,9 +42,14 @@ def _patient_name(rx: dict) -> str:
     return rx.get("patientName") or "—"
 
 
-def _med_lines(med: dict, el: bool) -> list[str]:
-    """Per-medicine block: prescription facts + SPC-derived guidance."""
-    spc = MOCK_SPC.get(med.get("atcCode") or "") or {}
+def _med_lines(med: dict, el: bool, spc: dict | None = None) -> list[str]:
+    """Per-medicine block: prescription facts + SPC-derived guidance.
+
+    ``spc`` is the resolved SpcDetails payload for this medicine (DB-backed
+    documents win over the mock fixture — services/spc.resolve_spc); when the
+    caller passes none, the mock fixture keeps legacy behaviour."""
+    if spc is None:
+        spc = MOCK_SPC.get(med.get("atcCode") or "") or {}
     lines: list[str] = []
 
     dose_bits = [med.get(k) for k in ("dose", "form", "route") if med.get(k)]
@@ -83,7 +88,9 @@ def _med_lines(med: dict, el: bool) -> list[str]:
     return lines
 
 
-def render_instructions(rx: dict, language: str, opts: dict) -> str:
+def render_instructions(
+    rx: dict, language: str, opts: dict, spc_by_atc: dict[str, dict] | None = None
+) -> str:
     """Format a patient counselling sheet, in Greek or English.
 
     One block per medicine (multi-med prescriptions supported); drug-specific
@@ -100,7 +107,9 @@ def render_instructions(rx: dict, language: str, opts: dict) -> str:
     if el:
         lines = [f"ΟΔΗΓΙΕΣ ΑΣΘΕΝΟΥΣ — {title_drugs}", f"Ασθενής: {_patient_name(rx)}"]
         for i, med in enumerate(meds, start=1):
-            med_lines = _med_lines(med, el=True)
+            med_lines = _med_lines(
+                med, el=True, spc=(spc_by_atc or {}).get(med.get("atcCode") or "")
+            )
             if not med_lines and len(meds) == 1:
                 continue  # nothing to say under a bare "ΛΗΨΗ:" header
             header = (
@@ -137,7 +146,9 @@ def render_instructions(rx: dict, language: str, opts: dict) -> str:
     else:
         lines = [f"PATIENT INSTRUCTIONS — {title_drugs}", f"Patient: {_patient_name(rx)}"]
         for i, med in enumerate(meds, start=1):
-            med_lines = _med_lines(med, el=False)
+            med_lines = _med_lines(
+                med, el=False, spc=(spc_by_atc or {}).get(med.get("atcCode") or "")
+            )
             if not med_lines and len(meds) == 1:
                 continue  # nothing to say under a bare "HOW TO TAKE:" header
             header = (

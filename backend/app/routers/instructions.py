@@ -20,6 +20,25 @@ from ..deps import get_current_user
 from ..schemas.instructions import InstructionsGenerate, InstructionsSend
 from ..services.instructions import INSTRUCTION_DELIVERIES, render_instructions
 from ..services.prescriptions import MOCK_PRESCRIPTIONS
+from ..services.spc import resolve_spc
+
+
+async def _spc_for_meds(session: AsyncSession, rx: dict) -> dict[str, dict]:
+    """Resolved SpcDetails per ATC for every medicine on the prescription —
+    ingested documents win over the mock fixture (services/spc.resolve_spc)."""
+    meds = rx.get("medications")
+    if not (isinstance(meds, list) and meds):
+        m = rx.get("medication")
+        meds = [m] if isinstance(m, dict) else []
+    out: dict[str, dict] = {}
+    for med in meds:
+        atc = med.get("atcCode") if isinstance(med, dict) else None
+        if atc and atc not in out:
+            payload = await resolve_spc(session, atc, barcode=med.get("nhrn"))
+            if payload:
+                out[atc] = payload
+    return out
+
 
 router = APIRouter(prefix="/instructions", tags=["instructions"])
 
@@ -45,7 +64,8 @@ async def generate_instructions(
     rx = await _resolve_rx(session, payload.rxId)
     if rx is None:
         raise HTTPException(status_code=404, detail=f"Prescription {payload.rxId} not found")
-    text = render_instructions(rx, payload.language, payload.options or {})
+    spc_by_atc = await _spc_for_meds(session, rx)
+    text = render_instructions(rx, payload.language, payload.options or {}, spc_by_atc)
     return {"rxId": payload.rxId, "language": payload.language, "content": text}
 
 

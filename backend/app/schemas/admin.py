@@ -48,3 +48,53 @@ class CatalogCoveragePayload(BaseModel):
 class SyncDrugCatalogStatusResponse(BaseModel):
     runs: list[CatalogSyncRunPayload]
     coverage: CatalogCoveragePayload
+
+
+class SpcDocumentPayload(BaseModel):
+    """One spc_documents row — upload response + admin listing."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    barcode: str | None = None
+    atc_code: str
+    doc_type: str
+    source: str
+    source_url: str | None = None
+    sha256: str
+    language: str
+    extraction_method: str
+    parse_status: str
+    verified: bool
+    fetched_at: datetime
+
+
+class SpcSyncRunPayload(BaseModel):
+    """One spc_sync_runs row — admin status surface."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    mode: str
+    status: str
+    started_at: datetime
+    finished_at: datetime | None = None
+    examined: int
+    fetched_docs: int
+    parsed_docs: int
+    failed: int
+    error: str | None = None
+    triggered_by: str | None = None
+
+
+class SpcCoveragePayload(BaseModel):
+    total_docs: int
+    parsed_docs: int
+    verified_docs: int
+    atcs_covered: int
+    catalog_atcs: int
+
+
+class SpcStatusResponse(BaseModel):
+    runs: list[SpcSyncRunPayload]
+    coverage: SpcCoveragePayload
