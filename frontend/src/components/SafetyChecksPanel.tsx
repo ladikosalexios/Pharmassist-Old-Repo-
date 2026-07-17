@@ -68,12 +68,15 @@ function Skl({ w = "100%", h = 14, mt = 0 }: { w?: string; h?: number; mt?: numb
 
 interface SafetyChecksPanelProps {
   rxId: string;
+  /** Bump to force a re-fetch (e.g. after a patient factor is toggled). */
+  refreshKey?: number;
   onBlockChange?: (hasBlock: boolean) => void;
   onLoadingChange?: (loading: boolean) => void;
 }
 
 export function SafetyChecksPanel({
   rxId,
+  refreshKey,
   onBlockChange,
   onLoadingChange,
 }: SafetyChecksPanelProps) {
@@ -106,7 +109,7 @@ export function SafetyChecksPanel({
     return () => {
       active = false;
     };
-  }, [rxId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [rxId, refreshKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-card dark:border-slate-800 dark:bg-slate-900">

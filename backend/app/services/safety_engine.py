@@ -17,6 +17,7 @@ from ..constants import AdrSeverity, AlertStatus, CheckType
 from ..db.models.safety_rule import SafetyRule
 from ..schemas.safety import STATUS_ORDER, SafetyAlertPayload, SafetyChecksPayload
 from ..utils.environment import is_mock_pharmapi
+from .drug_catalog import names_for_atcs
 from .patients import conditions, patient_intolerances, rx_history
 from .prescriptions import MOCK_PRESCRIPTIONS
 from .safety_checks import MOCK_SAFETY_CHECKS
@@ -63,6 +64,71 @@ def _text_mentions(haystack: str, needle: str) -> bool:
     if len(n) < 3:
         return False
     return n in _fold(haystack)
+
+
+# Patient factors gate the SPC's §4.3/§4.4 lines: a factor "applies" when its
+# accent-folded keyword appears in the line (e.g. an elderly patient + a line
+# mentioning "elderly"/"ηλικιωμένους"). Keywords are stored accent-free so they
+# match _fold()ed text. Allergy factors match by substance name (_text_mentions),
+# not by this map.
+_CONDITION_KEYWORDS: dict[str, list[str]] = {
+    "PREGNANCY": ["pregnan", "εγκυ", "κυησ", "κυοφορ"],
+    "RENAL_SEVERE": ["renal", "νεφρ", "kidney"],
+    "HEPATIC": ["hepatic", "ηπατ", "liver"],
+    "G6PD": ["g6pd", "g-6-pd", "glucose-6", "6-φωσφ"],
+}
+_ELDERLY_KEYWORDS = ["elderly", "ηλικιωμ", "ανω των 65", "γηριατ", "older patient", "≥ 65", "≥65"]
+_PEDIATRIC_KEYWORDS = ["children", "παιδ", "pediatric", "παιδιατ", "εφηβ", "adolescen"]
+
+
+def _build_factors(intolerances: list[dict], pt_conditions: list, age) -> list[dict]:
+    """Patient factors for SPC line-gating: recorded allergies, recorded
+    conditions (pregnancy/renal/hepatic/G6PD), and derived age brackets.
+
+    Each factor is ``{kind, label, keywords, severity}``. ``kind`` is one of
+    ``allergy|condition|age``; allergy factors carry no keywords (matched by
+    substance name)."""
+    factors: list[dict] = []
+    for i in intolerances or []:
+        factors.append(
+            {"kind": "allergy", "label": i["name"], "keywords": [], "severity": i.get("severity")}
+        )
+    for c in pt_conditions or []:
+        kws = _CONDITION_KEYWORDS.get(c.condition_code)
+        factors.append(
+            {
+                "kind": "condition",
+                "label": c.name,
+                "keywords": kws or [c.name],
+                "severity": getattr(c, "severity", None),
+            }
+        )
+    if isinstance(age, int):
+        if age >= 65:
+            factors.append(
+                {"kind": "age", "label": "Ηλικιωμένος ασθενής (≥65)", "keywords": _ELDERLY_KEYWORDS}
+            )
+        elif age < 18:
+            factors.append(
+                {
+                    "kind": "age",
+                    "label": "Παιδιατρικός ασθενής (<18)",
+                    "keywords": _PEDIATRIC_KEYWORDS,
+                }
+            )
+    return factors
+
+
+def _first_matching_factor(factors: list[dict], line: str) -> dict | None:
+    """First factor whose allergy substance name / keyword appears in ``line``."""
+    folded = _fold(line)
+    for f in factors:
+        if f["kind"] == "allergy":
+            if _text_mentions(line, f["label"]):
+                return f
+        elif any(kw in folded for kw in f["keywords"]):
+            return f
+    return None
 
 
 def _rule_to_alert(rule: SafetyRule, rx_id: str) -> SafetyAlertPayload:
@@ -267,6 +333,13 @@ async def evaluate_safety(
     patient = rx.get("patient") or {}
     patient_id = patient.get("id")
     amka = patient.get("amka")
+    age = patient.get("age")
+
+    # Co-medication display names (brand) for the §4.5 cross-ref + the screened
+    # confirmation: sibling therapy lines now, patient history added below.
+    co_med_names: set[str] = {
+        m["drugName"] for m in meds if isinstance(m, dict) and m.get("drugName")
+    }
 
     checks: list[SafetyAlertPayload] = []
     seen: set[str] = set()
@@ -276,6 +349,7 @@ async def evaluate_safety(
     # an intolerance) flips intolerance_fired independently of a condition match.
     interaction_fired = False
     intolerance_fired = False
+    interaction_screened = False
 
     # --- 1. Drug-drug interactions & duplicate therapy (co-medication set) ---
     # Pre-filter rules so we don't make the rx_history call (Pharmapi round-trip
@@ -294,6 +368,8 @@ async def evaluate_safety(
         for entry in history:
             if entry["rxId"] == rx["rxId"]:
                 continue
+            if entry.get("drugName"):
+                co_med_names.add(entry["drugName"])
             hist_rx = MOCK_PRESCRIPTIONS.get(entry["rxId"])
             if hist_rx:
                 history_atcs.add(hist_rx["medication"]["atcCode"])
@@ -314,6 +390,17 @@ async def evaluate_safety(
     if verbose_spc and amka and pt_conditions is None and session is not None:
         pt_conditions = await conditions(session, amka, pharmacy_id)
 
+    # Verbose review path: patient factors (allergies + conditions + age brackets)
+    # gate the SPC §4.3/§4.4 lines, and co-medication ATCs resolve to INN names so
+    # they can be matched against the SPC §4.5 interactions text.
+    factors: list[dict] = []
+    inn_names: dict[str, str] = {}
+    if verbose_spc:
+        factors = _build_factors(intolerances or [], pt_conditions or [], age)
+        all_co_atcs = (history_atcs or set()) | med_atcs
+        if all_co_atcs and session is not None:
+            inn_names = await names_for_atcs(session, all_co_atcs)
+
     for med in meds:
         rx_atc = med.get("atcCode") if isinstance(med, dict) else None
         if not rx_atc:
@@ -321,6 +408,7 @@ async def evaluate_safety(
 
         co_atcs = set(history_atcs or set()) | (med_atcs - {rx_atc})
         if interaction_rules and co_atcs:
+            interaction_screened = True
             # Bidirectional ATC match: WARFARIN_ASPIRIN_BLEED fires whether
             # warfarin is the new or the historical/sibling drug.
             for rule in interaction_rules:
@@ -378,57 +466,73 @@ async def evaluate_safety(
                         checks.append(_rule_to_alert(rule, rx["rxId"]))
 
         # --- 4. SPC-driven checks (verbose single-rx review path only) ---
-        # Cross-reference the drug's OWN SPC against the patient — this is what
-        # gives coverage for drugs outside the ~7 seeded rule classes (the SPC is
-        # authoritative and already ingested). resolve_spc walks barcode → ATC →
-        # MOCK_SPC; None means no document, so SPC rows are simply skipped.
+        # The drug's OWN SPC gives coverage beyond the ~7 seeded rule classes.
+        # resolve_spc walks barcode → ATC → MOCK_SPC; None means no document.
         if verbose_spc:
             spc = await resolve_spc(
                 session, rx_atc, med.get("nhrn") if isinstance(med, dict) else None
             )
             if spc:
-                # 4a. Contraindication cross-ref → patient-specific REVIEW/BLOCK.
-                # Each recorded intolerance / condition is loose-matched (accent
-                # folded) against the SPC §4.3 lines; a hit the ATC-class match
-                # (§2) didn't already catch becomes an alert. An intolerance hit
-                # also counts as an allergy screen result (suppresses the OK row).
-                factors = [
-                    ("intolerance", i["name"], i.get("severity")) for i in (intolerances or [])
-                ]
-                factors += [("condition", c.name, None) for c in (pt_conditions or [])]
+                # 4a. Factor-gated §4.3 contraindications → patient-specific.
+                # Only lines matching a recorded allergy / condition / age bracket
+                # surface here (the full SPC lists live on the medication card); a
+                # match is a real, this-patient alert.
                 for line in spc.get("contraindications") or []:
-                    matched = next(
-                        ((k, n, s) for k, n, s in factors if _text_mentions(line, n)), None
-                    )
-                    if matched is None:
+                    f = _first_matching_factor(factors, line)
+                    if f is None:
                         continue
-                    kind, fname, fsev = matched
-                    key = f"SPC_CONTRA_{rx_atc[:4]}_{_fold(fname)}"
+                    key = f"SPC_CONTRA_{rx_atc[:4]}_{_fold(f['label'])}"
                     if key in seen:
                         continue
                     seen.add(key)
-                    if kind == "intolerance":
+                    if f["kind"] == "allergy":
                         intolerance_fired = True
+                    block = f["kind"] == "condition" or (
+                        f["kind"] == "allergy" and f.get("severity") == AdrSeverity.SEVERE
+                    )
                     checks.append(
                         SafetyAlertPayload(
                             id=f"{rx['rxId']}_{key}",
-                            name="Αντένδειξη (ΠΧΠ)",
+                            name="Αντένδειξη — αφορά τον ασθενή",
                             check_type=CheckType.CONTRAINDICATIONS,
-                            status=AlertStatus.BLOCK
-                            if fsev == AdrSeverity.SEVERE
-                            else AlertStatus.REVIEW,
-                            severity=fsev,
+                            status=AlertStatus.BLOCK if block else AlertStatus.REVIEW,
+                            severity=f.get("severity"),
                             message=line,
-                            details=f"Καταγεγραμμένο στοιχείο ασθενούς: {fname}",
+                            details=f"Σχετίζεται με: {f['label']}",
                             recommended_action="Επιβεβαιώστε με τον συνταγογράφο πριν τη χορήγηση.",
                             rx_id=rx["rxId"],
                             created_at=datetime.now(UTC),
                         )
                     )
-                # 4b. Precautions pointer — advisory REVIEW so the list expands.
+                # 4b. §4.4 precautions. Factor-matched lines are ELEVATED to a
+                # this-patient REVIEW; the rest go in ONE generic pointer so the
+                # card shows precautions once, not repeated per line.
                 precs = spc.get("precautions") or []
+                remaining: list[str] = []
+                for line in precs:
+                    f = _first_matching_factor(factors, line)
+                    if f is None:
+                        remaining.append(line)
+                        continue
+                    key = f"SPC_PREC_{rx_atc[:4]}_{_fold(line)[:40]}"
+                    if key in seen:
+                        continue
+                    seen.add(key)
+                    checks.append(
+                        SafetyAlertPayload(
+                            id=f"{rx['rxId']}_{key}",
+                            name="Προφύλαξη — αφορά τον ασθενή",
+                            check_type=CheckType.SPC_ALIGNMENT,
+                            status=AlertStatus.REVIEW,
+                            message=line,
+                            details=f"Σχετίζεται με: {f['label']}",
+                            recommended_action="Ελέγξτε την προφύλαξη πριν την παράδοση.",
+                            rx_id=rx["rxId"],
+                            created_at=datetime.now(UTC),
+                        )
+                    )
                 pkey = f"SPC_PRECAUTIONS_{rx_atc}"
-                if precs and pkey not in seen:
+                if remaining and pkey not in seen:
                     seen.add(pkey)
                     checks.append(
                         SafetyAlertPayload(
@@ -436,31 +540,49 @@ async def evaluate_safety(
                             name="Προφυλάξεις (ΠΧΠ)",
                             check_type=CheckType.SPC_ALIGNMENT,
                             status=AlertStatus.REVIEW,
-                            message=f"{len(precs)} σημεία προσοχής — δείτε λεπτομέρειες.",
-                            details=" • ".join(precs),
+                            message=f"{len(remaining)} σημεία προσοχής — δείτε λεπτομέρειες.",
+                            details=" • ".join(remaining),
                             recommended_action="Ελέγξτε τις προφυλάξεις της ΠΧΠ πριν την παράδοση.",
                             rx_id=rx["rxId"],
                             created_at=datetime.now(UTC),
                         )
                     )
-                # 4c. SPC interactions pointer — informational OK (structured
-                # cross-ref vs co-meds is a follow-up; the seeded rules stay the
-                # precise automated interaction path).
-                inters = spc.get("majorInteractions") or []
-                ikey = f"SPC_INTERACTIONS_{rx_atc}"
-                if inters and ikey not in seen:
-                    seen.add(ikey)
-                    checks.append(
-                        SafetyAlertPayload(
-                            id=f"{rx['rxId']}_{ikey}",
-                            name=f"Αλληλεπιδράσεις στην ΠΧΠ: {len(inters)} καταγεγραμμένες — δείτε την επισκόπηση.",
-                            check_type=CheckType.SPC_ALIGNMENT,
-                            status=AlertStatus.OK,
-                            message="",
-                            rx_id=rx["rxId"],
-                            created_at=datetime.now(UTC),
+                # 4c. §4.5 co-medication cross-ref. Each co-med (sibling line or
+                # history), by INN and brand, is matched against the SPC's §4.5
+                # interactions text (or MOCK structured pairs) — catching pairs the
+                # 18 seeded rules don't cover.
+                inter_text = spc.get("interactionsText") or ""
+                struct_inter = spc.get("majorInteractions") or []
+                own_name = med.get("drugName") if isinstance(med, dict) else None
+                line_co_atcs = (history_atcs or set()) | (med_atcs - {rx_atc})
+                terms = {inn_names[a] for a in line_co_atcs if a in inn_names}
+                terms |= {nm for nm in co_med_names if nm and nm != own_name}
+                if terms and (inter_text or struct_inter):
+                    interaction_screened = True
+                    for display in terms:
+                        hit = _text_mentions(inter_text, display) or any(
+                            _text_mentions(str(p.get("drug", "")), display) for p in struct_inter
                         )
-                    )
+                        if not hit:
+                            continue
+                        ikey = f"SPC_INTERACTION_{rx_atc[:4]}_{_fold(display)[:40]}"
+                        if ikey in seen:
+                            continue
+                        seen.add(ikey)
+                        interaction_fired = True
+                        checks.append(
+                            SafetyAlertPayload(
+                                id=f"{rx['rxId']}_{ikey}",
+                                name="Πιθανή αλληλεπίδραση (ΠΧΠ §4.5)",
+                                check_type=CheckType.INTERACTIONS,
+                                status=AlertStatus.REVIEW,
+                                message=f"Πιθανή αλληλεπίδραση με {display}.",
+                                details="Αναφέρεται στις αλληλεπιδράσεις της ΠΧΠ (§4.5).",
+                                recommended_action="Επιβεβαιώστε πριν τη χορήγηση.",
+                                rx_id=rx["rxId"],
+                                created_at=datetime.now(UTC),
+                            )
+                        )
 
     # --- Positive confirmations (verbose review path) ---
     # For each screening path that RAN WITH DATA and stayed clean, add a green
@@ -468,8 +590,6 @@ async def evaluate_safety(
     # get a confirmation — never a false "all clear" for data we couldn't fetch.
     if verbose_spc:
         allergy_screened = amka is not None and intolerances is not None
-        n_comeds = max(len((history_atcs or set()) | med_atcs) - 1, 0)
-        interaction_screened = bool(interaction_rules) and n_comeds > 0
         if allergy_screened and not intolerance_fired:
             checks.append(
                 SafetyAlertPayload(
@@ -483,10 +603,19 @@ async def evaluate_safety(
                 )
             )
         if interaction_screened and not interaction_fired:
+            # Name the co-meds that were screened when we have them; else fall
+            # back to a count of co-medication ATCs.
+            names = sorted(set(co_med_names) | set(inn_names.values()))
+            if names:
+                shown = ", ".join(names[:3]) + ("…" if len(names) > 3 else "")
+                label = f"Ελέγχθηκαν {len(names)} συγχορηγούμενα ({shown}) — καμία γνωστή αλληλεπίδραση."
+            else:
+                n = max(len((history_atcs or set()) | med_atcs) - 1, 0)
+                label = f"Καμία γνωστή αλληλεπίδραση με {n} συγχορηγούμενο/-α φάρμακο/-α."
             checks.append(
                 SafetyAlertPayload(
                     id=f"{rx['rxId']}_OK_INTERACTION",
-                    name=f"Καμία γνωστή αλληλεπίδραση με {n_comeds} συγχορηγούμενο/-α φάρμακο/-α.",
+                    name=label,
                     check_type=CheckType.INTERACTIONS,
                     status=AlertStatus.OK,
                     message="",

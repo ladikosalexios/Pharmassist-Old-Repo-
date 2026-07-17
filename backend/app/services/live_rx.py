@@ -69,11 +69,24 @@ def shape_live_rx(rx: dict, atc_map: dict[str, str]) -> dict:
             for ln in lines
         ]
         shaped["medications"] = [
-            {"atcCode": m["atcCode"], "nhrn": m.get("nhrn")}
+            {"atcCode": m["atcCode"], "nhrn": m.get("nhrn"), "drugName": m.get("drugName")}
             for m in rx["medications"]
             if m["atcCode"]
         ]
     return shaped
+
+
+async def _load_profile(amka) -> dict:
+    """Best-effort patient profile (age/sex/intolerances). A failed lookup never
+    breaks the review page — callers degrade to an empty dict."""
+    if not amka:
+        return {}
+    try:
+        from .patients import resolve
+
+        return await resolve(str(amka)) or {}
+    except Exception:
+        return {}
 
 
 async def shape_live_response(rx: dict, checks: list) -> dict:
@@ -93,14 +106,9 @@ async def shape_live_response(rx: dict, checks: list) -> dict:
     )
 
     amka = rx.get("patientAmka")
-    profile: dict = {}
-    if amka:
-        try:
-            from .patients import resolve
-
-            profile = await resolve(str(amka)) or {}
-        except Exception:
-            profile = {}
+    # Reuse the profile resolve_live_rx_with_checks already fetched (stashed on
+    # rx) so a scan makes ONE ΗΔΥΚΑ patient call, not two.
+    profile = rx["_profile"] if "_profile" in rx else await _load_profile(amka)
     allergies = _allergy_summary(profile)
 
     return {
@@ -179,6 +187,14 @@ async def resolve_live_rx_with_checks(
     barcodes = line_barcodes or ([medicine_barcode] if medicine_barcode else [])
     atc_map = await atc_codes_for_barcodes(session, barcodes)
     shaped = shape_live_rx(rx, atc_map)
+    # Fetch the patient profile ONCE: the engine needs age (age-bracket factor
+    # gating) and shape_live_response reuses it via rx["_profile"] — one ΗΔΥΚΑ
+    # patient call per scan. Stashed on the raw rx, which is never persisted (the
+    # scan snapshot stores the shaped response, not this dict).
+    profile = await _load_profile(rx.get("patientAmka"))
+    rx["_profile"] = profile
+    shaped["patient"]["age"] = profile.get("age")
+    shaped["patient"]["sex"] = profile.get("sex")
     payload = await checks_for_prescription(
         session, shaped["rxId"], shaped, pharmacy.id, verbose_spc=True
     )

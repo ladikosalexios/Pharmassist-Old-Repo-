@@ -328,6 +328,16 @@ MOCK_SPC: dict = {
 }
 
 
+def _section_text(doc: SpcDocument, prefix: str) -> str | None:
+    """Raw body text for a numbered SPC section (e.g. "4.5" interactions),
+    joining any sub-sections (4.5.1, …). Used by the safety engine to keyword-
+    match co-medication names against §4.5 when structured pairs aren't parsed."""
+    sections = doc.sections or {}
+    hits = [v for k, v in sections.items() if k == prefix or k.startswith(prefix + ".")]
+    text = " ".join(h for h in hits if h).strip()
+    return text or None
+
+
 def _compose(docs: list[SpcDocument], atc_code: str) -> dict:
     """SpcDetails payload from a pool of documents (see module docstring)."""
     ordered = sorted(docs, key=lambda d: (d.verified, d.fetched_at), reverse=True)
@@ -346,6 +356,10 @@ def _compose(docs: list[SpcDocument], atc_code: str) -> dict:
         "recommendedDosage": parsed.get("recommendedDosage") or "",
         "contraindications": parsed.get("contraindications") or [],
         "majorInteractions": parsed.get("majorInteractions") or [],
+        # Raw §4.5 body for co-medication keyword cross-ref (structured pairs are
+        # LLM-only, so parsed docs have majorInteractions=[] but this text). Not
+        # rendered by the frontend — engine-only.
+        "interactionsText": _section_text(base, "4.5"),
         "precautions": parsed.get("precautions") or [],
         "storage": parsed.get("storage"),
         "foodInstructions": parsed.get("foodInstructions"),

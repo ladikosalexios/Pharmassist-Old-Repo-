@@ -154,6 +154,28 @@ async def atc_codes_for_barcodes(
     return {row.gns_code: row.atc_code for row in rows if row.atc_code}
 
 
+async def names_for_atcs(session: AsyncSession, atcs: set[str]) -> dict[str, str]:
+    """Return {atc_code: INN name} — the first non-blank ``name_en`` per ATC.
+
+    Used to turn a co-medication's ATC into a substance name the SPC §4.5
+    interactions text actually uses (that section names substances/classes, not
+    brands), so co-meds can be keyword-matched against it.
+    """
+    atcs = {a for a in atcs if a}
+    if not atcs:
+        return {}
+    rows = await session.execute(
+        select(DrugCatalog.atc_code, DrugCatalog.name_en).where(
+            DrugCatalog.atc_code.in_(atcs), DrugCatalog.name_en.isnot(None)
+        )
+    )
+    out: dict[str, str] = {}
+    for atc, name in rows:
+        if atc not in out and name:
+            out[atc] = name
+    return out
+
+
 async def run_sync(since: str | None, triggered_by: str | None = None) -> None:
     """Run one catalogue sync, recording a catalog_sync_runs row (FT-4).
 

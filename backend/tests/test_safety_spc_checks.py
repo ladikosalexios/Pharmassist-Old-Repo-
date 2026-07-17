@@ -75,9 +75,28 @@ def _spc_stub(**fields):
             "contraindications": fields.get("contraindications", []),
             "precautions": fields.get("precautions", []),
             "majorInteractions": fields.get("majorInteractions", []),
+            "interactionsText": fields.get("interactionsText"),
         }
 
     return _resolve
+
+
+def _spc_by_atc(mapping):
+    """resolve_spc replacement that returns a different canned SPC per ATC."""
+
+    async def _resolve(session, atc_code, barcode=None):
+        return mapping.get(atc_code)
+
+    return _resolve
+
+
+class _Cond:
+    """Minimal patient-condition row (engine reads .condition_code/.name/.severity)."""
+
+    def __init__(self, condition_code, name, severity=None):
+        self.condition_code = condition_code
+        self.name = name
+        self.severity = severity
 
 
 def _evaluate(monkeypatch, spc, **kwargs):
@@ -184,3 +203,134 @@ def test_verbose_off_is_byte_identical(monkeypatch):
         patient_conditions=[],
     )
     assert payload.checks == []
+
+
+# ── v2: patient-factor gating, de-dup, §4.5 cross-ref ────────────────────────
+
+
+def _rx_aged(age):
+    return {
+        "rxId": "SPC-T",
+        "patient": {"id": AMKA, "amka": AMKA, "age": age},
+        "medication": {"atcCode": OLANZAPINE},
+    }
+
+
+def test_elderly_precaution_elevated_and_stripped_from_pointer(monkeypatch):
+    # age 72 → elderly factor. The "elderly" precaution line becomes a
+    # patient-specific REVIEW and is REMOVED from the generic pointer (which
+    # keeps only the unrelated line) — so the card never repeats it.
+    payload = _evaluate(
+        monkeypatch,
+        _spc_stub(precautions=["Caution in elderly patients with dementia.", "Take with water."]),
+        rx=_rx_aged(72),
+        rules=[],
+        intolerances=[],
+        patient_conditions=[],
+        verbose_spc=True,
+    )
+    elevated = [c for c in payload.checks if c.name == "Προφύλαξη — αφορά τον ασθενή"]
+    assert len(elevated) == 1
+    assert "elderly" in elevated[0].message.lower()
+    pointer = [c for c in payload.checks if c.id.endswith("_SPC_PRECAUTIONS_" + OLANZAPINE)]
+    assert len(pointer) == 1
+    assert "Take with water." in (pointer[0].details or "")
+    assert "elderly" not in (pointer[0].details or "").lower()  # not repeated
+
+
+def test_younger_patient_no_elderly_elevation(monkeypatch):
+    payload = _evaluate(
+        monkeypatch,
+        _spc_stub(precautions=["Caution in elderly patients with dementia."]),
+        rx=_rx_aged(40),
+        rules=[],
+        intolerances=[],
+        patient_conditions=[],
+        verbose_spc=True,
+    )
+    assert not any(c.name == "Προφύλαξη — αφορά τον ασθενή" for c in payload.checks)
+    # The unmatched precaution still shows once, in the generic pointer.
+    assert any(c.id.endswith("_SPC_PRECAUTIONS_" + OLANZAPINE) for c in payload.checks)
+
+
+def test_pregnancy_contraindication_blocks(monkeypatch):
+    payload = _evaluate(
+        monkeypatch,
+        _spc_stub(contraindications=["Contraindicated during pregnancy and lactation."]),
+        rx=_rx(),
+        rules=[],
+        intolerances=[],
+        patient_conditions=[_Cond("PREGNANCY", "Εγκυμοσύνη")],
+        verbose_spc=True,
+    )
+    contra = [c for c in payload.checks if c.name == "Αντένδειξη — αφορά τον ασθενή"]
+    assert len(contra) == 1
+    assert contra[0].status == AlertStatus.BLOCK  # condition contraindication → block
+    assert "Εγκυμοσύνη" in (contra[0].details or "")
+
+
+def test_spc_45_comed_interaction_flagged(monkeypatch):
+    # Two-med prescription: olanzapine's §4.5 text names the co-med (lisinopril
+    # brand) → a "possible interaction" REVIEW, beyond the 18 seeded rules.
+    rx = {
+        "rxId": "SPC-T",
+        "patient": {"id": AMKA, "amka": AMKA, "age": 50},
+        "medications": [
+            {"atcCode": OLANZAPINE, "nhrn": None, "drugName": "OLENXA"},
+            {"atcCode": "C09AA03", "nhrn": None, "drugName": "ZESTRIL"},
+        ],
+    }
+    spc_map = {
+        OLANZAPINE: {
+            "contraindications": [],
+            "precautions": [],
+            "majorInteractions": [],
+            "interactionsText": "Concomitant use with ZESTRIL may enhance hypotensive effect.",
+        },
+        "C09AA03": {
+            "contraindications": [],
+            "precautions": [],
+            "majorInteractions": [],
+            "interactionsText": "",
+        },
+    }
+    payload = _evaluate(
+        monkeypatch,
+        _spc_by_atc(spc_map),
+        rx=rx,
+        rules=[],
+        intolerances=[],
+        patient_conditions=[],
+        verbose_spc=True,
+    )
+    inter = [c for c in payload.checks if c.name == "Πιθανή αλληλεπίδραση (ΠΧΠ §4.5)"]
+    assert len(inter) == 1
+    assert "ZESTRIL" in inter[0].message
+    assert inter[0].status == AlertStatus.REVIEW
+    # An interaction fired → NO "no interaction" green confirmation.
+    assert not any(c.id.endswith("_OK_INTERACTION") for c in payload.checks)
+
+
+def test_screened_comeds_named_in_confirmation(monkeypatch):
+    # Co-med present, nothing matched → the green confirmation NAMES the screened
+    # co-medication instead of just a count.
+    rx = {
+        "rxId": "SPC-T",
+        "patient": {"id": AMKA, "amka": AMKA, "age": 50},
+        "medications": [
+            {"atcCode": OLANZAPINE, "nhrn": None, "drugName": "OLENXA"},
+            {"atcCode": "C09AA03", "nhrn": None, "drugName": "ZESTRIL"},
+        ],
+    }
+    payload = _evaluate(
+        monkeypatch,
+        _spc_stub(interactionsText="No relevant interactions reported."),
+        rx=rx,
+        rules=[],
+        intolerances=[],
+        patient_conditions=[],
+        verbose_spc=True,
+    )
+    ok = [c for c in payload.checks if c.id.endswith("_OK_INTERACTION")]
+    assert len(ok) == 1
+    assert "ZESTRIL" in ok[0].name

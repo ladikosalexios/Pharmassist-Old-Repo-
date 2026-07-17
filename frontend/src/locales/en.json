@@ -594,7 +594,8 @@
     "spcAutoExtracted": "Auto-extracted from the SPC — verify against the source",
     "spcVerified": "Pharmacist-verified",
     "spcSourceLink": "Source document",
-    "spcMarkVerified": "Mark verified"
+    "spcMarkVerified": "Mark verified",
+    "factorsTitle": "Patient factors (record)"
   },
   "rxDetails": {
     "title": "Prescription Details",
