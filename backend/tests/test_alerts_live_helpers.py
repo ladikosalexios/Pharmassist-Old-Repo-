@@ -30,19 +30,24 @@ from app.services.safety_engine import evaluate_safety, live_rx_to_engine_shape 
 
 
 def test_live_rx_reshape_collapses_amka_into_patient_id():
-    rx = {"rxId": "1234567890123456", "patientAmka": "15031962456"}
+    rx = {
+        "rxId": "1234567890123456",
+        "patientAmka": "15031962456",
+        "medicineBarcode": "2605203035241",
+    }
     shaped = live_rx_to_engine_shape(rx, "B01AA03")
     assert shaped == {
         "rxId": "1234567890123456",
         "patient": {"id": "15031962456", "amka": "15031962456"},
-        "medication": {"atcCode": "B01AA03"},
+        # nhrn carries the barcode so the SPC lookup can match by barcode → ATC.
+        "medication": {"atcCode": "B01AA03", "nhrn": "2605203035241"},
     }
 
 
 def test_live_rx_reshape_with_no_atc():
     rx = {"rxId": "1234567890123456", "patientAmka": "15031962456"}
     shaped = live_rx_to_engine_shape(rx, None)
-    assert shaped["medication"] == {"atcCode": None}
+    assert shaped["medication"] == {"atcCode": None, "nhrn": None}
 
 
 # ── evaluate_safety defensive paths ──────────────────────────────────────────

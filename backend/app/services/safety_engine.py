@@ -5,6 +5,7 @@ of safety alerts. Replaces per-prescription MOCK_SAFETY_CHECKS for any rx_id
 not already covered by that mock.
 """
 
+import unicodedata
 from datetime import UTC, datetime
 from uuid import UUID
 
@@ -19,6 +20,7 @@ from ..utils.environment import is_mock_pharmapi
 from .patients import conditions, patient_intolerances, rx_history
 from .prescriptions import MOCK_PRESCRIPTIONS
 from .safety_checks import MOCK_SAFETY_CHECKS
+from .spc import resolve_spc
 from .substance_resolver import DrugHint, resolve_atcs
 
 # Intolerances fixture for MOCK mode only. In live mode intolerances are fetched
@@ -46,6 +48,21 @@ _CHECK_TYPE_NAME = {
     CheckType.PREGNANCY: "Pregnancy",
     CheckType.G6PD: "G6PD Deficiency",
 }
+
+
+def _fold(s: str) -> str:
+    """Lowercase + strip diacritics (Greek τόνοι, Latin accents) for loose matching."""
+    nfkd = unicodedata.normalize("NFKD", s or "")
+    return "".join(c for c in nfkd if not unicodedata.combining(c)).lower()
+
+
+def _text_mentions(haystack: str, needle: str) -> bool:
+    """True when ``needle`` (accent-folded) appears in ``haystack``. Terms under
+    3 chars are ignored — too short to match a substance name without noise."""
+    n = _fold(needle).strip()
+    if len(n) < 3:
+        return False
+    return n in _fold(haystack)
 
 
 def _rule_to_alert(rule: SafetyRule, rx_id: str) -> SafetyAlertPayload:
@@ -76,7 +93,7 @@ def live_rx_to_engine_shape(rx: dict, atc: str | None) -> dict:
     return {
         "rxId": rx.get("rxId"),
         "patient": {"id": amka, "amka": amka},
-        "medication": {"atcCode": atc},
+        "medication": {"atcCode": atc, "nhrn": rx.get("medicineBarcode")},
     }
 
 
@@ -152,6 +169,7 @@ async def checks_for_prescription(
     pharmacy_id: UUID,
     rules: list[SafetyRule] | None = None,
     intolerances: list[dict] | None = None,
+    verbose_spc: bool = False,
 ) -> SafetyChecksPayload:
     """Single source of truth for a prescription's safety checks.
 
@@ -182,7 +200,9 @@ async def checks_for_prescription(
         return SafetyChecksPayload(rx_id=rx_id, checks=checks, source="mock")
     if rx is None:
         raise HTTPException(status_code=404, detail=f"Prescription {rx_id} not found")
-    return await evaluate_safety(session, rx, pharmacy_id, rules=rules, intolerances=intolerances)
+    return await evaluate_safety(
+        session, rx, pharmacy_id, rules=rules, intolerances=intolerances, verbose_spc=verbose_spc
+    )
 
 
 async def evaluate_safety(
@@ -193,6 +213,7 @@ async def evaluate_safety(
     history_atcs: set[str] | None = None,
     patient_conditions: list | None = None,
     intolerances: list[dict] | None = None,
+    verbose_spc: bool = False,
 ) -> SafetyChecksPayload:
     """Evaluate a single prescription against the safety-rule catalogue.
 
@@ -219,6 +240,14 @@ async def evaluate_safety(
       substance→ATC resolution in live mode). The /v1 path passes an explicit
       list (empty until it opts into consented allergy screening) so the engine
       never makes a legacy-credential intolerance call under a B2B context.
+
+    ``verbose_spc`` (single-rx review path only) enriches the result from the
+    drug's own SPC (``resolve_spc``): patient-specific contraindication matches,
+    an advisory precautions/interactions pointer, and — for every screening path
+    that ran clean — a green positive-confirmation row, so the review card is
+    always populated rather than blank. It is OFF by default: the dashboard batch
+    and the /v1 B2B path keep the lean, alerts-only output (and their tests stay
+    byte-identical). It requires a real ``session`` (SPC + condition lookups).
     """
     if rules is None:
         rules = await load_active_safety_rules(session)
@@ -241,6 +270,12 @@ async def evaluate_safety(
 
     checks: list[SafetyAlertPayload] = []
     seen: set[str] = set()
+    # Track which screening paths raised an alert, so the verbose_spc positive
+    # confirmations below only fire for a path that ran clean (never a false
+    # "all clear"). An allergy match (§2 or an SPC contraindication that matched
+    # an intolerance) flips intolerance_fired independently of a condition match.
+    interaction_fired = False
+    intolerance_fired = False
 
     # --- 1. Drug-drug interactions & duplicate therapy (co-medication set) ---
     # Pre-filter rules so we don't make the rx_history call (Pharmapi round-trip
@@ -273,6 +308,11 @@ async def evaluate_safety(
     if med_atcs and amka and intolerances is None:
         intolerances = await _load_intolerances(session, amka)
     pt_conditions = patient_conditions
+    # The verbose review path cross-references conditions against the SPC's
+    # contraindications text (not just the condition-rule table), so load them
+    # up-front even when no rule references this ATC.
+    if verbose_spc and amka and pt_conditions is None and session is not None:
+        pt_conditions = await conditions(session, amka, pharmacy_id)
 
     for med in meds:
         rx_atc = med.get("atcCode") if isinstance(med, dict) else None
@@ -289,6 +329,7 @@ async def evaluate_safety(
                 )
                 if matches and rule.rule_code not in seen:
                     seen.add(rule.rule_code)
+                    interaction_fired = True
                     checks.append(_rule_to_alert(rule, rx["rxId"]))
 
         # --- 2. Intolerances / contraindications (Pharmapi) ---
@@ -301,6 +342,7 @@ async def evaluate_safety(
                     key = f"INTOLERANCE_{intol['atcCode'][:4]}"
                     if key not in seen:
                         seen.add(key)
+                        intolerance_fired = True
                         checks.append(
                             SafetyAlertPayload(
                                 id=f"{rx['rxId']}_INTOLERANCE_{intol['atcCode'][:4]}",
@@ -334,6 +376,124 @@ async def evaluate_safety(
                     if rule.trigger_condition_code in condition_codes:
                         seen.add(rule.rule_code)
                         checks.append(_rule_to_alert(rule, rx["rxId"]))
+
+        # --- 4. SPC-driven checks (verbose single-rx review path only) ---
+        # Cross-reference the drug's OWN SPC against the patient — this is what
+        # gives coverage for drugs outside the ~7 seeded rule classes (the SPC is
+        # authoritative and already ingested). resolve_spc walks barcode → ATC →
+        # MOCK_SPC; None means no document, so SPC rows are simply skipped.
+        if verbose_spc:
+            spc = await resolve_spc(
+                session, rx_atc, med.get("nhrn") if isinstance(med, dict) else None
+            )
+            if spc:
+                # 4a. Contraindication cross-ref → patient-specific REVIEW/BLOCK.
+                # Each recorded intolerance / condition is loose-matched (accent
+                # folded) against the SPC §4.3 lines; a hit the ATC-class match
+                # (§2) didn't already catch becomes an alert. An intolerance hit
+                # also counts as an allergy screen result (suppresses the OK row).
+                factors = [
+                    ("intolerance", i["name"], i.get("severity")) for i in (intolerances or [])
+                ]
+                factors += [("condition", c.name, None) for c in (pt_conditions or [])]
+                for line in spc.get("contraindications") or []:
+                    matched = next(
+                        ((k, n, s) for k, n, s in factors if _text_mentions(line, n)), None
+                    )
+                    if matched is None:
+                        continue
+                    kind, fname, fsev = matched
+                    key = f"SPC_CONTRA_{rx_atc[:4]}_{_fold(fname)}"
+                    if key in seen:
+                        continue
+                    seen.add(key)
+                    if kind == "intolerance":
+                        intolerance_fired = True
+                    checks.append(
+                        SafetyAlertPayload(
+                            id=f"{rx['rxId']}_{key}",
+                            name="Αντένδειξη (ΠΧΠ)",
+                            check_type=CheckType.CONTRAINDICATIONS,
+                            status=AlertStatus.BLOCK
+                            if fsev == AdrSeverity.SEVERE
+                            else AlertStatus.REVIEW,
+                            severity=fsev,
+                            message=line,
+                            details=f"Καταγεγραμμένο στοιχείο ασθενούς: {fname}",
+                            recommended_action="Επιβεβαιώστε με τον συνταγογράφο πριν τη χορήγηση.",
+                            rx_id=rx["rxId"],
+                            created_at=datetime.now(UTC),
+                        )
+                    )
+                # 4b. Precautions pointer — advisory REVIEW so the list expands.
+                precs = spc.get("precautions") or []
+                pkey = f"SPC_PRECAUTIONS_{rx_atc}"
+                if precs and pkey not in seen:
+                    seen.add(pkey)
+                    checks.append(
+                        SafetyAlertPayload(
+                            id=f"{rx['rxId']}_{pkey}",
+                            name="Προφυλάξεις (ΠΧΠ)",
+                            check_type=CheckType.SPC_ALIGNMENT,
+                            status=AlertStatus.REVIEW,
+                            message=f"{len(precs)} σημεία προσοχής — δείτε λεπτομέρειες.",
+                            details=" • ".join(precs),
+                            recommended_action="Ελέγξτε τις προφυλάξεις της ΠΧΠ πριν την παράδοση.",
+                            rx_id=rx["rxId"],
+                            created_at=datetime.now(UTC),
+                        )
+                    )
+                # 4c. SPC interactions pointer — informational OK (structured
+                # cross-ref vs co-meds is a follow-up; the seeded rules stay the
+                # precise automated interaction path).
+                inters = spc.get("majorInteractions") or []
+                ikey = f"SPC_INTERACTIONS_{rx_atc}"
+                if inters and ikey not in seen:
+                    seen.add(ikey)
+                    checks.append(
+                        SafetyAlertPayload(
+                            id=f"{rx['rxId']}_{ikey}",
+                            name=f"Αλληλεπιδράσεις στην ΠΧΠ: {len(inters)} καταγεγραμμένες — δείτε την επισκόπηση.",
+                            check_type=CheckType.SPC_ALIGNMENT,
+                            status=AlertStatus.OK,
+                            message="",
+                            rx_id=rx["rxId"],
+                            created_at=datetime.now(UTC),
+                        )
+                    )
+
+    # --- Positive confirmations (verbose review path) ---
+    # For each screening path that RAN WITH DATA and stayed clean, add a green
+    # row so the card reads as verified, not blank. Only paths that actually ran
+    # get a confirmation — never a false "all clear" for data we couldn't fetch.
+    if verbose_spc:
+        allergy_screened = amka is not None and intolerances is not None
+        n_comeds = max(len((history_atcs or set()) | med_atcs) - 1, 0)
+        interaction_screened = bool(interaction_rules) and n_comeds > 0
+        if allergy_screened and not intolerance_fired:
+            checks.append(
+                SafetyAlertPayload(
+                    id=f"{rx['rxId']}_OK_ALLERGY",
+                    name="Δεν εντοπίστηκε καταγεγραμμένη αλλεργία που να αφορά το φάρμακο.",
+                    check_type=CheckType.CONTRAINDICATIONS,
+                    status=AlertStatus.OK,
+                    message="",
+                    rx_id=rx["rxId"],
+                    created_at=datetime.now(UTC),
+                )
+            )
+        if interaction_screened and not interaction_fired:
+            checks.append(
+                SafetyAlertPayload(
+                    id=f"{rx['rxId']}_OK_INTERACTION",
+                    name=f"Καμία γνωστή αλληλεπίδραση με {n_comeds} συγχορηγούμενο/-α φάρμακο/-α.",
+                    check_type=CheckType.INTERACTIONS,
+                    status=AlertStatus.OK,
+                    message="",
+                    rx_id=rx["rxId"],
+                    created_at=datetime.now(UTC),
+                )
+            )
 
     checks.sort(key=lambda a: STATUS_ORDER.get(a.status, 99))
     return SafetyChecksPayload(rx_id=rx["rxId"], checks=checks, source="engine")

@@ -48,7 +48,7 @@ async def get_safety_checks(
 
     if is_mock_pharmapi():
         return await checks_for_prescription(
-            session, rx_id, MOCK_PRESCRIPTIONS.get(rx_id), pharmacy.id
+            session, rx_id, MOCK_PRESCRIPTIONS.get(rx_id), pharmacy.id, verbose_spc=True
         )
 
     rx, payload = await resolve_live_rx_with_checks(session, rx_id, pharmacy, _client_ip(request))

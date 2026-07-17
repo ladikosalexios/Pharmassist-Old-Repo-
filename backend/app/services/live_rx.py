@@ -69,7 +69,9 @@ def shape_live_rx(rx: dict, atc_map: dict[str, str]) -> dict:
             for ln in lines
         ]
         shaped["medications"] = [
-            {"atcCode": m["atcCode"]} for m in rx["medications"] if m["atcCode"]
+            {"atcCode": m["atcCode"], "nhrn": m.get("nhrn")}
+            for m in rx["medications"]
+            if m["atcCode"]
         ]
     return shaped
 
@@ -177,5 +179,7 @@ async def resolve_live_rx_with_checks(
     barcodes = line_barcodes or ([medicine_barcode] if medicine_barcode else [])
     atc_map = await atc_codes_for_barcodes(session, barcodes)
     shaped = shape_live_rx(rx, atc_map)
-    payload = await checks_for_prescription(session, shaped["rxId"], shaped, pharmacy.id)
+    payload = await checks_for_prescription(
+        session, shaped["rxId"], shaped, pharmacy.id, verbose_spc=True
+    )
     return rx, payload

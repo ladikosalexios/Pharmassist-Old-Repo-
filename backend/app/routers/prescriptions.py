@@ -144,7 +144,7 @@ async def get_prescription_for_verification(
         pharmacy = await find_pharmacy_by_name(session, current["pharmacy"])
         if pharmacy is None:
             raise HTTPException(status_code=400, detail="Pharmacy not found for current user")
-        payload = await checks_for_prescription(session, rx_id, rx, pharmacy.id)
+        payload = await checks_for_prescription(session, rx_id, rx, pharmacy.id, verbose_spc=True)
         result = {**rx, "safetyChecks": [c.model_dump(by_alias=True) for c in payload.checks]}
         fire_scan_record(
             pharmacy_id=pharmacy.id,
