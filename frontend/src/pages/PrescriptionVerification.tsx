@@ -96,16 +96,20 @@ function PatientCard({
     <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-card dark:border-slate-800 dark:bg-slate-900">
       <CardHead>{t("review.patient")}</CardHead>
       <div className="text-[18px] font-bold text-slate-900 dark:text-slate-100">{p.name}</div>
-      <div className="mt-0.5 text-[13px] text-slate-500 dark:text-slate-400">
-        {p.age} {t("review.yearsSuffix")}
-      </div>
+      {p.age != null && (
+        <div className="mt-0.5 text-[13px] text-slate-500 dark:text-slate-400">
+          {p.age} {t("review.yearsSuffix")}
+        </div>
+      )}
       <dl className="mt-5 grid grid-cols-2 gap-x-4 gap-y-4">
         <Field label="AMKA" mono>
           {p.amka}
         </Field>
-        <Field label={t("review.dateOfBirth")} mono>
-          {p.dateOfBirth}
-        </Field>
+        {p.dateOfBirth && (
+          <Field label={t("review.dateOfBirth")} mono>
+            {p.dateOfBirth}
+          </Field>
+        )}
         {conditions && conditions.length > 0 && (
           <div className="col-span-2">
             <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">

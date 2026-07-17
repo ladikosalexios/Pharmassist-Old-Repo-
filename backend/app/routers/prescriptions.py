@@ -36,7 +36,7 @@ from ..db.session import get_session
 from ..deps import get_current_user
 from ..schemas.prescriptions import PatchResponse, PrescriptionPatch
 from ..services.documentation import record_prescription_action
-from ..services.live_rx import resolve_live_rx_with_checks
+from ..services.live_rx import resolve_live_rx_with_checks, shape_live_response
 from ..services.pharmacy import find_pharmacy_by_name
 from ..services.prescriptions import MOCK_PRESCRIPTIONS, MOCK_QUEUE_BASE
 from ..services.safety_engine import checks_for_prescription
@@ -166,7 +166,8 @@ async def get_prescription_for_verification(
     rx, payload = await resolve_live_rx_with_checks(session, rx_id, pharmacy, ip or "0.0.0.0")
     if rx is None:
         raise HTTPException(status_code=404, detail=f"Prescription {rx_id} not found")
-    result = {**rx, "safetyChecks": [c.model_dump(by_alias=True) for c in payload.checks]}
+    checks = [c.model_dump(by_alias=True) for c in payload.checks]
+    result = await shape_live_response(rx, checks)
     fire_scan_record(
         pharmacy_id=pharmacy.id,
         pharmacist_id=uuid.UUID(current["pharmacist_id"]),

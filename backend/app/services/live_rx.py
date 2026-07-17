@@ -74,6 +74,92 @@ def shape_live_rx(rx: dict, atc_map: dict[str, str]) -> dict:
     return shaped
 
 
+async def shape_live_response(rx: dict, checks: list) -> dict:
+    """Shape a flat live rx into the frontend's nested Prescription contract.
+
+    ΗΔΥΚΑ returns a FLAT rx (patientName/medication-string/physician); the SPA
+    was built against the mock's NESTED shape (patient{}, medication{},
+    prescriber{}). Bridging here — not in the SPA — keeps mock and live in
+    lockstep (CLAUDE.md). Patient demographics (age/allergies) are enriched
+    best-effort from the patient profile; a failed lookup never breaks the
+    review page — the name/AMKA/drug/prescriber/safety all still render.
+    """
+    meds = rx.get("medications") or []
+    first = meds[0] if meds else {}
+    med_name = first.get("drugName") or (
+        rx.get("medication") if isinstance(rx.get("medication"), str) else ""
+    )
+
+    amka = rx.get("patientAmka")
+    profile: dict = {}
+    if amka:
+        try:
+            from .patients import resolve
+
+            profile = await resolve(str(amka)) or {}
+        except Exception:
+            profile = {}
+    allergies = _allergy_summary(profile)
+
+    return {
+        "rxId": rx.get("rxId"),
+        "code": rx.get("rxId"),
+        "dateIssued": rx.get("date"),
+        "expiryDate": rx.get("expiryDate"),
+        "status": rx.get("status"),
+        "pharmApiStatus": rx.get("pharmApiStatus"),
+        "spcVersion": "",
+        "patient": {
+            "id": amka,
+            "name": rx.get("patientName") or "—",
+            "age": profile.get("age"),
+            "dateOfBirth": profile.get("dateOfBirth") or "",
+            "amka": amka or "",
+            "conditions": profile.get("conditions") or [],
+            "allergies": allergies,
+        },
+        "medication": {
+            "drugName": med_name,
+            "atcCode": first.get("atcCode"),
+            "nhrn": first.get("nhrn") or rx.get("medicineBarcode"),
+            "dose": "",
+            "form": "",
+            "route": "",
+            "frequency": "",
+            "treatmentDuration": "",
+            "spcRecommendedDosage": "",
+        },
+        "medications": meds,
+        "prescriber": {
+            "name": rx.get("physician") or "—",
+            "licenceId": "",
+            "specialty": "",
+            "contact": "",
+            "email": "",
+        },
+        "spcQuickReference": {"contraindications": [], "majorInteractions": []},
+        "safetyChecks": checks,
+    }
+
+
+def _allergy_summary(profile: dict) -> str:
+    """Distinct intolerance substances as a display string. ΗΔΥΚΑ intolerances
+    are dicts ({activeSubstance, intolerance, remarks}); the profile may also
+    carry a plain ``allergies`` string/list."""
+    names: list[str] = []
+    for item in profile.get("intolerances") or []:
+        if isinstance(item, dict):
+            n = item.get("activeSubstance") or item.get("name")
+        else:
+            n = item if isinstance(item, str) else None
+        if n and n not in names:
+            names.append(str(n))
+    if names:
+        return ", ".join(names)
+    a = profile.get("allergies")
+    return ", ".join(a) if isinstance(a, list) else (a or "")
+
+
 async def resolve_live_rx_with_checks(
     session: AsyncSession, rx_id: str, pharmacy, doctor_ip: str
 ) -> tuple[dict | None, SafetyChecksPayload | None]:
