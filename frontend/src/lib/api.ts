@@ -170,8 +170,22 @@ export async function getNextPrescription(): Promise<QueueItem> {
   return handle(r) as Promise<QueueItem>;
 }
 
-export async function getSpc(atcCode: string): Promise<SpcDetails> {
-  const r = await fetch(`${API_BASE}/spc/${encodeURIComponent(atcCode)}`, {
+export async function verifySpcDocument(
+  documentId: string,
+  verified: boolean,
+): Promise<{ documentId: string; verified: boolean }> {
+  const r = await fetch(`${API_BASE}/spc/documents/${encodeURIComponent(documentId)}/verify`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ verified }),
+  });
+  return handle(r) as Promise<{ documentId: string; verified: boolean }>;
+}
+
+export async function getSpc(atcCode: string, barcode?: string): Promise<SpcDetails> {
+  const qs = barcode ? `?barcode=${encodeURIComponent(barcode)}` : "";
+  const r = await fetch(`${API_BASE}/spc/${encodeURIComponent(atcCode)}${qs}`, {
     credentials: "include",
   });
   const data = (await handle(r)) as Partial<SpcDetails>;

@@ -590,7 +590,11 @@
     "storageTitle": "Φύλαξη & απόρριψη",
     "afterOpening": "Μετά το άνοιγμα",
     "disposal": "Απόρριψη",
-    "foodInstructions": "Λήψη με τροφή"
+    "foodInstructions": "Λήψη με τροφή",
+    "spcAutoExtracted": "Αυτόματη εξαγωγή από SPC — επαληθεύστε με την πηγή",
+    "spcVerified": "Επαληθευμένο από φαρμακοποιό",
+    "spcSourceLink": "Έγγραφο πηγής",
+    "spcMarkVerified": "Επαλήθευση"
   },
   "rxDetails": {
     "title": "Λεπτομέρειες Συνταγής",

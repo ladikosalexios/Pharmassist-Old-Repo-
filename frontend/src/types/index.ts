@@ -25,7 +25,7 @@ export interface Medication {
 // SPC §6.3/§6.4 storage + §6.6 disposal. `afterOpening` is the in-use shelf
 // life (e.g. a reconstituted suspension) — null for plain tablets.
 export interface SpcStorage {
-  conditions: string;
+  conditions: string | null;
   afterOpening?: string | null;
   disposal?: string | null;
 }
@@ -46,6 +46,14 @@ export interface SpcDetails {
   storage?: SpcStorage | null;
   // §4.2 food guidance — null/absent when the drug has no food instruction.
   foodInstructions?: string | null;
+  // Provenance (DB-backed documents; absent/mock for the fixture fallback).
+  // Drives the auto-extracted / verified badge on the review page.
+  source?: "eof" | "ema" | "upload" | "mock" | string;
+  sourceUrl?: string | null;
+  verified?: boolean;
+  extractionMethod?: "deterministic" | "llm" | "manual" | string;
+  docType?: string;
+  documentId?: string | null;
 }
 
 export interface Prescriber {
