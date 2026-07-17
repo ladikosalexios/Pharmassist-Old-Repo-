@@ -136,6 +136,12 @@ class ClinicalPromptInput(BaseModel):
     question: str | None = None  # caller free text (SPC Q&A) — scrubbed
     age_band: str | None = None  # anonymised, e.g. "65-74"
     sex_band: str | None = None  # anonymised, e.g. "F"
+    # Non-PII regulatory document sections (SPC/ΦΟΧ extraction — spc_extract).
+    # Document text can legitimately contain barcode/code-shaped tokens that
+    # the scrub would flag, so the spc_extract BUILDER masks every token
+    # matching the three PII regexes before message assembly; assert_no_pii
+    # then passes by construction. Never carries patient data.
+    document_text: list[str] = []
 
     def cache_input(self) -> dict:
         """Canonical dict for the cache key — only the populated fields, so two
