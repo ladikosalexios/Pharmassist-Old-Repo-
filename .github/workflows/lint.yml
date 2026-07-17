@@ -64,11 +64,12 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements-dev.txt
 
-      # Five suites need the live compose Postgres and stay manual:
+      # Six suites need the live compose Postgres and stay manual:
       # test_endpoints_integration.py, test_v1_tenant_isolation.py,
       # test_b2b_admin_audit.py (drives the CLI against a real DB),
-      # test_ai_cache_db.py (T2-2 LLM-cache round-trip), and
-      # test_v1_safety_explain_cache_db.py (T2-6 explanation cache-hit AC).
+      # test_ai_cache_db.py (T2-2 LLM-cache round-trip),
+      # test_v1_safety_explain_cache_db.py (T2-6 explanation cache-hit AC), and
+      # test_spc_ingest_api.py (SPC upload → parse → serve round-trip).
       # Everything else (incl. all /v1 contract + auth + engine tests, the DB-less
       # LLM-seam tests, the T2-6 DB-less contract tests, and
       # test_b2b_admin_audit_unit.py / test_ai_cache.py) runs via fake sessions /
@@ -81,6 +82,7 @@ jobs:
           --ignore=tests/test_b2b_admin_audit.py
           --ignore=tests/test_ai_cache_db.py
           --ignore=tests/test_v1_safety_explain_cache_db.py
+          --ignore=tests/test_spc_ingest_api.py
 
   frontend:
     name: frontend (eslint + prettier)
