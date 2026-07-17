@@ -36,11 +36,10 @@ from ..db.session import get_session
 from ..deps import get_current_user
 from ..schemas.prescriptions import PatchResponse, PrescriptionPatch
 from ..services.documentation import record_prescription_action
-from ..services.drug_catalog import atc_codes_for_barcodes
+from ..services.live_rx import resolve_live_rx_with_checks
 from ..services.pharmacy import find_pharmacy_by_name
-from ..services.pharmapi import pharmapi_get_prescription, pharmapi_search_prescriptions
 from ..services.prescriptions import MOCK_PRESCRIPTIONS, MOCK_QUEUE_BASE
-from ..services.safety_engine import checks_for_prescription, live_rx_to_engine_shape
+from ..services.safety_engine import checks_for_prescription
 from ..services.scan_log import fire_scan_record, recent_scan_queue
 from ..services.spc_ingest import fire_spc_fetch_for_meds
 
@@ -159,39 +158,14 @@ async def get_prescription_for_verification(
 
     # Live mode: resolve by barcode via GET /prescriptions/get/{barcode} (the
     # source CDA — surfaces paperless άυλη prescriptions), falling back to
-    # /search. Then enrich with safety checks.
+    # /search. Shared with /safety-checks so the two views never disagree.
     pharmacy = await find_pharmacy_by_name(session, current["pharmacy"])
     if pharmacy is None:
         raise HTTPException(status_code=400, detail="Pharmacy not found for current user")
-    rx = await _fetch_live_rx(rx_id, pharmacy, request)
+    ip, _ = _client_meta(request)
+    rx, payload = await resolve_live_rx_with_checks(session, rx_id, pharmacy, ip or "0.0.0.0")
     if rx is None:
         raise HTTPException(status_code=404, detail=f"Prescription {rx_id} not found")
-
-    # Resolve ATCs for EVERY therapy line in one query so multi-medicine
-    # prescriptions get per-line safety evaluation (sibling-line interactions
-    # fire in the engine) and the UI can render one card per medicine. Falls
-    # back to the single medicineBarcode when the source had no line list.
-    lines = rx.get("therapyLines") or []
-    line_barcodes = [ln.get("medicineBarcode") for ln in lines if ln.get("medicineBarcode")]
-    medicine_barcode = rx.get("medicineBarcode")
-    barcodes = line_barcodes or ([medicine_barcode] if medicine_barcode else [])
-    atc_map = await atc_codes_for_barcodes(session, barcodes)
-    atc = atc_map.get(medicine_barcode) if medicine_barcode else None
-
-    shaped_rx = live_rx_to_engine_shape(rx, atc)
-    if lines:
-        rx["medications"] = [
-            {
-                "drugName": ln.get("name"),
-                "atcCode": atc_map.get(ln.get("medicineBarcode")),
-                "nhrn": ln.get("medicineBarcode"),
-            }
-            for ln in lines
-        ]
-        shaped_rx["medications"] = [
-            {"atcCode": m["atcCode"]} for m in rx["medications"] if m["atcCode"]
-        ]
-    payload = await checks_for_prescription(session, shaped_rx["rxId"], shaped_rx, pharmacy.id)
     result = {**rx, "safetyChecks": [c.model_dump(by_alias=True) for c in payload.checks]}
     fire_scan_record(
         pharmacy_id=pharmacy.id,
@@ -202,44 +176,6 @@ async def get_prescription_for_verification(
     )
     fire_spc_fetch_for_meds(result.get("medications"))
     return result
-
-
-async def _fetch_live_rx(rx_id: str, pharmacy, request: Request) -> dict | None:
-    """Resolve ONE live prescription by barcode (for the detail view).
-
-    Primary: ``pharmapi_get_prescription`` (GET /prescriptions/get/{barcode}) —
-    the source CDA, which surfaces PAPERLESS (άυλη) prescriptions and carries the
-    real per-line therapy ids. On 404 fall back to ``/search`` (legacy printed /
-    already-associated rows). Returns the search-shaped rx dict, or None.
-    """
-    ip, _ = _client_meta(request)
-    # X-DOCTOR-IP per spec (pharmacist external IP). Under TestClient there is no
-    # real client; fall back so pharmapi_get_prescription's header guard passes.
-    # PROD P1: behind a reverse proxy ``request.client.host`` is the proxy IP, not
-    # the pharmacist's. Wire X-Forwarded-For (Caddy/Nginx) before prod — sending
-    # the proxy IP to ΗΔΥΚΑ misattributes the call on the regulator-facing log.
-    # See docs/OPEN-ISSUES.md (X-DOCTOR-IP).
-    doctor_ip = ip or "0.0.0.0"
-    primary_exc: HTTPException | None = None
-    try:
-        return await pharmapi_get_prescription(
-            barcode=rx_id, pharmacy_id=pharmacy.pharmapi_unit_id, doctor_ip=doctor_ip
-        )
-    except HTTPException as exc:
-        # 404 → plain not-found; 422 → a domain refusal from ΗΔΥΚΑ with a
-        # display-ready Greek description (non-ΕΟΠΥΥ patient, already executed,
-        # …). Both get a /search fallback shot; anything else is a real fault.
-        if exc.status_code not in (404, 422):
-            raise
-        primary_exc = exc
-    results = await pharmapi_search_prescriptions(barcode=rx_id)
-    if results:
-        return results[0]
-    if primary_exc is not None and primary_exc.status_code == 422:
-        # Nothing found via search either — surface the upstream refusal
-        # verbatim rather than a misleading "not found".
-        raise primary_exc
-    return None
 
 
 # ── Actions (flag / patch) ───────────────────────────────────────────────────

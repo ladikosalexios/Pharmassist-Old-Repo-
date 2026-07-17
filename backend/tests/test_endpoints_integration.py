@@ -107,6 +107,20 @@ def test_get_patient_returns_profile(client):
     assert body.get("amka") == MOCK_PATIENT_AMKA
 
 
+def test_safety_checks_agrees_with_prescription_detail(client):
+    """The review page's safety panel (/safety-checks) and the detail card
+    (/prescriptions) share one resolution path — a regression guard for the bug
+    where the panel 404'd on a barcode the detail endpoint resolved fine."""
+    rx_id = "RX2024-005"
+    detail = client.get(f"/prescriptions/{rx_id}")
+    panel = client.get(f"/safety-checks/{rx_id}")
+    assert detail.status_code == 200, detail.text
+    assert panel.status_code == 200, panel.text
+    # Same prescription, same number of checks — the two views never disagree.
+    assert panel.json()["rxId"] == rx_id
+    assert len(panel.json()["checks"]) == len(detail.json()["safetyChecks"])
+
+
 @pytest.mark.skip(
     reason="GET /pharmapi/errors ships with T8 (PR #73); not on main yet — "
     "add this assertion when that branch merges."
