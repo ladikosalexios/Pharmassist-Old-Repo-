@@ -13,6 +13,7 @@ from .documentation_log import DocumentationLog
 from .drug_catalog import DrugCatalog
 from .invitation import Invitation
 from .location import Location
+from .patient import Patient
 from .patient_condition import PatientCondition
 from .pharmacist import Pharmacist
 from .pharmacist_pharmacy import PharmacistPharmacy
@@ -25,6 +26,7 @@ __all__ = [
     "Pharmacy",
     "PharmacistPharmacy",
     "Invitation",
+    "Patient",
     "PatientCondition",
     "PrescriptionScan",
     "DocumentationLog",

@@ -41,7 +41,7 @@ from ..services.pharmacy import find_pharmacy_by_name
 from ..services.pharmapi import pharmapi_get_prescription, pharmapi_search_prescriptions
 from ..services.prescriptions import MOCK_PRESCRIPTIONS, MOCK_QUEUE_BASE
 from ..services.safety_engine import checks_for_prescription, live_rx_to_engine_shape
-from ..services.scan_log import fire_scan_record
+from ..services.scan_log import fire_scan_record, recent_scan_queue
 
 router = APIRouter(prefix="/prescriptions", tags=["prescriptions"])
 
@@ -68,7 +68,10 @@ def _client_meta(request: Request) -> tuple:
 
 
 @router.get("/next")
-async def next_pending_prescription(current: dict = Depends(get_current_user)):
+async def next_pending_prescription(
+    current: dict = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
     """Return the next PENDING prescription in the queue (for the keyboard shortcut)."""
     if is_mock_pharmapi():
         for base in MOCK_QUEUE_BASE:
@@ -78,8 +81,9 @@ async def next_pending_prescription(current: dict = Depends(get_current_user)):
                 return {**base, "status": status}
         raise HTTPException(status_code=404, detail="No pending prescriptions in the queue")
 
-    # Live mode: fetch queue from ΗΔΥΚΑ, return first PENDING item
-    items = await pharmapi_search_prescriptions(prescribed=False, size=10)
+    # Live: newest PENDING among recent scans (ΗΔΥΚΑ has no pull-queue).
+    pharmacy = await find_pharmacy_by_name(session, current["pharmacy"])
+    items = await recent_scan_queue(session, pharmacy.id) if pharmacy else []
     pending = [i for i in items if i.get("status") == PrescriptionStatus.PENDING]
     if not pending:
         raise HTTPException(status_code=404, detail="No pending prescriptions in the queue")
@@ -87,12 +91,16 @@ async def next_pending_prescription(current: dict = Depends(get_current_user)):
 
 
 @router.get("")
-async def list_prescriptions(current: dict = Depends(get_current_user)):
+async def list_prescriptions(
+    current: dict = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
     """
-    Return the prescription queue for the dashboard, with up-to-date statuses.
+    Return the prescription list for the dashboard / Instructions picker.
 
-    In live mode: drug name (medication) and prescriber are mapped from the
-    Pharmapi search response (medicines[0].name and doctorName respectively).
+    Mock: the curated demo queue. Live: the pharmacy's RECENT SCANS (latest
+    per barcode, newest first) — ΗΔΥΚΑ is event-driven with no pull-based
+    pending queue, so what the pharmacist scanned IS the working list.
     """
     if is_mock_pharmapi():
         items = []
@@ -102,9 +110,10 @@ async def list_prescriptions(current: dict = Depends(get_current_user)):
             items.append({**base, "status": status})
         return {"items": items}
 
-    # Live mode: fetch pending queue from ΗΔΥΚΑ
-    items = await pharmapi_search_prescriptions(prescribed=False)
-    return {"items": items}
+    pharmacy = await find_pharmacy_by_name(session, current["pharmacy"])
+    if pharmacy is None:
+        return {"items": []}
+    return {"items": await recent_scan_queue(session, pharmacy.id)}
 
 
 # ── Per-prescription detail ───────────────────────────────────────────────────

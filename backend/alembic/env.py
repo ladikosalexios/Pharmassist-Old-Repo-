@@ -22,6 +22,7 @@ from app.db.models.documentation_log import DocumentationLog  # noqa
 from app.db.models.drug_catalog import DrugCatalog  # noqa
 from app.db.models.invitation import Invitation  # noqa
 from app.db.models.location import Location  # noqa
+from app.db.models.patient import Patient  # noqa
 from app.db.models.patient_condition import PatientCondition  # noqa
 from app.db.models.pharmacist import Pharmacist  # noqa
 from app.db.models.pharmacist_pharmacy import PharmacistPharmacy  # noqa
