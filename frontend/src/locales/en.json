@@ -590,7 +590,11 @@
     "storageTitle": "Storage & disposal",
     "afterOpening": "After opening",
     "disposal": "Disposal",
-    "foodInstructions": "Food & intake"
+    "foodInstructions": "Food & intake",
+    "spcAutoExtracted": "Auto-extracted from the SPC — verify against the source",
+    "spcVerified": "Pharmacist-verified",
+    "spcSourceLink": "Source document",
+    "spcMarkVerified": "Mark verified"
   },
   "rxDetails": {
     "title": "Prescription Details",

@@ -1,4 +1,18 @@
-"""Summary of Product Characteristics (mock) keyed by ATC code."""
+"""Summary of Product Characteristics: DB-backed resolution + mock fallback.
+
+``resolve_spc`` is the single serving path (GET /spc/{atc}, instruction
+rendering): ingested spc_documents rows win over the hand-written MOCK_SPC
+fixture, which stays as the demo fallback (and the byte-identical mock-mode
+path). Resolution: docs for the exact barcode → docs for the ATC → MOCK_SPC
+→ None; within a pool, verified beats unverified, then newest wins, and a
+PIL document's patient-language wording overlays the SPC's storage/food
+fields.
+"""
+
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from ..db.models.spc_document import SpcDocument
 
 MOCK_SPC: dict = {
     "B01AA03": {
@@ -312,3 +326,81 @@ MOCK_SPC: dict = {
         "foodInstructions": None,  # immediate-release tablets: no food requirement
     },
 }
+
+
+def _compose(docs: list[SpcDocument], atc_code: str) -> dict:
+    """SpcDetails payload from a pool of documents (see module docstring)."""
+    ordered = sorted(docs, key=lambda d: (d.verified, d.fetched_at), reverse=True)
+    base = next((d for d in ordered if d.doc_type in ("spc", "combined")), ordered[0])
+    pil = next((d for d in ordered if d.doc_type in ("pil", "combined")), None)
+
+    parsed = base.parsed or {}
+    payload = {
+        "atcCode": atc_code,
+        "drugName": parsed.get("drugName") or "",
+        "version": f"{base.source}:{base.sha256[:8]}",
+        "updatedAt": base.fetched_at.isoformat() if base.fetched_at else None,
+        "fullSpcUrl": base.source_url,
+        "fullSpcText": None,
+        # Frontend getSpc() hard-validates these three — always emit them.
+        "recommendedDosage": parsed.get("recommendedDosage") or "",
+        "contraindications": parsed.get("contraindications") or [],
+        "majorInteractions": parsed.get("majorInteractions") or [],
+        "precautions": parsed.get("precautions") or [],
+        "storage": parsed.get("storage"),
+        "foodInstructions": parsed.get("foodInstructions"),
+        # Provenance — drives the auto-extracted / verified badge.
+        "source": base.source,
+        "sourceUrl": base.source_url,
+        "verified": base.verified,
+        "extractionMethod": base.extraction_method,
+        "docType": base.doc_type,
+        "documentId": str(base.id),
+    }
+    if pil is not None and pil.id != base.id:
+        # Patient-language wording wins for the patient-facing fields.
+        pil_parsed = pil.parsed or {}
+        if pil_parsed.get("foodInstructions"):
+            payload["foodInstructions"] = pil_parsed["foodInstructions"]
+        if pil_parsed.get("storage"):
+            payload["storage"] = pil_parsed["storage"]
+    return payload
+
+
+async def resolve_spc(
+    session: AsyncSession, atc_code: str, barcode: str | None = None
+) -> dict | None:
+    docs: list[SpcDocument] = []
+    if barcode:
+        docs = list(
+            await session.scalars(
+                select(SpcDocument).where(
+                    SpcDocument.barcode == barcode,
+                    SpcDocument.parse_status != "failed",
+                )
+            )
+        )
+    if not docs:
+        docs = list(
+            await session.scalars(
+                select(SpcDocument).where(
+                    SpcDocument.atc_code == atc_code,
+                    SpcDocument.parse_status != "failed",
+                )
+            )
+        )
+    if docs:
+        return _compose(docs, atc_code)
+
+    mock = MOCK_SPC.get(atc_code)
+    if mock:
+        return {
+            **mock,
+            "source": "mock",
+            "sourceUrl": mock.get("fullSpcUrl"),
+            "verified": False,
+            "extractionMethod": "manual",
+            "docType": "spc",
+            "documentId": None,
+        }
+    return None

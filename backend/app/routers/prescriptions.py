@@ -42,6 +42,7 @@ from ..services.pharmapi import pharmapi_get_prescription, pharmapi_search_presc
 from ..services.prescriptions import MOCK_PRESCRIPTIONS, MOCK_QUEUE_BASE
 from ..services.safety_engine import checks_for_prescription, live_rx_to_engine_shape
 from ..services.scan_log import fire_scan_record, recent_scan_queue
+from ..services.spc_ingest import fire_spc_fetch_for_meds
 
 router = APIRouter(prefix="/prescriptions", tags=["prescriptions"])
 
@@ -153,6 +154,7 @@ async def get_prescription_for_verification(
             rx=result,
             source="mock",
         )
+        fire_spc_fetch_for_meds(result.get("medications"))
         return result
 
     # Live mode: resolve by barcode via GET /prescriptions/get/{barcode} (the
@@ -198,6 +200,7 @@ async def get_prescription_for_verification(
         rx=result,
         source="live",
     )
+    fire_spc_fetch_for_meds(result.get("medications"))
     return result
 
 

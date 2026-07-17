@@ -30,6 +30,12 @@ services:
       # no Mistral key needed. A live Tier-2 box sets LLM_MOCK=false + LLM_API_KEY
       # (the standard-plan key, via env/SSM) once Rekas accepts the DPA (D-15).
       LLM_MOCK: "true"
+      # SPC document ingestion source adapters — OFF by default. Flip on with:
+      #   SPC_FETCH_EMA_ENABLED=true SPC_FETCH_EOF_ENABLED=true docker compose up -d
+      # (ΕΟΦ needs its form-field constants calibrated against the live portal
+      # first — see services/spc_sources/eof.py.)
+      SPC_FETCH_EOF_ENABLED: ${SPC_FETCH_EOF_ENABLED:-false}
+      SPC_FETCH_EMA_ENABLED: ${SPC_FETCH_EMA_ENABLED:-false}
       # Tells the production guard in main.py not to fire when COOKIE_SECURE=false.
       # Production deployments must NOT set this (missing ENV defaults to "production").
       ENV: development

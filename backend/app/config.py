@@ -122,6 +122,19 @@ class Settings(BaseModel):
     llm_embed_model: str
     llm_timeout_seconds: int
 
+    # ── SPC document ingestion (ΠΧΠ/ΦΟΧ) ────────────────────────────────────
+    # Automated source adapters are OFF by default — a fresh deployment only
+    # serves manually uploaded documents until the flags are flipped. The
+    # fetch settings exist so politeness (throttle, UA) and the EMA dataset
+    # URL are ops-tunable, never code changes.
+    spc_fetch_eof_enabled: bool
+    spc_fetch_ema_enabled: bool
+    spc_fetch_min_interval_seconds: int
+    spc_fetch_timeout_seconds: int
+    spc_fetch_user_agent: str
+    spc_ema_dataset_url: str
+    spc_max_pdf_bytes: int
+
     # ── Cookie security ─────────────────────────────────────────────────────
     cookie_secure: bool
     cookie_httponly: bool
@@ -174,6 +187,21 @@ def get_settings() -> Settings:
         llm_model=os.getenv("LLM_MODEL", "mistral-large-latest"),
         llm_embed_model=os.getenv("LLM_EMBED_MODEL", "mistral-embed"),
         llm_timeout_seconds=_env_int("LLM_TIMEOUT_SECONDS", 30),
+        spc_fetch_eof_enabled=_env_bool("SPC_FETCH_EOF_ENABLED", False),
+        spc_fetch_ema_enabled=_env_bool("SPC_FETCH_EMA_ENABLED", False),
+        spc_fetch_min_interval_seconds=_env_int("SPC_FETCH_MIN_INTERVAL_SECONDS", 5),
+        spc_fetch_timeout_seconds=_env_int("SPC_FETCH_TIMEOUT_SECONDS", 30),
+        spc_fetch_user_agent=os.getenv(
+            "SPC_FETCH_USER_AGENT", "PharmAssist/0.1 (+alexiosl35@gmail.com)"
+        ),
+        # EMA "medicines output" dataset (xlsx) — resolves centrally-authorised
+        # products to their Greek product-information PDFs. Confirm/refresh the
+        # URL at ops time; a broken URL degrades to "no EMA docs", never an error.
+        spc_ema_dataset_url=os.getenv(
+            "SPC_EMA_DATASET_URL",
+            "https://www.ema.europa.eu/en/documents/report/medicines-output-medicines-report_en.xlsx",
+        ),
+        spc_max_pdf_bytes=_env_int("SPC_MAX_PDF_BYTES", 15_000_000),
         cookie_secure=_env_bool("COOKIE_SECURE", True),
         cookie_httponly=_env_bool("COOKIE_HTTPONLY", True),
         cookie_samesite=os.getenv("COOKIE_SAMESITE", "strict"),

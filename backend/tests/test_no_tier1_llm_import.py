@@ -35,6 +35,9 @@ SEAM_FILES = {"services/llm.py", "services/ai_cache.py"}
 ALLOWED_IMPORTERS = {
     "routers/v1/errors.py",
     "services/safety_explanations.py",
+    # SPC section extraction (spc_extract kind) — AI is additive here too: the
+    # deterministic parser output is kept whenever the seam is mocked or down.
+    "services/spc_extract.py",
 }
 
 # Import shapes that mean "this module pulls in the seam".

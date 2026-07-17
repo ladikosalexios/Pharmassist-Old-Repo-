@@ -18,3 +18,8 @@ sentry-sdk>=2.0.0
 slowapi>=0.1.9
 # Prescription-retrieval CDA parsing (services/cda.py parse_prescription_cda)
 lxml>=5.2.0
+# SPC/ΦΟΧ PDF text extraction (services/spc_parse.py; BSD licence — pdfminer.six
+# is the designated fallback if extraction quality proves poor)
+pypdf>=4.0
+# EMA medicines-dataset (xlsx) parsing for the EMA SPC source adapter
+openpyxl>=3.1

@@ -20,6 +20,9 @@ from .pharmacist_pharmacy import PharmacistPharmacy
 from .pharmacy import Pharmacy
 from .prescription_scan import PrescriptionScan
 from .safety_rule import SafetyRule
+from .spc_document import SpcDocument
+from .spc_fetch_state import SpcFetchState
+from .spc_sync_run import SpcSyncRun
 
 __all__ = [
     "Pharmacist",
@@ -44,4 +47,7 @@ __all__ = [
     "B2bAdminAudit",
     "CatalogSyncRun",
     "AiResponseCache",
+    "SpcDocument",
+    "SpcFetchState",
+    "SpcSyncRun",
 ]

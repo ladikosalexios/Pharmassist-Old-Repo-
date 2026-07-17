@@ -13,7 +13,13 @@ import { FlagDiscrepancyModal } from "../components/FlagDiscrepancyModal";
 import { ContactPrescriberDrawer } from "../components/ContactPrescriberDrawer";
 import { useToast } from "../components/Toast";
 import { useKeyboardShortcuts } from "../lib/keyboard";
-import { ApiError, getPrescription, getPatientConditions, getSpc } from "../lib/api";
+import {
+  ApiError,
+  getPrescription,
+  getPatientConditions,
+  getSpc,
+  verifySpcDocument,
+} from "../lib/api";
 import type { Medication, PatientCondition, Prescription, SpcDetails } from "../types";
 
 function Skl({ w = "100%", h = 14, mt = 0 }: { w?: string; h?: number; mt?: number }) {
@@ -139,18 +145,75 @@ function PatientCard({
   );
 }
 
+/** Provenance badge for DB-backed SPC documents: amber "auto-extracted —
+ *  verify against the source" until a pharmacist marks the document verified
+ *  (green). Hidden for the mock fixture. The source link prefers the stable
+ *  upstream URL and falls back to our stored PDF copy. */
+function SpcProvenance({ spc, onChange }: { spc: SpcDetails; onChange: (v: boolean) => void }) {
+  const { t } = useTranslation();
+  const [busy, setBusy] = useState(false);
+  if (!spc.documentId || spc.source === "mock") return null;
+
+  const href = spc.sourceUrl || `/spc/documents/${spc.documentId}/pdf`;
+  const verified = Boolean(spc.verified);
+
+  async function toggleVerified() {
+    if (!spc.documentId) return;
+    setBusy(true);
+    try {
+      const res = await verifySpcDocument(spc.documentId, !verified);
+      onChange(res.verified);
+    } catch {
+      // Badge state simply stays as-is; the review page never errors on this.
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div
+      className={`flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg px-2.5 py-1.5 text-[11px] font-medium ${
+        verified
+          ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400"
+          : "bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400"
+      }`}
+    >
+      <span>{verified ? t("review.spcVerified") : t("review.spcAutoExtracted")}</span>
+      <a
+        href={href}
+        target="_blank"
+        rel="noreferrer"
+        className="underline underline-offset-2 hover:opacity-80"
+      >
+        {t("review.spcSourceLink")}
+      </a>
+      {!verified && (
+        <button
+          type="button"
+          onClick={toggleVerified}
+          disabled={busy}
+          className="ml-auto rounded border border-current px-1.5 py-0.5 text-[10.5px] font-semibold hover:opacity-80 disabled:opacity-50"
+        >
+          {t("review.spcMarkVerified")}
+        </button>
+      )}
+    </div>
+  );
+}
+
 /** SPC-derived guidance for one medicine: precautions (§4.4 — caution, not the
  *  §4.3 contraindications the safety panel covers), storage / in-use shelf life
  *  / disposal (§6.3-6.6), and food instructions (§4.2, shown only when the SPC
- *  has one). Fetched per ATC; drugs without SPC coverage render nothing. */
-function SpcExtras({ atcCode }: { atcCode?: string }) {
+ *  has one). Product-precise when the med carries its barcode (nhrn); drugs
+ *  without SPC coverage render nothing. */
+function SpcExtras({ atcCode, nhrn }: { atcCode?: string; nhrn?: string }) {
   const { t } = useTranslation();
   const [spc, setSpc] = useState<SpcDetails | null>(null);
 
   useEffect(() => {
     if (!atcCode) return;
     let active = true;
-    getSpc(atcCode)
+    getSpc(atcCode, nhrn)
       .then((data) => {
         if (active) setSpc(data);
       })
@@ -161,12 +224,16 @@ function SpcExtras({ atcCode }: { atcCode?: string }) {
     return () => {
       active = false;
     };
-  }, [atcCode]);
+  }, [atcCode, nhrn]);
 
   if (!spc) return null;
   const storage = spc.storage;
   return (
     <div className="mt-4 flex flex-col gap-3 border-t border-slate-100 pt-4 dark:border-slate-800">
+      <SpcProvenance
+        spc={spc}
+        onChange={(v) => setSpc((cur) => (cur ? { ...cur, verified: v } : cur))}
+      />
       {spc.precautions && spc.precautions.length > 0 && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-500/25 dark:bg-amber-500/10">
           <div className="text-[11px] font-bold uppercase tracking-wide text-amber-700 dark:text-amber-400">
@@ -261,7 +328,7 @@ function MedicationCard({
           )}
         </dl>
       )}
-      <SpcExtras atcCode={med.atcCode} />
+      <SpcExtras atcCode={med.atcCode} nhrn={med.nhrn} />
     </div>
   );
 }
