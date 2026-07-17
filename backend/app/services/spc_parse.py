@@ -122,15 +122,30 @@ def split_spc_sections(text: str) -> dict[str, str]:
     return _slice_between(text, marks)
 
 
+# The package leaflet (ΦΟΧ) starts here in a combined/multilingual document —
+# anchor to the LAST such marker so the SmPC's own numbered sections and any
+# table-of-contents never hijack the six patient headings.
+_LEAFLET_START_RE = re.compile(
+    r"ΦΥΛΛΟ ΟΔΗΓΙ\w*\s+ΧΡΗΣ|PACKAGE LEAFLET|Package leaflet", re.IGNORECASE
+)
+
+
 def split_pil_sections(text: str) -> dict[str, str]:
-    """The six standard ΦΟΧ/PIL sections as {"1".."6": body}."""
+    """The six standard ΦΟΧ/PIL sections as {"1".."6": body}.
+
+    Real leaflets repeat every heading (a mini table of contents, then the
+    body, plus running headers), so within the leaflet block we take each
+    heading's LAST occurrence — the actual section, past its TOC echo.
+    """
+    starts = list(_LEAFLET_START_RE.finditer(text))
+    block = text[starts[-1].start() :] if starts else text
     marks: list[tuple[int, str]] = []
     for heading_re, num in _PIL_HEADING_RES:
-        m = heading_re.search(text)
-        if m:
-            marks.append((m.start(), num))
+        hits = list(heading_re.finditer(block))
+        if hits:
+            marks.append((hits[-1].start(), num))
     marks.sort()
-    return _slice_between(text, marks)
+    return _slice_between(block, marks)
 
 
 # ── Mapping sections → SpcDetails fields ─────────────────────────────────────
@@ -193,7 +208,9 @@ def map_to_details(spc_sections: dict[str, str], pil_sections: dict[str, str]) -
 
     drug_name = _clean(s.get("1", "").split("\n", 1)[0])[:200] or None
 
-    dosage_src = s.get("4.2") or p.get("3") or ""
+    # Patient dosage text is patient-facing → prefer the ΦΟΧ "how to take"
+    # section (patient language) over the professional SmPC §4.2.
+    dosage_src = p.get("3") or s.get("4.2") or ""
     recommended_dosage = _clean(dosage_src)[:_MAX_FIELD_CHARS] or None
 
     contraindications = _bullet_split(s["4.3"]) if s.get("4.3") else []

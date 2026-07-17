@@ -111,17 +111,21 @@ async def resolve(product: DrugCatalog) -> AdapterResult:
 
         async with _client(follow_redirects=True) as client:
             if slug:
+                # Greek product information lives under the /el/ LANGUAGE PATH
+                # prefix. The old /en/…_el.pdf form silently 302-redirects to
+                # the English _en.pdf — so we verify the final URL is still
+                # Greek before accepting it.
                 pdf_url = (
-                    "https://www.ema.europa.eu/en/documents/product-information/"
+                    "https://www.ema.europa.eu/el/documents/product-information/"
                     f"{slug}-epar-product-information_el.pdf"
                 )
                 await _throttle(SOURCE)
                 head = await client.head(pdf_url)
-                if head.status_code == 200:
+                if head.status_code == 200 and "_el.pdf" in str(head.url):
                     return AdapterResult(
-                        docs=[FoundDoc(url=pdf_url, doc_type="combined", source=SOURCE)]
+                        docs=[FoundDoc(url=str(head.url), doc_type="combined", source=SOURCE)]
                     )
-            # Fallback: scrape the medicine page for the _el.pdf link.
+            # Fallback: scrape the medicine page for a Greek _el.pdf link.
             await _throttle(SOURCE)
             page = await client.get(page_url)
             page.raise_for_status()
