@@ -334,3 +334,103 @@ def test_screened_comeds_named_in_confirmation(monkeypatch):
     ok = [c for c in payload.checks if c.id.endswith("_OK_INTERACTION")]
     assert len(ok) == 1
     assert "ZESTRIL" in ok[0].name
+
+
+# ── v2: duplicate therapy vs ACTIVE history medication ───────────────────────
+
+
+class _Res:
+    def __init__(self, atc):
+        self.atc_code = atc
+
+
+def _patch_history(monkeypatch, items, atc_by_name):
+    """Make the engine load these history items and resolve brand→ATC by name."""
+
+    async def _history(patient_id):
+        return items
+
+    async def _resolve(session, hints):
+        return [
+            next((_Res(a) for n, a in atc_by_name.items() if n in (h.commercial_name or "")), None)
+            for h in hints
+        ]
+
+    monkeypatch.setattr(safety_engine, "rx_history", _history)
+    monkeypatch.setattr(safety_engine, "resolve_atcs", _resolve)
+
+
+def test_duplicate_therapy_same_drug_active(monkeypatch):
+    _patch_history(
+        monkeypatch,
+        [
+            {
+                "rxId": "H1",
+                "drugName": "OLANZAPINE 10MG",
+                "status": "PENDING",
+                "quantityOutstanding": 30,
+            },
+            {
+                "rxId": "H2",
+                "drugName": "OLD COURSE",
+                "status": "COMPLETED",
+                "quantityOutstanding": 0,
+            },
+        ],
+        {"OLANZAPINE": OLANZAPINE, "OLD COURSE": "A10BA02"},
+    )
+    payload = _evaluate(
+        monkeypatch,
+        _spc_stub(_none=True),
+        rx=_rx(),  # dispensing olanzapine N05AH03
+        rules=_interaction_rules(),
+        intolerances=[],
+        patient_conditions=[],
+        verbose_spc=True,
+    )
+    dup = [c for c in payload.checks if c.check_type == CheckType.DUPLICATE_THERAPY]
+    assert len(dup) == 1
+    assert "ίδιο φάρμακο" in dup[0].name
+    assert "OLANZAPINE" in dup[0].message
+    assert dup[0].status == AlertStatus.REVIEW
+
+
+def test_duplicate_therapy_same_class_active(monkeypatch):
+    # Active co-med is a DIFFERENT antipsychotic in the same ATC-4 class (N05AH).
+    _patch_history(
+        monkeypatch,
+        [{"rxId": "H1", "drugName": "CLOZAPINE", "status": "PENDING", "quantityOutstanding": 10}],
+        {"CLOZAPINE": "N05AH02"},
+    )
+    payload = _evaluate(
+        monkeypatch,
+        _spc_stub(_none=True),
+        rx=_rx(),
+        rules=_interaction_rules(),
+        intolerances=[],
+        patient_conditions=[],
+        verbose_spc=True,
+    )
+    dup = [c for c in payload.checks if c.check_type == CheckType.DUPLICATE_THERAPY]
+    assert len(dup) == 1
+    assert "ίδια κατηγορία" in dup[0].name
+    assert "CLOZAPINE" in dup[0].message
+
+
+def test_completed_history_is_not_duplicate(monkeypatch):
+    # Same drug, but the prior course is fully COMPLETED (not active) → no flag.
+    _patch_history(
+        monkeypatch,
+        [{"rxId": "H1", "drugName": "OLANZAPINE", "status": "COMPLETED", "quantityOutstanding": 0}],
+        {"OLANZAPINE": OLANZAPINE},
+    )
+    payload = _evaluate(
+        monkeypatch,
+        _spc_stub(_none=True),
+        rx=_rx(),
+        rules=_interaction_rules(),
+        intolerances=[],
+        patient_conditions=[],
+        verbose_spc=True,
+    )
+    assert not any(c.check_type == CheckType.DUPLICATE_THERAPY for c in payload.checks)

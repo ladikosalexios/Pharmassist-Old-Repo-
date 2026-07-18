@@ -13,7 +13,7 @@ from fastapi import HTTPException
 from sqlalchemy import select, true
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..constants import AdrSeverity, AlertStatus, CheckType
+from ..constants import AdrSeverity, AlertStatus, CheckType, PrescriptionStatus
 from ..db.models.safety_rule import SafetyRule
 from ..schemas.safety import STATUS_ORDER, SafetyAlertPayload, SafetyChecksPayload
 from ..utils.environment import is_mock_pharmapi
@@ -117,6 +117,21 @@ def _build_factors(intolerances: list[dict], pt_conditions: list, age) -> list[d
                 }
             )
     return factors
+
+
+def _is_active_history(entry: dict) -> bool:
+    """A medicine-history item is an ACTIVE (ongoing) medication — worth a
+    duplicate-therapy flag — when its prescription is still open: status PENDING
+    (repeats remain / awaiting dispense) or it still has an outstanding quantity.
+    A fully COMPLETED past course is NOT active (a normal refill isn't a
+    duplication)."""
+    if entry.get("status") == PrescriptionStatus.PENDING:
+        return True
+    q = entry.get("quantityOutstanding")
+    try:
+        return q is not None and float(q) > 0
+    except (TypeError, ValueError):
+        return False
 
 
 def _first_matching_factor(factors: list[dict], line: str) -> dict | None:
@@ -336,10 +351,17 @@ async def evaluate_safety(
     age = patient.get("age")
 
     # Co-medication display names (brand) for the §4.5 cross-ref + the screened
-    # confirmation: sibling therapy lines now, patient history added below.
-    co_med_names: set[str] = {
-        m["drugName"] for m in meds if isinstance(m, dict) and m.get("drugName")
-    }
+    # confirmation. Sibling therapy lines count ONLY on a genuine multi-med
+    # prescription — a single line is the dispensed drug itself, not a co-med
+    # (else it lists itself). Patient history is added below.
+    dispensed_lines = [m for m in meds if isinstance(m, dict) and m.get("atcCode")]
+    co_med_names: set[str] = set()
+    if len(dispensed_lines) > 1:
+        co_med_names = {m["drugName"] for m in dispensed_lines if m.get("drugName")}
+    # ACTIVE (ongoing) history medications → {atc: name}, for the duplicate-therapy
+    # check: a still-open prescription for the same drug / class as the one being
+    # dispensed is a double-dosing risk. Populated only where history is loaded.
+    active_history: dict[str, str] = {}
 
     checks: list[SafetyAlertPayload] = []
     seen: set[str] = set()
@@ -361,10 +383,16 @@ async def evaluate_safety(
     interaction_rules = [
         r for r in rules if r.check_type in (CheckType.INTERACTIONS, CheckType.DUPLICATE_THERAPY)
     ]
-    if med_atcs and interaction_rules and history_atcs is None and patient_id:
+    # The verbose review path always loads history (for the §4.5 cross-ref, the
+    # screened-co-meds confirmation, and the duplicate-therapy check), even when
+    # the seeded rule set carries no interaction/duplicate rule.
+    if med_atcs and (interaction_rules or verbose_spc) and history_atcs is None and patient_id:
         history = await rx_history(patient_id)
         history_atcs = set()
-        brand_hints: list[DrugHint] = []
+        # Live history has no barcode — brand names resolve to ATC in one batch.
+        # Track each hint's source entry so an ACTIVE item's resolved ATC + name
+        # can feed the duplicate-therapy check.
+        hint_entries: list[dict] = []
         for entry in history:
             if entry["rxId"] == rx["rxId"]:
                 continue
@@ -372,13 +400,22 @@ async def evaluate_safety(
                 co_med_names.add(entry["drugName"])
             hist_rx = MOCK_PRESCRIPTIONS.get(entry["rxId"])
             if hist_rx:
-                history_atcs.add(hist_rx["medication"]["atcCode"])
+                atc = hist_rx["medication"]["atcCode"]
+                history_atcs.add(atc)
+                if _is_active_history(entry):
+                    active_history.setdefault(atc, entry.get("drugName") or atc)
             elif entry.get("drugName"):
-                brand_hints.append(
-                    DrugHint(commercial_name=entry["drugName"], raw=entry["drugName"])
-                )
-        if brand_hints:
-            history_atcs |= {r.atc_code for r in await resolve_atcs(session, brand_hints) if r}
+                hint_entries.append(entry)
+        if hint_entries:
+            hints = [
+                DrugHint(commercial_name=e["drugName"], raw=e["drugName"]) for e in hint_entries
+            ]
+            for entry, res in zip(hint_entries, await resolve_atcs(session, hints), strict=True):
+                if res is None:
+                    continue
+                history_atcs.add(res.atc_code)
+                if _is_active_history(entry):
+                    active_history.setdefault(res.atc_code, entry.get("drugName") or res.atc_code)
 
     # Loaded once, shared by every line's intolerance / condition screening.
     if med_atcs and amka and intolerances is None:
@@ -419,6 +456,41 @@ async def evaluate_safety(
                     seen.add(rule.rule_code)
                     interaction_fired = True
                     checks.append(_rule_to_alert(rule, rx["rxId"]))
+
+        # --- 1b. Duplicate therapy vs an ACTIVE history medication ---
+        # The patient already has a still-open prescription for the SAME drug
+        # (exact ATC) or the same pharmacological class (ATC level-4, first 5
+        # chars) — a double-dosing risk the seeded pairs don't cover. REVIEW, not
+        # BLOCK: cross-titration / dose changes are legitimate.
+        if verbose_spc and active_history:
+            dup_key = f"DUP_{rx_atc}"
+            same_drug = active_history.get(rx_atc)
+            same_class = next(
+                (n for a, n in active_history.items() if a[:5] == rx_atc[:5] and a != rx_atc),
+                None,
+            )
+            if (same_drug or same_class) and dup_key not in seen:
+                seen.add(dup_key)
+                interaction_fired = True
+                if same_drug:
+                    msg = f"Ο ασθενής λαμβάνει ήδη {same_drug} (ενεργή συνταγή)."
+                    title = "Διπλή αγωγή — ίδιο φάρμακο"
+                else:
+                    msg = f"Ενεργή αγωγή ίδιας κατηγορίας: {same_class}."
+                    title = "Διπλή αγωγή — ίδια κατηγορία"
+                checks.append(
+                    SafetyAlertPayload(
+                        id=f"{rx['rxId']}_{dup_key}",
+                        name=title,
+                        check_type=CheckType.DUPLICATE_THERAPY,
+                        status=AlertStatus.REVIEW,
+                        message=msg,
+                        details="Εντοπίστηκε από το ιστορικό φαρμάκων του ασθενούς (ΗΔΥΚΑ).",
+                        recommended_action="Επιβεβαιώστε ότι δεν πρόκειται για διπλή χορήγηση.",
+                        rx_id=rx["rxId"],
+                        created_at=datetime.now(UTC),
+                    )
+                )
 
         # --- 2. Intolerances / contraindications (Pharmapi) ---
         # Match on the first four characters of the ATC code (level-3 class) so
@@ -604,8 +676,9 @@ async def evaluate_safety(
             )
         if interaction_screened and not interaction_fired:
             # Name the co-meds that were screened when we have them; else fall
-            # back to a count of co-medication ATCs.
-            names = sorted(set(co_med_names) | set(inn_names.values()))
+            # back to a count of co-medication ATCs. Only true co-medications
+            # (history + sibling lines) — NOT the dispensed drug's own INN.
+            names = sorted(co_med_names)
             if names:
                 shown = ", ".join(names[:3]) + ("…" if len(names) > 3 else "")
                 label = f"Ελέγχθηκαν {len(names)} συγχορηγούμενα ({shown}) — καμία γνωστή αλληλεπίδραση."
