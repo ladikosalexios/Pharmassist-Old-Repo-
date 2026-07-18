@@ -594,7 +594,8 @@
     "spcAutoExtracted": "Αυτόματη εξαγωγή από SPC — επαληθεύστε με την πηγή",
     "spcVerified": "Επαληθευμένο από φαρμακοποιό",
     "spcSourceLink": "Έγγραφο πηγής",
-    "spcMarkVerified": "Επαλήθευση"
+    "spcMarkVerified": "Επαλήθευση",
+    "factorsTitle": "Παράγοντες ασθενούς (καταγραφή)"
   },
   "rxDetails": {
     "title": "Λεπτομέρειες Συνταγής",

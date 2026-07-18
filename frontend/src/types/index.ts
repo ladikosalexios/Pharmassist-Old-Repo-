@@ -243,8 +243,16 @@ export interface PatientProfile {
   email?: string | null;
   conditions?: string[];
   allergies?: string[];
-  intolerances?: string[];
+  // Mock returns plain substance strings; live ΗΔΥΚΑ returns objects
+  // ({activeSubstance, intolerance, remarks}). The UI handles both.
+  intolerances?: Array<string | PatientIntolerance>;
   safetyFlags?: PatientSafetyFlags;
+}
+
+export interface PatientIntolerance {
+  activeSubstance?: string;
+  intolerance?: string; // the intolerance TYPE/description, e.g. "(Αν. Ενεργ) Υπέρταση"
+  remarks?: string | null;
 }
 
 export interface PatientRxHistoryRow {

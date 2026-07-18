@@ -76,8 +76,10 @@ services:
       # Production guard (main.py): ENV=production REQUIRES COOKIE_SECURE=true.
       ENV: production
       COOKIE_SECURE: "true"
-      # Mock pilot: serve synthetic upstream data at runtime.
-      PHARMAPI_MOCK: "true"
+      # Mock pilot by default (synthetic upstream data). Set PHARMAPI_MOCK=false
+      # in .env.prod to serve LIVE ΗΔΥΚΑ data — note that makes a publicly-reachable
+      # box proxy real (test-env) patient data; restrict access accordingly.
+      PHARMAPI_MOCK: ${PHARMAPI_MOCK:-true}
       # Pin CORS to the pilot origin. The SPA is same-origin via Caddy, so this
       # is defence-in-depth — but config.py defaults to "*", which with
       # credentials=True is a spec-invalid no-op. Follows PILOT_DOMAIN; for a

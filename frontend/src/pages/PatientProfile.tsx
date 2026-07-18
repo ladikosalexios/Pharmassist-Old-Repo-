@@ -30,6 +30,7 @@ import {
 import { fallbackForPatient, isProfileShapeIncomplete } from "../lib/patientFallback";
 import {
   type PatientProfile as Profile,
+  type PatientIntolerance,
   type PatientRxHistoryRow,
   type SideEffectReport,
   PatientCondition,
@@ -37,9 +38,19 @@ import {
 
 // ── tiny helpers ──────────────────────────────────────────────────────────────
 
-function initials(name: string): string {
-  const parts = name.trim().split(/\s+/);
-  return ((parts[0]?.[0] ?? "") + (parts[1]?.[0] ?? "")).toUpperCase();
+function initials(name?: string): string {
+  const parts = (name ?? "").trim().split(/\s+/).filter(Boolean);
+  return ((parts[0]?.[0] ?? "") + (parts[1]?.[0] ?? "")).toUpperCase() || "?";
+}
+
+// Intolerances arrive as plain strings (mock) or as ΗΔΥΚΑ objects
+// ({activeSubstance, intolerance, remarks}). Render a substance label + the
+// optional intolerance-type detail — NEVER the raw object (that crashes React).
+function intoleranceLabel(item: string | PatientIntolerance): { name: string; detail?: string } {
+  if (typeof item === "string") return { name: item };
+  const name = item.activeSubstance || item.intolerance || "—";
+  const detail = item.activeSubstance ? item.intolerance || undefined : undefined;
+  return { name, detail };
 }
 
 function formatDate(iso: string): string {
@@ -536,6 +547,7 @@ export function PatientProfile() {
 
   const intolerances = profile.intolerances ?? [];
   const amka = profile.amka ?? id;
+  const displayName = profile.name || amka || "—";
   const filteredHistory: PatientRxHistoryRow[] = rxHistory
     ? applyHistoryFilter(rxHistory, historyFilter)
     : [];
@@ -580,11 +592,11 @@ export function PatientProfile() {
         <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex items-center gap-4">
             <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-brand-100 text-[20px] font-bold text-brand-700 dark:bg-brand-500/15 dark:text-brand-300">
-              {initials(profile.name)}
+              {initials(displayName)}
             </div>
             <div className="min-w-0">
               <h1 className="text-[24px] font-bold tracking-tight text-slate-900 dark:text-slate-100">
-                {profile.name}
+                {displayName}
               </h1>
               <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12.5px] text-slate-500 dark:text-slate-400">
                 {amka && <span className="mono">AMKA {amka}</span>}
@@ -742,23 +754,31 @@ export function PatientProfile() {
             </p>
           ) : (
             <div className="-mx-1 max-h-[340px] space-y-2 overflow-y-auto px-1">
-              {intolerances.map((name, i) => (
-                <div
-                  key={i}
-                  className="rounded-lg border border-amber-200 bg-amber-50/60 p-3 dark:border-amber-500/30 dark:bg-amber-500/10"
-                >
-                  <div className="flex items-center gap-2">
-                    <AlertTriangleIcon
-                      width={14}
-                      height={14}
-                      className="text-amber-500 dark:text-amber-400"
-                    />
-                    <span className="mono text-[12.5px] font-bold text-slate-800 dark:text-slate-200">
-                      {name}
-                    </span>
+              {intolerances.map((item, i) => {
+                const { name, detail } = intoleranceLabel(item);
+                return (
+                  <div
+                    key={i}
+                    className="rounded-lg border border-amber-200 bg-amber-50/60 p-3 dark:border-amber-500/30 dark:bg-amber-500/10"
+                  >
+                    <div className="flex items-center gap-2">
+                      <AlertTriangleIcon
+                        width={14}
+                        height={14}
+                        className="shrink-0 text-amber-500 dark:text-amber-400"
+                      />
+                      <span className="mono text-[12.5px] font-bold text-slate-800 dark:text-slate-200">
+                        {name}
+                      </span>
+                    </div>
+                    {detail && (
+                      <div className="mt-1 pl-6 text-[11.5px] leading-snug text-amber-700/80 dark:text-amber-400/70">
+                        {detail}
+                      </div>
+                    )}
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </Card>

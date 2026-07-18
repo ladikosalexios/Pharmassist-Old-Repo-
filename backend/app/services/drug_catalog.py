@@ -154,6 +154,28 @@ async def atc_codes_for_barcodes(
     return {row.gns_code: row.atc_code for row in rows if row.atc_code}
 
 
+async def records_for_barcodes(
+    session: AsyncSession, barcodes: list[str | None]
+) -> dict[str, dict]:
+    """Return {gns_code: {"atc", "substanceCode", "inn"}} for barcodes in catalog.
+
+    The enriched sibling of ``atc_codes_for_barcodes``: the dispensed drug's own
+    ATC + substance_code (the exact same-drug comparison key) + INN (§4.5 keyword)
+    from one row read. Rows with a blank atc_code are skipped (same "not in
+    catalog" signal). ``substanceCode``/``inn`` may be None where the sync left
+    them blank.
+    """
+    barcodes = [b for b in barcodes if b]
+    if not barcodes:
+        return {}
+    rows = await session.scalars(select(DrugCatalog).where(DrugCatalog.gns_code.in_(barcodes)))
+    return {
+        row.gns_code: {"atc": row.atc_code, "substanceCode": row.substance_code, "inn": row.name_en}
+        for row in rows
+        if row.atc_code
+    }
+
+
 async def run_sync(since: str | None, triggered_by: str | None = None) -> None:
     """Run one catalogue sync, recording a catalog_sync_runs row (FT-4).
 

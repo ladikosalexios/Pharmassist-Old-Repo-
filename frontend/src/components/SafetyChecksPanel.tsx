@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   CheckCircleIcon,
@@ -68,45 +68,72 @@ function Skl({ w = "100%", h = 14, mt = 0 }: { w?: string; h?: number; mt?: numb
 
 interface SafetyChecksPanelProps {
   rxId: string;
+  /** Checks that arrived with the prescription detail — reused so the panel does
+   *  NOT fire a second, identical safety pipeline on load. */
+  checks?: SafetyCheck[] | null;
+  /** Bump to force a re-fetch (e.g. after a patient factor is toggled). */
+  refreshKey?: number;
   onBlockChange?: (hasBlock: boolean) => void;
   onLoadingChange?: (loading: boolean) => void;
 }
 
 export function SafetyChecksPanel({
   rxId,
+  checks: propChecks = null,
+  refreshKey,
   onBlockChange,
   onLoadingChange,
 }: SafetyChecksPanelProps) {
   const { t } = useTranslation();
-  const [checks, setChecks] = useState<SafetyCheck[] | null>(null);
-  const [loading, setLoading] = useState(true);
+  // Locally-fetched checks OVERRIDE the prop after a factor toggle; until then
+  // the panel renders whatever the prescription detail already delivered.
+  const [fetched, setFetched] = useState<SafetyCheck[] | null>(null);
+  const [fetching, setFetching] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const lastRefresh = useRef<number | undefined>(refreshKey);
 
+  // New prescription → drop any toggle-fetched override so the new detail's
+  // checks show through.
   useEffect(() => {
+    setFetched(null);
+    setError(null);
+    lastRefresh.current = refreshKey;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rxId]);
+
+  // Refetch ONLY when refreshKey changes (a factor toggle) — never on mount, so
+  // load reuses the detail's checks instead of re-running the whole pipeline.
+  useEffect(() => {
+    if (lastRefresh.current === refreshKey) return;
+    lastRefresh.current = refreshKey;
     let active = true;
-    setLoading(true);
-    onLoadingChange?.(true);
+    setFetching(true);
     setError(null);
     getSafetyChecks(rxId)
       .then((data) => {
-        if (!active) return;
-        setChecks(data);
-        onBlockChange?.(data.some((c) => c.status === "block"));
+        if (active) setFetched(data);
       })
       .catch((e: unknown) => {
-        if (!active) return;
-        setError(e instanceof ApiError ? e.message : t("safetyChecks.loadError"));
-        onBlockChange?.(false);
+        if (active) setError(e instanceof ApiError ? e.message : t("safetyChecks.loadError"));
       })
       .finally(() => {
-        if (!active) return;
-        setLoading(false);
-        onLoadingChange?.(false);
+        if (active) setFetching(false);
       });
     return () => {
       active = false;
     };
-  }, [rxId]); // eslint-disable-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshKey]);
+
+  const checks = fetched ?? propChecks;
+  const loading = fetching || checks === null;
+
+  useEffect(() => {
+    onBlockChange?.(!!checks && checks.some((c) => c.status === "block"));
+  }, [checks, onBlockChange]);
+  useEffect(() => {
+    onLoadingChange?.(loading);
+  }, [loading, onLoadingChange]);
 
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-card dark:border-slate-800 dark:bg-slate-900">

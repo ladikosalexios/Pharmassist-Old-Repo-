@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
@@ -17,10 +17,16 @@ import {
   ApiError,
   getPrescription,
   getPatientConditions,
+  createPatientCondition,
+  deletePatientCondition,
   getSpc,
   verifySpcDocument,
 } from "../lib/api";
 import type { Medication, PatientCondition, Prescription, SpcDetails } from "../types";
+
+// Patient factors ΗΔΥΚΑ does not report (age is auto-derived). Quick-captured on
+// the review page so the safety checks can gate the drug's SPC lines by them.
+const FACTOR_CODES = ["PREGNANCY", "RENAL_SEVERE", "HEPATIC", "G6PD"] as const;
 
 function Skl({ w = "100%", h = 14, mt = 0 }: { w?: string; h?: number; mt?: number }) {
   return (
@@ -61,16 +67,85 @@ function Field({
   );
 }
 
+/** Quick capture of patient factors ΗΔΥΚΑ doesn't report (pregnancy, renal,
+ *  hepatic, G6PD). Each toggle writes/removes a patient_conditions row and asks
+ *  the parent to refresh the safety checks, so a relevant SPC contraindication /
+ *  precaution surfaces (or clears) immediately without a page reload. */
+function FactorToggles({
+  amka,
+  conditions,
+  onChanged,
+}: {
+  amka: string;
+  conditions: PatientCondition[] | null;
+  onChanged: () => void;
+}) {
+  const { t } = useTranslation();
+  const [busy, setBusy] = useState<string | null>(null);
+  const byCode = new Map((conditions ?? []).map((c) => [c.conditionCode, c] as const));
+
+  async function toggle(code: string) {
+    setBusy(code);
+    try {
+      const existing = byCode.get(code);
+      if (existing) {
+        await deletePatientCondition(amka, existing.id);
+      } else {
+        await createPatientCondition(amka, {
+          conditionCode: code,
+          name: t(`patientProfile.conditionCode${code}`),
+        });
+      }
+      onChanged();
+    } catch {
+      // A failed toggle leaves the button as-is; the review page never errors.
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  return (
+    <div className="col-span-2">
+      <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
+        {t("review.factorsTitle")}
+      </dt>
+      <dd className="mt-1.5 flex flex-wrap gap-1.5">
+        {FACTOR_CODES.map((code) => {
+          const on = byCode.has(code);
+          return (
+            <button
+              key={code}
+              type="button"
+              aria-pressed={on}
+              disabled={busy === code}
+              onClick={() => toggle(code)}
+              className={`min-h-[32px] rounded-md border px-2.5 py-1 text-[12px] font-medium transition-colors disabled:opacity-50 ${
+                on
+                  ? "border-brand-300 bg-brand-100 text-brand-800 dark:border-brand-500/40 dark:bg-brand-500/20 dark:text-brand-200"
+                  : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700"
+              }`}
+            >
+              {t(`patientProfile.conditionCode${code}`)}
+            </button>
+          );
+        })}
+      </dd>
+    </div>
+  );
+}
+
 function PatientCard({
   rx,
   conditions,
   conditionsError,
   loading,
+  onFactorsChanged,
 }: {
   rx: Prescription | null;
   conditions: PatientCondition[] | null;
   conditionsError: string | null;
   loading: boolean;
+  onFactorsChanged: () => void;
 }) {
   const { t } = useTranslation();
   if (loading || !rx) {
@@ -96,16 +171,20 @@ function PatientCard({
     <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-card dark:border-slate-800 dark:bg-slate-900">
       <CardHead>{t("review.patient")}</CardHead>
       <div className="text-[18px] font-bold text-slate-900 dark:text-slate-100">{p.name}</div>
-      <div className="mt-0.5 text-[13px] text-slate-500 dark:text-slate-400">
-        {p.age} {t("review.yearsSuffix")}
-      </div>
+      {p.age != null && (
+        <div className="mt-0.5 text-[13px] text-slate-500 dark:text-slate-400">
+          {p.age} {t("review.yearsSuffix")}
+        </div>
+      )}
       <dl className="mt-5 grid grid-cols-2 gap-x-4 gap-y-4">
         <Field label="AMKA" mono>
           {p.amka}
         </Field>
-        <Field label={t("review.dateOfBirth")} mono>
-          {p.dateOfBirth}
-        </Field>
+        {p.dateOfBirth && (
+          <Field label={t("review.dateOfBirth")} mono>
+            {p.dateOfBirth}
+          </Field>
+        )}
         {conditions && conditions.length > 0 && (
           <div className="col-span-2">
             <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
@@ -133,6 +212,9 @@ function PatientCard({
           <div className="col-span-2">
             <Field label={t("review.allergies")}>{p.allergies}</Field>
           </div>
+        )}
+        {p.amka && (
+          <FactorToggles amka={p.amka} conditions={conditions} onChanged={onFactorsChanged} />
         )}
       </dl>
       <Link
@@ -201,11 +283,12 @@ function SpcProvenance({ spc, onChange }: { spc: SpcDetails; onChange: (v: boole
   );
 }
 
-/** SPC-derived guidance for one medicine: precautions (§4.4 — caution, not the
- *  §4.3 contraindications the safety panel covers), storage / in-use shelf life
- *  / disposal (§6.3-6.6), and food instructions (§4.2, shown only when the SPC
- *  has one). Product-precise when the med carries its barcode (nhrn); drugs
- *  without SPC coverage render nothing. */
+/** SPC-derived guidance for one medicine: storage / in-use shelf life / disposal
+ *  (§6.3-6.6) and food instructions (§4.2, shown only when the SPC has one).
+ *  Precautions (§4.4) and contraindications (§4.3) are NOT shown here — they live
+ *  in the safety-checks panel (patient-factor aware), so nothing repeats.
+ *  Product-precise when the med carries its barcode (nhrn); drugs without SPC
+ *  coverage render nothing. */
 function SpcExtras({ atcCode, nhrn }: { atcCode?: string; nhrn?: string }) {
   const { t } = useTranslation();
   const [spc, setSpc] = useState<SpcDetails | null>(null);
@@ -234,22 +317,6 @@ function SpcExtras({ atcCode, nhrn }: { atcCode?: string; nhrn?: string }) {
         spc={spc}
         onChange={(v) => setSpc((cur) => (cur ? { ...cur, verified: v } : cur))}
       />
-      {spc.precautions && spc.precautions.length > 0 && (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-500/25 dark:bg-amber-500/10">
-          <div className="text-[11px] font-bold uppercase tracking-wide text-amber-700 dark:text-amber-400">
-            {t("review.precautions")}
-          </div>
-          <div className="mt-0.5 text-[11px] text-amber-600/80 dark:text-amber-400/70">
-            {t("review.precautionsHint")}
-          </div>
-          <ul className="mt-1.5 list-disc space-y-1 pl-4 text-[12.5px] leading-snug text-amber-800 dark:text-amber-200">
-            {spc.precautions.map((p, i) => (
-              <li key={i}>{p}</li>
-            ))}
-          </ul>
-        </div>
-      )}
-
       {storage && (
         <div>
           <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
@@ -396,6 +463,8 @@ export function PrescriptionVerification() {
   const [contactOpen, setContactOpen] = useState(false);
   const [conditions, setConditions] = useState<PatientCondition[] | null>(null);
   const [conditionsError, setConditionsError] = useState<string | null>(null);
+  // Bumped when a factor toggle changes conditions, to re-fetch the safety card.
+  const [checksRefresh, setChecksRefresh] = useState(0);
 
   useEffect(() => {
     let active = true;
@@ -419,23 +488,27 @@ export function PrescriptionVerification() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rxId]);
 
-  useEffect(() => {
-    if (!rx?.patient?.amka) return;
-    let active = true;
+  const amka = rx?.patient?.amka;
+  const loadConditions = useCallback(() => {
+    if (!amka) return;
     setConditionsError(null);
-    getPatientConditions(rx.patient.amka)
-      .then((data) => {
-        if (active) setConditions(data);
-      })
-      .catch((e: unknown) => {
-        if (!active) return;
-        setConditionsError(e instanceof ApiError ? e.message : t("review.couldNotLoadConditions"));
-      });
-    return () => {
-      active = false;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rx?.patient?.amka]);
+    getPatientConditions(amka)
+      .then(setConditions)
+      .catch((e: unknown) =>
+        setConditionsError(e instanceof ApiError ? e.message : t("review.couldNotLoadConditions")),
+      );
+  }, [amka, t]);
+
+  useEffect(() => {
+    loadConditions();
+  }, [loadConditions]);
+
+  // A factor toggle: reload the conditions chips AND re-run the safety checks so
+  // a newly-relevant SPC contraindication / precaution appears (or clears) live.
+  const handleFactorsChanged = useCallback(() => {
+    loadConditions();
+    setChecksRefresh((n) => n + 1);
+  }, [loadConditions]);
 
   useKeyboardShortcuts({
     f: () => {
@@ -550,9 +623,14 @@ export function PrescriptionVerification() {
           conditions={conditions}
           conditionsError={conditionsError}
           loading={loading}
+          onFactorsChanged={handleFactorsChanged}
         />
         <MedicationColumn rx={rx} loading={loading} />
-        <SafetyChecksPanel rxId={rxId} />
+        <SafetyChecksPanel
+          rxId={rxId}
+          checks={rx?.safetyChecks ?? null}
+          refreshKey={checksRefresh}
+        />
       </div>
     </div>
   );
