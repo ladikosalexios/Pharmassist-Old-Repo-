@@ -38,9 +38,9 @@ import {
 
 // ── tiny helpers ──────────────────────────────────────────────────────────────
 
-function initials(name: string): string {
-  const parts = name.trim().split(/\s+/);
-  return ((parts[0]?.[0] ?? "") + (parts[1]?.[0] ?? "")).toUpperCase();
+function initials(name?: string): string {
+  const parts = (name ?? "").trim().split(/\s+/).filter(Boolean);
+  return ((parts[0]?.[0] ?? "") + (parts[1]?.[0] ?? "")).toUpperCase() || "?";
 }
 
 // Intolerances arrive as plain strings (mock) or as ΗΔΥΚΑ objects
@@ -547,6 +547,7 @@ export function PatientProfile() {
 
   const intolerances = profile.intolerances ?? [];
   const amka = profile.amka ?? id;
+  const displayName = profile.name || amka || "—";
   const filteredHistory: PatientRxHistoryRow[] = rxHistory
     ? applyHistoryFilter(rxHistory, historyFilter)
     : [];
@@ -591,11 +592,11 @@ export function PatientProfile() {
         <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex items-center gap-4">
             <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-brand-100 text-[20px] font-bold text-brand-700 dark:bg-brand-500/15 dark:text-brand-300">
-              {initials(profile.name)}
+              {initials(displayName)}
             </div>
             <div className="min-w-0">
               <h1 className="text-[24px] font-bold tracking-tight text-slate-900 dark:text-slate-100">
-                {profile.name}
+                {displayName}
               </h1>
               <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12.5px] text-slate-500 dark:text-slate-400">
                 {amka && <span className="mono">AMKA {amka}</span>}

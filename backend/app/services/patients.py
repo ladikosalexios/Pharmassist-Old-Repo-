@@ -831,6 +831,17 @@ async def resolve(patient_key: str) -> dict | None:
         if isinstance(patient, Exception):
             raise patient
         patient_dict = patient.model_dump()
+        # Live PatientPayload is snake_case with first_name/last_name; the frontend
+        # (and the mock PATIENT_PROFILES) expect a combined `name` + camelCase
+        # dateOfBirth / safetyFlags. Bridge here so live and mock return the SAME
+        # shape (CLAUDE.md lockstep) — without it the profile page crashes on a
+        # missing `name` and the review card's dateOfBirth silently blanks.
+        full_name = " ".join(
+            p for p in (patient_dict.get("first_name"), patient_dict.get("last_name")) if p
+        ).strip()
+        patient_dict["name"] = full_name or patient_dict.get("id") or patient_key
+        patient_dict["dateOfBirth"] = patient_dict.get("date_of_birth")
+        patient_dict["safetyFlags"] = patient_dict.get("safety_flags")
         if isinstance(raw_intolerances, Exception):
             logger.warning("Failed to fetch intolerances for %s: %s", patient_key, raw_intolerances)
             patient_dict["intolerances"] = []
