@@ -340,19 +340,30 @@ def test_screened_comeds_named_in_confirmation(monkeypatch):
 
 
 class _Res:
-    def __init__(self, atc):
+    def __init__(self, atc, substance_code=None, inn_name=None):
         self.atc_code = atc
+        self.substance_code = substance_code
+        self.inn_name = inn_name
 
 
-def _patch_history(monkeypatch, items, atc_by_name):
-    """Make the engine load these history items and resolve brand→ATC by name."""
+def _patch_history(monkeypatch, items, resolve_by_name):
+    """Make the engine load these history items and resolve brand→record by name.
+
+    ``resolve_by_name`` maps a substring of the brand → a ``_Res`` (or a bare ATC
+    string, wrapped)."""
 
     async def _history(patient_id):
         return items
 
+    def _rec(v):
+        return v if isinstance(v, _Res) else _Res(v)
+
     async def _resolve(session, hints):
         return [
-            next((_Res(a) for n, a in atc_by_name.items() if n in (h.commercial_name or "")), None)
+            next(
+                (_rec(v) for n, v in resolve_by_name.items() if n in (h.commercial_name or "")),
+                None,
+            )
             for h in hints
         ]
 
@@ -434,3 +445,31 @@ def test_completed_history_is_not_duplicate(monkeypatch):
         verbose_spc=True,
     )
     assert not any(c.check_type == CheckType.DUPLICATE_THERAPY for c in payload.checks)
+
+
+def test_duplicate_therapy_matches_on_substance_not_atc(monkeypatch):
+    # The point of the change: a different BRAND of the same drug is flagged even
+    # when the resolved ATC differs — the match is on substance_code, not ATC.
+    _patch_history(
+        monkeypatch,
+        [{"rxId": "H1", "drugName": "ZALASTA", "status": "PENDING", "quantityOutstanding": 28}],
+        {"ZALASTA": _Res("N05AH99", substance_code="SUB_OLZ")},  # different ATC, same substance
+    )
+    rx = {
+        "rxId": "SPC-T",
+        "patient": {"id": AMKA, "amka": AMKA},
+        "medication": {"atcCode": OLANZAPINE, "substanceCode": "SUB_OLZ"},
+    }
+    payload = _evaluate(
+        monkeypatch,
+        _spc_stub(_none=True),
+        rx=rx,
+        rules=_interaction_rules(),
+        intolerances=[],
+        patient_conditions=[],
+        verbose_spc=True,
+    )
+    dup = [c for c in payload.checks if c.check_type == CheckType.DUPLICATE_THERAPY]
+    assert len(dup) == 1
+    assert "ίδιο φάρμακο" in dup[0].name  # same drug (by substance), not just class
+    assert "ZALASTA" in dup[0].message

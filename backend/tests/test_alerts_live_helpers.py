@@ -39,15 +39,16 @@ def test_live_rx_reshape_collapses_amka_into_patient_id():
     assert shaped == {
         "rxId": "1234567890123456",
         "patient": {"id": "15031962456", "amka": "15031962456"},
-        # nhrn carries the barcode so the SPC lookup can match by barcode → ATC.
-        "medication": {"atcCode": "B01AA03", "nhrn": "2605203035241"},
+        # nhrn carries the barcode so the SPC lookup can match by barcode → ATC;
+        # substanceCode is the exact same-drug key for the duplicate check.
+        "medication": {"atcCode": "B01AA03", "nhrn": "2605203035241", "substanceCode": None},
     }
 
 
 def test_live_rx_reshape_with_no_atc():
     rx = {"rxId": "1234567890123456", "patientAmka": "15031962456"}
     shaped = live_rx_to_engine_shape(rx, None)
-    assert shaped["medication"] == {"atcCode": None, "nhrn": None}
+    assert shaped["medication"] == {"atcCode": None, "nhrn": None, "substanceCode": None}
 
 
 # ── evaluate_safety defensive paths ──────────────────────────────────────────

@@ -154,26 +154,26 @@ async def atc_codes_for_barcodes(
     return {row.gns_code: row.atc_code for row in rows if row.atc_code}
 
 
-async def names_for_atcs(session: AsyncSession, atcs: set[str]) -> dict[str, str]:
-    """Return {atc_code: INN name} — the first non-blank ``name_en`` per ATC.
+async def records_for_barcodes(
+    session: AsyncSession, barcodes: list[str | None]
+) -> dict[str, dict]:
+    """Return {gns_code: {"atc", "substanceCode", "inn"}} for barcodes in catalog.
 
-    Used to turn a co-medication's ATC into a substance name the SPC §4.5
-    interactions text actually uses (that section names substances/classes, not
-    brands), so co-meds can be keyword-matched against it.
+    The enriched sibling of ``atc_codes_for_barcodes``: the dispensed drug's own
+    ATC + substance_code (the exact same-drug comparison key) + INN (§4.5 keyword)
+    from one row read. Rows with a blank atc_code are skipped (same "not in
+    catalog" signal). ``substanceCode``/``inn`` may be None where the sync left
+    them blank.
     """
-    atcs = {a for a in atcs if a}
-    if not atcs:
+    barcodes = [b for b in barcodes if b]
+    if not barcodes:
         return {}
-    rows = await session.execute(
-        select(DrugCatalog.atc_code, DrugCatalog.name_en).where(
-            DrugCatalog.atc_code.in_(atcs), DrugCatalog.name_en.isnot(None)
-        )
-    )
-    out: dict[str, str] = {}
-    for atc, name in rows:
-        if atc not in out and name:
-            out[atc] = name
-    return out
+    rows = await session.scalars(select(DrugCatalog).where(DrugCatalog.gns_code.in_(barcodes)))
+    return {
+        row.gns_code: {"atc": row.atc_code, "substanceCode": row.substance_code, "inn": row.name_en}
+        for row in rows
+        if row.atc_code
+    }
 
 
 async def run_sync(since: str | None, triggered_by: str | None = None) -> None:

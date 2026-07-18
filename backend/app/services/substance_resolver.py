@@ -43,6 +43,7 @@ first-class — a caller (or an audit view) can treat a low-confidence AI mappin
 differently without a shape change here.
 """
 
+import re
 from dataclasses import dataclass
 
 from sqlalchemy import func, select
@@ -68,55 +69,122 @@ class ResolvedAtc:
     atc_code: str
     method: str  # "substance_code" | "inn_name" | "commercial_name" | (future) "ai"
     confidence: str  # "high" | "low"
+    # The catalog row carries these alongside the ATC — projected so a single
+    # resolution yields the comparison key (substance_code, the exact generic-
+    # equivalence id) AND the INN keyword (§4.5) without a second round-trip.
+    substance_code: str | None = None
+    inn_name: str | None = None
 
 
-def _pick_unambiguous(pairs: list[tuple[str, str]]) -> dict[str, str]:
-    """Group (key, atc) pairs and keep a key only when its rows agree on ONE ATC.
-
-    Two brands of the same substance share an ATC (kept); a key that maps to two
-    distinct ATCs (e.g. an ambiguous brand substring) is dropped rather than
-    guessed — a false interaction is worse than a missed one here."""
-    groups: dict[str, set[str]] = {}
-    for key, atc in pairs:
-        if atc:
-            groups.setdefault(key, set()).add(atc)
-    return {k: next(iter(v)) for k, v in groups.items() if len(v) == 1}
+# One catalog row's resolvable identity: (atc, substance_code, inn_name).
+_Rec = tuple[str, str | None, str | None]
 
 
-async def _by_substance_code(session: AsyncSession, codes: set[str]) -> dict[str, str]:
+def _pick_unambiguous(rows: list[tuple[str, str, str | None, str | None]]) -> dict[str, _Rec]:
+    """Group (key, atc, substance_code, inn) rows and keep a key only when its
+    rows agree on ONE ATC — the kept record carries that ATC plus the first
+    non-blank substance_code / INN seen.
+
+    Two brands/strengths of the same substance share an ATC (kept); a key that
+    maps to two distinct ATCs (an ambiguous brand) is dropped rather than guessed
+    — a false interaction is worse than a missed one here."""
+    groups: dict[str, dict] = {}
+    for key, atc, sub, inn in rows:
+        if not atc:
+            continue
+        g = groups.setdefault(key, {"atcs": set(), "atc": atc, "sub": None, "inn": None})
+        g["atcs"].add(atc)
+        if g["sub"] is None and sub:
+            g["sub"] = sub
+        if g["inn"] is None and inn:
+            g["inn"] = inn
+    return {k: (g["atc"], g["sub"], g["inn"]) for k, g in groups.items() if len(g["atcs"]) == 1}
+
+
+# ── Brand-name normalisation ──────────────────────────────────────────────────
+# ΗΔΥΚΑ history brands ("OLENXA DISP.TAB 20MG/TAB BTx28") carry form/strength/pack
+# noise that drifts from the catalog's name_gr formatting, so the old full-string
+# substring match missed often. Every strength/pack of a brand shares ONE ATC +
+# substance, so we key on the leading BRAND tokens (stop at the first form /
+# strength / pack token) and prefix-match name_gr — far more robust, still
+# unambiguous-only (different brands sharing a prefix → multiple ATCs → dropped).
+_FORM_OR_STRENGTH = re.compile(
+    r"^(?:\d|TABS?|CAPS?|F\.?C|DISP|SR|MR|SYR|SOL|SUSP|INJ|CREAM|GEL|OINT|"
+    r"DROPS?|AMP|VIAL|SACHET|EFF|BT|BTX|MG|G|ML|MCG|IU|%)",
+    re.IGNORECASE,
+)
+
+
+def _brand_key(name: str) -> str:
+    """Leading brand tokens of a commercial name, uppercased — everything up to
+    the first form/strength/pack token. Splits on whitespace only (a ``/`` inside
+    a token, e.g. ``MELOXICAM/SM``, is preserved so the prefix still matches the
+    catalog's ``name_gr``, which keeps the slash)."""
+    out: list[str] = []
+    for tok in re.split(r"\s+", name.strip()):
+        if not tok or _FORM_OR_STRENGTH.match(tok):
+            break
+        out.append(tok)
+    return " ".join(out).upper() or name.strip().upper()
+
+
+# Per-process memo: normalised brand key → resolved record (or None for a known
+# miss, so repeat misses don't re-query). Bounded; resets on restart (the
+# pharmapi_session pattern). Different strengths of one brand share a key → 1 hit.
+_BRAND_MEMO: dict[str, _Rec | None] = {}
+_BRAND_MEMO_CAP = 4096
+
+
+async def _by_substance_code(session: AsyncSession, codes: set[str]) -> dict[str, _Rec]:
     rows = await session.execute(
-        select(DrugCatalog.substance_code, DrugCatalog.atc_code).where(
+        select(DrugCatalog.substance_code, DrugCatalog.atc_code, DrugCatalog.name_en).where(
             DrugCatalog.substance_code.in_(codes)
         )
     )
-    return _pick_unambiguous([(c, a) for c, a in rows if c])
+    return _pick_unambiguous([(c, a, c, n) for c, a, n in rows if c])
 
 
-async def _by_inn_name(session: AsyncSession, names_lower: set[str]) -> dict[str, str]:
+async def _by_inn_name(session: AsyncSession, names_lower: set[str]) -> dict[str, _Rec]:
     rows = await session.execute(
-        select(func.lower(DrugCatalog.name_en), DrugCatalog.atc_code).where(
-            func.lower(DrugCatalog.name_en).in_(names_lower)
-        )
+        select(
+            func.lower(DrugCatalog.name_en),
+            DrugCatalog.atc_code,
+            DrugCatalog.substance_code,
+            DrugCatalog.name_en,
+        ).where(func.lower(DrugCatalog.name_en).in_(names_lower))
     )
-    return _pick_unambiguous([(n, a) for n, a in rows if n])
+    return _pick_unambiguous([(low, a, s, n) for low, a, s, n in rows if low])
 
 
-async def _by_commercial_name(session: AsyncSession, brands: set[str]) -> dict[str, str]:
-    """Substring match on ``name_gr`` (which is "brand strength"), one query per
-    brand — brand counts per patient are tiny, and LIKE wildcards in the upstream
-    value are escaped so a stray ``%`` can't broaden the match."""
-    out: dict[str, str] = {}
+async def _by_commercial_name(session: AsyncSession, brands: set[str]) -> dict[str, _Rec]:
+    """Prefix match on the normalised brand key against ``name_gr`` ("brand
+    strength"), one query per distinct brand key — counts per patient are tiny,
+    results memoised, LIKE wildcards escaped. Unambiguous-only."""
+    out: dict[str, _Rec] = {}
     for brand in brands:
-        safe = brand.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-        rows = await session.scalars(
-            select(DrugCatalog.atc_code).where(
-                DrugCatalog.name_gr.ilike(f"%{safe}%", escape="\\"),
-                DrugCatalog.atc_code != "",
+        key = _brand_key(brand)
+        if len(key) < 3:
+            continue
+        if key in _BRAND_MEMO:
+            rec = _BRAND_MEMO[key]
+        else:
+            safe = key.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+            rows = list(
+                await session.execute(
+                    select(
+                        DrugCatalog.atc_code, DrugCatalog.substance_code, DrugCatalog.name_en
+                    ).where(
+                        func.upper(DrugCatalog.name_gr).like(f"{safe}%", escape="\\"),
+                        DrugCatalog.atc_code != "",
+                    )
+                )
             )
-        )
-        atcs = {a for a in rows if a}
-        if len(atcs) == 1:
-            out[brand] = next(iter(atcs))
+            atcs = {r[0] for r in rows if r[0]}
+            rec = (rows[0][0], rows[0][1], rows[0][2]) if len(atcs) == 1 else None
+            if len(_BRAND_MEMO) < _BRAND_MEMO_CAP:
+                _BRAND_MEMO[key] = rec
+        if rec:
+            out[brand] = rec
     return out
 
 
@@ -134,8 +202,8 @@ async def resolve_atcs(session: AsyncSession, hints: list[DrugHint]) -> list[Res
     codes = {h.substance_code for h in hints if h.substance_code}
     code_map = await _by_substance_code(session, codes) if codes else {}
     for i, h in enumerate(hints):
-        if h.substance_code and (atc := code_map.get(h.substance_code)):
-            results[i] = ResolvedAtc(atc, "substance_code", "high")
+        if h.substance_code and (rec := code_map.get(h.substance_code)):
+            results[i] = ResolvedAtc(rec[0], "substance_code", "high", rec[1], rec[2])
 
     # Pass 2 — INN name (case-insensitive exact, high).
     names = {
@@ -148,11 +216,11 @@ async def resolve_atcs(session: AsyncSession, hints: list[DrugHint]) -> list[Res
         if (
             results[i] is None
             and h.substance_name
-            and (atc := name_map.get(h.substance_name.strip().lower()))
+            and (rec := name_map.get(h.substance_name.strip().lower()))
         ):
-            results[i] = ResolvedAtc(atc, "inn_name", "high")
+            results[i] = ResolvedAtc(rec[0], "inn_name", "high", rec[1], rec[2])
 
-    # Pass 3 — brand name (substring, unambiguous only, low).
+    # Pass 3 — brand name (normalised prefix, unambiguous only, low).
     brands = {
         h.commercial_name.strip()
         for i, h in enumerate(hints)
@@ -163,8 +231,8 @@ async def resolve_atcs(session: AsyncSession, hints: list[DrugHint]) -> list[Res
         if (
             results[i] is None
             and h.commercial_name
-            and (atc := brand_map.get(h.commercial_name.strip()))
+            and (rec := brand_map.get(h.commercial_name.strip()))
         ):
-            results[i] = ResolvedAtc(atc, "commercial_name", "low")
+            results[i] = ResolvedAtc(rec[0], "commercial_name", "low", rec[1], rec[2])
 
     return results

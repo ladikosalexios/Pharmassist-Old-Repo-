@@ -49,26 +49,37 @@ AMKA = "12345678901"
 def test_pick_unambiguous_keeps_agreeing_drops_conflicting():
     got = resolver._pick_unambiguous(
         [
-            ("WARF", "B01AA03"),
-            ("WARF", "B01AA03"),  # same substance, two brands → kept
-            ("AMBIG", "N02BE01"),
-            ("AMBIG", "M01AE01"),  # two distinct ATCs → dropped, not guessed
-            ("NOATC", ""),  # blank ATC → ignored
+            ("WARF", "B01AA03", "S1", "warfarin"),
+            ("WARF", "B01AA03", "S1", "warfarin"),  # same substance, two brands → kept
+            ("AMBIG", "N02BE01", None, None),
+            ("AMBIG", "M01AE01", None, None),  # two distinct ATCs → dropped, not guessed
+            ("NOATC", "", None, None),  # blank ATC → ignored
         ]
     )
-    assert got == {"WARF": "B01AA03"}
+    # Kept key carries (atc, substance_code, inn).
+    assert got == {"WARF": ("B01AA03", "S1", "warfarin")}
+
+
+def test_brand_key_strips_form_strength_pack_noise():
+    # The leading brand tokens survive; form/strength/pack noise is dropped, so
+    # every strength/pack of a brand collapses to ONE key (→ one catalog match).
+    assert resolver._brand_key("OLENXA DISP.TAB 20MG/TAB BTx28") == "OLENXA"
+    assert resolver._brand_key("OLENXA DISP.TAB 10MG/TAB BTx14") == "OLENXA"
+    assert resolver._brand_key("NEURONTIN CAPS 300MG/CAP BTx50 (BLIST 5x10)") == "NEURONTIN"
+    # A slash inside a token is preserved (matches the catalog's name_gr format).
+    assert resolver._brand_key("MELOXICAM/SM TAB 15MG") == "MELOXICAM/SM"
 
 
 def test_resolve_atcs_precedence_and_alignment(monkeypatch):
     async def _run():
         async def fake_code(_session, _codes):
-            return {"C1": "A10BA02"}
+            return {"C1": ("A10BA02", "C1", "metformin")}
 
         async def fake_inn(_session, _names):
-            return {"amoxicillin": "J01CA04"}
+            return {"amoxicillin": ("J01CA04", "S2", "amoxicillin")}
 
         async def fake_brand(_session, _brands):
-            return {"Salospir": "B01AC06"}
+            return {"Salospir": ("B01AC06", None, "acetylsalicylic acid")}
 
         monkeypatch.setattr(resolver, "_by_substance_code", fake_code)
         monkeypatch.setattr(resolver, "_by_inn_name", fake_inn)

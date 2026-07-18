@@ -16,7 +16,7 @@ from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..schemas.safety import SafetyChecksPayload
-from .drug_catalog import atc_codes_for_barcodes
+from .drug_catalog import records_for_barcodes
 from .pharmapi import pharmapi_get_prescription, pharmapi_search_prescriptions
 from .safety_engine import checks_for_prescription, live_rx_to_engine_shape
 
@@ -47,29 +47,40 @@ async def fetch_live_rx(rx_id: str, pharmacy, doctor_ip: str) -> dict | None:
     return None
 
 
-def shape_live_rx(rx: dict, atc_map: dict[str, str]) -> dict:
-    """Engine-shaped rx from a live rx dict + a barcode→ATC map.
+def shape_live_rx(rx: dict, record_map: dict[str, dict]) -> dict:
+    """Engine-shaped rx from a live rx dict + a barcode→catalog-record map.
 
     Adds a ``medications`` list (one per therapy line, each with its resolved
-    ATC) to ``rx`` in place AND returns the engine-shape dict the safety engine
-    consumes — so multi-medicine prescriptions get per-line evaluation and the
-    UI can render one card per medicine.
+    ATC + substance_code + INN) to ``rx`` in place AND returns the engine-shape
+    dict the safety engine consumes — so multi-medicine prescriptions get per-line
+    evaluation and the UI can render one card per medicine. ``substanceCode`` is
+    the exact same-drug comparison key; ``inn`` feeds the §4.5 interaction match.
     """
     medicine_barcode = rx.get("medicineBarcode")
-    atc = atc_map.get(medicine_barcode) if medicine_barcode else None
-    shaped = live_rx_to_engine_shape(rx, atc)
+    rec = (record_map.get(medicine_barcode) or {}) if medicine_barcode else {}
+    shaped = live_rx_to_engine_shape(rx, rec.get("atc"), rec.get("substanceCode"))
     lines = rx.get("therapyLines") or []
     if lines:
         rx["medications"] = [
             {
                 "drugName": ln.get("name"),
-                "atcCode": atc_map.get(ln.get("medicineBarcode")),
+                "atcCode": (record_map.get(ln.get("medicineBarcode")) or {}).get("atc"),
+                "substanceCode": (record_map.get(ln.get("medicineBarcode")) or {}).get(
+                    "substanceCode"
+                ),
+                "inn": (record_map.get(ln.get("medicineBarcode")) or {}).get("inn"),
                 "nhrn": ln.get("medicineBarcode"),
             }
             for ln in lines
         ]
         shaped["medications"] = [
-            {"atcCode": m["atcCode"], "nhrn": m.get("nhrn"), "drugName": m.get("drugName")}
+            {
+                "atcCode": m["atcCode"],
+                "substanceCode": m.get("substanceCode"),
+                "inn": m.get("inn"),
+                "nhrn": m.get("nhrn"),
+                "drugName": m.get("drugName"),
+            }
             for m in rx["medications"]
             if m["atcCode"]
         ]
@@ -185,8 +196,8 @@ async def resolve_live_rx_with_checks(
     line_barcodes = [ln.get("medicineBarcode") for ln in lines if ln.get("medicineBarcode")]
     medicine_barcode = rx.get("medicineBarcode")
     barcodes = line_barcodes or ([medicine_barcode] if medicine_barcode else [])
-    atc_map = await atc_codes_for_barcodes(session, barcodes)
-    shaped = shape_live_rx(rx, atc_map)
+    record_map = await records_for_barcodes(session, barcodes)
+    shaped = shape_live_rx(rx, record_map)
     # Fetch the patient profile ONCE: the engine needs age (age-bracket factor
     # gating) and shape_live_response reuses it via rx["_profile"] — one ΗΔΥΚΑ
     # patient call per scan. Stashed on the raw rx, which is never persisted (the

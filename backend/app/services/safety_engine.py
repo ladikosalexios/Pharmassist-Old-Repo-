@@ -17,7 +17,6 @@ from ..constants import AdrSeverity, AlertStatus, CheckType, PrescriptionStatus
 from ..db.models.safety_rule import SafetyRule
 from ..schemas.safety import STATUS_ORDER, SafetyAlertPayload, SafetyChecksPayload
 from ..utils.environment import is_mock_pharmapi
-from .drug_catalog import names_for_atcs
 from .patients import conditions, patient_intolerances, rx_history
 from .prescriptions import MOCK_PRESCRIPTIONS
 from .safety_checks import MOCK_SAFETY_CHECKS
@@ -161,20 +160,25 @@ def _rule_to_alert(rule: SafetyRule, rx_id: str) -> SafetyAlertPayload:
     )
 
 
-def live_rx_to_engine_shape(rx: dict, atc: str | None) -> dict:
+def live_rx_to_engine_shape(rx: dict, atc: str | None, substance_code: str | None = None) -> dict:
     """Reshape a Pharmapi v2 search item into the dict shape evaluate_safety expects.
 
     `patientAmka` drives both `patient.id` and `patient.amka` — both are required
     by the engine for intolerance and condition lookups. If AMKA is absent from
     the Pharmapi response, all ATC-keyed patient checks will silently skip.
     The v2 search schema includes `amka` on every result, but callers should be
-    aware of this dependency when handling edge cases.
+    aware of this dependency when handling edge cases. `substance_code` is the
+    exact same-drug key used by the duplicate-therapy check.
     """
     amka = rx.get("patientAmka")
     return {
         "rxId": rx.get("rxId"),
         "patient": {"id": amka, "amka": amka},
-        "medication": {"atcCode": atc, "nhrn": rx.get("medicineBarcode")},
+        "medication": {
+            "atcCode": atc,
+            "nhrn": rx.get("medicineBarcode"),
+            "substanceCode": substance_code,
+        },
     }
 
 
@@ -358,10 +362,13 @@ async def evaluate_safety(
     co_med_names: set[str] = set()
     if len(dispensed_lines) > 1:
         co_med_names = {m["drugName"] for m in dispensed_lines if m.get("drugName")}
-    # ACTIVE (ongoing) history medications → {atc: name}, for the duplicate-therapy
-    # check: a still-open prescription for the same drug / class as the one being
-    # dispensed is a double-dosing risk. Populated only where history is loaded.
-    active_history: dict[str, str] = {}
+    # ACTIVE (ongoing) history medications as records ``{atc, substanceCode, name}``
+    # for the duplicate-therapy check — a still-open prescription for the same drug
+    # (matched on substance) or class (ATC-4) is a double-dosing risk. And co-med
+    # ATC→INN (from the same resolution) for the §4.5 keyword match — no separate
+    # names_for_atcs round-trip. Both populated only where history is loaded.
+    active_history: list[dict] = []
+    co_med_inn: dict[str, str] = {}
 
     checks: list[SafetyAlertPayload] = []
     seen: set[str] = set()
@@ -400,10 +407,17 @@ async def evaluate_safety(
                 co_med_names.add(entry["drugName"])
             hist_rx = MOCK_PRESCRIPTIONS.get(entry["rxId"])
             if hist_rx:
-                atc = hist_rx["medication"]["atcCode"]
+                med = hist_rx["medication"]
+                atc = med["atcCode"]
                 history_atcs.add(atc)
                 if _is_active_history(entry):
-                    active_history.setdefault(atc, entry.get("drugName") or atc)
+                    active_history.append(
+                        {
+                            "atc": atc,
+                            "substanceCode": med.get("substanceCode"),
+                            "name": entry.get("drugName") or atc,
+                        }
+                    )
             elif entry.get("drugName"):
                 hint_entries.append(entry)
         if hint_entries:
@@ -414,8 +428,16 @@ async def evaluate_safety(
                 if res is None:
                     continue
                 history_atcs.add(res.atc_code)
+                if res.inn_name:
+                    co_med_inn.setdefault(res.atc_code, res.inn_name)
                 if _is_active_history(entry):
-                    active_history.setdefault(res.atc_code, entry.get("drugName") or res.atc_code)
+                    active_history.append(
+                        {
+                            "atc": res.atc_code,
+                            "substanceCode": res.substance_code,
+                            "name": entry.get("drugName") or res.atc_code,
+                        }
+                    )
 
     # Loaded once, shared by every line's intolerance / condition screening.
     if med_atcs and amka and intolerances is None:
@@ -428,15 +450,17 @@ async def evaluate_safety(
         pt_conditions = await conditions(session, amka, pharmacy_id)
 
     # Verbose review path: patient factors (allergies + conditions + age brackets)
-    # gate the SPC §4.3/§4.4 lines, and co-medication ATCs resolve to INN names so
-    # they can be matched against the SPC §4.5 interactions text.
+    # gate the SPC §4.3/§4.4 lines. ATC→INN for the §4.5 keyword match comes from
+    # the ONE resolution already done — co-meds from history (co_med_inn) and the
+    # dispensed lines from their catalog records — so no extra names_for_atcs read.
     factors: list[dict] = []
     inn_names: dict[str, str] = {}
     if verbose_spc:
         factors = _build_factors(intolerances or [], pt_conditions or [], age)
-        all_co_atcs = (history_atcs or set()) | med_atcs
-        if all_co_atcs and session is not None:
-            inn_names = await names_for_atcs(session, all_co_atcs)
+        inn_names = dict(co_med_inn)
+        for m in meds:
+            if isinstance(m, dict) and m.get("atcCode") and m.get("inn"):
+                inn_names.setdefault(m["atcCode"], m["inn"])
 
     for med in meds:
         rx_atc = med.get("atcCode") if isinstance(med, dict) else None
@@ -459,14 +483,27 @@ async def evaluate_safety(
 
         # --- 1b. Duplicate therapy vs an ACTIVE history medication ---
         # The patient already has a still-open prescription for the SAME drug
-        # (exact ATC) or the same pharmacological class (ATC level-4, first 5
-        # chars) — a double-dosing risk the seeded pairs don't cover. REVIEW, not
-        # BLOCK: cross-titration / dose changes are legitimate.
+        # (matched on substance_code — so two different BRANDS of the same drug
+        # count — with full ATC as fallback) or the same pharmacological class
+        # (ATC level-4). A double-dosing risk the seeded pairs don't cover.
+        # REVIEW, not BLOCK: cross-titration / dose changes are legitimate.
         if verbose_spc and active_history:
             dup_key = f"DUP_{rx_atc}"
-            same_drug = active_history.get(rx_atc)
+            rx_sub = med.get("substanceCode") if isinstance(med, dict) else None
+            same_drug = next(
+                (
+                    h["name"]
+                    for h in active_history
+                    if (rx_sub and h.get("substanceCode") == rx_sub) or h["atc"] == rx_atc
+                ),
+                None,
+            )
             same_class = next(
-                (n for a, n in active_history.items() if a[:5] == rx_atc[:5] and a != rx_atc),
+                (
+                    h["name"]
+                    for h in active_history
+                    if h["atc"][:5] == rx_atc[:5] and h["atc"] != rx_atc
+                ),
                 None,
             )
             if (same_drug or same_class) and dup_key not in seen:
