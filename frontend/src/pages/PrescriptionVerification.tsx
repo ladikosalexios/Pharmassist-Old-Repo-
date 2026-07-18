@@ -626,7 +626,11 @@ export function PrescriptionVerification() {
           onFactorsChanged={handleFactorsChanged}
         />
         <MedicationColumn rx={rx} loading={loading} />
-        <SafetyChecksPanel rxId={rxId} refreshKey={checksRefresh} />
+        <SafetyChecksPanel
+          rxId={rxId}
+          checks={rx?.safetyChecks ?? null}
+          refreshKey={checksRefresh}
+        />
       </div>
     </div>
   );

@@ -218,7 +218,15 @@ async def _load_intolerances(session: AsyncSession, amka: str) -> list[dict]:
     the intolerance TYPE into a graded severity is a follow-up."""
     if is_mock_pharmapi():
         return MOCK_INTOLERANCES.get(amka, [])
-    raw = await patient_intolerances(amka)
+    return await resolve_intolerance_rows(session, await patient_intolerances(amka))
+
+
+async def resolve_intolerance_rows(session: AsyncSession, raw: list[dict] | None) -> list[dict]:
+    """Resolve RAW ΗΔΥΚΑ intolerance items → engine rows ``{atcCode, name, severity}``.
+
+    Split out from ``_load_intolerances`` so a caller that already fetched the raw
+    intolerances (e.g. the live review path, which pulls them once for the patient
+    profile) can resolve them without a second ΗΔΥΚΑ round-trip."""
     if not raw:
         return []
     resolved = await resolve_atcs(session, [_intolerance_hint(i) for i in raw])
@@ -255,6 +263,7 @@ async def checks_for_prescription(
     rules: list[SafetyRule] | None = None,
     intolerances: list[dict] | None = None,
     verbose_spc: bool = False,
+    history_rows: list[dict] | None = None,
 ) -> SafetyChecksPayload:
     """Single source of truth for a prescription's safety checks.
 
@@ -286,7 +295,13 @@ async def checks_for_prescription(
     if rx is None:
         raise HTTPException(status_code=404, detail=f"Prescription {rx_id} not found")
     return await evaluate_safety(
-        session, rx, pharmacy_id, rules=rules, intolerances=intolerances, verbose_spc=verbose_spc
+        session,
+        rx,
+        pharmacy_id,
+        rules=rules,
+        intolerances=intolerances,
+        verbose_spc=verbose_spc,
+        history_rows=history_rows,
     )
 
 
@@ -299,6 +314,7 @@ async def evaluate_safety(
     patient_conditions: list | None = None,
     intolerances: list[dict] | None = None,
     verbose_spc: bool = False,
+    history_rows: list[dict] | None = None,
 ) -> SafetyChecksPayload:
     """Evaluate a single prescription against the safety-rule catalogue.
 
@@ -394,7 +410,11 @@ async def evaluate_safety(
     # screened-co-meds confirmation, and the duplicate-therapy check), even when
     # the seeded rule set carries no interaction/duplicate rule.
     if med_atcs and (interaction_rules or verbose_spc) and history_atcs is None and patient_id:
-        history = await rx_history(patient_id)
+        # ``history_rows`` lets a caller supply the already-fetched medicine
+        # history (the live review path prefetches it in parallel with the
+        # patient profile) so the engine skips the ΗΔΥΚΑ round-trip; the raw rows
+        # still flow through the same resolution / duplicate-therapy logic below.
+        history = history_rows if history_rows is not None else await rx_history(patient_id)
         history_atcs = set()
         # Live history has no barcode — brand names resolve to ATC in one batch.
         # Track each hint's source entry so an ACTIVE item's resolved ATC + name

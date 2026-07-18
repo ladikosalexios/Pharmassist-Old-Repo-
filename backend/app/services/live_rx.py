@@ -12,13 +12,19 @@ fire-and-forget side effects (scan log, SPC fetch) are NOT done here — they
 belong to the detail endpoint only, so the sidecar call never double-fires.
 """
 
+import asyncio
+
 from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..schemas.safety import SafetyChecksPayload
 from .drug_catalog import records_for_barcodes
 from .pharmapi import pharmapi_get_prescription, pharmapi_search_prescriptions
-from .safety_engine import checks_for_prescription, live_rx_to_engine_shape
+from .safety_engine import (
+    checks_for_prescription,
+    live_rx_to_engine_shape,
+    resolve_intolerance_rows,
+)
 
 
 async def fetch_live_rx(rx_id: str, pharmacy, doctor_ip: str) -> dict | None:
@@ -98,6 +104,25 @@ async def _load_profile(amka) -> dict:
         return await resolve(str(amka)) or {}
     except Exception:
         return {}
+
+
+async def _gather_patient_context(amka) -> tuple[dict, list]:
+    """(profile, medicine-history rows) fetched CONCURRENTLY — they only need the
+    AMKA and are independent. Previously the profile and history each cost a
+    separate sequential ΗΔΥΚΑ round-trip (profile in ``_load_profile``, history
+    inside the engine). Best-effort: either failing degrades to an empty default
+    rather than breaking the review page."""
+    if not amka:
+        return {}, []
+    from .patients import rx_history
+
+    profile, history = await asyncio.gather(
+        _load_profile(amka), rx_history(str(amka)), return_exceptions=True
+    )
+    return (
+        profile if isinstance(profile, dict) else {},
+        history if isinstance(history, list) else [],
+    )
 
 
 async def shape_live_response(rx: dict, checks: list) -> dict:
@@ -198,15 +223,25 @@ async def resolve_live_rx_with_checks(
     barcodes = line_barcodes or ([medicine_barcode] if medicine_barcode else [])
     record_map = await records_for_barcodes(session, barcodes)
     shaped = shape_live_rx(rx, record_map)
-    # Fetch the patient profile ONCE: the engine needs age (age-bracket factor
-    # gating) and shape_live_response reuses it via rx["_profile"] — one ΗΔΥΚΑ
-    # patient call per scan. Stashed on the raw rx, which is never persisted (the
-    # scan snapshot stores the shaped response, not this dict).
-    profile = await _load_profile(rx.get("patientAmka"))
+    # Prefetch the patient profile + medicine history CONCURRENTLY (one parallel
+    # batch instead of three sequential ΗΔΥΚΑ round-trips). The profile is stashed
+    # on the raw rx (never persisted) so shape_live_response reuses it, and its
+    # already-fetched intolerances are resolved once and handed to the engine —
+    # no second intolerances call. History rows are passed through so the engine
+    # skips its own fetch while keeping the duplicate-therapy resolution.
+    amka = rx.get("patientAmka")
+    profile, history_rows = await _gather_patient_context(amka)
     rx["_profile"] = profile
     shaped["patient"]["age"] = profile.get("age")
     shaped["patient"]["sex"] = profile.get("sex")
+    intolerances = await resolve_intolerance_rows(session, profile.get("intolerances") or [])
     payload = await checks_for_prescription(
-        session, shaped["rxId"], shaped, pharmacy.id, verbose_spc=True
+        session,
+        shaped["rxId"],
+        shaped,
+        pharmacy.id,
+        verbose_spc=True,
+        intolerances=intolerances,
+        history_rows=history_rows,
     )
     return rx, payload
