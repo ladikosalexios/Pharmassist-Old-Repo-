@@ -34,10 +34,16 @@ PILOT_DOMAIN=""
 # GitHub read-only token (private repo clone). Fine-grained, Contents:Read.
 GH_PAT="__FILL_ME__"
 
-# ΗΔΥΚΑ Pharmapi (test-env creds are fine — only used by the one-time seed).
+# ΗΔΥΚΑ Pharmapi (test-env creds are fine — used by the seed, and at runtime when
+# PHARMAPI_MOCK=false).
 PHARMAPI_USERNAME="__FILL_ME__"
 PHARMAPI_PASSWORD="__FILL_ME__"
 PHARMAPI_API_KEY="__FILL_ME__"
+
+# "true"  → synthetic data at runtime (safe for a public box).
+# "false" → LIVE ΗΔΥΚΑ data. This makes a publicly-reachable box proxy real
+#           (test-env) patient data — restrict the security group accordingly.
+PHARMAPI_MOCK="true"
 # ──────────────────────────────────────────────────────────────────────────────
 
 log() { echo "[bootstrap] $(date -u +%H:%M:%S) $*"; }
@@ -87,6 +93,7 @@ POSTGRES_PASSWORD=$(gen_hex)
 PHARMAPI_USERNAME=$PHARMAPI_USERNAME
 PHARMAPI_PASSWORD=$PHARMAPI_PASSWORD
 PHARMAPI_API_KEY=$PHARMAPI_API_KEY
+PHARMAPI_MOCK=$PHARMAPI_MOCK
 PILOT_DOMAIN=$DOMAIN
 ENVEOF
 fi
@@ -99,6 +106,15 @@ log "Migrating + seeding (seed authenticates once against live ΗΔΥΚΑ)..."
 docker compose -f compose.prod.yaml --env-file .env.prod exec -T backend alembic upgrade head
 docker compose -f compose.prod.yaml --env-file .env.prod exec -T backend python -m scripts.seed \
   || log "WARN: seed failed (ΗΔΥΚΑ creds/session?) — rerun manually once fixed."
+
+# Live mode needs the national drug catalogue synced (brand→ATC/substance
+# resolution for the safety engine); mock mode ships without it.
+if [ "$PHARMAPI_MOCK" = "false" ]; then
+  log "Live mode: syncing drug catalogue from ΗΔΥΚΑ masterdata (~1 min)..."
+  docker compose -f compose.prod.yaml --env-file .env.prod exec -T backend \
+    python -m scripts.seed_drug_catalog \
+    || log "WARN: catalogue sync failed — rerun 'python -m scripts.seed_drug_catalog'."
+fi
 
 log "Done. Demo reachable at: https://$DOMAIN"
 log "Point the agent at it:  PHARMASSIST_BACKEND_URL=https://$DOMAIN PHARMASSIST_WEBAPP_URL=https://$DOMAIN"
