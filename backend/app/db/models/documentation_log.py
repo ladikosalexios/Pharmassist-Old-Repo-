@@ -6,6 +6,8 @@
 #             pharmapi_exec_ref carries the IDIKA execution reference.
 #   FLAG    — discrepancy audit. info_provided / delivery_method left NULL.
 #             discrepancy_type + notes carry the reason. pharmapi_exec_ref NULL.
+#   CONTACT_PRESCRIBER — the pharmacist recorded contacting the prescriber. notes
+#             carry the message. No automated send (ΗΔΥΚΑ exposes no channel).
 import uuid
 from datetime import datetime
 
@@ -22,7 +24,10 @@ class DocumentationLog(Base, TimestampMixin):
     __table_args__ = (
         Index("ix_doc_logs_patient_amka_dispensed", "patient_amka", "dispensed_at"),
         Index("ix_doc_logs_pharmacy_dispensed", "pharmacy_id", "dispensed_at"),
-        CheckConstraint("action_type IN ('APPROVE', 'FLAG')", name="action_type_valid"),
+        CheckConstraint(
+            "action_type IN ('APPROVE', 'FLAG', 'CONTACT_PRESCRIBER')",
+            name="action_type_valid",
+        ),
     )
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
@@ -36,7 +41,9 @@ class DocumentationLog(Base, TimestampMixin):
     pharmacy_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("pharmacies.id"), nullable=False
     )
-    action_type: Mapped[str] = mapped_column(String, nullable=False)  # APPROVE | FLAG
+    action_type: Mapped[str] = mapped_column(
+        String, nullable=False
+    )  # APPROVE | FLAG | CONTACT_PRESCRIBER
     prescription_barcode: Mapped[str] = mapped_column(String, nullable=False)
     patient_amka: Mapped[str] = mapped_column(String, nullable=False)
     patient_name: Mapped[str] = mapped_column(String, nullable=False)

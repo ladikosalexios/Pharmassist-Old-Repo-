@@ -22,7 +22,7 @@ import {
   createSideEffect,
   flagSideEffect,
   listSideEffects,
-  notifyPhysician,
+  recordPrescriberContact,
 } from "../lib/api";
 import type {
   AdrSeverity,
@@ -894,7 +894,7 @@ export function SideEffects() {
       if (usingFallback) {
         toast(t("reports.physicianQueuedDemo", { rxId: report.rxId }), "success");
       } else {
-        await notifyPhysician(
+        await recordPrescriberContact(
           report.rxId,
           `Adverse reaction reported (${report.id}, severity ${report.severity}): ${report.symptom} (onset ${report.onset}).`,
         );

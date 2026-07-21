@@ -8,7 +8,7 @@ sub-resource paths win over the catch-all profile fetch.
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.schemas.patient_conditions import (
@@ -183,6 +183,33 @@ async def get_patient_insurances(patient_id: str, current: dict = Depends(get_cu
     )
 
 
+def _intolerance_names(profile: dict | None) -> list[str]:
+    """Distinct intolerance substance names from a stored patient profile.
+    ΗΔΥΚΑ lists one row per recorded reaction — the same substance repeats; the
+    chips only need distinct substances."""
+    out: list[str] = []
+    for item in (profile or {}).get("intolerances") or []:
+        if isinstance(item, dict):
+            name = item.get("activeSubstance") or item.get("name")
+        else:
+            name = item if isinstance(item, str) else None
+        if name and str(name) not in out:
+            out.append(str(name))
+    return out
+
+
+def _registry_row(p: Patient) -> dict:
+    """A scanned-registry Patient → the chip/result shape the frontend renders
+    (matches the mock directory: amka/name/age/sex/intolerances)."""
+    return {
+        "amka": p.amka,
+        "name": p.name or "Άγνωστος",
+        "age": p.age,
+        "sex": p.sex,
+        "intolerances": _intolerance_names(p.profile),
+    }
+
+
 @router.get("/recent")
 async def get_recent_patients(
     current: dict = Depends(get_current_user),
@@ -207,43 +234,39 @@ async def get_recent_patients(
         .order_by(Patient.last_seen_at.desc())
         .limit(6)
     )
-
-    def _intolerance_names(profile: dict | None) -> list[str]:
-        out: list[str] = []
-        for item in (profile or {}).get("intolerances") or []:
-            if isinstance(item, dict):
-                name = item.get("activeSubstance") or item.get("name")
-            else:
-                name = item if isinstance(item, str) else None
-            # ΗΔΥΚΑ lists one row per recorded reaction — the same substance
-            # repeats. The chips only need distinct substances.
-            if name and str(name) not in out:
-                out.append(str(name))
-        return out
-
-    return [
-        {
-            "amka": p.amka,
-            "name": p.name or "Άγνωστος",
-            "age": p.age,
-            "sex": p.sex,
-            "intolerances": _intolerance_names(p.profile),
-        }
-        for p in rows
-    ]
+    return [_registry_row(p) for p in rows]
 
 
 @router.get("/search")
 async def search_patients_route(
     q: str = Query(..., min_length=1),
     current: dict = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
 ):
-    """Name / AMKA substring search. Mock-only — ΗΔΥΚΑ has no name search,
-    so live mode returns 501 and the UI shows the name-search-unavailable note.
+    """Name / AMKA substring search.
+
+    Mock: the curated directory. Live: the local scanned-patient registry that
+    every barcode scan upserts (services/scan_log.py) — ΗΔΥΚΑ has no name-search
+    endpoint, so this searches patients THIS pharmacy has already scanned (AMKA
+    always matches; name matches where a scan captured one). No 501.
     """
-    if not is_mock_pharmapi():
-        raise HTTPException(status_code=501, detail="Name search not yet available")
-    return search_patients(q)
+    if is_mock_pharmapi():
+        return search_patients(q)
+
+    pharmacy = await find_pharmacy_by_name(session, current["pharmacy"])
+    if pharmacy is None:
+        return []
+    like = f"%{q.strip()}%"
+    rows = await session.scalars(
+        select(Patient)
+        .where(
+            Patient.pharmacy_id == pharmacy.id,
+            or_(Patient.name.ilike(like), Patient.amka.ilike(like)),
+        )
+        .order_by(Patient.last_seen_at.desc())
+        .limit(20)
+    )
+    return [_registry_row(p) for p in rows]
 
 
 @router.get("/{patient_id}")
