@@ -41,7 +41,9 @@ class DocumentationLog(Base, TimestampMixin):
     pharmacy_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("pharmacies.id"), nullable=False
     )
-    action_type: Mapped[str] = mapped_column(String, nullable=False)  # APPROVE | FLAG | CONTACT_PRESCRIBER
+    action_type: Mapped[str] = mapped_column(
+        String, nullable=False
+    )  # APPROVE | FLAG | CONTACT_PRESCRIBER
     prescription_barcode: Mapped[str] = mapped_column(String, nullable=False)
     patient_amka: Mapped[str] = mapped_column(String, nullable=False)
     patient_name: Mapped[str] = mapped_column(String, nullable=False)
