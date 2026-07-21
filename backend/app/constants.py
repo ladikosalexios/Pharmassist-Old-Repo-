@@ -36,6 +36,7 @@ class AdrCausality:
 class ActionType:
     APPROVE = "APPROVE"
     FLAG = "FLAG"
+    CONTACT_PRESCRIBER = "CONTACT_PRESCRIBER"
 
 
 class DeliveryMethod:

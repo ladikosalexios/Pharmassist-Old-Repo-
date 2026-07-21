@@ -219,7 +219,7 @@ def _signature(pharmacist_id, barcode: str, dispensed_at: datetime) -> str:
 async def record_prescription_action(
     session: AsyncSession,
     *,
-    action_type: Literal["APPROVE", "FLAG"],
+    action_type: Literal["APPROVE", "FLAG", "CONTACT_PRESCRIBER"],
     rx: dict,
     safety_checks: list,
     pharmacist_email: str,
@@ -268,7 +268,9 @@ async def record_prescription_action(
         log_documentation_action(
             pharmacist_id=pharmacist_id,
             pharmacy_id=pharmacy_id,
-            action=f"PRESCRIPTION_{action_type}D",
+            action={"CONTACT_PRESCRIBER": "PRESCRIBER_CONTACTED"}.get(
+                action_type, f"PRESCRIPTION_{action_type}D"
+            ),
             resource_id=rx["rxId"],
         )
     )

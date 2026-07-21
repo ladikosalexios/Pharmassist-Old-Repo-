@@ -2,7 +2,12 @@ import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import { FlagIcon } from "./Icons";
-import { ApiError, notifyPhysician, patchPrescription, type DiscrepancyType } from "../lib/api";
+import {
+  ApiError,
+  recordPrescriberContact,
+  patchPrescription,
+  type DiscrepancyType,
+} from "../lib/api";
 import { useToast } from "./Toast";
 import { useModalRegistration } from "../lib/keyboard";
 
@@ -87,9 +92,9 @@ export function FlagDiscrepancyModal({
       });
 
       if (notifyPhysicianFlag) {
-        // Best-effort — don't fail the flagging if notification dispatch fails.
+        // Best-effort — don't fail the flagging if the contact record fails.
         try {
-          await notifyPhysician(
+          await recordPrescriberContact(
             rxId,
             t("flag.notifyMessage", {
               rxId,

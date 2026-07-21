@@ -446,7 +446,16 @@
     "errLoadThread": "Could not load message thread.",
     "errEmpty": "Message cannot be empty.",
     "errSend": "Could not send the message.",
-    "sentToast": "Message sent to {{name}}"
+    "sentToast": "Message sent to {{name}}",
+    "noChannel": "ΗΔΥΚΑ provides no direct channel to the prescriber. Record the contact below — it's saved to the documentation log.",
+    "recordTitle": "Record contact",
+    "recordHint": "Note what you discussed or attempted with the prescriber. Saved to the legal documentation log.",
+    "recordedNote": "Contact recorded to the documentation log.",
+    "recordedToast": "Contact recorded",
+    "recordPlaceholder": "Note about contacting {{name}}…",
+    "recordAction": "Record",
+    "recording": "Recording…",
+    "errRecord": "Could not record the contact."
   },
   "dashboard": {
     "title": "Counter",

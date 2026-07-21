@@ -253,17 +253,24 @@ export async function patchPrescription(
   return handle(r) as Promise<PrescriptionPatchResponse>;
 }
 
-export async function notifyPhysician(
+// Records the pharmacist's contact-prescriber note as an auditable
+// documentation_logs entry. ΗΔΥΚΑ exposes no physician channel, so this is a
+// record, never a send — the response says `recorded`, not `delivered`.
+export async function recordPrescriberContact(
   rxId: string,
   message: string,
-): Promise<{ success: boolean; delivered: boolean }> {
+): Promise<{ success: boolean; recorded: boolean; documentationLogId: string }> {
   const r = await fetch(`${API_BASE}/notifications/physician`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     credentials: "include",
     body: JSON.stringify({ rxId, message }),
   });
-  return handle(r) as Promise<{ success: boolean; delivered: boolean }>;
+  return handle(r) as Promise<{
+    success: boolean;
+    recorded: boolean;
+    documentationLogId: string;
+  }>;
 }
 
 export async function getMessages(rxId: string): Promise<PrescriptionMessage[]> {

@@ -195,22 +195,34 @@ async def patch_prescription(
     """Partial update — used by the Flag Discrepancy modal.
 
     A FLAGGED status flip writes a documentation_logs row (action_type=FLAG).
-    Other partial edits (e.g. notify_physician=true with no status change)
-    update the in-memory mock only — they aren't audit-worthy by themselves.
+    Flagging is internal triage with NO ΗΔΥΚΑ call, so it works in both modes:
+    mock reads the rx from MOCK_PRESCRIPTIONS; live resolves the same rx snapshot
+    the detail GET uses (barcode → ΗΔΥΚΑ → shaped) purely to populate the audit
+    row. Live has no in-memory store, so the documentation_logs row IS the durable
+    record of the flag; the in-memory bookkeeping below is mock-only.
     """
-    if not is_mock_pharmapi():
-        raise HTTPException(
-            status_code=501,
-            detail="Live flag/patch not yet wired to ΗΔΥΚΑ.",
-        )
-
-    rx = MOCK_PRESCRIPTIONS.get(rx_id)
-    if not rx:
-        raise HTTPException(status_code=404, detail=f"Prescription {rx_id} not found")
-
     flagging = (patch.status or "").upper() == PrescriptionStatus.FLAGGED
-    log_id = None
 
+    if is_mock_pharmapi():
+        rx = MOCK_PRESCRIPTIONS.get(rx_id)
+        if not rx:
+            raise HTTPException(status_code=404, detail=f"Prescription {rx_id} not found")
+    else:
+        pharmacy = await find_pharmacy_by_name(session, current["pharmacy"])
+        if pharmacy is None:
+            raise HTTPException(status_code=400, detail="Pharmacy not found for current user")
+        ip, _ = _client_meta(request)
+        live_rx, payload = await resolve_live_rx_with_checks(
+            session, rx_id, pharmacy, ip or "0.0.0.0"
+        )
+        if live_rx is None:
+            raise HTTPException(status_code=404, detail=f"Prescription {rx_id} not found")
+        # mode="json" so datetimes become ISO strings — the snapshot is stored to
+        # a JSONB column (documentation_logs.safety_check_snapshot).
+        checks = [c.model_dump(by_alias=True, mode="json") for c in payload.checks]
+        rx = await shape_live_response(live_rx, checks)
+
+    log_id = None
     if flagging:
         snapshot = [dict(c) for c in rx.get("safetyChecks", [])]
         ip, ua = _client_meta(request)
@@ -230,21 +242,25 @@ async def patch_prescription(
         )
         log_id = str(log.id)
 
-    if patch.status is not None:
-        rx["status"] = patch.status.upper()
-    if patch.discrepancy_type is not None:
-        rx["discrepancyType"] = patch.discrepancy_type
-    if patch.notes is not None:
-        rx["flagNotes"] = patch.notes
-    if patch.notify_physician is not None:
-        rx["notifyPhysician"] = bool(patch.notify_physician)
+    # In-memory mock bookkeeping only — live has no rx store to mutate.
+    if is_mock_pharmapi():
+        if patch.status is not None:
+            rx["status"] = patch.status.upper()
+        if patch.discrepancy_type is not None:
+            rx["discrepancyType"] = patch.discrepancy_type
+        if patch.notes is not None:
+            rx["flagNotes"] = patch.notes
+        if patch.notify_physician is not None:
+            rx["notifyPhysician"] = bool(patch.notify_physician)
 
     return PatchResponse(
         success=True,
         rxId=rx_id,
-        status=rx["status"],
-        discrepancyType=rx.get("discrepancyType"),
-        notes=rx.get("flagNotes"),
-        notifyPhysician=rx.get("notifyPhysician"),
+        status=(patch.status.upper() if patch.status else rx.get("status")),
+        discrepancyType=patch.discrepancy_type,
+        notes=patch.notes,
+        notifyPhysician=(
+            bool(patch.notify_physician) if patch.notify_physician is not None else None
+        ),
         documentationLogId=log_id,
     )

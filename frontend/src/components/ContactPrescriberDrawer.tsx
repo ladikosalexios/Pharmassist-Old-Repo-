@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
-import { PhoneIcon, MailIcon, SendIcon, MessageIcon, XIcon, AlertCircleIcon } from "./Icons";
-import { ApiError, getMessages, sendMessage } from "../lib/api";
+import { PhoneIcon, MailIcon, SendIcon, XIcon, CheckCircleIcon } from "./Icons";
+import { ApiError, recordPrescriberContact } from "../lib/api";
 import { useToast } from "./Toast";
 import { useModalRegistration } from "../lib/keyboard";
-import type { Prescriber, PrescriptionMessage } from "../types";
+import type { Prescriber } from "../types";
 
 interface ContactPrescriberDrawerProps {
   open: boolean;
@@ -15,6 +15,10 @@ interface ContactPrescriberDrawerProps {
   onClose: () => void;
 }
 
+// ΗΔΥΚΑ gives us only the prescriber's NAME — no phone/email/message channel.
+// So this drawer shows whatever contact detail exists (never a dead link), and
+// its one action is to RECORD a contact note to the documentation log. There is
+// no automated delivery, and we never pretend there is.
 export function ContactPrescriberDrawer({
   open,
   rxId,
@@ -24,78 +28,59 @@ export function ContactPrescriberDrawer({
 }: ContactPrescriberDrawerProps) {
   useModalRegistration(open);
   const { t } = useTranslation();
-  const [messages, setMessages] = useState<PrescriptionMessage[] | null>(null);
-  const [loadError, setLoadError] = useState<string | null>(null);
   const [body, setBody] = useState("");
-  const [sending, setSending] = useState(false);
-  const [sendError, setSendError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [recorded, setRecorded] = useState(false);
   const closeBtnRef = useRef<HTMLButtonElement | null>(null);
-  const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const { toast } = useToast();
 
-  // Load thread when the drawer opens or rxId changes.
   useEffect(() => {
     if (!open) return;
-    let active = true;
-    setLoadError(null);
-    setMessages(null);
-    getMessages(rxId)
-      .then((items) => {
-        if (active) setMessages(items);
-      })
-      .catch((e: unknown) => {
-        if (!active) return;
-        setLoadError(e instanceof ApiError ? e.message : t("contact.errLoadThread"));
-      });
-    return () => {
-      active = false;
-    };
-  }, [open, rxId, t]);
-
-  // Close on Escape, focus the close button on open.
-  useEffect(() => {
-    if (!open) return;
-    const t = setTimeout(() => closeBtnRef.current?.focus(), 0);
+    setBody("");
+    setError(null);
+    setRecorded(false);
+    const id = setTimeout(() => closeBtnRef.current?.focus(), 0);
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !sending) onClose();
+      if (e.key === "Escape" && !saving) onClose();
     };
     window.addEventListener("keydown", onKey);
     return () => {
-      clearTimeout(t);
+      clearTimeout(id);
       window.removeEventListener("keydown", onKey);
     };
-  }, [open, sending, onClose]);
-
-  // Scroll the message list to the bottom when it (re)loads or grows.
-  useEffect(() => {
-    if (!messages) return;
-    messagesEndRef.current?.scrollIntoView({ block: "end", behavior: "smooth" });
-  }, [messages]);
+  }, [open, rxId, saving, onClose]);
 
   if (!open) return null;
 
-  const mailtoHref =
-    `mailto:${encodeURIComponent(prescriber.email)}` +
-    `?subject=${encodeURIComponent(t("contact.emailSubject", { rxId, patientName }))}`;
+  const phone = prescriber.contact?.trim();
+  const email = prescriber.email?.trim();
+  const licence = prescriber.licenceId?.trim();
+  const specialty = prescriber.specialty?.trim();
+  const hasChannel = Boolean(phone || email);
+  const mailtoHref = email
+    ? `mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent(
+        t("contact.emailSubject", { rxId, patientName }),
+      )}`
+    : undefined;
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
-    if (sending) return;
-    if (!body.trim()) {
-      setSendError(t("contact.errEmpty"));
+    if (saving || !body.trim()) {
+      if (!body.trim()) setError(t("contact.errEmpty"));
       return;
     }
-    setSending(true);
-    setSendError(null);
+    setSaving(true);
+    setError(null);
     try {
-      const newMsg = await sendMessage(prescriber.licenceId, rxId, body.trim());
-      setMessages((cur) => (cur ? [...cur, newMsg] : [newMsg]));
+      await recordPrescriberContact(rxId, body.trim());
+      setRecorded(true);
       setBody("");
-      toast(t("contact.sentToast", { name: prescriber.name }), "success");
+      toast(t("contact.recordedToast"), "success");
     } catch (e) {
-      setSendError(e instanceof ApiError ? e.message : t("contact.errSend"));
+      setError(e instanceof ApiError ? e.message : t("contact.errRecord"));
     } finally {
-      setSending(false);
+      setSaving(false);
     }
   }
 
@@ -104,7 +89,7 @@ export function ContactPrescriberDrawer({
       <div
         className="absolute inset-0 bg-slate-900/40 animate-fade-in"
         onClick={() => {
-          if (!sending) onClose();
+          if (!saving) onClose();
         }}
         aria-hidden="true"
       />
@@ -128,7 +113,7 @@ export function ContactPrescriberDrawer({
             ref={closeBtnRef}
             type="button"
             onClick={onClose}
-            disabled={sending}
+            disabled={saving}
             className="rounded-lg p-1.5 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
             aria-label={t("contact.closePanel")}
           >
@@ -137,133 +122,119 @@ export function ContactPrescriberDrawer({
         </header>
 
         <div className="flex-1 overflow-y-auto">
-          {/* Prescriber card */}
+          {/* Prescriber card — only render detail that ΗΔΥΚΑ actually provides */}
           <section className="border-b border-slate-200 dark:border-slate-800 px-5 py-4">
             <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 p-4">
               <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-                {prescriber.name}
+                {prescriber.name || "—"}
               </div>
-              <div className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-                {prescriber.specialty}
-              </div>
-              <dl className="mt-3 space-y-2 text-[13px]">
-                <Field
-                  label={t("contact.licenceId")}
-                  value={<span className="font-mono">{prescriber.licenceId}</span>}
-                />
-                <Field
-                  label={t("contact.phone")}
-                  value={
-                    <a
-                      href={`tel:${prescriber.contact}`}
-                      className="text-brand-600 dark:text-brand-400 hover:underline"
-                    >
-                      {prescriber.contact}
-                    </a>
-                  }
-                />
-                <Field
-                  label={t("contact.email")}
-                  value={
-                    <a
-                      href={mailtoHref}
-                      className="text-brand-600 dark:text-brand-400 hover:underline"
-                    >
-                      {prescriber.email}
-                    </a>
-                  }
-                />
-              </dl>
-            </div>
-
-            {/* Quick actions */}
-            <div className="mt-4 grid grid-cols-3 gap-2">
-              <a href={`tel:${prescriber.contact}`} className="btn btn-outline justify-center">
-                <PhoneIcon /> {t("contact.call")}
-              </a>
-              <a href={mailtoHref} className="btn btn-outline justify-center">
-                <MailIcon /> {t("contact.emailAction")}
-              </a>
-              <a
-                href="#compose"
-                onClick={(e) => {
-                  e.preventDefault();
-                  document.getElementById("compose-textarea")?.focus();
-                }}
-                className="btn btn-primary justify-center"
-              >
-                <MessageIcon /> {t("contact.messageAction")}
-              </a>
-            </div>
-          </section>
-
-          {/* Message history */}
-          <section className="px-5 py-4">
-            <div className="mb-3 flex items-center justify-between">
-              <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                {t("contact.messageHistory")}
-              </h3>
-              {messages && (
-                <span className="text-xs text-slate-500 dark:text-slate-400">
-                  {t("contact.messageCount", { count: messages.length })}
-                </span>
+              {specialty && (
+                <div className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">{specialty}</div>
+              )}
+              {(licence || phone || email) && (
+                <dl className="mt-3 space-y-2 text-[13px]">
+                  {licence && (
+                    <Field
+                      label={t("contact.licenceId")}
+                      value={<span className="font-mono">{licence}</span>}
+                    />
+                  )}
+                  {phone && (
+                    <Field
+                      label={t("contact.phone")}
+                      value={
+                        <a
+                          href={`tel:${phone}`}
+                          className="text-brand-600 dark:text-brand-400 hover:underline"
+                        >
+                          {phone}
+                        </a>
+                      }
+                    />
+                  )}
+                  {email && (
+                    <Field
+                      label={t("contact.email")}
+                      value={
+                        <a
+                          href={mailtoHref}
+                          className="text-brand-600 dark:text-brand-400 hover:underline"
+                        >
+                          {email}
+                        </a>
+                      }
+                    />
+                  )}
+                </dl>
               )}
             </div>
 
-            {loadError ? (
-              <div className="flex items-start gap-2 rounded-lg border border-red-200 dark:border-red-500/30 bg-red-50 dark:bg-red-500/10 px-3 py-2.5 text-sm text-red-700 dark:text-red-400">
-                <AlertCircleIcon width={14} height={14} className="mt-0.5 shrink-0" />
-                <span>{loadError}</span>
-              </div>
-            ) : !messages ? (
-              <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
-                <span className="spinner text-brand-600 dark:text-brand-400" />{" "}
-                {t("contact.loadingMessages")}
-              </div>
-            ) : messages.length === 0 ? (
-              <div className="rounded-lg border border-dashed border-slate-200 dark:border-slate-800 px-4 py-6 text-center text-sm text-slate-500 dark:text-slate-400">
-                {t("contact.noMessages")}
+            {/* Contact channels — shown only when ΗΔΥΚΑ gave us one */}
+            {hasChannel ? (
+              <div className="mt-4 grid grid-cols-2 gap-2">
+                {phone && (
+                  <a href={`tel:${phone}`} className="btn btn-outline justify-center">
+                    <PhoneIcon /> {t("contact.call")}
+                  </a>
+                )}
+                {mailtoHref && (
+                  <a href={mailtoHref} className="btn btn-outline justify-center">
+                    <MailIcon /> {t("contact.emailAction")}
+                  </a>
+                )}
               </div>
             ) : (
-              <ul className="space-y-3">
-                {messages.map((m) => (
-                  <MessageRow key={m.id} message={m} />
-                ))}
-                <div ref={messagesEndRef} />
-              </ul>
+              <p className="mt-4 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3.5 py-2.5 text-[12.5px] leading-snug text-slate-500 dark:text-slate-400">
+                {t("contact.noChannel")}
+              </p>
+            )}
+          </section>
+
+          {/* Record a contact note → documentation log */}
+          <section className="px-5 py-4">
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+              {t("contact.recordTitle")}
+            </h3>
+            <p className="mt-1 text-[12.5px] leading-snug text-slate-500 dark:text-slate-400">
+              {t("contact.recordHint")}
+            </p>
+
+            {recorded && (
+              <div className="mt-3 flex items-start gap-2 rounded-lg border border-emerald-200 dark:border-emerald-500/30 bg-emerald-50 dark:bg-emerald-500/10 px-3 py-2.5 text-[13px] text-emerald-700 dark:text-emerald-400">
+                <CheckCircleIcon width={14} height={14} className="mt-0.5 shrink-0" />
+                <span>{t("contact.recordedNote")}</span>
+              </div>
             )}
           </section>
         </div>
 
-        {/* Compose */}
         <form
-          id="compose"
           onSubmit={onSubmit}
           className="border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 px-5 py-4"
         >
-          {sendError && (
+          {error && (
             <div className="mb-2 rounded-lg border border-red-200 dark:border-red-500/30 bg-red-50 dark:bg-red-500/10 px-3 py-2 text-xs text-red-800 dark:text-red-400">
-              {sendError}
+              {error}
             </div>
           )}
-          <label htmlFor="compose-textarea" className="sr-only">
-            {t("contact.newMessage")}
+          <label htmlFor="contact-note" className="sr-only">
+            {t("contact.recordTitle")}
           </label>
           <textarea
-            id="compose-textarea"
+            id="contact-note"
             value={body}
             onChange={(e) => setBody(e.target.value)}
-            placeholder={t("contact.composePlaceholder", { name: prescriber.name })}
+            placeholder={t("contact.recordPlaceholder", { name: prescriber.name })}
             className="w-full min-h-[88px] resize-vertical rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 dark:text-slate-100 px-3 py-2 text-sm outline-none focus:border-brand-600 focus:ring-2 focus:ring-brand-100"
           />
           <div className="mt-2 flex justify-end">
             <button
               type="submit"
-              disabled={sending || !body.trim()}
+              disabled={saving || !body.trim()}
               className="btn btn-primary disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              {sending ? <span className="spinner" /> : <SendIcon />}
-              {sending ? t("contact.sending") : t("contact.sendMessage")}
+              {saving ? <span className="spinner" /> : <SendIcon />}
+              {saving ? t("contact.recording") : t("contact.recordAction")}
             </button>
           </div>
         </form>
@@ -282,33 +253,4 @@ function Field({ label, value }: { label: string; value: React.ReactNode }) {
       <dd className="text-right text-sm text-slate-900 dark:text-slate-100">{value}</dd>
     </div>
   );
-}
-
-function MessageRow({ message }: { message: PrescriptionMessage }) {
-  const fromPharmacist = message.from === "pharmacist";
-  return (
-    <li className={`flex ${fromPharmacist ? "justify-end" : "justify-start"}`}>
-      <div
-        className={`max-w-[85%] rounded-2xl px-3.5 py-2.5 text-[13px] leading-relaxed ${
-          fromPharmacist
-            ? "bg-brand-600 text-white"
-            : "bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700"
-        }`}
-      >
-        <div
-          className={`mb-1 flex items-baseline gap-2 text-[11px] ${fromPharmacist ? "text-white/80" : "text-slate-500 dark:text-slate-400"}`}
-        >
-          <span className="font-semibold">{message.fromName}</span>
-          <span>{formatTimestamp(message.sentAt)}</span>
-        </div>
-        <div className="whitespace-pre-wrap">{message.body}</div>
-      </div>
-    </li>
-  );
-}
-
-function formatTimestamp(iso: string): string {
-  const d = new Date(iso);
-  if (isNaN(d.getTime())) return iso;
-  return d.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
 }
