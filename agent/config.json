@@ -1,6 +1,20 @@
 {
-  "backendUrl": "https://18.198.105.149.sslip.io",
-  "webAppUrl": "https://18.198.105.149.sslip.io",
+  "defaultEnv": "local",
+  "environments": {
+    "local": {
+      "backendUrl": "http://localhost:8000",
+      "webAppUrl": "http://localhost:5173"
+    },
+    "prod": {
+      "backendUrl": "https://18.198.105.149.sslip.io",
+      "webAppUrl": "https://18.198.105.149.sslip.io"
+    },
+    "demo": {
+      "backendUrl": "http://localhost:8000",
+      "webAppUrl": "http://localhost:5173",
+      "mapUnknownToDemo": true
+    }
+  },
   "login": {
     "email": "ladikosalexios@gmail.com",
     "password": "test1234"
@@ -12,6 +26,10 @@
   },
   "overlay": {
     "autoHideMs": 20000
+  },
+  "example": {
+    "barcode": "2605203035241",
+    "label": "OLENXA DISP.TAB — testeps sample prescription"
   },
   "demo": {
     "mapUnknownToDemo": false,
@@ -27,9 +45,11 @@
     ]
   },
   "_notes": {
-    "login": "Seeded DEV credentials (README.md / scripts.seed). Defaults (env `live`) point at the hosted AWS box, which is currently in live ΗΔΥΚΑ/testeps mode (real prescriptions, demo mapping off). For the old local mock demo run `PHARMASSIST_ENV=demo npm start` (or PHARMASSIST_DEMO=1): it points at localhost:8000/5173 and re-enables the pack→scenario mapping + RX2024 barcodes/hotkeys (needs docker compose up -d). Explicit PHARMASSIST_BACKEND_URL / PHARMASSIST_WEBAPP_URL still win over the profile.",
+    "environments": "Pick a target with `--env=<name>` (the npm scripts do this) or PHARMASSIST_ENV=<name>. defaultEnv=local, so `npm start` uses the local backend. `npm run prod` points at the hosted testeps box, where the real example prescription (example.barcode) resolves. `npm run demo` uses the local backend with the scripted RX2024 pack→scenario mapping (needs the local backend in PHARMAPI_MOCK=true). Explicit PHARMASSIST_BACKEND_URL / PHARMASSIST_WEBAPP_URL still win over the selected environment.",
+    "example": "A real ΗΔΥΚΑ/testeps prescription. Hotkey Cmd/Ctrl+Alt+0 fires it as a simulated scan — use it to test `--env=prod` (or any live backend) without the physical scanner. Resolves only when the target backend is in live mode (PHARMAPI_MOCK=false); the prod box already is.",
+    "login": "Seeded DEV credentials (README.md / scripts.seed).",
     "scan.interKeyMs": "A keystroke burst whose keys arrive within this gap is treated as a scanner (humans type slower). Terminated by Enter.",
     "scan.sentinelPrefix": "PRODUCTION posture: program the Eyoyo with a distinctive prefix and set it here so the hook reacts ONLY to sentinel-framed scans, never general typing. Empty = burst-timing detection (fine for research).",
-    "demo": "Your Eyoyo packs are GS1 MEDICINE packs with no prescription attached. mapUnknownToDemo maps any scanned code that isn't an RX id to a demo prescription, deterministically (same pack → same scenario) — so you scan real packs and get a real-feeling safety verdict. Printed RX2024-xxx barcodes (npm run barcodes) still resolve directly. prescriptions[0] is the headliner (Warfarin BLOCK); the list also backs the Cmd/Ctrl+Alt+1..8 hotkeys."
+    "demo": "Your Eyoyo packs are GS1 MEDICINE packs with no prescription attached. In the `demo` env, mapUnknownToDemo maps any scanned code that isn't an RX id to a demo prescription, deterministically (same pack → same scenario). Printed RX2024-xxx barcodes (npm run barcodes) resolve directly. prescriptions[0] is the headliner (Warfarin BLOCK); the list also backs the Cmd/Ctrl+Alt+1..8 hotkeys."
   }
 }

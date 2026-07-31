@@ -14,24 +14,28 @@ const { startScanner } = require("./scanner");
 
 const cfg = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "config.json"), "utf8"));
 
-// Environment profile. Default `live` uses config.json as-is (the hosted box,
-// currently pointed at the live ΗΔΥΚΑ / testeps backend, demo mapping off).
-// Set PHARMASSIST_ENV=demo (or the shorthand PHARMASSIST_DEMO=1) to run the old
-// local demo: localhost backend + the scripted pack→scenario mapping, so the
-// RX2024 barcodes and the Cmd/Ctrl+Alt+1..8 hotkeys resolve against mock data.
-const ENV = (process.env.PHARMASSIST_ENV || (process.env.PHARMASSIST_DEMO ? "demo" : "live")).toLowerCase();
-if (ENV === "demo") {
-  cfg.backendUrl = "http://localhost:8000";
-  cfg.webAppUrl = "http://localhost:5173";
-  cfg.demo = Object.assign({}, cfg.demo, { mapUnknownToDemo: true });
+// Environment selection. Named targets live in config.json under `environments`.
+// Pick one with `--env=<name>` (cross-platform; the npm scripts use this) or
+// PHARMASSIST_ENV=<name>. Default is config.defaultEnv (local), so `npm start`
+// on a dev machine talks to the local backend; `npm run prod` points at the
+// hosted testeps box (where the example prescription resolves). An env may also
+// set `mapUnknownToDemo` to re-enable the scripted RX2024 pack→scenario mapping.
+const argEnv = (process.argv.find((a) => a.startsWith("--env=")) || "").split("=")[1];
+const envName = (process.env.PHARMASSIST_ENV || argEnv || cfg.defaultEnv || "local").toLowerCase();
+const environments = cfg.environments || {};
+const selectedEnv = environments[envName] || environments[cfg.defaultEnv] || environments.local || {};
+if (!environments[envName]) console.warn(`[agent] unknown env "${envName}" — falling back`);
+if (selectedEnv.backendUrl) cfg.backendUrl = selectedEnv.backendUrl;
+if (selectedEnv.webAppUrl) cfg.webAppUrl = selectedEnv.webAppUrl;
+if (typeof selectedEnv.mapUnknownToDemo === "boolean") {
+  cfg.demo = Object.assign({}, cfg.demo, { mapUnknownToDemo: selectedEnv.mapUnknownToDemo });
 }
 
-// Point a shipped build at a specific backend WITHOUT rebuilding: these env vars
-// win over the profile above and the bundled config.json. Use them in a launcher
-// (.command / shortcut) so one signed binary serves localhost, demo, or cloud.
+// Explicit URL env vars still win over the selected environment — handy for a
+// shipped build / launcher pointing one binary at an arbitrary backend.
 if (process.env.PHARMASSIST_BACKEND_URL) cfg.backendUrl = process.env.PHARMASSIST_BACKEND_URL;
 if (process.env.PHARMASSIST_WEBAPP_URL) cfg.webAppUrl = process.env.PHARMASSIST_WEBAPP_URL;
-console.log("[agent] env:", ENV, "· backend:", cfg.backendUrl, "· webapp:", cfg.webAppUrl);
+console.log("[agent] env:", envName, "· backend:", cfg.backendUrl, "· webapp:", cfg.webAppUrl);
 
 let win = null;
 let backend = null;
@@ -180,6 +184,18 @@ app.whenReady().then(async () => {
     });
     console.log(`[agent] hotkey ${accel} → ${rxId}: ${ok ? "registered" : "FAILED (in use?)"}`);
   });
+
+  // Fire the configured example prescription (a real testeps rx) as a simulated
+  // scan — Cmd/Ctrl+Alt+0. Handy for testing `--env=prod` (or any live backend)
+  // without the physical scanner. Resolves only when that backend is live.
+  if (cfg.example && cfg.example.barcode) {
+    const accel = "CommandOrControl+Alt+0";
+    const ok = globalShortcut.register(accel, () => {
+      console.log(`[agent] hotkey ${accel} → example ${cfg.example.barcode}`);
+      showPrescription(cfg.example.barcode);
+    });
+    console.log(`[agent] hotkey ${accel} → example ${cfg.example.barcode}: ${ok ? "registered" : "FAILED (in use?)"}`);
+  }
 
   // Notice → act handoff: open the current prescription's FULL verification
   // view in the web SPA (deep work: all checks, SPC, override-with-reason, ADR).

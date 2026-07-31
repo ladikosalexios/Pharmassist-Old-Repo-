@@ -7,6 +7,9 @@
   "main": "src/main.js",
   "scripts": {
     "start": "electron .",
+    "local": "electron . --env=local",
+    "prod": "electron . --env=prod",
+    "demo": "electron . --env=demo",
     "barcodes": "node scripts/gen-barcodes.js",
     "dist": "electron-builder",
     "dist:mac": "electron-builder --mac",
