@@ -60,7 +60,10 @@ class Backend {
       await this.login();
       return this.prescription(code, true);
     }
-    if (res.status === 404) return { notFound: true, code };
+    // 404 = no such prescription; 422 = the code isn't a valid ΗΔΥΚΑ barcode
+    // (e.g. a scanned medicine pack in live mode). Both mean "nothing to review"
+    // — surface an honest not-found rather than an error.
+    if (res.status === 404 || res.status === 422) return { notFound: true, code };
     if (!res.ok) throw new Error(`prescription ${code} → ${res.status}`);
     return res.json();
   }
