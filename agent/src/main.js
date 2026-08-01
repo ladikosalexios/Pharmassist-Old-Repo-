@@ -37,6 +37,20 @@ if (process.env.PHARMASSIST_BACKEND_URL) cfg.backendUrl = process.env.PHARMASSIS
 if (process.env.PHARMASSIST_WEBAPP_URL) cfg.webAppUrl = process.env.PHARMASSIST_WEBAPP_URL;
 console.log("[agent] env:", envName, "· backend:", cfg.backendUrl, "· webapp:", cfg.webAppUrl);
 
+// Fail fast with a clear message rather than a later `cfg.backendUrl.replace`
+// TypeError if an unknown env resolved nothing usable.
+if (!cfg.backendUrl || !cfg.webAppUrl) {
+  throw new Error(
+    `[agent] environment "${envName}" resolved no backendUrl/webAppUrl — check config.json "environments".`,
+  );
+}
+// The scripted RX2024 demo scenarios only exist in mock data.
+if (cfg.demo && cfg.demo.mapUnknownToDemo) {
+  console.warn(
+    "[agent] demo mapping ON — the target backend must be in mock mode (PHARMAPI_MOCK=true) for the RX2024 scenarios to resolve; otherwise they show 'no prescription found'.",
+  );
+}
+
 let win = null;
 let backend = null;
 let currentRxId = null; // the prescription currently on the card — target of the SPA handoff
