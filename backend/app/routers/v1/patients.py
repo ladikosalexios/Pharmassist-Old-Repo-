@@ -5,6 +5,13 @@ from services/v1_mock.py when PHARMAPI_MOCK=true; conditions are DB-backed in
 both modes. Consent (D-5) is caller-attested via ?patientConsent=true on the
 two ΕΟΠΥΥ-gated endpoints; non-ΕΟΠΥΥ locations get an explicit 403 instead of
 an opaque upstream 609.
+
+The four upstream-backed routes (demographics, insurances, intolerances,
+medicine history) sit behind require_retrieval: a location provisioned without
+ΗΔΥΚΑ credentials gets 409 `retrieval_unavailable` (T0-2). The conditions CRUD
+is DB-only and deliberately NOT gated — conditions are the only way a caller
+feeds contraindication screening on POST /v1/safety/check, which must keep
+working for a credential-less location.
 """
 
 import re
@@ -34,7 +41,7 @@ from app.services.v1_mock import (
 )
 from app.utils.environment import is_mock_pharmapi
 
-from .deps import ApiContext, get_api_context
+from .deps import RETRIEVAL_UNAVAILABLE_RESPONSE, ApiContext, get_api_context, require_retrieval
 from .errors import V1Error
 
 router = APIRouter(prefix="/patients", tags=["b2b-v1"])
@@ -84,8 +91,8 @@ def _require_eopyy(ctx: ApiContext) -> None:
         )
 
 
-@router.get("/{patient_key}", response_model=V1Patient)
-async def get_patient(patient_key: str, ctx: ApiContext = Depends(get_api_context)):
+@router.get("/{patient_key}", response_model=V1Patient, responses=RETRIEVAL_UNAVAILABLE_RESPONSE)
+async def get_patient(patient_key: str, ctx: ApiContext = Depends(require_retrieval)):
     """Patient demographics by AMKA or EKAA."""
     amka, ekaa = classify_patient_key(patient_key)
     if is_mock_pharmapi():
@@ -97,8 +104,12 @@ async def get_patient(patient_key: str, ctx: ApiContext = Depends(get_api_contex
     return V1Patient.model_validate(payload.model_dump())
 
 
-@router.get("/{patient_key}/insurances", response_model=list[PatientInsurancePayload])
-async def get_patient_insurances(patient_key: str, ctx: ApiContext = Depends(get_api_context)):
+@router.get(
+    "/{patient_key}/insurances",
+    response_model=list[PatientInsurancePayload],
+    responses=RETRIEVAL_UNAVAILABLE_RESPONSE,
+)
+async def get_patient_insurances(patient_key: str, ctx: ApiContext = Depends(require_retrieval)):
     """ΕΟΠΥΥ/fund coverage entries, incl. the fund's `eopyy` flag (D-9 probe).
 
     NOTE: ΗΔΥΚΑ supplies no numeric patient-level co-pay % on this payload
@@ -112,11 +123,15 @@ async def get_patient_insurances(patient_key: str, ctx: ApiContext = Depends(get
     return await pharmapi_get_patient_insurances(amka=amka, ekaa=ekaa, ctx=ctx.pharmapi)
 
 
-@router.get("/{patient_key}/intolerances", response_model=list[V1Intolerance])
+@router.get(
+    "/{patient_key}/intolerances",
+    response_model=list[V1Intolerance],
+    responses=RETRIEVAL_UNAVAILABLE_RESPONSE,
+)
 async def get_patient_intolerances(
     patient_key: str,
     patient_consent: bool = Query(False, alias="patientConsent"),
-    ctx: ApiContext = Depends(get_api_context),
+    ctx: ApiContext = Depends(require_retrieval),
 ):
     """Recorded intolerances from ΗΔΥΚΑ (standalone — B2C only embeds these in
     the profile). Requires ΕΟΠΥΥ category + caller-attested consent."""
@@ -128,13 +143,17 @@ async def get_patient_intolerances(
     return await pharmapi_get_patient_intolerances(amka or ekaa, ctx=ctx.pharmapi)
 
 
-@router.get("/{patient_key}/medicine-history", response_model=RxHistoryPage)
+@router.get(
+    "/{patient_key}/medicine-history",
+    response_model=RxHistoryPage,
+    responses=RETRIEVAL_UNAVAILABLE_RESPONSE,
+)
 async def get_patient_medicine_history(
     patient_key: str,
     patient_consent: bool = Query(False, alias="patientConsent"),
     page: int = Query(0, ge=0),
     size: int = Query(50, ge=1, le=200),
-    ctx: ApiContext = Depends(get_api_context),
+    ctx: ApiContext = Depends(require_retrieval),
 ):
     """Executed-prescription history (cross-pharmacy, by AMKA/EKAA). Keeps the
     upstream pagination envelope incl. `blocked: true` on upstream 609."""

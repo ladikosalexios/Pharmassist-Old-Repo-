@@ -7,6 +7,8 @@ Run inside the backend container (or from backend/ with the venv active):
     python -m scripts.b2b_admin set-tier --customer-id <uuid> --tier clinical
     python -m scripts.b2b_admin create-location --customer-id <uuid> --name "Store 12" \
         --pharmapi-unit-id 70466 --pharmapi-username chain12 [--eopyy] [--verify]
+    python -m scripts.b2b_admin create-location --customer-id <uuid> --name "Store 12" \
+        --no-retrieval    # no ΗΔΥΚΑ credentials: drugs + safety only, retrieval 409s
     python -m scripts.b2b_admin mint-key --location-id <uuid> --label "prod-pos"
     python -m scripts.b2b_admin rotate-key --key-id <uuid>   # mint sibling, revoke stays manual
     python -m scripts.b2b_admin revoke-key --key-id <uuid>
@@ -25,6 +27,10 @@ Security invariants:
   * The location's ΗΔΥΚΑ Pharmapi password is prompted via getpass when not
     supplied (avoid shell history), AES-256-GCM-encrypted at rest via
     app/crypto.py, and never printed, logged, or audited (nor is the username).
+  * ΗΔΥΚΑ credentials are optional, but only explicitly: `--no-retrieval`
+    creates a location with no ΗΔΥΚΑ identity (audited as
+    CREATE_LOCATION_NO_RETRIEVAL); without it the unit id + username stay
+    mandatory, so forgetting a flag can't produce an uncredentialed location.
 """
 
 import argparse
@@ -111,7 +117,37 @@ async def set_tier(args: argparse.Namespace) -> None:
         )
 
 
+def _check_no_retrieval_args(args: argparse.Namespace) -> None:
+    """--no-retrieval provisions a location with NO ΗΔΥΚΑ identity (T0-4), so
+    every ΗΔΥΚΑ flag contradicts it — refuse rather than silently drop one."""
+    conflicting = [
+        flag
+        for flag, value in (
+            ("--pharmapi-unit-id", args.pharmapi_unit_id),
+            ("--pharmapi-username", args.pharmapi_username),
+            ("--pharmapi-password", args.pharmapi_password),
+        )
+        if value is not None
+    ]
+    conflicting += [flag for flag, on in (("--eopyy", args.eopyy), ("--verify", args.verify)) if on]
+    if conflicting:
+        sys.exit(
+            "[b2b-admin] --no-retrieval provisions a location WITHOUT ΗΔΥΚΑ credentials "
+            f"— drop {', '.join(conflicting)}"
+        )
+
+
 async def create_location(args: argparse.Namespace) -> None:
+    if args.no_retrieval:
+        _check_no_retrieval_args(args)
+        await _create_location_no_retrieval(args)
+        return
+
+    if args.pharmapi_unit_id is None or not args.pharmapi_username:
+        sys.exit(
+            "[b2b-admin] --pharmapi-unit-id and --pharmapi-username are required — or pass "
+            "--no-retrieval to provision a location without ΗΔΥΚΑ credentials"
+        )
     password = args.pharmapi_password or getpass.getpass("ΗΔΥΚΑ Pharmapi password: ")
     if not password:
         sys.exit("[b2b-admin] a Pharmapi password is required")
@@ -166,6 +202,44 @@ async def create_location(args: argparse.Namespace) -> None:
         print(
             f"[b2b-admin] location created: id={location.id} name={location.name!r} "
             f"unit={location.pharmapi_unit_id} eopyy={location.is_eopyy}"
+        )
+
+
+async def _create_location_no_retrieval(args: argparse.Namespace) -> None:
+    """A location with all three ΗΔΥΚΑ columns NULL (T0-4). It serves the
+    upstream-free /v1 routes (drugs, safety, conditions, and Tier-2 per the
+    customer's tier); patient/prescription retrieval answers 409
+    retrieval_unavailable. Audited under its own verb so the trail shows the
+    missing credentials were intended."""
+    async with AsyncSessionLocal() as db:
+        customer = await Customer.get_by_id(db, args.customer_id)
+        if customer is None:
+            sys.exit(f"[b2b-admin] customer {args.customer_id} not found")
+        location = Location(
+            customer_id=customer.id,
+            name=args.name,
+            address=args.address,
+            pharmapi_unit_id=None,
+            pharmapi_username=None,
+            pharmapi_password=None,
+            is_eopyy=False,
+            active=True,
+        )
+        db.add(location)
+        await db.flush()  # assign location.id for the audit target
+        audit.add_admin_audit(
+            db,
+            actor=audit.resolve_actor(args.actor),
+            action=audit.ACTION_CREATE_LOCATION_NO_RETRIEVAL,
+            target_type=audit.TARGET_LOCATION,
+            target_id=location.id,
+            details={"customerId": str(customer.id), "name": location.name, "retrieval": False},
+        )
+        await db.commit()
+        await db.refresh(location)
+        print(
+            f"[b2b-admin] location created WITHOUT ΗΔΥΚΑ credentials: id={location.id} "
+            f"name={location.name!r} — retrieval routes will answer 409 retrieval_unavailable"
         )
 
 
@@ -291,10 +365,12 @@ async def list_tenants(_args: argparse.Namespace) -> None:
             print(f"customer {c.id}  {c.name}  tier={c.tier}{flag}")
             for loc in c.locations:
                 flag = "" if loc.active else "  [INACTIVE]"
-                print(
-                    f"  location {loc.id}  {loc.name}  unit={loc.pharmapi_unit_id} "
-                    f"eopyy={loc.is_eopyy}{flag}"
+                identity = (
+                    f"unit={loc.pharmapi_unit_id} eopyy={loc.is_eopyy}"
+                    if loc.pharmapi_username
+                    else "retrieval=none"
                 )
+                print(f"  location {loc.id}  {loc.name}  {identity}{flag}")
                 for k in loc.api_keys:
                     state = "active" if k.active else "revoked"
                     print(f"    key {k.id}  label={k.label!r}  {state}  last_used={k.last_used_at}")
@@ -369,8 +445,17 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument("--customer-id", required=True, type=uuid.UUID)
     p.add_argument("--name", required=True)
     p.add_argument("--address", default=None)
-    p.add_argument("--pharmapi-unit-id", required=True, type=int, help="ΗΔΥΚΑ pharmacy unit id")
-    p.add_argument("--pharmapi-username", required=True, help="Location's ΗΔΥΚΑ Basic-Auth user")
+    p.add_argument(
+        "--pharmapi-unit-id",
+        default=None,
+        type=int,
+        help="ΗΔΥΚΑ pharmacy unit id (required unless --no-retrieval)",
+    )
+    p.add_argument(
+        "--pharmapi-username",
+        default=None,
+        help="Location's ΗΔΥΚΑ Basic-Auth user (required unless --no-retrieval)",
+    )
     p.add_argument(
         "--pharmapi-password",
         default=None,
@@ -381,6 +466,12 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     p.add_argument(
         "--verify", action="store_true", help="Validate the creds against ΗΔΥΚΑ before saving"
+    )
+    p.add_argument(
+        "--no-retrieval",
+        action="store_true",
+        help="Provision WITHOUT ΗΔΥΚΑ credentials: drugs/safety/conditions work, "
+        "patient + prescription routes answer 409 retrieval_unavailable",
     )
     p.set_defaults(func=create_location)
 

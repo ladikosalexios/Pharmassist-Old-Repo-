@@ -9,6 +9,9 @@ with optional ``upstream_code`` when a ΗΔΥΚΑ G-code was identified. Stable
 AI (Tier-2) endpoints add one more stable code: ``ai_unavailable`` (503), raised
 by the LLM seam (T2-2) on a timeout / upstream failure so a degraded AI feature
 is distinguishable from a real error; deterministic endpoints never emit it.
+Retrieval routes add ``retrieval_unavailable`` (409, D-21), raised by
+deps.require_retrieval when the location has no ΗΔΥΚΑ credentials — a
+provisioning state, so deliberately not 403 (that is ``tier_required``).
 
 B2C is untouched: the app-level handlers delegate to FastAPI's defaults for
 any path outside /v1, so existing ``{"detail": ...}`` bodies are byte-

@@ -29,7 +29,7 @@ Operator runbook for the lifecycle of a location's `X-API-Key`. Pairs with
 
   The change takes effect on the next request (the gate reads the customer tier
   per call). A `core` customer's keys get `tier_required` (403) on every
-  Clinical route; ordinal `platform ≥ clinical ≥ core`. `list` shows each
+  Clinical route; ordinal `platform ≥ clinical ≥ core ≥ clinical_only`. `list` shows each
   customer's `tier=…`.
 
 All commands run inside the backend container:

@@ -4,6 +4,9 @@ Contract decision (audit finding): `status=dispensed` REQUIRES `amka`. ΗΔΥΚ�
 rejects prescribed=true without an AMKA (code 606) and the B2C router papers
 over that by silently degrading to a mixed unfiltered search — a paid API
 must refuse loudly instead of returning the wrong data class.
+
+Both routes are upstream-backed and sit behind require_retrieval: a location
+provisioned without ΗΔΥΚΑ credentials gets 409 `retrieval_unavailable` (T0-2).
 """
 
 from typing import Literal
@@ -15,7 +18,7 @@ from app.services.pharmapi import pharmapi_search_prescriptions
 from app.services.v1_mock import MOCK_V1_PRESCRIPTIONS
 from app.utils.environment import is_mock_pharmapi
 
-from .deps import ApiContext, get_api_context
+from .deps import RETRIEVAL_UNAVAILABLE_RESPONSE, ApiContext, require_retrieval
 from .errors import V1Error
 
 router = APIRouter(prefix="/prescriptions", tags=["b2b-v1"])
@@ -23,7 +26,7 @@ router = APIRouter(prefix="/prescriptions", tags=["b2b-v1"])
 _MOCK_STATUS = {"pending": "PENDING", "dispensed": "COMPLETED"}
 
 
-@router.get("", response_model=V1PrescriptionPage)
+@router.get("", response_model=V1PrescriptionPage, responses=RETRIEVAL_UNAVAILABLE_RESPONSE)
 async def search_prescriptions(
     status: Literal["pending", "dispensed"] = Query("pending"),
     amka: str | None = Query(None, description="Patient AMKA (required for status=dispensed)"),
@@ -31,7 +34,7 @@ async def search_prescriptions(
     to_date: str | None = Query(None, alias="to", description="End date YYYY-MM-DD"),
     page: int = Query(0, ge=0),
     size: int = Query(50, ge=1, le=200),
-    ctx: ApiContext = Depends(get_api_context),
+    ctx: ApiContext = Depends(require_retrieval),
 ):
     if status == "dispensed" and not amka:
         raise V1Error(
@@ -59,8 +62,10 @@ async def search_prescriptions(
     return {"items": items, "count": len(items)}
 
 
-@router.get("/{barcode}", response_model=V1PrescriptionItem)
-async def get_prescription(barcode: str, ctx: ApiContext = Depends(get_api_context)):
+@router.get(
+    "/{barcode}", response_model=V1PrescriptionItem, responses=RETRIEVAL_UNAVAILABLE_RESPONSE
+)
+async def get_prescription(barcode: str, ctx: ApiContext = Depends(require_retrieval)):
     """Prescription by barcode — the search endpoint filtered to one result
     (Pharmapi v2 has no richer read-only detail endpoint; the CDA retrieval
     path is dispense-scoped and out of Tier-1)."""

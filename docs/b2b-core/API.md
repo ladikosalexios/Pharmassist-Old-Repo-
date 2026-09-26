@@ -10,8 +10,10 @@ and the sandbox identifiers.
 
 > **Scope.** Tier-1 "Core": patient lookup + insurances + intolerances +
 > medicine history, national drug catalogue + formulary alternatives, an
-> explicit-list safety check, and per-location patient conditions. Dispense,
-> HMVS, ADR, and AI features are **not** in this surface.
+> explicit-list safety check, and per-location patient conditions — plus the
+> `clinical_only` base tier below it and locations provisioned without ΗΔΥΚΑ
+> credentials (§2.1–2.2). Dispense and HMVS are **not** in this surface; the
+> Tier-2 AI + ADR routes are gated at `clinical` (see the spec).
 
 ---
 
@@ -47,15 +49,50 @@ X-API-Key: pa_live_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 - The key identifies a single **location** (pharmacy unit). One customer can
   hold many locations and many keys; keys do not carry a user identity.
 - A location transacts under its **own** ΗΔΥΚΑ Basic-Auth identity, resolved
-  server-side from the key — you never send ΗΔΥΚΑ credentials.
+  server-side from the key — you never send ΗΔΥΚΑ credentials. A location can
+  also be provisioned with **no** ΗΔΥΚΑ identity at all (§2.2).
 
 `GET /v1/status` is the auth smoke test: it echoes your customer identity and
-entitlement `tier` (`core` | `clinical` | `platform`), your location identity,
-the ΕΟΠΥΥ flag, and whether the upstream session is warm
-(`backend/app/routers/v1/__init__.py:23-39`). `pharmapiConnected: false` before
-your first patient call is normal — ΗΔΥΚΑ sessions are established lazily. Routes
-above your tier return `tier_required` (403, §3) — the tier is ordinal, so a
-`platform` customer reaches every `clinical` route.
+entitlement `tier` (`clinical_only` | `core` | `clinical` | `platform`), your
+location identity, the ΕΟΠΥΥ flag, whether the location can reach ΗΔΥΚΑ
+(`location.retrievalAvailable`), and whether the upstream session is warm
+(`backend/app/routers/v1/__init__.py`). `pharmapiConnected: false` before your
+first patient call is normal — ΗΔΥΚΑ sessions are established lazily — and it is
+always `false` when `retrievalAvailable` is `false`.
+
+### 2.1 Tiers
+
+Routes above your tier return `tier_required` (403, §3). The tier is ordinal
+(`platform ≥ clinical ≥ core ≥ clinical_only`), so a higher tier reaches every
+lower tier's routes.
+
+| Tier | Adds |
+|---|---|
+| `clinical_only` | Explicit-list safety check (`POST /v1/safety/check`), drug catalogue search (`GET /v1/drugs`), per-location patient conditions |
+| `core` | Formulary alternatives (`GET /v1/drugs/{barcode}/alternatives`) and ΗΔΥΚΑ retrieval (patients, prescriptions) |
+| `clinical` | Tier-2: AI safety explanations (`POST /v1/safety/explain`), ADR reports |
+| `platform` | Everything above |
+
+### 2.2 Locations without ΗΔΥΚΑ credentials
+
+Retrieval is **independent of tier**: any tier can be bought for a location that
+has no ΗΔΥΚΑ credentials (e.g. an integrator that has no ΗΔΥΚΑ account).
+Such a location reports `location.retrievalAvailable: false` on `/v1/status`,
+and:
+
+- **Works as normal** (subject to tier): `GET /v1/drugs`,
+  `GET /v1/drugs/{barcode}/alternatives`, `POST /v1/safety/check`, the
+  `/v1/patients/{amka}/conditions` CRUD (conditions are stored by PharmAssist,
+  not ΗΔΥΚΑ, and feed the safety check), and the Tier-2 routes.
+- **Answers `retrieval_unavailable` (409)**: the six routes that read ΗΔΥΚΑ —
+  `GET /v1/patients/{key}`, `…/insurances`, `…/intolerances`,
+  `…/medicine-history`, `GET /v1/prescriptions`, `GET /v1/prescriptions/{barcode}`.
+  The sandbox enforces this too, so a sandbox run shows exactly what live will
+  answer.
+
+For a location without ΗΔΥΚΑ access, supply the patient's medications (and
+co-medications) explicitly in the safety-check body, and record conditions
+through the conditions endpoints.
 
 ## 3. Error envelope
 
@@ -79,9 +116,10 @@ Every `/v1` error renders in one stable shape (`backend/app/routers/v1/errors.py
 | `consent_required` | 422 | A consent-gated read was called without `patientConsent=true` | Attest consent (§4), resend. |
 | `unauthorized` | 401 | Bad/missing/revoked key, or env mismatch | Check the key; one 401 covers all causes. |
 | `forbidden` | 403 | Location not in the ΕΟΠΥΥ category for a 609-gated read (§5) | Establish the category (operator), or stop calling intolerances/history. |
-| `tier_required` | 403 | The route needs a higher entitlement tier than this customer holds (T2-1) | Upgrade the customer's tier (contact sales); ordinal `platform ≥ clinical ≥ core`. |
+| `tier_required` | 403 | The route needs a higher entitlement tier than this customer holds (T2-1) | Upgrade the customer's tier (contact sales); ordinal `platform ≥ clinical ≥ core ≥ clinical_only` (§2.1). |
 | `not_found` | 404 | No such patient / drug / prescription / condition | — |
 | `conflict` | 409 | Duplicate (e.g. same condition already recorded at this location) | Treat as already-exists. |
+| `retrieval_unavailable` | 409 | This location has no ΗΔΥΚΑ credentials, so a patient/prescription retrieval route can't run (§2.2) — a provisioning state, not an entitlement denial | Don't retry. Use the retrieval-free routes, or have the location's ΗΔΥΚΑ credentials added through onboarding. |
 | `gone` | 410 | Resource withdrawn upstream | — |
 | `rate_limited` | 429 | Per-key limit exceeded (§6) | Back off; honour `Retry-After`. |
 | `upstream_session_expired` | 401/409 | ΗΔΥΚΑ session lapsed (G12/G14) — transient | **Retry**; a fresh session is established automatically. |

@@ -48,6 +48,7 @@ from scripts.b2b_admin import (  # noqa: E402
 ACTOR = "PYTEST-AUDIT-OP"
 CUST = "PYTEST-AUDIT SA"
 LOC = "PYTEST-AUDIT Store"
+LOC_NO_RETRIEVAL = "PYTEST-AUDIT Store (no ΗΔΥΚΑ)"
 # Distinctive secrets so a leak into any audit row is unambiguous.
 SECRET_PW = "demo-secret-pw-DO-NOT-LOG"
 SECRET_USER = "audit-secret-user-DO-NOT-LOG"
@@ -118,10 +119,37 @@ async def _drive_lifecycle():
             pharmapi_password=SECRET_PW,
             eopyy=True,
             verify=False,
+            no_retrieval=False,
         )
     )
     async with AsyncSessionLocal() as db:
         lid = (await db.scalars(select(Location).where(Location.name == LOC))).one().id
+
+    # T0-4: a location with no ΗΔΥΚΑ identity, audited under its own verb.
+    await create_location(
+        _ns(
+            actor=ACTOR,
+            customer_id=cid,
+            name=LOC_NO_RETRIEVAL,
+            address=None,
+            pharmapi_unit_id=None,
+            pharmapi_username=None,
+            pharmapi_password=None,
+            eopyy=False,
+            verify=False,
+            no_retrieval=True,
+        )
+    )
+    async with AsyncSessionLocal() as db:
+        bare = (await db.scalars(select(Location).where(Location.name == LOC_NO_RETRIEVAL))).one()
+        bare_location = {
+            "id": str(bare.id),
+            "unit": bare.pharmapi_unit_id,
+            "username": bare.pharmapi_username,
+            "password": bare.pharmapi_password,
+            "eopyy": bare.is_eopyy,
+            "active": bare.active,
+        }
 
     await mint_key(_ns(actor=ACTOR, location_id=lid, label="audit-pos", env="test"))
     async with AsyncSessionLocal() as db:
@@ -149,6 +177,7 @@ async def _drive_lifecycle():
             str(cid),
             str(lid),
             str(kid),
+            bare_location,
         )
 
 
@@ -165,11 +194,12 @@ def lifecycle():
 
 
 def test_every_mutation_appended_one_row_in_order(lifecycle):
-    rows, _cid, _lid, _kid = lifecycle
+    rows, _cid, _lid, _kid, _bare = lifecycle
     assert [r["action"] for r in rows] == [
         "CREATE_CUSTOMER",
         "SET_TIER",
         "CREATE_LOCATION",
+        "CREATE_LOCATION_NO_RETRIEVAL",
         "MINT_KEY",
         "ROTATE_KEY",
         "REVOKE_KEY",
@@ -178,12 +208,15 @@ def test_every_mutation_appended_one_row_in_order(lifecycle):
 
 
 def test_actor_and_targets_recorded(lifecycle):
-    rows, cid, lid, kid = lifecycle
+    rows, cid, lid, kid, bare = lifecycle
     by_action = {r["action"]: r for r in rows}
     assert by_action["CREATE_CUSTOMER"]["target_id"] == cid
     assert by_action["CREATE_CUSTOMER"]["target_type"] == "CUSTOMER"
     assert by_action["CREATE_LOCATION"]["target_id"] == lid
     assert by_action["CREATE_LOCATION"]["details"]["customerId"] == cid
+    assert by_action["CREATE_LOCATION_NO_RETRIEVAL"]["target_id"] == bare["id"]
+    assert by_action["CREATE_LOCATION_NO_RETRIEVAL"]["target_type"] == "LOCATION"
+    assert by_action["CREATE_LOCATION_NO_RETRIEVAL"]["details"]["customerId"] == cid
     assert by_action["MINT_KEY"]["target_id"] == kid
     assert by_action["REVOKE_KEY"]["target_id"] == kid
     # The rotation links back to the original key it replaced.
@@ -191,7 +224,7 @@ def test_actor_and_targets_recorded(lifecycle):
 
 
 def test_tier_change_records_before_and_after(lifecycle):
-    rows, _cid, _lid, _kid = lifecycle
+    rows, _cid, _lid, _kid, _bare = lifecycle
     by_action = {r["action"]: r for r in rows}
     assert by_action["CREATE_CUSTOMER"]["details"]["tier"] == "clinical"
     assert by_action["SET_TIER"]["details"]["tier"] == {"from": "clinical", "to": "core"}
@@ -200,12 +233,12 @@ def test_tier_change_records_before_and_after(lifecycle):
 def test_noop_tier_change_writes_no_extra_row(lifecycle):
     # The driver issues a second set-tier to the SAME tier; the guard makes it a
     # no-op, so there is exactly ONE SET_TIER row, not two.
-    rows, _cid, _lid, _kid = lifecycle
+    rows, _cid, _lid, _kid, _bare = lifecycle
     assert sum(1 for r in rows if r["action"] == "SET_TIER") == 1
 
 
 def test_no_audit_row_leaks_a_secret(lifecycle):
-    rows, _cid, _lid, _kid = lifecycle
+    rows, _cid, _lid, _kid, _bare = lifecycle
     for r in rows:
         blob = json.dumps(r["details"] or {})
         assert SECRET_PW not in blob, r
@@ -214,7 +247,7 @@ def test_no_audit_row_leaks_a_secret(lifecycle):
 
 
 def test_credential_and_key_rows_only_carry_safe_keys(lifecycle):
-    rows, _cid, _lid, _kid = lifecycle
+    rows, _cid, _lid, _kid, _bare = lifecycle
     by_action = {r["action"]: r for r in rows}
     assert set(by_action["CREATE_LOCATION"]["details"]) == {
         "customerId",
@@ -222,4 +255,21 @@ def test_credential_and_key_rows_only_carry_safe_keys(lifecycle):
         "pharmapiUnitId",
         "eopyy",
     }
+    assert set(by_action["CREATE_LOCATION_NO_RETRIEVAL"]["details"]) == {
+        "customerId",
+        "name",
+        "retrieval",
+    }
+    assert by_action["CREATE_LOCATION_NO_RETRIEVAL"]["details"]["retrieval"] is False
     assert set(by_action["MINT_KEY"]["details"]) == {"locationId", "label", "env"}
+
+
+def test_no_retrieval_location_has_no_hdyka_identity(lifecycle):
+    # T0-4: all three ΗΔΥΚΑ columns NULL (the ck_locations_pharmapi_credentials
+    # shape), not ΕΟΠΥΥ, and live.
+    _rows, _cid, _lid, _kid, bare = lifecycle
+    assert bare["unit"] is None
+    assert bare["username"] is None
+    assert bare["password"] is None
+    assert bare["eopyy"] is False
+    assert bare["active"] is True

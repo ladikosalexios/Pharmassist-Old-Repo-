@@ -17,6 +17,10 @@ All commands run inside the backend container:
 > The steps below are written for the live target and annotated where the
 > mock dev stack differs.
 
+> **No ΗΔΥΚΑ credentials?** A location can be onboarded without any ΗΔΥΚΑ
+> identity (safety check + drug catalogue only; retrieval answers 409). Skip
+> steps 1–2 and follow the short path in [§6](#6-short-path--a-location-without-ηδυκα-credentials).
+
 ## 1. Collect (per location, secure channel)
 
 | Field | Notes |
@@ -47,10 +51,11 @@ reads (`backend/app/routers/v1/patients.py:77-84`), everything else works.
 ```bash
 # a. customer (tenant root) — once per customer, not per location.
 #    --tier sets the entitlement (default core). clinical/platform unlock the
-#    Tier-2 /v1 routes; per D-14 the tier is customer-level (the whole estate),
-#    correctable later with `set-tier`.
+#    Tier-2 /v1 routes; clinical_only is the base tier below core (safety check
+#    + drug catalogue only, D-20). Per D-14 the tier is customer-level (the
+#    whole estate), correctable later with `set-tier`.
 python -m scripts.b2b_admin create-customer --name "Chain SA" --email ops@chain.gr \
-    --tier core            # or clinical / platform
+    --tier core            # or clinical_only / clinical / platform
 
 # b. location — --verify validates creds against ΗΔΥΚΑ + cross-checks the unit id
 python -m scripts.b2b_admin create-location \
@@ -103,6 +108,37 @@ the first upstream call is normal. A `core` customer's key gets `tier_required`
 - Support channel + SLA (D-11, TBD at contract time).
 - Signed DPA on file before live PHI flows (FT-14/D-13 —
   [DATA-PROCESSING.md](DATA-PROCESSING.md)).
+
+## 6. Short path — a location without ΗΔΥΚΑ credentials
+
+For a customer with no ΗΔΥΚΑ account (an integrator, or a `clinical_only`
+buyer — TIER0-RETRIEVAL-FREE.md T0-4). Nothing to collect over a secure
+channel, no ΕΟΠΥΥ question, no `--verify`.
+
+```bash
+# a. customer — pick the tier explicitly. clinical_only = safety check + drug
+#    catalogue search + conditions. core adds formulary alternatives (and
+#    retrieval, which this location can't use). clinical adds Tier-2.
+python -m scripts.b2b_admin create-customer --name "Integrator SA" --tier clinical_only
+
+# b. location with NO ΗΔΥΚΑ identity — --no-retrieval is required; it refuses
+#    every ΗΔΥΚΑ flag (--pharmapi-*, --eopyy, --verify) rather than drop one.
+python -m scripts.b2b_admin create-location --customer-id <customer-uuid> \
+    --name "Integrator (no ΗΔΥΚΑ)" --no-retrieval
+
+# c. keys as normal
+python -m scripts.b2b_admin mint-key --location-id <location-uuid> --label "integrator-prod"
+```
+
+- The location is audited as `CREATE_LOCATION_NO_RETRIEVAL` (its own verb, so
+  the trail shows the missing credentials were intended — `list-audit --action
+  CREATE_LOCATION_NO_RETRIEVAL`), and `b2b_admin list` shows it as
+  `retrieval=none`.
+- Verify with `GET /v1/status` → `location.retrievalAvailable: false`, then one
+  `POST /v1/safety/check`. Patient/prescription routes answer
+  `retrieval_unavailable` (409) by design ([API.md §2.2](API.md#22-locations-without-ηδυκα-credentials)).
+- Adding ΗΔΥΚΑ credentials to such a location later has no CLI command yet —
+  provision a new credentialed location instead.
 
 ---
 
