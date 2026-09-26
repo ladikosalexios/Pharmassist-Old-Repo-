@@ -8,8 +8,8 @@
 # provisioned with `b2b_admin create-location --no-retrieval` has all three
 # columns NULL and serves only the upstream-free /v1 routes; retrieval routes
 # answer 409 retrieval_unavailable. The check constraint keeps the credentials
-# both-or-neither and requires a unit id whenever they are set, so a
-# half-provisioned row can't exist.
+# both-or-neither (a blank string counts as unset) and requires a unit id
+# whenever they are set, so a half-provisioned row can't exist.
 import uuid
 
 from sqlalchemy import Boolean, CheckConstraint, ForeignKey, Integer, String, text
@@ -24,8 +24,8 @@ class Location(Base, TimestampMixin):
     # Mirrors migration e5b1c9d47a20 (renders as ck_locations_pharmapi_credentials).
     __table_args__ = (
         CheckConstraint(
-            "(pharmapi_username IS NULL) = (pharmapi_password IS NULL) "
-            "AND (pharmapi_username IS NULL OR pharmapi_unit_id IS NOT NULL)",
+            "(NULLIF(pharmapi_username, '') IS NULL) = (NULLIF(pharmapi_password, '') IS NULL) "
+            "AND (NULLIF(pharmapi_username, '') IS NULL OR pharmapi_unit_id IS NOT NULL)",
             name="pharmapi_credentials",
         ),
     )

@@ -3,7 +3,7 @@
 Run inside the backend container (or from backend/ with the venv active):
 
     python -m scripts.b2b_admin create-customer --name "Chain SA" --email ops@chain.gr \
-        [--tier core|clinical|platform]   # default core
+        [--tier clinical_only|core|clinical|platform]   # default core
     python -m scripts.b2b_admin set-tier --customer-id <uuid> --tier clinical
     python -m scripts.b2b_admin create-location --customer-id <uuid> --name "Store 12" \
         --pharmapi-unit-id 70466 --pharmapi-username chain12 [--eopyy] [--verify]
@@ -392,11 +392,13 @@ async def list_audit(args: argparse.Namespace) -> None:
         if not rows:
             print("[b2b-admin] no audit entries")
             return
+        # Pad to the longest verb (CREATE_LOCATION_NO_RETRIEVAL) so columns align.
+        width = max(map(len, audit.ALL_ACTIONS))
         for r in rows:
             target = f"{r.target_type or '-'}:{r.target_id or '-'}"
             print(
                 f"{r.occurred_at:%Y-%m-%d %H:%M:%S%z}  {r.actor:>12}  "
-                f"{r.action:<16} {target}  {r.details or {}}"
+                f"{r.action:<{width}} {target}  {r.details or {}}"
             )
 
 

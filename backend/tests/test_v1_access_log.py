@@ -41,7 +41,9 @@ from main import create_app  # noqa: E402
 AMKA = "15031962456"  # Maria Stavrou — mock fixtures incl. intolerances
 RAW_KEY = generate_api_key("test")
 
-_CUSTOMER = Customer(id=uuid.uuid4(), name="Log SA", active=True)
+# tier set explicitly: an unflushed ORM row has tier=None (the 'core' default is
+# server-side), which get_api_context ranks as clinical_only — below retrieval.
+_CUSTOMER = Customer(id=uuid.uuid4(), name="Log SA", active=True, tier="core")
 _LOCATION = Location(
     id=uuid.uuid4(),
     customer_id=_CUSTOMER.id,

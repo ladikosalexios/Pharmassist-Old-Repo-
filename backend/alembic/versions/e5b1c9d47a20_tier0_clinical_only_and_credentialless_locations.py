@@ -13,19 +13,23 @@ docs/b2b-core/TIER0-RETRIEVAL-FREE.md — T0-3 + T0-4, one migration.
   provisioned with no ΗΔΥΚΑ identity at all (credentials were already
   nullable). A new check constraint keeps that state intentional rather than
   half-finished: username/password are both-or-neither, and set credentials
-  require a unit id. Every row minted by scripts/b2b_admin.py so far carries all
-  three, so the constraint validates cleanly against existing data; a row it
-  rejects was already 500ing on every /v1 call under the old guard.
+  require a unit id. A blank string counts as unset (NULLIF), matching the
+  truthiness test get_api_context uses. Every row minted by scripts/b2b_admin.py
+  so far carries all three, so the constraint validates cleanly against
+  existing data; a row it rejects was already 500ing on every /v1 call under
+  the old guard.
 
 Downgrade refuses (rather than silently re-tiering or deleting tenants) while
-any clinical_only customer or credential-less location exists.
+any clinical_only customer or credential-less location exists. That check
+needs a live connection, so offline (`--sql`) downgrade skips it and only
+renders the DDL.
 """
 
 from collections.abc import Sequence
 
 import sqlalchemy as sa
 
-from alembic import op
+from alembic import context, op
 
 # revision identifiers, used by Alembic.
 revision: str = "e5b1c9d47a20"
@@ -47,27 +51,32 @@ def upgrade() -> None:
     op.create_check_constraint(
         op.f("ck_locations_pharmapi_credentials"),
         "locations",
-        "(pharmapi_username IS NULL) = (pharmapi_password IS NULL) "
-        "AND (pharmapi_username IS NULL OR pharmapi_unit_id IS NOT NULL)",
+        "(NULLIF(pharmapi_username, '') IS NULL) = (NULLIF(pharmapi_password, '') IS NULL) "
+        "AND (NULLIF(pharmapi_username, '') IS NULL OR pharmapi_unit_id IS NOT NULL)",
     )
 
 
 def downgrade() -> None:
     """Downgrade schema."""
-    bind = op.get_bind()
-    blockers = {
-        "clinical_only customers": "SELECT count(*) FROM customers WHERE tier = 'clinical_only'",
-        "locations without a ΗΔΥΚΑ unit id": (
-            "SELECT count(*) FROM locations WHERE pharmapi_unit_id IS NULL"
-        ),
-    }
-    for label, sql in blockers.items():
-        count = bind.execute(sa.text(sql)).scalar_one()
-        if count:
-            raise RuntimeError(
-                f"cannot downgrade e5b1c9d47a20: {count} {label} exist — re-tier or "
-                "re-provision them first (the pre-Tier-0 schema cannot represent them)"
-            )
+    # Offline (--sql) mode has no connection to count rows with (get_bind()
+    # returns None there); whoever applies the rendered SQL owns that check.
+    if not context.is_offline_mode():
+        bind = op.get_bind()
+        blockers = {
+            "clinical_only customers": (
+                "SELECT count(*) FROM customers WHERE tier = 'clinical_only'"
+            ),
+            "locations without a ΗΔΥΚΑ unit id": (
+                "SELECT count(*) FROM locations WHERE pharmapi_unit_id IS NULL"
+            ),
+        }
+        for label, sql in blockers.items():
+            count = bind.execute(sa.text(sql)).scalar_one()
+            if count:
+                raise RuntimeError(
+                    f"cannot downgrade e5b1c9d47a20: {count} {label} exist — re-tier or "
+                    "re-provision them first (the pre-Tier-0 schema cannot represent them)"
+                )
 
     op.drop_constraint(op.f("ck_locations_pharmapi_credentials"), "locations", type_="check")
     op.alter_column("locations", "pharmapi_unit_id", existing_type=sa.Integer(), nullable=False)

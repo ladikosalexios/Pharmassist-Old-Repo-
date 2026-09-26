@@ -237,6 +237,17 @@ def test_half_provisioned_location_rejected_by_check_constraint(unit, with_user,
     assert "ck_locations_pharmapi_credentials" in str(exc.value)
 
 
+@pytest.mark.parametrize("blank", ["username", "password"])
+def test_blank_string_credential_counts_as_unset(blank):
+    # NULLIF in the constraint: '' is no credential, matching get_api_context's
+    # truthiness test — so '' next to a real value is a half-provisioned row.
+    user = "" if blank == "username" else encrypt_credential("blank-user")
+    password = "" if blank == "password" else encrypt_credential("blank-pass")
+    with pytest.raises(Exception) as exc:
+        _insert_location(70001, user, password)
+    assert "ck_locations_pharmapi_credentials" in str(exc.value)
+
+
 def test_fully_credentialed_location_still_accepted():
     _insert_location(70001, encrypt_credential("full-user"), encrypt_credential("full-pass"))
     _run_sql([("DELETE FROM locations WHERE name = 'PYTEST-T0-BAD Store'", {})])

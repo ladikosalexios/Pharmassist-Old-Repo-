@@ -18,8 +18,10 @@ All commands run inside the backend container:
 > mock dev stack differs.
 
 > **No ΗΔΥΚΑ credentials?** A location can be onboarded without any ΗΔΥΚΑ
-> identity (safety check + drug catalogue only; retrieval answers 409). Skip
-> steps 1–2 and follow the short path in [§6](#6-short-path--a-location-without-ηδυκα-credentials).
+> identity (every route its tier allows except patient/prescription retrieval,
+> which answers 409). Follow the short path in
+> [§6](#6-short-path--a-location-without-ηδυκα-credentials) in place of steps
+> 1–3 and §4's patient lookup, then [§5 Hand off](#5-hand-off) as normal.
 
 ## 1. Collect (per location, secure channel)
 
@@ -27,7 +29,7 @@ All commands run inside the backend container:
 |---|---|
 | ΗΔΥΚΑ pharmacy **unit id** | integer, e.g. `70466`. Cross-checked by `--verify`. |
 | ΗΔΥΚΑ Basic-Auth **username** | the location's own ΗΔΥΚΑ identity. |
-| ΗΔΥΚΑ **password** | **never** by email/chat. Prompted via `getpass` and AES-256-GCM-encrypted at rest (`backend/scripts/b2b_admin.py:61`, `:89-90`; `app/crypto.py`). |
+| ΗΔΥΚΑ **password** | **never** by email/chat. Prompted via `getpass` and AES-256-GCM-encrypted at rest (`backend/scripts/b2b_admin.py:151`, `:179-180`; `app/crypto.py`). |
 | ΕΟΠΥΥ category? | yes/no — drives `--eopyy` (step 2). |
 
 The password is the one field you must move over a secure channel (a password
@@ -38,7 +40,7 @@ never printed or logged.
 
 `--eopyy` mirrors ΗΔΥΚΑ's `isIka`. It gates intolerances + medicine history: a
 non-ΕΟΠΥΥ location gets a clean `forbidden` (403, upstream 609) on those two
-reads (`backend/app/routers/v1/patients.py:77-84`), everything else works.
+reads (`backend/app/routers/v1/patients.py:85-92`), everything else works.
 
 - **PharmAssist cannot grant the category** — it is a property of the customer's
   ΗΔΥΚΑ account. If the customer needs it, they arrange it with ΗΔΥΚΑ
@@ -69,11 +71,11 @@ python -m scripts.b2b_admin mint-key --location-id <location-uuid> --label "chai
 ```
 
 - `--verify` calls ΗΔΥΚΑ live and warns if the unit id isn't in the account's
-  units (`b2b_admin.py:65-78`). **It always hits the real upstream**, so it only
+  units (`b2b_admin.py:155-168`). **It always hits the real upstream**, so it only
   works with real production creds — **skip `--verify` on the mock dev/sandbox
   stack** (fake creds would 401). Use it for the live mint.
 - `mint-key` defaults its env to the **stack's mode**, not `ENV` (FT-13,
-  `b2b_admin.py:41-48`): a mock stack mints `pa_test_`, a live stack mints
+  `b2b_admin.py:59-66`): a mock stack mints `pa_test_`, a live stack mints
   `pa_live_`. It warns if you force the other env. The raw key is shown **once**.
 - Every command above is **audited** — one append-only `b2b_admin_audit` row per
   mutation, committed atomically with the change (never a raw key or credential).
@@ -96,7 +98,7 @@ curl -s https://api.<domain>/admin/sync-drug-catalog/status   # admin cookie
 
 `GET /v1/status` returns customer identity + its `tier` (T2-1), location
 identity, `isEopyy`, `mockMode`, and `pharmapiConnected`
-(`backend/app/routers/v1/__init__.py:23-39`). `pharmapiConnected: false` before
+(`backend/app/routers/v1/__init__.py:27-49`). `pharmapiConnected: false` before
 the first upstream call is normal. A `core` customer's key gets `tier_required`
 (403) on a Tier-2/Clinical route; raise the tier with `set-tier` to unlock them.
 
@@ -117,9 +119,10 @@ channel, no ΕΟΠΥΥ question, no `--verify`.
 
 ```bash
 # a. customer — pick the tier explicitly. clinical_only = safety check + drug
-#    catalogue search + conditions. core adds formulary alternatives (and
-#    retrieval, which this location can't use). clinical adds Tier-2.
-python -m scripts.b2b_admin create-customer --name "Integrator SA" --tier clinical_only
+#    catalogue search + conditions, with NO formulary alternatives. core adds
+#    /alternatives (and retrieval, which this location can't use). clinical
+#    adds Tier-2. An integrator that needs alternatives must be core or above.
+python -m scripts.b2b_admin create-customer --name "Integrator SA" --tier core
 
 # b. location with NO ΗΔΥΚΑ identity — --no-retrieval is required; it refuses
 #    every ΗΔΥΚΑ flag (--pharmapi-*, --eopyy, --verify) rather than drop one.
@@ -138,7 +141,11 @@ python -m scripts.b2b_admin mint-key --location-id <location-uuid> --label "inte
   `POST /v1/safety/check`. Patient/prescription routes answer
   `retrieval_unavailable` (409) by design ([API.md §2.2](API.md#22-locations-without-ηδυκα-credentials)).
 - Adding ΗΔΥΚΑ credentials to such a location later has no CLI command yet —
-  provision a new credentialed location instead.
+  provision a new credentialed location instead (issued with a new API key;
+  retrieval also needs the customer on `core` or above).
+- Then complete [§5 Hand off](#5-hand-off) as normal — the signed DPA is still
+  required: `POST /v1/safety/check` carries the patient's AMKA, and the
+  conditions endpoints store AMKA + health conditions, all PHI.
 
 ---
 

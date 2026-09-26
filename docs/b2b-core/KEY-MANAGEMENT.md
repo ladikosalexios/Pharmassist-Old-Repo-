@@ -29,7 +29,9 @@ Operator runbook for the lifecycle of a location's `X-API-Key`. Pairs with
 
   The change takes effect on the next request (the gate reads the customer tier
   per call). A `core` customer's keys get `tier_required` (403) on every
-  Clinical route; ordinal `platform ≥ clinical ≥ core ≥ clinical_only`. `list` shows each
+  Clinical route; ordinal `platform ≥ clinical ≥ core ≥ clinical_only`. Moving a
+  customer down to `clinical_only` also cuts formulary alternatives and ΗΔΥΚΑ
+  retrieval (`tier_required`), even on credentialed locations. `list` shows each
   customer's `tier=…`.
 
 All commands run inside the backend container:
@@ -57,7 +59,7 @@ before removing** — never revoke first.
    ```
 
    (`last_used_at` is throttled to ~5-minute granularity —
-   `backend/app/routers/v1/deps.py:29`, `:100-102` — so allow a few minutes.)
+   `backend/app/routers/v1/deps.py:37`, `:170-173` — so allow a few minutes.)
 4. **Revoke the old key** explicitly, once traffic has moved:
 
    ```bash

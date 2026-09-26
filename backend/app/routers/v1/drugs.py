@@ -22,7 +22,7 @@ from app.schemas.v1 import V1AlternativesResponse, V1Drug, V1DrugPage
 from app.services.drug_catalog import search_catalog
 from app.services.formulary import alternatives as formulary_alternatives
 
-from .deps import ApiContext, get_api_context, require_tier
+from .deps import ApiContext, get_api_context, require_tier, tier_required_response
 from .errors import V1Error
 
 router = APIRouter(prefix="/drugs", tags=["b2b-v1"])
@@ -66,7 +66,11 @@ async def search_drugs(
     }
 
 
-@router.get("/{barcode}/alternatives", response_model=V1AlternativesResponse)
+@router.get(
+    "/{barcode}/alternatives",
+    response_model=V1AlternativesResponse,
+    responses=tier_required_response("core"),
+)
 async def drug_alternatives(
     barcode: str,
     coverage_filter: Literal["strict", "lenient"] = Query("lenient", alias="coverageFilter"),

@@ -4,8 +4,9 @@
 shipped and where the ticket text below turned out to be wrong). T0-5 and T0-6
 still open. Decisions D-20 / D-21 ✅ recorded
 (2026-09-10, per Alex): tier is **`clinical_only` at €9/location/month**, and
-`retrieval_unavailable` answers **409**. `docs/PharmAssist_Pricing.md` carries the
-new Motion A row. (Sections 1–5 were written plan-only.)
+`retrieval_unavailable` answers **409**. The new Motion A row is **not** yet in
+`docs/PharmAssist_Pricing.md` (§6, item 9). (Sections 1–5 were written
+plan-only.)
 **Date:** 2026-09-10
 **Baseline:** `main` @ `63e78cc` (#180).
 **Driver:** production ΗΔΥΚΑ access was requested 2026-07-20 and is still pending
@@ -15,8 +16,9 @@ request for a location without ΗΔΥΚΑ credentials. Four of the six `/v1` rou
 modules never make an upstream call at all, so that refusal is the only thing
 standing between us and a sellable tier today.
 **Scope driver:** `docs/PharmAssist_Pricing.md` → Motion A Tier 0 "Clinical-only",
-added per D-20. Core explicitly bundles Pharmapi retrieval, so this is a new row
-below it — plus the orthogonal "any tier, no credentials" case D-20 records.
+to be added there per D-20. Core explicitly bundles Pharmapi retrieval, so this
+is a new row below it — plus the orthogonal "any tier, no credentials" case D-20
+records.
 **Numbering:** tickets are T0-*n*; decisions continue TIER2-AUDIT's D-14…D-19 as
 **D-20…D-21**.
 **Constraint:** B2C stays untouched and green. Every ticket is additive or a
@@ -265,23 +267,42 @@ every place the ticket text had to be corrected against the code.
 
 - **T0-1** — `ApiContext.pharmapi: PharmapiContext | None`; the 500 is gone.
   Credentials decrypt only inside the credentialed branch (a test fails if the
-  AES path is reached for a credential-less location). Rate limit, tenant
-  stamping and `last_used_at` unchanged and tested for credential-less tenants.
+  AES path is reached for a credential-less location; a positive control shows
+  the credentialed path does reach it). A row with credentials but no unit id
+  resolves as uncredentialed rather than borrowing the B2C session's pharmacy
+  id. Rate limit (429), tenant stamping and `last_used_at` unchanged and tested
+  for credential-less tenants.
 - **T0-2** — `deps.require_retrieval` → `V1Error("retrieval_unavailable", 409)`;
   enforced in mock mode too (sandbox parity). Each guarded route documents the
   409 in `openapi-v1.json`. `tests/test_v1_retrieval_free.py` asserts the exact
-  guarded / unguarded inventories and fails any handler that reads
-  `ctx.pharmapi` or calls a `pharmapi_*` service without the guard.
+  guarded / unguarded inventories and has two nets for a route that reaches
+  ΗΔΥΚΑ unguarded: a source scan that fails a handler whose *own* body reads
+  `ctx.pharmapi` or calls a `pharmapi_*` service (blind to indirect calls), and
+  a live-mode run of every upstream-free route for a credential-less tenant
+  with outbound HTTP blocked and the legacy B2C session warm, asserting zero
+  requests. The second net is the one that sees an indirect call — e.g. the
+  safety engine fetching intolerances / history itself, which with no context
+  falls back to the B2C pharmacy's credentials; a positive control pins that it
+  does.
 - **T0-3** — `TIER_ORDER = ("clinical_only", "core", "clinical", "platform")`;
   unset-tier fallback is `TIER_ORDER[0]` (trap 2); trap 1 pinned in
   `test_v1_tier_gate.py`. Migration `e5b1c9d47a20` widens `ck_customers_tier`.
+  Retrieval is gated at `core` too (D-20: Tier 0 is Core minus retrieval):
+  `require_retrieval` checks credentials first — so a credential-less Tier-0
+  tenant gets `retrieval_unavailable`, as T0-3 specifies — then applies the same
+  gate as `require_tier("core")`, so a `clinical_only` customer with a
+  credentialed location gets `tier_required`. Every tier-gated route documents
+  its 403 (with the tier it needs) in `openapi-v1.json`, pinned by a test that
+  reads the minimum from the gates themselves.
 - **T0-4** — `b2b_admin create-location --no-retrieval` (refuses any ΗΔΥΚΑ flag
   alongside it; without it the unit id + username stay mandatory). Audited
   under its own verb `CREATE_LOCATION_NO_RETRIEVAL`; `list` shows
   `retrieval=none`. `ONBOARDING.md` §6 is the short path. The same migration
   makes `locations.pharmapi_unit_id` nullable and adds
-  `ck_locations_pharmapi_credentials` (username/password both-or-neither; set
-  credentials require a unit id) so a half-provisioned row can't exist.
+  `ck_locations_pharmapi_credentials` (username/password both-or-neither, a
+  blank string counting as unset; set credentials require a unit id) so a
+  half-provisioned row can't exist. Its downgrade refuses while Tier-0 rows
+  exist; offline (`--sql`) it skips that check and only renders the DDL.
 
 ### Ticket text that was wrong
 
@@ -318,14 +339,15 @@ every place the ticket text had to be corrected against the code.
    no parameter, so it is a plain dependency: `Depends(require_retrieval)`.
 9. **Header claim.** `docs/PharmAssist_Pricing.md` on `main` does not carry a
    `clinical_only` / €9 row, and this doc was not committed before this PR.
+10. **D-20 "Retrieval is orthogonal to tier."** Only *credentials* are. With the
+    two guards independent and no tier check on retrieval, a `clinical_only`
+    customer given a credentialed location read patients and prescriptions —
+    Core scope (D-20's own "Core minus retrieval"; the pricing doc's Core tier
+    includes the Pharmapi proxy). Retrieval is now gated at `core` as well
+    (T0-3 above); any tier can still be bought without credentials.
 
 ### Still open (not in T0-1…T0-4)
 
-- **Retrieval is not tier-gated.** A `clinical_only` customer whose location
-  *has* credentials reaches the retrieval routes; only the credential check
-  keeps a Tier-0 tenant out, as §1 notes ("right result, wrong mechanism").
-  T0-3's test wants `retrieval_unavailable` (not `tier_required`) for Tier 0,
-  so no tier gate was added. Nothing stops an operator giving a `clinical_only`
-  customer a credentialed location.
 - **No CLI command adds credentials to an existing location.** Provision a new
-  credentialed location instead.
+  credentialed location instead (it comes with a new API key; the 409 message
+  and API.md §3 say so).

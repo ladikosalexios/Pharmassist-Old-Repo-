@@ -3,7 +3,7 @@
   "info": {
     "title": "PharmAssist B2B Core API (/v1)",
     "version": "0.1.0",
-    "description": "Tier-1 Core surface for integrators. Authenticate with the `X-API-Key` header over TLS. Errors render in the stable `{\"error\": {code, message, request_id}}` envelope. See docs/b2b-core/API.md for the narrative (auth, error codes, consent attestation, the 609/ΕΟΠΥΥ rule, rate limits, tri-state coverage, pagination, sandbox identifiers)."
+    "description": "The B2B /v1 surface for integrators: Tier-1 Core, the `clinical_only` base tier below it, and the Tier-2 routes gated at `clinical` (a tier-gated route documents its 403). Authenticate with the `X-API-Key` header over TLS. Errors render in the stable `{\"error\": {code, message, request_id}}` envelope. See docs/b2b-core/API.md for the narrative (auth, tiers, locations without ΗΔΥΚΑ credentials, error codes, consent attestation, the 609/ΕΟΠΥΥ rule, rate limits, tri-state coverage, pagination, sandbox identifiers)."
   },
   "servers": [
     {
@@ -88,6 +88,9 @@
           "409": {
             "description": "`retrieval_unavailable` — this location has no ΗΔΥΚΑ credentials, so patient/prescription retrieval is not available. Upstream-free routes (drugs, safety, conditions) keep working."
           },
+          "403": {
+            "description": "`tier_required` — this endpoint requires the `core` tier or higher; the customer's entitlement tier ranks below it."
+          },
           "422": {
             "description": "Validation Error",
             "content": {
@@ -154,6 +157,9 @@
           },
           "409": {
             "description": "`retrieval_unavailable` — this location has no ΗΔΥΚΑ credentials, so patient/prescription retrieval is not available. Upstream-free routes (drugs, safety, conditions) keep working."
+          },
+          "403": {
+            "description": "`tier_required` — this endpoint requires the `core` tier or higher; the customer's entitlement tier ranks below it."
           },
           "422": {
             "description": "Validation Error",
@@ -231,6 +237,9 @@
           },
           "409": {
             "description": "`retrieval_unavailable` — this location has no ΗΔΥΚΑ credentials, so patient/prescription retrieval is not available. Upstream-free routes (drugs, safety, conditions) keep working."
+          },
+          "403": {
+            "description": "`tier_required` — this endpoint requires the `core` tier or higher; the customer's entitlement tier ranks below it."
           },
           "422": {
             "description": "Validation Error",
@@ -327,6 +336,9 @@
           },
           "409": {
             "description": "`retrieval_unavailable` — this location has no ΗΔΥΚΑ credentials, so patient/prescription retrieval is not available. Upstream-free routes (drugs, safety, conditions) keep working."
+          },
+          "403": {
+            "description": "`tier_required` — this endpoint requires the `core` tier or higher; the customer's entitlement tier ranks below it."
           },
           "422": {
             "description": "Validation Error",
@@ -750,6 +762,9 @@
           "409": {
             "description": "`retrieval_unavailable` — this location has no ΗΔΥΚΑ credentials, so patient/prescription retrieval is not available. Upstream-free routes (drugs, safety, conditions) keep working."
           },
+          "403": {
+            "description": "`tier_required` — this endpoint requires the `core` tier or higher; the customer's entitlement tier ranks below it."
+          },
           "422": {
             "description": "Validation Error",
             "content": {
@@ -812,6 +827,9 @@
           },
           "409": {
             "description": "`retrieval_unavailable` — this location has no ΗΔΥΚΑ credentials, so patient/prescription retrieval is not available. Upstream-free routes (drugs, safety, conditions) keep working."
+          },
+          "403": {
+            "description": "`tier_required` — this endpoint requires the `core` tier or higher; the customer's entitlement tier ranks below it."
           },
           "422": {
             "description": "Validation Error",
@@ -1028,6 +1046,9 @@
               }
             }
           },
+          "403": {
+            "description": "`tier_required` — this endpoint requires the `core` tier or higher; the customer's entitlement tier ranks below it."
+          },
           "422": {
             "description": "Validation Error",
             "content": {
@@ -1149,6 +1170,9 @@
               }
             }
           },
+          "403": {
+            "description": "`tier_required` — this endpoint requires the `clinical` tier or higher; the customer's entitlement tier ranks below it."
+          },
           "422": {
             "description": "Validation Error",
             "content": {
@@ -1207,6 +1231,9 @@
                 "schema": {}
               }
             }
+          },
+          "403": {
+            "description": "`tier_required` — this endpoint requires the `clinical` tier or higher; the customer's entitlement tier ranks below it."
           },
           "422": {
             "description": "Validation Error",
@@ -1380,6 +1407,9 @@
               }
             }
           },
+          "403": {
+            "description": "`tier_required` — this endpoint requires the `clinical` tier or higher; the customer's entitlement tier ranks below it."
+          },
           "422": {
             "description": "Validation Error",
             "content": {
@@ -1438,6 +1468,9 @@
                 "schema": {}
               }
             }
+          },
+          "403": {
+            "description": "`tier_required` — this endpoint requires the `clinical` tier or higher; the customer's entitlement tier ranks below it."
           },
           "422": {
             "description": "Validation Error",
@@ -1507,6 +1540,9 @@
                 "schema": {}
               }
             }
+          },
+          "403": {
+            "description": "`tier_required` — this endpoint requires the `clinical` tier or higher; the customer's entitlement tier ranks below it."
           },
           "422": {
             "description": "Validation Error",

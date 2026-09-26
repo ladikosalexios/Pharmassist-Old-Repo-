@@ -121,12 +121,15 @@ def build_spec() -> dict:
             "title": "PharmAssist B2B Core API (/v1)",
             "version": full.get("info", {}).get("version", "0.1.0"),
             "description": (
-                "Tier-1 Core surface for integrators. Authenticate with the "
-                "`X-API-Key` header over TLS. Errors render in the stable "
-                '`{"error": {code, message, request_id}}` envelope. See '
-                "docs/b2b-core/API.md for the narrative (auth, error codes, "
-                "consent attestation, the 609/ΕΟΠΥΥ rule, rate limits, "
-                "tri-state coverage, pagination, sandbox identifiers)."
+                "The B2B /v1 surface for integrators: Tier-1 Core, the "
+                "`clinical_only` base tier below it, and the Tier-2 routes gated "
+                "at `clinical` (a tier-gated route documents its 403). "
+                "Authenticate with the `X-API-Key` header over TLS. Errors render "
+                'in the stable `{"error": {code, message, request_id}}` envelope. '
+                "See docs/b2b-core/API.md for the narrative (auth, tiers, "
+                "locations without ΗΔΥΚΑ credentials, error codes, consent "
+                "attestation, the 609/ΕΟΠΥΥ rule, rate limits, tri-state "
+                "coverage, pagination, sandbox identifiers)."
             ),
         },
         "servers": [{"url": "https://api.<your-domain>", "description": "Live (FT-10, TBD)"}],

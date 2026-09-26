@@ -8,10 +8,11 @@ an opaque upstream 609.
 
 The four upstream-backed routes (demographics, insurances, intolerances,
 medicine history) sit behind require_retrieval: a location provisioned without
-ΗΔΥΚΑ credentials gets 409 `retrieval_unavailable` (T0-2). The conditions CRUD
-is DB-only and deliberately NOT gated — conditions are the only way a caller
-feeds contraindication screening on POST /v1/safety/check, which must keep
-working for a credential-less location.
+ΗΔΥΚΑ credentials gets 409 `retrieval_unavailable` (T0-2), and a customer below
+`core` gets 403 `tier_required` (retrieval is Core scope, D-20). The conditions
+CRUD is DB-only and deliberately NOT gated — conditions are the only way a
+caller feeds contraindication screening on POST /v1/safety/check, which must
+keep working for a credential-less location and for every tier.
 """
 
 import re
@@ -41,7 +42,7 @@ from app.services.v1_mock import (
 )
 from app.utils.environment import is_mock_pharmapi
 
-from .deps import RETRIEVAL_UNAVAILABLE_RESPONSE, ApiContext, get_api_context, require_retrieval
+from .deps import RETRIEVAL_RESPONSES, ApiContext, get_api_context, require_retrieval
 from .errors import V1Error
 
 router = APIRouter(prefix="/patients", tags=["b2b-v1"])
@@ -91,7 +92,7 @@ def _require_eopyy(ctx: ApiContext) -> None:
         )
 
 
-@router.get("/{patient_key}", response_model=V1Patient, responses=RETRIEVAL_UNAVAILABLE_RESPONSE)
+@router.get("/{patient_key}", response_model=V1Patient, responses=RETRIEVAL_RESPONSES)
 async def get_patient(patient_key: str, ctx: ApiContext = Depends(require_retrieval)):
     """Patient demographics by AMKA or EKAA."""
     amka, ekaa = classify_patient_key(patient_key)
@@ -107,7 +108,7 @@ async def get_patient(patient_key: str, ctx: ApiContext = Depends(require_retrie
 @router.get(
     "/{patient_key}/insurances",
     response_model=list[PatientInsurancePayload],
-    responses=RETRIEVAL_UNAVAILABLE_RESPONSE,
+    responses=RETRIEVAL_RESPONSES,
 )
 async def get_patient_insurances(patient_key: str, ctx: ApiContext = Depends(require_retrieval)):
     """ΕΟΠΥΥ/fund coverage entries, incl. the fund's `eopyy` flag (D-9 probe).
@@ -126,7 +127,7 @@ async def get_patient_insurances(patient_key: str, ctx: ApiContext = Depends(req
 @router.get(
     "/{patient_key}/intolerances",
     response_model=list[V1Intolerance],
-    responses=RETRIEVAL_UNAVAILABLE_RESPONSE,
+    responses=RETRIEVAL_RESPONSES,
 )
 async def get_patient_intolerances(
     patient_key: str,
@@ -146,7 +147,7 @@ async def get_patient_intolerances(
 @router.get(
     "/{patient_key}/medicine-history",
     response_model=RxHistoryPage,
-    responses=RETRIEVAL_UNAVAILABLE_RESPONSE,
+    responses=RETRIEVAL_RESPONSES,
 )
 async def get_patient_medicine_history(
     patient_key: str,
