@@ -82,6 +82,21 @@ def _require_consent(patient_consent: bool) -> None:
         )
 
 
+# The two ΕΟΠΥΥ-gated reads 403 for a second reason besides the tier gate, so
+# their contract names both codes rather than implying tier_required is the only
+# 403 (partners branch on `code`, not status).
+_EOPYY_GATED_RESPONSES = {
+    **RETRIEVAL_RESPONSES,
+    403: {
+        "description": (
+            RETRIEVAL_RESPONSES[403]["description"]
+            + " Or `forbidden` — this location's ΗΔΥΚΑ account is not in the ΕΟΠΥΥ "
+            "category (upstream 609)."
+        )
+    },
+}
+
+
 def _require_eopyy(ctx: ApiContext) -> None:
     if not ctx.is_eopyy:
         raise V1Error(
@@ -127,7 +142,7 @@ async def get_patient_insurances(patient_key: str, ctx: ApiContext = Depends(req
 @router.get(
     "/{patient_key}/intolerances",
     response_model=list[V1Intolerance],
-    responses=RETRIEVAL_RESPONSES,
+    responses=_EOPYY_GATED_RESPONSES,
 )
 async def get_patient_intolerances(
     patient_key: str,
@@ -147,7 +162,7 @@ async def get_patient_intolerances(
 @router.get(
     "/{patient_key}/medicine-history",
     response_model=RxHistoryPage,
-    responses=RETRIEVAL_RESPONSES,
+    responses=_EOPYY_GATED_RESPONSES,
 )
 async def get_patient_medicine_history(
     patient_key: str,

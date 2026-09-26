@@ -239,7 +239,7 @@
             "description": "`retrieval_unavailable` — this location has no ΗΔΥΚΑ credentials, so patient/prescription retrieval is not available. Upstream-free routes (drugs, safety, conditions) keep working."
           },
           "403": {
-            "description": "`tier_required` — this endpoint requires the `core` tier or higher; the customer's entitlement tier ranks below it."
+            "description": "`tier_required` — this endpoint requires the `core` tier or higher; the customer's entitlement tier ranks below it. Or `forbidden` — this location's ΗΔΥΚΑ account is not in the ΕΟΠΥΥ category (upstream 609)."
           },
           "422": {
             "description": "Validation Error",
@@ -338,7 +338,7 @@
             "description": "`retrieval_unavailable` — this location has no ΗΔΥΚΑ credentials, so patient/prescription retrieval is not available. Upstream-free routes (drugs, safety, conditions) keep working."
           },
           "403": {
-            "description": "`tier_required` — this endpoint requires the `core` tier or higher; the customer's entitlement tier ranks below it."
+            "description": "`tier_required` — this endpoint requires the `core` tier or higher; the customer's entitlement tier ranks below it. Or `forbidden` — this location's ΗΔΥΚΑ account is not in the ΕΟΠΥΥ category (upstream 609)."
           },
           "422": {
             "description": "Validation Error",

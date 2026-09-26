@@ -550,6 +550,22 @@ def test_tier_gated_routes_document_their_403_in_openapi():
         assert f"`{minimum}`" in documented["description"], (method, path)
 
 
+def test_eopyy_gated_routes_document_their_second_403_in_openapi():
+    # Intolerances and medicine history also 403 with `forbidden` (609) for a
+    # non-ΕΟΠΥΥ location; the spec must say so on exactly those two routes.
+    paths = app.openapi()["paths"]
+    eopyy_gated = {
+        "/v1/patients/{patient_key}/intolerances",
+        "/v1/patients/{patient_key}/medicine-history",
+    }
+    for _method, path in EXPECTED_RETRIEVAL_ROUTES:
+        description = paths[path]["get"]["responses"]["403"]["description"]
+        assert "tier_required" in description, path
+        assert ("`forbidden`" in description and "609" in description) == (path in eopyy_gated), (
+            path
+        )
+
+
 # ── T0-2: no outbound call at all from an upstream-free route (live mode) ────
 
 # One concrete call per EXPECTED_UPSTREAM_FREE_ROUTES entry (pinned equal below).
