@@ -20,10 +20,13 @@ from app.services import b2b_adr
 from app.services.v1_mock import MOCK_V1_ADR_EVENTS, MOCK_V1_ADR_REPORTS
 from app.utils.environment import is_mock_pharmapi
 
-from .deps import ApiContext, require_tier
+from .deps import ApiContext, require_tier, tier_required_response
 from .errors import V1Error
 
 router = APIRouter(prefix="/adr-reports", tags=["b2b-v1"])
+
+# Every route here is require_tier("clinical"); the spec documents the 403.
+_TIER_RESPONSES = tier_required_response("clinical")
 
 _VALID_SEVERITIES = {AdrSeverity.MILD, AdrSeverity.MODERATE, AdrSeverity.SEVERE}
 _VALID_CAUSALITIES = {
@@ -144,7 +147,7 @@ def _mock_get(location_id: str, report_id: str) -> dict:
 # ── endpoints ─────────────────────────────────────────────────────────────────
 
 
-@router.post("", status_code=201)
+@router.post("", status_code=201, responses=_TIER_RESPONSES)
 async def create_adr_report(
     body: AdrReportCreate,
     ctx: ApiContext = Depends(require_tier("clinical")),  # noqa: B008
@@ -209,7 +212,7 @@ async def create_adr_report(
     )
 
 
-@router.get("")
+@router.get("", responses=_TIER_RESPONSES)
 async def list_adr_reports(
     amka: str | None = Query(None),
     atc: str | None = Query(None, description="Filter by ATC code"),
@@ -256,7 +259,7 @@ async def list_adr_reports(
     )
 
 
-@router.get("/{report_id}")
+@router.get("/{report_id}", responses=_TIER_RESPONSES)
 async def get_adr_report(
     report_id: uuid.UUID,
     ctx: ApiContext = Depends(require_tier("clinical")),  # noqa: B008
@@ -268,7 +271,7 @@ async def get_adr_report(
     return await b2b_adr.get_report(session, ctx.location_id, report_id)
 
 
-@router.post("/{report_id}/transition")
+@router.post("/{report_id}/transition", responses=_TIER_RESPONSES)
 async def transition_adr_report(
     report_id: uuid.UUID,
     body: AdrTransitionRequest,

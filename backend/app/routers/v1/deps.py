@@ -5,6 +5,14 @@ Resolves the key hash to customer + location, decrypts the location's ΗΔΥΚΑ
 credentials in-memory, and hands routers an ApiContext carrying the ready-
 to-use PharmapiContext. All auth failure modes return one indistinguishable
 401 (no oracle for key-exists/revoked/inactive).
+
+ΗΔΥΚΑ credentials are OPTIONAL per location (TIER0-RETRIEVAL-FREE.md T0-1):
+a location provisioned without them resolves with ``pharmapi=None`` and still
+reaches every upstream-free route (drugs, safety, conditions, the Tier-2
+routes). Routes that call ΗΔΥΚΑ take ``Depends(require_retrieval)``, which
+answers 409 ``retrieval_unavailable`` for such a location (T0-2 / D-21), and
+then ``tier_required`` (403) below ``core`` — retrieval is Core scope (D-20).
+Credentials stay orthogonal to tier: any tier can be bought without them.
 """
 
 import math
@@ -47,18 +55,28 @@ class ApiContext:
     location_name: str
     api_key_id: UUID
     is_eopyy: bool
-    pharmapi: PharmapiContext
+    # None when the location was provisioned without ΗΔΥΚΑ credentials (T0-1).
+    # Only routes behind require_retrieval may dereference it.
+    pharmapi: PharmapiContext | None
 
 
 # Entitlement tiers in ascending order of privilege (T2-1 / D-14). The gate is
 # ORDINAL, not exact-match: a higher tier passes every lower tier's gate, so a
-# `platform` customer reaches every `clinical` route.
-TIER_ORDER = ("core", "clinical", "platform")
+# `platform` customer reaches every `clinical` route. `clinical_only` (D-20,
+# TIER0-RETRIEVAL-FREE.md T0-3) is the base: safety engine + drug catalogue
+# reads only — no formulary, no retrieval, no Tier-2. Mirrored by the
+# ck_customers_tier constraint (customer model + migration e5b1c9d47a20).
+TIER_ORDER = ("clinical_only", "core", "clinical", "platform")
+
+# ΗΔΥΚΑ retrieval is Core scope (D-20: Tier 0 is "Core minus retrieval"), so
+# require_retrieval applies this tier gate on top of its credential check —
+# credentials alone must not hand a clinical_only customer patient reads.
+RETRIEVAL_MIN_TIER = "core"
 
 
 def _tier_rank(tier: str) -> int:
-    """Ordinal rank of a tier; an unknown value fails safe to `core` (0) so a
-    bad row can only ever lose access, never silently gain it."""
+    """Ordinal rank of a tier; an unknown value fails safe to the base tier (0)
+    so a bad row can only ever lose access, never silently gain it."""
     try:
         return TIER_ORDER.index(tier)
     except ValueError:
@@ -124,20 +142,30 @@ async def get_api_context(
             headers={"Retry-After": str(math.ceil(retry_after))},
         )
 
-    if not location.pharmapi_username or not location.pharmapi_password:
-        # Server-side provisioning gap, not a caller error — but don't leak
-        # tenant existence details either.
-        raise HTTPException(status_code=500, detail="Location is not fully provisioned")
-
-    ctx = PharmapiContext(
-        # Decrypted in-memory for this request only — never logged.
-        username=decrypt_credential(location.pharmapi_username),
-        password=decrypt_credential(location.pharmapi_password),
-        api_key=settings.pharmapi_api_key,
-        base_url=settings.pharmapi_base,
-        pharmacy_unit_id=location.pharmapi_unit_id,
-        session_key=f"location:{location.id}",
-    )
+    # ΗΔΥΚΑ credentials are optional (T0-1): a location provisioned without
+    # them gets pharmapi=None, and only require_retrieval routes refuse it (409).
+    # The decrypt stays INSIDE this branch so an uncredentialed tenant never
+    # touches the AES path. ck_locations_pharmapi_credentials keeps username/
+    # password both-or-neither (a blank string counts as unset) and demands a
+    # unit id with them, so a valid row is all-or-nothing here. The unit-id test
+    # is belt-and-braces for a row written around the constraint: credentials
+    # without a unit would make get_pharmacy_id fall back to the legacy B2C
+    # session's pharmacy id, so such a row is treated as uncredentialed.
+    pharmapi_ctx: PharmapiContext | None = None
+    if (
+        location.pharmapi_username
+        and location.pharmapi_password
+        and location.pharmapi_unit_id is not None
+    ):
+        pharmapi_ctx = PharmapiContext(
+            # Decrypted in-memory for this request only — never logged.
+            username=decrypt_credential(location.pharmapi_username),
+            password=decrypt_credential(location.pharmapi_password),
+            api_key=settings.pharmapi_api_key,
+            base_url=settings.pharmapi_base,
+            pharmacy_unit_id=location.pharmapi_unit_id,
+            session_key=f"location:{location.id}",
+        )
 
     now = datetime.now(UTC)
     if key_row.last_used_at is None or now - key_row.last_used_at > _LAST_USED_REFRESH:
@@ -147,12 +175,82 @@ async def get_api_context(
     return ApiContext(
         customer_id=customer.id,
         customer_name=customer.name,
-        # `or "core"` covers a not-yet-migrated/unset row defensively — the gate
-        # then treats it as the base tier rather than crashing on a None.
-        tier=customer.tier or "core",
+        # Covers a not-yet-migrated/unset row defensively — the gate then treats
+        # it as the least-privileged tier rather than crashing on a None. Must be
+        # TIER_ORDER[0], not "core": once clinical_only sits below core, a "core"
+        # default would hand an unset row a paid upgrade (T0-3 trap 2).
+        tier=customer.tier or TIER_ORDER[0],
         location_id=location.id,
         location_name=location.name,
         api_key_id=key_row.id,
         is_eopyy=location.is_eopyy,
-        pharmapi=ctx,
+        pharmapi=pharmapi_ctx,
     )
+
+
+def tier_required_response(minimum: str) -> dict:
+    """OpenAPI `responses=` entry for a route behind a tier gate, so the published
+    contract (docs/b2b-core/openapi-v1.json) names the 403 and the tier it needs.
+    Pass the same ``minimum`` as the route's ``require_tier`` — the OpenAPI test
+    in test_v1_retrieval_free.py fails if the two drift apart."""
+    TIER_ORDER.index(minimum)  # same import-time typo guard as require_tier
+    return {
+        403: {
+            "description": (
+                f"`tier_required` — this endpoint requires the `{minimum}` tier or "
+                "higher; the customer's entitlement tier ranks below it."
+            )
+        }
+    }
+
+
+# OpenAPI `responses=` for every route behind require_retrieval: its 409 and,
+# since retrieval is Core scope, the 403 from its tier gate — so the published
+# contract lists both alongside the 200 rather than leaving them to API.md.
+RETRIEVAL_RESPONSES = {
+    409: {
+        "description": (
+            "`retrieval_unavailable` — this location has no ΗΔΥΚΑ credentials, so "
+            "patient/prescription retrieval is not available. Upstream-free routes "
+            "(drugs, safety, conditions) keep working."
+        )
+    },
+    **tier_required_response(RETRIEVAL_MIN_TIER),
+}
+
+# The very gate require_tier(RETRIEVAL_MIN_TIER) hands a route — reused, not
+# re-implemented, by require_retrieval below.
+_require_retrieval_tier = require_tier(RETRIEVAL_MIN_TIER)
+
+
+async def require_retrieval(ctx: ApiContext = Depends(get_api_context)) -> ApiContext:
+    """Dependency gating a /v1 route on ΗΔΥΚΑ credentials AND the Core tier.
+
+    Use as ``ctx: ApiContext = Depends(require_retrieval)`` on every route that
+    calls upstream — it resolves the full ApiContext (so the route gets the
+    context for free, with ``ctx.pharmapi`` guaranteed non-None) and raises, in
+    this order:
+
+    1. ``retrieval_unavailable`` (409) when the location was provisioned without
+       credentials. 409, not 403 (D-21): 403 is ``tier_required``'s entitlement
+       denial, whereas this is a provisioning state. Checked FIRST, so a
+       credential-less clinical_only tenant sees this code (T0-3).
+    2. ``tier_required`` (403) when the customer ranks below
+       ``RETRIEVAL_MIN_TIER`` — retrieval is Core scope (D-20), so a
+       clinical_only customer whose location HAS credentials is still refused.
+       The tier gate is awaited directly rather than declared as a
+       sub-dependency, which FastAPI would resolve before step 1.
+
+    Mirrors require_tier's envelope pattern. Enforced in mock mode too, so a
+    sandbox run shows the integrator exactly what live will answer.
+    """
+    if ctx.pharmapi is None:
+        raise V1Error(
+            "retrieval_unavailable",
+            409,
+            "This location has no ΗΔΥΚΑ credentials, so patient and prescription "
+            "retrieval is unavailable. Drug catalogue and safety-check routes still "
+            "work. To enable retrieval (Core tier and above), contact PharmAssist to "
+            "provision a ΗΔΥΚΑ-credentialed location (issued with a new API key).",
+        )
+    return await _require_retrieval_tier(ctx)

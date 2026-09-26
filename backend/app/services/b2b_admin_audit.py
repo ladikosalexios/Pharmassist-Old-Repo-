@@ -29,6 +29,11 @@ from app.db.models.b2b_admin_audit import B2bAdminAudit
 ACTION_CREATE_CUSTOMER = "CREATE_CUSTOMER"
 ACTION_SET_TIER = "SET_TIER"
 ACTION_CREATE_LOCATION = "CREATE_LOCATION"
+# A location provisioned WITHOUT ΗΔΥΚΑ credentials (TIER0-RETRIEVAL-FREE.md T0-4).
+# Its own verb, not a CREATE_LOCATION with a flag, so an uncredentialed location
+# reads as a deliberate choice in the trail (and is filterable with
+# `list-audit --action`) rather than as a half-finished onboarding.
+ACTION_CREATE_LOCATION_NO_RETRIEVAL = "CREATE_LOCATION_NO_RETRIEVAL"
 ACTION_MINT_KEY = "MINT_KEY"
 ACTION_ROTATE_KEY = "ROTATE_KEY"
 ACTION_REVOKE_KEY = "REVOKE_KEY"
@@ -38,6 +43,7 @@ ALL_ACTIONS = (
     ACTION_CREATE_CUSTOMER,
     ACTION_SET_TIER,
     ACTION_CREATE_LOCATION,
+    ACTION_CREATE_LOCATION_NO_RETRIEVAL,
     ACTION_MINT_KEY,
     ACTION_ROTATE_KEY,
     ACTION_REVOKE_KEY,

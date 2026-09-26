@@ -82,6 +82,11 @@ app.dependency_overrides[get_session] = _fake_get_session
 # Throwaway probes: no real Tier-2 route exists at T2-1, so mount one gate per
 # minimum tier and assert the matrix against them. Each echoes the resolved tier
 # so we also confirm require_tier hands the route a usable ApiContext.
+@app.get("/v1/_probe/core")
+async def _probe_core(ctx: ApiContext = Depends(require_tier("core"))):
+    return {"tier": ctx.tier}
+
+
 @app.get("/v1/_probe/clinical")
 async def _probe_clinical(ctx: ApiContext = Depends(require_tier("clinical"))):
     return {"tier": ctx.tier}
@@ -107,18 +112,51 @@ def _get(path: str, tier: str):
 
 
 def test_tier_order_is_ascending_privilege():
-    assert TIER_ORDER == ("core", "clinical", "platform")
+    # clinical_only (D-20, TIER0-RETRIEVAL-FREE.md T0-3) is the new base, below core.
+    assert TIER_ORDER == ("clinical_only", "core", "clinical", "platform")
 
 
 def test_tier_rank_is_strictly_increasing():
-    assert _tier_rank("core") < _tier_rank("clinical") < _tier_rank("platform")
+    assert (
+        _tier_rank("clinical_only")
+        < _tier_rank("core")
+        < _tier_rank("clinical")
+        < _tier_rank("platform")
+    )
 
 
-def test_unknown_tier_ranks_as_core_failsafe():
-    # A typo'd or future-unknown tier loses access (ranks as core), never gains
-    # it — the gate fails safe.
-    assert _tier_rank("enterprise") == _tier_rank("core") == 0
+def test_unknown_tier_ranks_as_base_failsafe():
+    # A typo'd or future-unknown tier loses access (ranks as the least-privileged
+    # base tier), never gains it — the gate fails safe. T0-3 trap 1: after the
+    # clinical_only insert, rank 0 is clinical_only, NOT core, and an unknown
+    # value must stay strictly below every paid tier.
+    assert _tier_rank("enterprise") == _tier_rank("clinical_only") == 0
     assert _tier_rank("") == 0
+    assert _tier_rank("enterprise") < _tier_rank("core")
+
+
+def test_base_tier_is_least_privileged():
+    # get_api_context's unset-row fallback reads TIER_ORDER[0] (T0-3 trap 2); pin
+    # that it is the tier no gate can be below.
+    assert TIER_ORDER[0] == "clinical_only"
+    assert all(_tier_rank(TIER_ORDER[0]) <= _tier_rank(t) for t in TIER_ORDER)
+
+
+# ── The core gate (formulary substitution) ───────────────────────────────────
+
+
+def test_clinical_only_key_403s_tier_required_on_core_route():
+    r = _get("/v1/_probe/core", "clinical_only")
+    assert r.status_code == 403, r.text
+    assert r.json()["error"]["code"] == "tier_required"
+    assert "core" in r.json()["error"]["message"]
+
+
+@pytest.mark.parametrize("tier", ["core", "clinical", "platform"])
+def test_core_and_above_pass_core_route(tier):
+    r = _get("/v1/_probe/core", tier)
+    assert r.status_code == 200, r.text
+    assert r.json() == {"tier": tier}
 
 
 # ── The clinical gate matrix (the commercial story) ──────────────────────────
@@ -153,7 +191,7 @@ def test_platform_key_also_passes_clinical_route_ordinal():
 # ── The platform gate (only platform passes) ─────────────────────────────────
 
 
-@pytest.mark.parametrize("tier", ["core", "clinical"])
+@pytest.mark.parametrize("tier", ["clinical_only", "core", "clinical"])
 def test_sub_platform_keys_403_on_platform_route(tier):
     r = _get("/v1/_probe/platform", tier)
     assert r.status_code == 403, r.text
@@ -169,7 +207,7 @@ def test_platform_key_passes_platform_route():
 # ── Tier visible on /v1/status ───────────────────────────────────────────────
 
 
-@pytest.mark.parametrize("tier", ["core", "clinical", "platform"])
+@pytest.mark.parametrize("tier", ["clinical_only", "core", "clinical", "platform"])
 def test_status_echoes_tier(tier):
     r = _get("/v1/status", tier)
     assert r.status_code == 200, r.text

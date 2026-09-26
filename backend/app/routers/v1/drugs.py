@@ -4,6 +4,11 @@ DB-backed (drug_catalog), so mock/live parity is structural: the 20 seeded
 rows serve mock stacks, a masterdata sync serves live ones. Field names are
 deliberately honest (BC-11): `barcode` is what the internal gns_code column
 actually stores, `activeSubstance` is the INN description.
+
+Upstream-free, so neither route takes require_retrieval: both work for a
+location provisioned without ΗΔΥΚΑ credentials. Catalogue search is open to
+every tier; formulary substitution (/alternatives) is Core scope and gated at
+`core`, so the `clinical_only` base tier gets catalogue reads only (D-20).
 """
 
 from typing import Literal
@@ -17,7 +22,7 @@ from app.schemas.v1 import V1AlternativesResponse, V1Drug, V1DrugPage
 from app.services.drug_catalog import search_catalog
 from app.services.formulary import alternatives as formulary_alternatives
 
-from .deps import ApiContext, get_api_context
+from .deps import ApiContext, get_api_context, require_tier, tier_required_response
 from .errors import V1Error
 
 router = APIRouter(prefix="/drugs", tags=["b2b-v1"])
@@ -61,12 +66,16 @@ async def search_drugs(
     }
 
 
-@router.get("/{barcode}/alternatives", response_model=V1AlternativesResponse)
+@router.get(
+    "/{barcode}/alternatives",
+    response_model=V1AlternativesResponse,
+    responses=tier_required_response("core"),
+)
 async def drug_alternatives(
     barcode: str,
     coverage_filter: Literal["strict", "lenient"] = Query("lenient", alias="coverageFilter"),
     limit: int = Query(10, ge=1, le=50),
-    ctx: ApiContext = Depends(get_api_context),
+    ctx: ApiContext = Depends(require_tier("core")),  # noqa: B008
     session: AsyncSession = Depends(get_session),
 ):
     """Ranked therapeutic alternatives for an unavailable/uncovered drug

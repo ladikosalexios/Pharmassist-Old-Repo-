@@ -28,8 +28,11 @@ router.include_router(adr_reports.router)
 async def v1_status(ctx: ApiContext = Depends(get_api_context)):
     """Auth smoke endpoint: who am I, and is my location's ΗΔΥΚΑ session warm.
 
-    `pharmapiConnected: false` is normal before the first upstream call —
-    sessions are established lazily per location.
+    `location.retrievalAvailable: false` means the location was provisioned
+    without ΗΔΥΚΑ credentials — patient/prescription routes answer 409
+    `retrieval_unavailable`; drugs and safety work. `pharmapiConnected: false`
+    is normal before the first upstream call — sessions are established lazily
+    per location — and always false when retrieval is unavailable.
     """
     return {
         "customer": {"id": str(ctx.customer_id), "name": ctx.customer_name, "tier": ctx.tier},
@@ -37,7 +40,10 @@ async def v1_status(ctx: ApiContext = Depends(get_api_context)):
             "id": str(ctx.location_id),
             "name": ctx.location_name,
             "isEopyy": ctx.is_eopyy,
+            "retrievalAvailable": ctx.pharmapi is not None,
         },
         "mockMode": is_mock_pharmapi(),
-        "pharmapiConnected": session_is_valid(ctx.pharmapi.session_key),
+        "pharmapiConnected": (
+            ctx.pharmapi is not None and session_is_valid(ctx.pharmapi.session_key)
+        ),
     }

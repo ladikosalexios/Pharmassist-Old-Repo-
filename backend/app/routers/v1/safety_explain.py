@@ -21,7 +21,7 @@ from app.db.session import get_session
 from app.schemas.v1 import V1SafetyExplainRequest, V1SafetyExplainResponse
 from app.services import safety_explanations
 
-from .deps import ApiContext, require_tier
+from .deps import ApiContext, require_tier, tier_required_response
 from .errors import V1Error
 
 router = APIRouter(prefix="/safety", tags=["b2b-v1"])
@@ -41,7 +41,11 @@ def _normalize(codes: list[str]) -> list[str]:
     return out
 
 
-@router.post("/explain", response_model=V1SafetyExplainResponse)
+@router.post(
+    "/explain",
+    response_model=V1SafetyExplainResponse,
+    responses=tier_required_response("clinical"),
+)
 async def safety_explain(
     body: V1SafetyExplainRequest,
     ctx: ApiContext = Depends(require_tier("clinical")),  # noqa: B008
