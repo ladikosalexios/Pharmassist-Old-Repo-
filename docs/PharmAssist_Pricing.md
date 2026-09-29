@@ -1,6 +1,7 @@
 # PharmAssist — Pricing & Packaging
 
-**Version:** July 2026 (retrieval-only revision — supersedes the June 2026 proposal)
+**Version:** September 2026 (adds Motion A Tier 0 "Clinical-only" per D-20; supersedes the
+July 2026 retrieval-only revision)
 **Market:** Greece
 
 > **What changed vs. June 2026:** PharmAssist no longer executes prescriptions.
@@ -206,13 +207,43 @@ themselves. Because PharmAssist never executes the dispense, the integration car
 transaction liability: the customer's system keeps full control of the dispensing act, and
 PharmAssist is pure decision support.
 
+### Tier 0 — Clinical-only · €9 / location / month
+
+The tier for a customer who wants the decision layer and nothing that touches a patient.
+Everything here runs on **drug codes and ATC classes alone** — no Pharmapi retrieval, so no
+ΗΔΥΚΑ credentials to provision and no 609 / ΕΟΠΥΥ-category prerequisite (see Cross-cutting
+Notes). Nothing in this tier can look a patient up.
+
+Includes: **Safety Engine** (drug-drug interactions, duplicate therapy, and condition-based
+alerts evaluated against **caller-supplied** conditions) and **drug catalog / masterdata
+reads**.
+
+Excludes, by construction: patient lookup, prescription retrieval, insurance details,
+intolerances, medicine history, and formulary substitution — everything requiring an upstream
+call. Those routes answer `409 retrieval_unavailable` (D-21).
+
+> **Retrieval is orthogonal to tier.** Any tier is purchasable by a customer with no ΗΔΥΚΑ
+> credentials on file; the retrieval routes simply answer `409 retrieval_unavailable` while the
+> rest of the tier works normally. This matters commercially: the buyer for the SPC-citation
+> pitch is a **Clinical tenant without retrieval**, not a Tier-0 tenant, because SPC lookup is
+> a Clinical capability. Price that as Clinical less the retrieval component — **€26 /
+> location / month** is the recommended anchor — rather than trying to squeeze it into Tier 0
+> and inverting the ladder.
+
+> **Implementation status (2026-09-10):** billing for credential-free tenants at any tier is
+> unblocked by T0-1…T0-4; the SPC citation surface on `/v1` is T0-5 and is **not built yet**.
+> See `docs/b2b-core/TIER0-RETRIEVAL-FREE.md`. Do not contract the SPC-citation capability
+> before T0-5 ships. Decisions **D-20** (this tier's name and price) and **D-21** (the 409
+> envelope) are recorded there.
+
 ### Tier 1 — Core · €15 / location / month
 
 The "cheaper than building it yourself" tier. Covers the full Pharmapi retrieval layer and
 the safety engine — everything a company would need 3–6 months of engineering to replicate,
 plus the clinical rule layer they could not build at all.
 
-Includes: **Pharmapi Proxy (retrieval)**, **Safety Engine**, **Formulary Substitution**.
+Includes: everything in Clinical-only, plus **Pharmapi Proxy (retrieval)** and **Formulary
+Substitution**.
 
 ### Tier 2 — Clinical · €32 / location / month
 
@@ -234,36 +265,37 @@ Alert Agent**, **Insurance Pre-Authorization Agent**.
 
 ### B2B Feature Matrix
 
-| Feature | Core | Clinical | Platform |
-|---|---|---|---|
-| Patient lookup (AMKA / EKAA) | ✅ | ✅ | ✅ |
-| Prescription retrieval (barcode + search) | ✅ | ✅ | ✅ |
-| Patient insurance details | ✅ | ✅ | ✅ |
-| Patient intolerances (ΗΔΥΚΑ) | ✅ | ✅ | ✅ |
-| Patient medicine history (ΗΔΥΚΑ) | ✅ | ✅ | ✅ |
-| Drug catalog / masterdata | ✅ | ✅ | ✅ |
-| Pharmapi error handling & session management | ✅ | ✅ | ✅ |
-| Drug-drug interaction checking | ✅ | ✅ | ✅ |
-| Duplicate therapy detection | ✅ | ✅ | ✅ |
-| Patient condition-based alerts | ✅ | ✅ | ✅ |
-| Patient conditions CRUD | ✅ | ✅ | ✅ |
-| Formulary substitution | ✅ | ✅ | ✅ |
-| Agentic SPC contraindication lookup | — | ✅ | ✅ |
-| AI safety flag explanations (Greek) | — | ✅ | ✅ |
-| SPC Q&A / RAG | — | ✅ | ✅ |
-| Medication adherence signals | — | ✅ | ✅ |
-| ADR reporting endpoints | — | ✅ | ✅ |
-| AI ADR narrative drafting | — | ✅ | ✅ |
-| Patient condition inference | — | ✅ | ✅ |
-| Pharmacovigilance signal detection | — | — | ✅ |
-| Drug recall webhook | — | — | ✅ |
-| Reaction network alert agent | — | — | ✅ |
-| Insurance pre-auth agent (ΕΟΠΥΥ) | — | — | ✅ |
+| Feature | Clinical-only | Core | Clinical | Platform |
+|---|---|---|---|---|
+| Patient lookup (AMKA / EKAA) | — | ✅ | ✅ | ✅ |
+| Prescription retrieval (barcode + search) | — | ✅ | ✅ | ✅ |
+| Patient insurance details | — | ✅ | ✅ | ✅ |
+| Patient intolerances (ΗΔΥΚΑ) | — | ✅ | ✅ | ✅ |
+| Patient medicine history (ΗΔΥΚΑ) | — | ✅ | ✅ | ✅ |
+| Drug catalog / masterdata | ✅ | ✅ | ✅ | ✅ |
+| Pharmapi error handling & session management | — | ✅ | ✅ | ✅ |
+| Drug-drug interaction checking | ✅ | ✅ | ✅ | ✅ |
+| Duplicate therapy detection | ✅ | ✅ | ✅ | ✅ |
+| Patient condition-based alerts | ✅ | ✅ | ✅ | ✅ |
+| Patient conditions CRUD | ✅ | ✅ | ✅ | ✅ |
+| Formulary substitution | — | ✅ | ✅ | ✅ |
+| Agentic SPC contraindication lookup | — | — | ✅ | ✅ |
+| AI safety flag explanations (Greek) | — | — | ✅ | ✅ |
+| SPC Q&A / RAG | — | — | ✅ | ✅ |
+| Medication adherence signals | — | — | ✅ | ✅ |
+| ADR reporting endpoints | — | — | ✅ | ✅ |
+| AI ADR narrative drafting | — | — | ✅ | ✅ |
+| Patient condition inference | — | — | ✅ | ✅ |
+| Pharmacovigilance signal detection | — | — | — | ✅ |
+| Drug recall webhook | — | — | — | ✅ |
+| Reaction network alert agent | — | — | — | ✅ |
+| Insurance pre-auth agent (ΕΟΠΥΥ) | — | — | — | ✅ |
 
 ### B2B Pricing Summary
 
 | Tier | Per location / month | 1,000 locations / month | Annual |
 |---|---|---|---|
+| Clinical-only | €9 | €9,000 | €108,000 |
 | Core | €15 | €15,000 | €180,000 |
 | Clinical | €32 | €32,000 | €384,000 |
 | Platform | €48 | €48,000 | €576,000 |
