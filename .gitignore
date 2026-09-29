@@ -16,7 +16,10 @@ backend/.env
 !.claude/skills/**
 !.claude/agents/
 !.claude/agents/**
-CLAUDE.MD
+# Do NOT ignore CLAUDE.md. On a case-insensitive filesystem (macOS default) a
+# `CLAUDE.MD` entry here also matches `CLAUDE.md`, and AGENTS.md is a tracked
+# symlink to it — so ignoring it gave every fresh clone a dangling symlink and
+# no project instructions at all (cloud/CI sessions ran blind).
 .vscode
 *.code-workspace
 # macOS Finder junk (matches at any depth)
