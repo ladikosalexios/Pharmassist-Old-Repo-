@@ -1,6 +1,7 @@
 """Auth + session schemas (login request/response, /auth/me, Pharmapi session status)."""
 
 import uuid
+from typing import Literal
 
 from pydantic import BaseModel, EmailStr, Field
 
@@ -8,9 +9,12 @@ from pydantic import BaseModel, EmailStr, Field
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str
+    mode: Literal["full", "reporting"] = "full"
 
 
 class LoginResponse(BaseModel):
+    scope: str = "full"
+    yellow_cards_enabled: bool = False
     pharmacist_name: str
     pharmacy: str
     pharmacist_id: str
@@ -18,6 +22,8 @@ class LoginResponse(BaseModel):
 
 
 class PharmacistMe(BaseModel):
+    scope: str = "full"
+    yellow_cards_enabled: bool = False
     email: str
     name: str
     pharmacy: str

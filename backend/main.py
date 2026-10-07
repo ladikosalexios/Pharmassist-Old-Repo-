@@ -61,6 +61,7 @@ from app.routers import (
     side_effects,
     spc,
     v1,
+    yellow_cards,
 )
 from app.routers.v1.errors import install_v1_exception_handlers
 from app.services.audit import _background_tasks
@@ -72,7 +73,7 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
-    if not is_mock_pharmapi():
+    if get_settings().pharmapi_enabled and not is_mock_pharmapi():
         await pharmapi_check_version()
 
     # Proactive ΗΔΥΚΑ session keep-alive (opt-in via PHARMAPI_KEEPALIVE_ENABLED).
@@ -82,7 +83,11 @@ async def lifespan(_app: FastAPI):
     keepalive_task: asyncio.Task | None = None
     # Never start the keep-alive under pytest — tests must not make unattended
     # live ΗΔΥΚΑ calls, even when the container env enables it.
-    if settings.pharmapi_keepalive_enabled and "pytest" not in sys.modules:
+    if (
+        settings.pharmapi_enabled
+        and settings.pharmapi_keepalive_enabled
+        and "pytest" not in sys.modules
+    ):
         keepalive_task = asyncio.create_task(
             keepalive_loop(settings.pharmapi_keepalive_interval_seconds)
         )
@@ -114,6 +119,7 @@ _ROUTER_MODULES = (
     messages,
     documentation,
     instructions,
+    yellow_cards,
     side_effects,
     patients,
     notifications,

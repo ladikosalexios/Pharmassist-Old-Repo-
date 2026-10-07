@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "../lib/auth";
+import { yc, type Report } from "../lib/yellowCards";
 import { useTranslation } from "react-i18next";
 import {
   AlertTriangleIcon,
@@ -213,7 +215,7 @@ const STATUS_TONE: Record<AdrStatus, string> = {
 const STATUS_LABEL: Record<AdrStatus, string> = {
   PENDING_REVIEW: "reports.filterDraft",
   ESCALATED: "reports.filterSubmitted",
-  EOF_REPORTED: "reports.filterAcknowledged",
+  EOF_REPORTED: "reports.filterReportedUnverified",
 };
 const SEVERITY_LABEL: Record<AdrSeverity, string> = {
   MILD: "reports.severityMild",
@@ -613,6 +615,10 @@ function PreviousReports({
   onViewProfile,
 }: PreviousReportsProps) {
   const { t } = useTranslation();
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const { toast } = useToast();
+  const [importing, setImporting] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [sevFilter, setSevFilter] = useState<SevFilter>("all");
 
@@ -620,7 +626,7 @@ function PreviousReports({
     { value: "all", label: t("reports.filterAll") },
     { value: "PENDING_REVIEW", label: t("reports.filterDraft") },
     { value: "ESCALATED", label: t("reports.filterSubmitted") },
-    { value: "EOF_REPORTED", label: t("reports.filterAcknowledged") },
+    { value: "EOF_REPORTED", label: t("reports.filterReportedUnverified") },
   ];
   const sevTabs: { value: SevFilter; label: string }[] = [
     { value: "all", label: t("reports.filterAll") },
@@ -752,7 +758,27 @@ function PreviousReports({
                   {t(STATUS_LABEL[r.status])}
                 </span>
               </span>
-              <div className="flex items-center justify-end gap-2 opacity-0 transition-opacity group-hover:opacity-100">
+              <div className="flex flex-wrap items-center justify-end gap-2">
+                {user?.yellowCardsEnabled && !usingFallback && /^[0-9a-f-]{36}$/i.test(r.id) && (
+                  <button
+                    type="button"
+                    disabled={importing !== null}
+                    className="text-[12px] font-semibold text-brand-600"
+                    onClick={async () => {
+                      setImporting(r.id);
+                      try {
+                        const report = await yc<Report>("/from-adr", "POST", { adr_id: r.id });
+                        navigate("/yellow-cards", { state: { report } });
+                      } catch (error) {
+                        toast((error as Error).message, "error");
+                      } finally {
+                        setImporting(null);
+                      }
+                    }}
+                  >
+                    Κίτρινη Κάρτα
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => onViewProfile(r)}

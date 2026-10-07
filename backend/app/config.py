@@ -76,6 +76,10 @@ def _validated_v1_rate_limit(spec: str) -> str:
 
 
 class Settings(BaseModel):
+    yellow_cards_mode: Literal["disabled", "local_capture"] = "disabled"
+    yellow_cards_key: str = ""
+    pharmapi_enabled: bool = True
+
     # ── App metadata ────────────────────────────────────────────────────────
     app_title: str
     app_description: str
@@ -151,7 +155,14 @@ def get_settings() -> Settings:
     # T2-2: same fail-fast for the LLM seam's mock flag (a typo'd LLM_MOCK would
     # otherwise silently serve canned AI outputs on a live Tier-2 box).
     validate_llm_mock_token()
+    local_mode = os.getenv("YELLOW_CARDS_MODE", "disabled")
+    if local_mode != "disabled" and os.getenv("ENV", "production") not in {"development", "test"}:
+        raise RuntimeError("Yellow Card local capture is development/test only")
+    enabled = _env_bool("PHARMAPI_ENABLED", True)
     return Settings(
+        yellow_cards_mode=local_mode,
+        yellow_cards_key=os.getenv("YELLOW_CARDS_KEY", ""),
+        pharmapi_enabled=enabled,
         app_title=os.getenv("APP_TITLE", "PharmAssist POC"),
         app_description=os.getenv(
             "APP_DESCRIPTION",
@@ -165,9 +176,9 @@ def get_settings() -> Settings:
         secret_key=_env_required("SECRET_KEY"),
         token_expire_minutes=_env_int("TOKEN_EXPIRE_MINUTES", 480),  # 8h pharmacist session
         pharmapi_base=os.getenv("PHARMAPI_BASE", "https://testeps.e-prescription.gr/pharmapiv2"),
-        pharmapi_username=_env_required("PHARMAPI_USERNAME"),
-        pharmapi_password=_env_required("PHARMAPI_PASSWORD"),
-        pharmapi_api_key=_env_required("PHARMAPI_API_KEY"),
+        pharmapi_username=_env_required("PHARMAPI_USERNAME") if enabled else "",
+        pharmapi_password=_env_required("PHARMAPI_PASSWORD") if enabled else "",
+        pharmapi_api_key=_env_required("PHARMAPI_API_KEY") if enabled else "",
         pharmapi_session_window_seconds=_env_int(
             "PHARMAPI_SESSION_WINDOW_SECONDS",
             23 * 3600,  # 23h (refresh before 24h hard limit)
