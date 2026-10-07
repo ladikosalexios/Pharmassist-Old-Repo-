@@ -2,20 +2,21 @@
 .env
 .env.prod
 backend/.env
-# Per-user / runtime Claude Code state — keep ignored
-.claude/settings.local.json
-.claude/launch.json
-.claude/worktrees/
-.claude/projects/
-# Team-shared Claude Code config — commit these
-!.claude/
+# Claude Code: commit only team-shared config. Everything else in .claude/ stays local:
+# settings.local.json, launch.json, worktrees/, session locks and transcripts, and agent
+# presets other than the shared ones listed (personal presets live there). Other shared
+# content (e.g. a commands/ directory) needs its own `!` line here. Ignore the
+# directory's contents, never the directory itself: `.claude/` would hide new hook/skill
+# files from git status and the Stop hook, and make `git add` of tracked config exit 1.
+.claude/*
 !.claude/settings.json
 !.claude/hooks/
-!.claude/hooks/**
 !.claude/skills/
-!.claude/skills/**
 !.claude/agents/
-!.claude/agents/**
+.claude/agents/*
+!.claude/agents/code-reviewer.md
+# Claude Code state in a session started from a subdirectory
+*/**/.claude/
 # Do NOT ignore CLAUDE.md. On a case-insensitive filesystem (macOS default) a
 # `CLAUDE.MD` entry here also matches `CLAUDE.md`, and AGENTS.md links to it.
 # Ignoring it once gave every fresh clone a dangling symlink and no project
@@ -26,9 +27,6 @@ backend/.env
 .DS_Store
 # Local release-readiness audit reports (not for the repo)
 docs/release-readiness-audit-*.md
-
-# Claude session state (per-session locks, transcripts)
-.claude/
 
 # HMVO IQE qualification run artifacts (local only — logs + scratch manifests)
 backend/scripts/iqe_dryrun_*.jsonl

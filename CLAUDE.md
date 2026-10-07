@@ -19,7 +19,10 @@ at the Compose or production database, and never run the live seed to prepare te
 `AGENTS.md` is the tracked Codex entry point and links these same instructions.
 Each worktree needs its own dependencies; local `.codex/config.toml` and agent presets are
 not a prerequisite. Both providers' hooks delegate to shared scripts. Start the agent at the
-worktree root: Claude Code ignores this repository's hooks in a session started in a subdirectory.
+worktree root: Claude Code loads none of this repository's hooks in a session started in a
+subdirectory. In such a session, and in Codex unless you know the project and its hooks are
+trusted, no hook verifies your work: run `python3 scripts/verify.py` from the worktree root
+yourself before claiming completion.
 
 ## Running things
 

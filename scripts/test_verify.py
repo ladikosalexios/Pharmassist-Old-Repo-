@@ -5,6 +5,8 @@ import contextlib
 import io
 import json
 import os
+import re
+import shlex
 import shutil
 import signal
 import subprocess
@@ -164,6 +166,72 @@ class HarnessTests(unittest.TestCase):
                     )
                 else:
                     self.assertIn("PASS: Fresh database migrations", report)
+
+    def test_with_db_hands_postgres_tools_to_the_harness(self):
+        environments = {}
+
+        def results(command, env):
+            environments[command[-1] if verify.HARNESS_COMMAND in command else None] = env
+            return 0
+
+        for with_db, pg_bin, expected in (
+            (False, None, None),
+            (True, None, ""),
+            (True, "relative/bin", str(Path("relative/bin").absolute())),
+        ):
+            args = argparse.Namespace(
+                frontend_only=False,
+                backend_only=True,
+                with_db=with_db,
+                quick=False,
+                python=sys.executable,
+                pg_bin=pg_bin,
+            )
+            environments.clear()
+
+            def execute(command, cwd, env, **kwargs):
+                command = [str(c) for c in command]
+                return reporting_call(lambda c: results(c, env))(command, cwd, env)
+
+            with (
+                patch.object(verify, "call", side_effect=execute),
+                patch.object(verify, "private_postgres", side_effect=RuntimeError("no db")),
+                contextlib.redirect_stdout(io.StringIO()),
+            ):
+                verify.verify(args)
+            harness_env = next(e for k, e in environments.items() if k)
+            self.assertEqual(harness_env.get("PA_VERIFY_PG_BIN"), expected)
+
+    def test_documented_verify_commands_parse(self):
+        # Command discovery: every documented invocation must use options the runner accepts.
+        sources = [
+            "CLAUDE.md",
+            "AGENTS.md",
+            "docs/VERIFY.md",
+            *(
+                str(p.relative_to(verify.ROOT))
+                for p in (verify.ROOT / ".claude/skills").glob("*/SKILL.md")
+            ),
+            *(
+                str(p.relative_to(verify.ROOT))
+                for p in (verify.ROOT / ".github/workflows").glob("*.yml")
+            ),
+        ]
+        invocation = re.compile(
+            r"python3? (?:\.\./)*scripts/verify\.py((?: --?[a-z][a-z-]*(?: (?!-)[^\s`]+)?)*)"
+        )
+        found = 0
+        for source in sources:
+            for match in invocation.finditer((verify.ROOT / source).read_text()):
+                found += 1
+                with (
+                    self.subTest(source=source, args=match.group(1)),
+                    patch.object(sys, "argv", ["verify.py", *shlex.split(match.group(1))]),
+                    patch.object(verify, "verify", return_value=0),
+                    contextlib.redirect_stderr(io.StringIO()),
+                ):
+                    self.assertEqual(verify.main(), 0)
+        self.assertGreater(found, 5)
 
     def test_frontend_unit_tests_report_counts(self):
         args = argparse.Namespace(
@@ -648,7 +716,13 @@ class HookTests(unittest.TestCase):
         self.assertEqual({n: (self.root / n).read_text() for n in expected}, expected)
 
     def test_tooling_only_changes_run_harness_checks(self):
-        for changed in (".codex/hooks.json", ".claude/settings.json", ".agents/skills/x"):
+        for changed in (
+            ".codex/hooks.json",
+            ".claude/settings.json",
+            ".agents/skills/x",
+            "CLAUDE.md",
+            "AGENTS.md",
+        ):
             with (
                 patch.object(hooks, "changed_paths", return_value={changed}),
                 patch.object(
@@ -725,6 +799,63 @@ class HookTests(unittest.TestCase):
                     self.assertEqual(result.returncode, 0 if code == "0" else 2)
                     if code == "1":
                         self.assertIn("plain-text verification log", result.stderr)
+
+    def test_gitignore_keeps_hook_wiring_visible_and_local_state_ignored(self):
+        root = Path(self.temp.name + " ignore")
+        self.addCleanup(shutil.rmtree, root, True)
+        root.mkdir()
+        # Only the repository's .gitignore may decide: no global/system config, and no
+        # default excludes file ($XDG_CONFIG_HOME/git/ignore), which can mask a missing rule.
+        isolated = {
+            "GIT_CONFIG_GLOBAL": "/dev/null",
+            "GIT_CONFIG_NOSYSTEM": "1",
+            "XDG_CONFIG_HOME": str(root / "no-xdg-config"),
+        }
+        listed = subprocess.run(
+            ["git", "ls-files", ".claude"],
+            cwd=verify.ROOT,
+            capture_output=True,
+            text=True,
+        )
+        tracked = listed.stdout.split() if listed.returncode == 0 else []
+        tracked = tracked or [".claude/settings.json", ".claude/agents/code-reviewer.md"]
+        with patch.dict(os.environ, isolated):
+            subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+            (root / ".gitignore").write_bytes((verify.ROOT / ".gitignore").read_bytes())
+            for name in tracked:
+                (root / name).parent.mkdir(parents=True, exist_ok=True)
+                (root / name).write_text("tracked")
+            git(root, "add", "-f", ".gitignore", *tracked)
+            git(root, "commit", "-qm", "base")
+            visible = {".claude/hooks/new-hook.sh", ".claude/skills/new/SKILL.md"}
+            hidden = {
+                ".claude/settings.local.json",
+                ".claude/launch.json",
+                ".claude/projects/session.jsonl",
+                ".claude/worktrees/feature/file",
+                ".claude/session.lock",
+                ".claude/agents/personal-preset.md",
+                "frontend/.claude/settings.local.json",
+                "frontend/.claude/projects/session.jsonl",
+            }
+            for name in visible | hidden:
+                (root / name).parent.mkdir(parents=True, exist_ok=True)
+                (root / name).write_text("new")
+            # changed_paths is what the Stop hook uses to decide whether checks run.
+            self.assertEqual(hooks.changed_paths(root), visible)
+            for name in tracked:
+                (root / name).write_text("edited")
+                add = subprocess.run(["git", "add", name], cwd=root, capture_output=True)
+                # A directory-level `.claude/` rule makes this exit 1 although it stages.
+                self.assertEqual(add.returncode, 0, add.stderr)
+
+    def test_nested_sessions_are_told_to_run_verification(self):
+        # Claude Code loads no project hooks in a session started in a subdirectory, but it
+        # does load CLAUDE.md from parent directories (observed live), so this is the fallback.
+        instructions = " ".join((verify.ROOT / "CLAUDE.md").read_text().split())
+        self.assertRegex(
+            instructions, r"started in a subdirectory\..{0,200}python3 scripts/verify\.py"
+        )
 
     def test_codex_and_claude_configs_are_portable(self):
         for agent, config in ((".codex", "hooks.json"), (".claude", "settings.json")):

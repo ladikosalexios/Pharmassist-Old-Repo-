@@ -147,29 +147,52 @@ advisory; formatter failures are reported.
 
 The Stop hook checks tracked/staged/untracked work, runs appropriate quick checks, and returns
 2 when checks fail or cannot run. Changes to agent hook or instruction wiring (`.claude/`,
-`.codex/`, `.agents/`, `.github/workflows/`) run the harness regressions that cover it. The
+`.codex/`, `.agents/`, `.github/workflows/`, `CLAUDE.md`, `AGENTS.md`) run the harness regressions
+that cover it. New
+files under `.claude/hooks/` and `.claude/skills/` are visible to Git and to this check;
+`.gitignore` keeps the rest of `.claude/` local (settings.local.json, worktrees, session
+state, and agent presets other than the listed shared ones). The
 runner's log never goes to stdout, because Codex marks a Stop hook that exits 0 with non-JSON
 stdout as failed; on failure, the log's tail with the coverage summary goes to stderr. A
 repeated Stop (`stop_hook_active`) allows the agent to report the failure without an endless
 retry loop; it emits an explicit message that this is not a verification pass. No relevant
 edits means an explicit skip message.
 
-Registration is not activation; check both before relying on these hooks:
+Registration is not activation; check both before relying on these hooks. The behaviour
+below was observed live on 2026-10-07 with Claude Code 2.1.286 and Codex CLI 0.162.0-alpha.2:
 
 - **Claude Code** reads the shared `.claude/settings.json` only from the session's primary
-  working directory. Start it at the worktree root: a session started in `frontend/` or
-  another subdirectory has none of these hooks. Project hooks also require workspace trust.
-- **Codex** enables hooks by default and discovers `.codex/` layers from a subdirectory up to
-  the project root. It loads project hooks only for trusted projects and records trust
-  against each hook's hash, so a new or changed hook is skipped until reviewed in `/hooks`.
-  In a linked worktree, Codex takes hook definitions from the main checkout's `.codex/`, not
-  the worktree's. Until the main checkout carries this `.codex/hooks.json`, its own local file
-  decides what runs in every worktree.
+  working directory. A session started at the worktree root ran both hooks: the formatter
+  rewrote an edited frontend file, and the Stop hook blocked once on a type error, fed the
+  error back, then let the repeated stop finish with its "not a verification pass" message.
+  A session started in `frontend/` ran neither hook, although it still loaded `CLAUDE.md`,
+  which therefore tells such sessions to run `python3 scripts/verify.py` themselves. A
+  `cd` outside the project is reset unless the directory was added as a working directory
+  (`--add-dir`); with one added, the previous hook command ran that directory's own
+  `.claude/hooks/` script after a `cd`, and the current one does not. In a worktree, Claude
+  Code also applies the main checkout's `.claude/settings.local.json` permissions.
+- **Codex** enables hooks by default (`codex features list`: `hooks stable true`) and
+  discovers `.codex/` layers from a subdirectory up to the project root. It loads project
+  hooks only for trusted projects, and lists a hook that has not been reviewed as untrusted;
+  untrusted hooks are skipped until reviewed in `/hooks`. Per the Codex source, trust is
+  recorded against each hook's hash, so changing a hook needs another review (not observed
+  live). A project that is not trusted in `~/.codex/config.toml` gets no project hooks at all. In a linked
+  worktree, Codex takes hook definitions from the main checkout's `.codex/hooks.json`, not
+  the worktree's: until the main checkout carries this file, its own local file decides what
+  runs in every worktree. With project and hook trust granted for one run, a Codex edit in a
+  fresh clone (without dependencies) answered "DONE", then "BLOCKED" (the reply it was told to
+  give if a hook reported a failure), and then finished rather than looping. Codex's JSON
+  output and local logs did not record the hook run itself, so this is indirect evidence.
+
+To see what Codex will load without starting a model session, call the app server's
+`hooks/list` method for the directory: it reports each hook's source file, timeout and trust
+status. Do not grant one-off project trust with `codex exec -c 'projects."<path>".trust_level=…'`:
+Codex 0.162 wrote that override into `~/.codex/config.toml`.
 
 See the [Claude Code hooks reference](https://code.claude.com/docs/en/hooks) and the
-[Codex hook documentation](https://learn.chatgpt.com/docs/hooks). This change does not modify
-trust records, bypass approval, or launch either agent. Test the scripts directly with
-synthetic events before enabling them. Do not assume installation means execution.
+[Codex hook documentation](https://learn.chatgpt.com/docs/hooks). The repository does not
+modify trust records or bypass approval. Test the scripts directly with synthetic events
+before enabling them. Do not assume installation means execution.
 
 The original checkout's untracked `.codex/` and `.agents/` files were inspected. Its Codex
 config declares local Ollama/Milvus MCP dependencies; it remains personal and is ignored.
@@ -242,45 +265,71 @@ rerun for this documentation-only follow-up; the full-run results below remain t
 
 ## Validation of this change
 
-These results come from the review follow-up (2026-10-07), in the isolated worktree.
-`python3 scripts/verify.py --with-db` completed with exit 0:
+These results come from the review follow-up and the end-to-end audit (2026-10-07), in the
+isolated worktree.
 
-- **Harness:** 29 regressions passed, including the real-psql startup-file test.
+**Passed.** `python3 scripts/verify.py --with-db` exited 0:
+
+- **Harness:** 33 regressions passed, including the real-psql startup-file test.
 - **Backend:** 422 DB-less tests passed. 51 database tests passed with one existing skip
-  (`GET /pharmapi/errors`, awaiting T8), now shown in the summary.
-- **Other checks:** backend/tooling lint and format, fresh migrations, frontend
-  typecheck/lint/format, eight Vitest tests and the production build passed.
+  (`GET /pharmapi/errors`, awaiting T8), which the summary now shows.
+- **Other checks:** lint and format, fresh migrations, frontend typecheck/lint/format, eight
+  Vitest tests and the production build passed.
 - **Cleanup:** no `/tmp/pa-verify-*` cluster or `pa-check-*` directory was left behind.
-- **Without `--with-db`:** the summary reports the harness as `28 passed, 1 skipped` (the
-  real-psql test) and the seven database suites as EXCLUDED.
+- **Command discovery:** a harness regression parses every documented `verify.py` invocation
+  (in instructions, `docs/VERIFY.md`, skills and CI) against the runner's options. Separately,
+  a manual run worked from `frontend/src` under system Python 3.9, and the `.agents/skills`
+  links resolve.
 
-Each problem fixed in this follow-up was reproduced first, and each new regression test was
-shown to fail against the previous code:
+**Skipped, by design.** Without `--with-db`, the summary reports the harness as
+`32 passed, 1 skipped` (the real-psql test) and the seven database suites as EXCLUDED.
+
+**Live activation**, with probe files that were removed afterwards:
+
+- **Claude Code**, headless on the claude.ai plan:
+  - **From the root:** the formatter and the Stop hook ran. The Stop hook blocked on a type
+    error, then the repeat-stop guard let the session finish.
+  - **From `frontend/`:** no hooks ran.
+  - **After `cd` into an added directory:** the previous hook command ran that directory's
+    hook script; the current one does not.
+- **Codex:** `hooks/list` found no hooks for this repository under the developer's real
+  config, because the project is not trusted. It found the hooks with trust granted in an
+  isolated `CODEX_HOME`:
+  - from a fresh clone's root and from `frontend/src`, as untrusted until reviewed;
+  - in a linked worktree, from the main checkout's local `.codex/hooks.json`.
+
+  One `codex exec` run with per-run trust ended as described above. That run persisted its
+  trust override into `~/.codex/config.toml`; the line was removed and the file restored
+  byte-for-byte.
+
+**Reproduced, then fixed.** Each problem below was reproduced first, and each regression test
+was shown to fail against the previous code:
 
 - **Fixture loading:** psql with a synthetic startup file exited 0 but rolled the fixtures back
   (`\set AUTOCOMMIT off`) or wrote them to another database (`\connect decoy`).
-- **Hook resolution:** a Claude Stop hook from another repository's directory ran that
-  repository's hook script; outside Git, it exited 2 despite `stop_hook_active`.
-- **Stop output:** the successful Stop hook wrote about 1.2 KB of plain text to stdout, which
-  Codex rejects.
-- **Formatter:** an outside-worktree edit returned exit 2, and hook-config-only edits skipped
-  the Stop checks.
-- **Review-driven fixes:** a planted `.git` file was followed as a worktree, nested worktrees
-  were not formatted, Ruff ignored its own excludes for explicit paths, and an unset
+- **Hook resolution:** a Claude Stop hook ran another repository's hook script, and exited 2
+  outside Git despite `stop_hook_active`.
+- **Stop output:** the successful Stop hook wrote plain text to stdout, which Codex rejects.
+- **Formatter:** it returned exit 2 for an outside-worktree edit, and hook-config-only edits
+  skipped the Stop checks.
+- **Ignore rules:** a directory-level `.claude/` rule hid new hook and skill files from Git and
+  the Stop hook, and made `git add` of tracked Claude config exit 1. The regression test runs
+  without global, system or default-excludes Git config, which had masked a missing rule.
+- **Instruction edits:** editing only `CLAUDE.md` or `AGENTS.md` skipped the Stop checks, although
+  a harness regression covers their verification fallback.
+- **Review findings:** a planted `.git` file was followed as a worktree, nested worktrees were
+  not formatted, Ruff ignored its own excludes for explicit paths, and an unset
   `CLAUDE_PROJECT_DIR` failed with an unrelated error.
 
-The final registered Stop command of each provider, invoked on this worktree from
-`frontend/src`, exited 0 with empty stdout.
+**Not verified:**
 
-Not verified:
-
-- **Live activation:** hooks firing inside a running Claude Code or Codex session. Codex is not
-  installed locally; both need a model session and trust approval.
-- **Provider behaviour:** the claims above come from the providers' documentation and the
-  Codex source (openai/codex `2dae757b`), not from a live run.
-- **Database suites in CI:** CI runs no database suites, so `--with-db` coverage is local only.
-- **Version parity:** PostgreSQL 16 (Compose) and Node 22 (CI) remain unverified. Local runs
-  used PostgreSQL 14.18, Node 23.11.0, Python 3.13 for the backend and system Python 3.9.6 for
-  the launcher. Frontend dependencies were not freshly installed with `npm ci`.
+- **Codex Stop feedback:** observed only through the model's reply. Codex's JSON output and
+  local logs did not record the hook run.
+- **Codex in the developer's own setup:** no hooks run there until the project is trusted and
+  each hook is approved.
+- **Database suites in CI:** CI does not run them, so PostgreSQL 16 (Compose) is untested.
+- **Versions:** local runs used PostgreSQL 14.18, Node 23.11.0, Python 3.13 for the backend
+  and system Python 3.9.6 for the launcher. CI covers Node 22 and Python 3.13 for the checks
+  it runs. Frontend dependencies were not freshly installed with `npm ci`.
 
 These results do not include the release checks excluded above.

@@ -13,7 +13,7 @@ PRETTIER_SCOPE = "frontend/"
 PRETTIER_EXCLUDED = ("frontend/node_modules/", "frontend/dist/", "frontend/build/")
 PRETTIER_SUFFIXES = (".ts", ".tsx", ".js", ".jsx", ".json", ".css", ".md", ".yml", ".yaml")
 # Agent hook/instruction wiring is covered by the harness regressions.
-TOOLING = (".claude/", ".codex/", ".agents/", ".github/workflows/")
+TOOLING = (".claude/", ".codex/", ".agents/", ".github/workflows/", "CLAUDE.md", "AGENTS.md")
 # Keep Stop feedback readable; the full log is one `python3 scripts/verify.py` away.
 FEEDBACK_LINES = 60
 
