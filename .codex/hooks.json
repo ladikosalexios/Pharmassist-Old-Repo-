@@ -1,0 +1,25 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "root=$(git rev-parse --show-toplevel) || { echo \"Hook could not locate this repository; checks did not run.\" >&2; exit 1; }; bash \"$root/.codex/hooks/format-on-edit.sh\""
+          }
+        ],
+        "matcher": "Edit|Write|MultiEdit|apply_patch"
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "root=$(git rev-parse --show-toplevel) || { echo \"Hook could not locate this repository; checks did not run.\" >&2; exit 1; }; bash \"$root/.codex/hooks/typecheck-on-stop.sh\""
+          }
+        ]
+      }
+    ]
+  }
+}

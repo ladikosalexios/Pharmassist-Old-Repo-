@@ -2,13 +2,13 @@
   "hooks": {
     "PostToolUse": [
       {
-        "matcher": "Edit|Write|MultiEdit",
         "hooks": [
           {
             "type": "command",
-            "command": "bash $CLAUDE_PROJECT_DIR/.claude/hooks/format-on-edit.sh"
+            "command": "[ -n \"$CLAUDE_PROJECT_DIR\" ] || { echo \"CLAUDE_PROJECT_DIR is not set; project hooks did not run.\" >&2; exit 1; }; bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/format-on-edit.sh\""
           }
-        ]
+        ],
+        "matcher": "Edit|Write|MultiEdit|apply_patch"
       }
     ],
     "Stop": [
@@ -16,7 +16,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash $CLAUDE_PROJECT_DIR/.claude/hooks/typecheck-on-stop.sh"
+            "command": "[ -n \"$CLAUDE_PROJECT_DIR\" ] || { echo \"CLAUDE_PROJECT_DIR is not set; project hooks did not run.\" >&2; exit 1; }; bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/typecheck-on-stop.sh\""
           }
         ]
       }

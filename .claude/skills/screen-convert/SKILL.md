@@ -133,9 +133,10 @@ if it has a single caller. Otherwise add a `variant?: "compact"` prop.
 cd frontend && npm run typecheck && npm run lint && npm run format:check
 ```
 
-If any fail, fix before claiming done. The repo's Stop-gate hook
-(`.claude/hooks/typecheck-on-stop.sh`) enforces this automatically — but
-catching it before the hook is faster.
+If any fail, fix before claiming done. When enabled, both providers' Stop hooks
+delegate to `scripts/agent_hooks.py` and run these checks through
+`python3 scripts/verify.py --quick`. A missing or disabled hook is not a pass;
+run the checks yourself before claiming completion.
 
 Then drive a Playwright smoke against the running compose stack:
 

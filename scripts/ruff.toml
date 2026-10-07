@@ -1,0 +1,4 @@
+# Discover by file location so hooks, pre-commit and verify agree from any cwd.
+extend = "../backend/pyproject.toml"
+target-version = "py39"
+src = ["../backend", "."]
