@@ -18,7 +18,8 @@ option and hook setup. Use `--with-db` for the seven database suites; never poin
 at the Compose or production database, and never run the live seed to prepare tests.
 `AGENTS.md` is the tracked Codex entry point and links these same instructions.
 Each worktree needs its own dependencies; local `.codex/config.toml` and agent presets are
-not a prerequisite. Both providers' hooks resolve this worktree and delegate to shared scripts.
+not a prerequisite. Both providers' hooks delegate to shared scripts. Start the agent at the
+worktree root: Claude Code ignores this repository's hooks in a session started in a subdirectory.
 
 ## Running things
 

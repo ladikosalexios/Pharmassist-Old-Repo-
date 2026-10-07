@@ -51,6 +51,10 @@ The Claude review workflow skips drafts; moving a PR out of draft can launch a p
 
 The final coverage summary distinguishes PASS, FAIL, EXCLUDED and NOT RUN. A failed check
 returns nonzero; interruption returns 130. Exclusions are never represented as passed tests.
+Test steps read their result report rather than trusting the exit code alone: a passing step
+shows its counts, for example `PASS (421 passed, 1 skipped)`, and pytest's `-ra` output above
+the summary gives each skip reason. A step whose tests were all skipped is
+`NOT RUN: 0 passed, N skipped` and fails verification; a missing report is a failure.
 No Electron packaging, deployed-service smoke, live Pharmapi/LLM/EOF/EMA checks, or browser
 acceptance tests are included. This command does not establish release readiness by itself.
 
@@ -68,7 +72,13 @@ cluster under a private `/tmp/pa-verify-*` directory, disables TCP listening, us
 Unix socket and a dedicated `pharmassist_verify` database, and stops it in a `finally` block.
 It does not accept an existing database URL, inspect the developer's DB, or use production data.
 Migrations run with `alembic upgrade head`; minimal synthetic pharmacist/pharmacy rows supply
-foreign keys. One catalog entry and one rule are reused from the repository's existing
+foreign keys. They are loaded with `psql -X`: without it, psql reads the installation's
+`psqlrc`, the account's `~/.psqlrc` (the runner keeps `HOME`, and PostgreSQL 14 locates the
+file through the password database anyway) or `PSQLRC`. Such a file can `\connect` to another database or
+turn `AUTOCOMMIT` off, sending the fixtures elsewhere or rolling them back while psql still
+exits 0. With `--with-db`, the harness regressions also run a real-psql test against their own
+disposable cluster with a synthetic startup file; without it that test is reported as skipped.
+One catalog entry and one rule are reused from the repository's existing
 constants-only `seed_data.py` to satisfy tenant-isolation and credential-less tests. No
 patient fixtures or live seed routines are imported.
 **Never run `python -m scripts.seed` for verification**: that seed calls Pharmapi and truncates
@@ -102,21 +112,64 @@ guide. It works even where Git symlinks are disabled. `.agents/skills/` uses rel
 to the existing canonical `.claude/skills/` directories rather than divergent copied skills;
 on systems without symlink support, consult `.claude/skills/` directly.
 
-Both `.claude/settings.json` and `.codex/hooks.json` use the current Git worktree root, then
-invoke a small wrapper that resolves its own location and calls `scripts/agent_hooks.py`.
-There are no personal absolute paths and no dependency on `CLAUDE_PROJECT_DIR`. The shared
-formatter reads actual hook JSON from stdin, safely handles paths containing spaces, and
-rejects resolved paths outside its worktree. Shell/apply_patch edits without a single
-`file_path` are left for verification. Formatting is advisory; failures are reported.
-The Stop hook checks tracked/staged/untracked work, runs appropriate quick checks, and returns
-2 when checks fail or cannot run. A repeated Stop (`stop_hook_active`) allows the agent
-to report the failure without an endless retry loop; it emits an explicit message that this
-is not a verification pass. No relevant edits means an explicit skip message.
+Both providers invoke a small wrapper that resolves its own location and calls
+`scripts/agent_hooks.py`; there are no personal absolute paths. How the wrapper is found
+differs, because the providers run hooks differently:
 
-Codex loads project hooks only for trusted projects and requires trust of each hook definition;
-see the [official hook documentation](https://learn.chatgpt.com/docs/hooks). This change does
-not modify trust records, bypass approval, or launch either agent. Test the scripts directly
-with synthetic events before enabling them. Do not assume installation means execution.
+- **Claude Code** runs hooks in the agent's current directory, which follows `cd`. Resolving
+  the wrapper from that directory's Git root would run another repository's
+  `.claude/hooks/` scripts after a `cd` into it, and would fail with exit 2 outside Git,
+  before the repeat-stop guard could run. `.claude/settings.json` therefore uses the quoted
+  `"$CLAUDE_PROJECT_DIR"`, the trusted project. If that variable is missing, the hook reports
+  a non-blocking failure (exit 1) instead of silently doing nothing.
+- **Codex** sets no project variable and runs hooks in the session directory its project hooks
+  were loaded for, so `.codex/hooks.json` uses that directory's Git root. If the lookup fails,
+  the hook reports a non-blocking failure (exit 1) rather than exit 2, which Codex would turn
+  into a Stop continuation with no loop limit.
+
+`scripts/agent_hooks.py` follows the hook input's `cwd` only into worktrees registered with
+this repository (`git worktree list`), including ones nested under `.claude/worktrees/`, and
+runs that worktree's own checks and dependencies. Treat every registered worktree's code as
+trusted: a worktree checked out on an untrusted branch has its `verify.py`, npm scripts and
+formatter config run on Stop or Edit. Any other directory, including another repository, one
+outside Git or one whose planted `.git` file points at this repository, falls back to the
+trusted project.
+
+The shared formatter reads actual hook JSON from stdin and safely handles paths containing
+spaces. It formats only what pre-commit formats: Ruff with `--force-exclude` for `backend/` and
+`scripts/` (so Ruff's own excludes, such as migrations, still apply), Prettier for `frontend/`
+(excluding `node_modules/`, `dist/` and `build/`). Repository docs, workflows
+and other files are left as written, because CI does not check them and the frontend Prettier
+config would rewrite them. Files outside this repository's worktrees, such as agent memory or
+scratch files, are skipped without an error. Shell/apply_patch edits without a single
+`file_path`, which includes every Codex edit, are left for verification. Formatting is
+advisory; formatter failures are reported.
+
+The Stop hook checks tracked/staged/untracked work, runs appropriate quick checks, and returns
+2 when checks fail or cannot run. Changes to agent hook or instruction wiring (`.claude/`,
+`.codex/`, `.agents/`, `.github/workflows/`) run the harness regressions that cover it. The
+runner's log never goes to stdout, because Codex marks a Stop hook that exits 0 with non-JSON
+stdout as failed; on failure, the log's tail with the coverage summary goes to stderr. A
+repeated Stop (`stop_hook_active`) allows the agent to report the failure without an endless
+retry loop; it emits an explicit message that this is not a verification pass. No relevant
+edits means an explicit skip message.
+
+Registration is not activation; check both before relying on these hooks:
+
+- **Claude Code** reads the shared `.claude/settings.json` only from the session's primary
+  working directory. Start it at the worktree root: a session started in `frontend/` or
+  another subdirectory has none of these hooks. Project hooks also require workspace trust.
+- **Codex** enables hooks by default and discovers `.codex/` layers from a subdirectory up to
+  the project root. It loads project hooks only for trusted projects and records trust
+  against each hook's hash, so a new or changed hook is skipped until reviewed in `/hooks`.
+  In a linked worktree, Codex takes hook definitions from the main checkout's `.codex/`, not
+  the worktree's. Until the main checkout carries this `.codex/hooks.json`, its own local file
+  decides what runs in every worktree.
+
+See the [Claude Code hooks reference](https://code.claude.com/docs/en/hooks) and the
+[Codex hook documentation](https://learn.chatgpt.com/docs/hooks). This change does not modify
+trust records, bypass approval, or launch either agent. Test the scripts directly with
+synthetic events before enabling them. Do not assume installation means execution.
 
 The original checkout's untracked `.codex/` and `.agents/` files were inspected. Its Codex
 config declares local Ollama/Milvus MCP dependencies; it remains personal and is ignored.
@@ -189,21 +242,45 @@ rerun for this documentation-only follow-up; the full-run results below remain t
 
 ## Validation of this change
 
-`python3 scripts/verify.py --with-db` completed with exit 0 in the isolated worktree:
+These results come from the review follow-up (2026-10-07), in the isolated worktree.
+`python3 scripts/verify.py --with-db` completed with exit 0:
 
-- 14 harness regressions, 422 DB-less backend tests, and 51 database tests passed.
-- One existing test remains skipped: `GET /pharmapi/errors`, awaiting the T8 implementation.
-- Backend/tooling lint and formatting, fresh migrations, frontend typecheck/lint/format,
-  eight frontend tests, and production build passed.
-- Both providers' registered hook commands passed from a nested directory without
-  `CLAUDE_PROJECT_DIR`. The formatter regression also exercises a path containing spaces.
-- A native SIGTERM check returned 130, stopped its private PostgreSQL server, and removed
-  the cluster directory. The normal full run also stopped and removed its cluster.
+- **Harness:** 29 regressions passed, including the real-psql startup-file test.
+- **Backend:** 422 DB-less tests passed. 51 database tests passed with one existing skip
+  (`GET /pharmapi/errors`, awaiting T8), now shown in the summary.
+- **Other checks:** backend/tooling lint and format, fresh migrations, frontend
+  typecheck/lint/format, eight Vitest tests and the production build passed.
+- **Cleanup:** no `/tmp/pa-verify-*` cluster or `pa-check-*` directory was left behind.
+- **Without `--with-db`:** the summary reports the harness as `28 passed, 1 skipped` (the
+  real-psql test) and the seven database suites as EXCLUDED.
 
-Local versions were Python 3.13.15, PostgreSQL 14.18 and Node 23.11.0. PostgreSQL 16
-(Compose) and Node 22 (CI) parity remains unverified. Frontend dependencies were copied into
-the isolated worktree from the existing local installation; this was not a fresh `npm ci`
-validation. The initial local validation did not run hosted CI or activate actual agent hooks;
-consult the PR's exact-commit checks for subsequent CI results. Independent read-only review
-found no remaining blocking findings. These results do not include the release checks excluded
-above.
+Each problem fixed in this follow-up was reproduced first, and each new regression test was
+shown to fail against the previous code:
+
+- **Fixture loading:** psql with a synthetic startup file exited 0 but rolled the fixtures back
+  (`\set AUTOCOMMIT off`) or wrote them to another database (`\connect decoy`).
+- **Hook resolution:** a Claude Stop hook from another repository's directory ran that
+  repository's hook script; outside Git, it exited 2 despite `stop_hook_active`.
+- **Stop output:** the successful Stop hook wrote about 1.2 KB of plain text to stdout, which
+  Codex rejects.
+- **Formatter:** an outside-worktree edit returned exit 2, and hook-config-only edits skipped
+  the Stop checks.
+- **Review-driven fixes:** a planted `.git` file was followed as a worktree, nested worktrees
+  were not formatted, Ruff ignored its own excludes for explicit paths, and an unset
+  `CLAUDE_PROJECT_DIR` failed with an unrelated error.
+
+The final registered Stop command of each provider, invoked on this worktree from
+`frontend/src`, exited 0 with empty stdout.
+
+Not verified:
+
+- **Live activation:** hooks firing inside a running Claude Code or Codex session. Codex is not
+  installed locally; both need a model session and trust approval.
+- **Provider behaviour:** the claims above come from the providers' documentation and the
+  Codex source (openai/codex `2dae757b`), not from a live run.
+- **Database suites in CI:** CI runs no database suites, so `--with-db` coverage is local only.
+- **Version parity:** PostgreSQL 16 (Compose) and Node 22 (CI) remain unverified. Local runs
+  used PostgreSQL 14.18, Node 23.11.0, Python 3.13 for the backend and system Python 3.9.6 for
+  the launcher. Frontend dependencies were not freshly installed with `npm ci`.
+
+These results do not include the release checks excluded above.

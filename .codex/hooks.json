@@ -5,7 +5,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "root=$(git rev-parse --show-toplevel) || exit 2; bash \"$root/.codex/hooks/format-on-edit.sh\""
+            "command": "root=$(git rev-parse --show-toplevel) || { echo \"Hook could not locate this repository; checks did not run.\" >&2; exit 1; }; bash \"$root/.codex/hooks/format-on-edit.sh\""
           }
         ],
         "matcher": "Edit|Write|MultiEdit|apply_patch"
@@ -16,7 +16,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "root=$(git rev-parse --show-toplevel) || exit 2; bash \"$root/.codex/hooks/typecheck-on-stop.sh\""
+            "command": "root=$(git rev-parse --show-toplevel) || { echo \"Hook could not locate this repository; checks did not run.\" >&2; exit 1; }; bash \"$root/.codex/hooks/typecheck-on-stop.sh\""
           }
         ]
       }

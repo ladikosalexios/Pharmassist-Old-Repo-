@@ -8,9 +8,11 @@ import signal
 import subprocess
 import sys
 import tempfile
+import unittest
 from contextlib import contextmanager
 from pathlib import Path
 from urllib.parse import quote
+from xml.etree import ElementTree
 
 ROOT = Path(__file__).resolve().parents[1]
 DB_TESTS = (
@@ -21,6 +23,19 @@ DB_TESTS = (
     "test_v1_safety_explain_cache_db.py",
     "test_spc_ingest_api.py",
     "test_v1_retrieval_free_db.py",
+)
+# Synthetic FK fixtures, not scripts.seed (which calls Pharmapi).
+FIXTURE_SQL = (
+    "INSERT INTO pharmacies (name,pharmapi_unit_id,active) "
+    "VALUES ('Verification Pharmacy',1,true);\n"
+    "INSERT INTO pharmacists (email,password_hash,full_name,"
+    "eof_licence_no,role,active) "
+    "VALUES ('verify@example.invalid','unusable',"
+    "'Verification Pharmacist','VERIFY','pharmacist',true);\n"
+)
+HARNESS_COMMAND = (
+    "import sys; sys.path.insert(0, 'scripts'); import verify; "
+    "sys.exit(verify.harness_tests(sys.argv[1]))"
 )
 
 
@@ -87,6 +102,72 @@ def database_url(socket_dir):
     return "postgresql+asyncpg://verify@/pharmassist_verify?host=" + quote(
         str(socket_dir), safe="/"
     )
+
+
+def fixture_command(psql, sockets):
+    # -X: psql otherwise reads the installation psqlrc, the account's ~/.psqlrc (HOME is kept,
+    # and PostgreSQL 14 locates it through the password database anyway) or PSQLRC. Those can
+    # \connect elsewhere or turn AUTOCOMMIT off, silently sending the fixtures to another
+    # database or rolling them back while psql still exits 0.
+    return [
+        psql,
+        "-X",
+        "-h",
+        sockets,
+        "-U",
+        "verify",
+        "-d",
+        "pharmassist_verify",
+        "-v",
+        "ON_ERROR_STOP=1",
+    ]
+
+
+def harness_tests(report):
+    """Run the harness regressions, writing the counts pytest's JUnit report carries."""
+    # A fresh loader: the shared default remembers another discovery's top-level directory.
+    scripts = str(ROOT / "scripts")
+    suite = unittest.TestLoader().discover(scripts, "test_*.py", top_level_dir=scripts)
+    result = unittest.TextTestRunner().run(suite)
+    counts = {
+        "tests": result.testsRun,
+        "skipped": len(result.skipped),
+        "failures": len(result.failures),
+        "errors": len(result.errors),
+    }
+    element = ElementTree.Element("testsuite", {k: str(v) for k, v in counts.items()})
+    ElementTree.ElementTree(element).write(report)
+    return int(not result.wasSuccessful())
+
+
+def report_counts(report):
+    """(passed, skipped) from a JUnit-style report, or None if it is missing/unreadable."""
+    try:
+        root = ElementTree.parse(report).getroot()
+    except (OSError, ElementTree.ParseError):
+        return None
+    suites = [root] if root.tag == "testsuite" else list(root.iter("testsuite"))
+    if not suites:
+        return None
+    total = sum(int(suite.get("tests", 0)) for suite in suites)
+    skipped = sum(int(suite.get("skipped", 0)) for suite in suites)
+    failed = sum(int(suite.get(k, 0)) for suite in suites for k in ("failures", "errors"))
+    return total - skipped - failed, skipped
+
+
+def outcome(code, report=None):
+    """A zero exit is only a pass when tests actually ran; skips are reported, not passed."""
+    if code:
+        return "FAIL"
+    if report is None:
+        return "PASS"
+    counts = report_counts(report)
+    if counts is None:
+        return "FAIL: no test report"
+    passed, skipped = counts
+    if passed <= 0:  # unittest counts each skipped subTest, so this can dip below zero
+        return f"NOT RUN: 0 passed, {skipped} skipped"
+    return f"PASS ({passed} passed, {skipped} skipped)" if skipped else f"PASS ({passed} passed)"
 
 
 @contextmanager
@@ -169,25 +250,30 @@ def verify(args):
     if not python.is_file() and not args.python:
         python = Path(sys.executable)
 
-    def step(name, command, cwd, env):
+    def step(name, command, cwd, env, report=None):
         print(f"\n== {name} ==", flush=True)
         try:
             code = call(command, cwd, env)
         except (OSError, subprocess.TimeoutExpired) as exc:
             print(f"ERROR: {exc}", flush=True)
             code = 1
-        results.append((name, "PASS" if code == 0 else "FAIL"))
-        return code == 0
+        results.append((name, outcome(code, report)))
+        return results[-1][1].startswith("PASS")
 
     with tempfile.TemporaryDirectory(prefix="pa-check-") as temporary:
         scratch = Path(temporary)
         # Even the DB-less subset gets a private, nonexistent socket; never localhost:5432.
         env = environment(database_url(scratch / "no-database"))
+        # The real-psql startup-file regression needs PostgreSQL tools, so it only runs
+        # (rather than skips) when --with-db has opted into a private cluster.
+        pg_bin = str(Path(args.pg_bin).absolute()) if args.pg_bin else ""
+        harness_env = {**env, "PA_VERIFY_PG_BIN": pg_bin} if args.with_db else env
         step(
             "Harness and hook regressions",
-            [sys.executable, "-m", "unittest", "discover", "-s", "scripts", "-p", "test_*.py"],
+            [sys.executable, "-c", HARNESS_COMMAND, scratch / "harness.xml"],
             ROOT,
-            env,
+            harness_env,
+            scratch / "harness.xml",
         )
         if backend:
             step(
@@ -231,10 +317,12 @@ def verify(args):
                         "anyio.pytest_plugin",
                         "-p",
                         "no:cacheprovider",
+                        f"--junitxml={scratch / 'backend.xml'}",
                         *ignored,
                     ),
                     ROOT / "backend",
                     env,
+                    scratch / "backend.xml",
                 )
             else:
                 results.append(("Backend tests", "EXCLUDED: --quick"))
@@ -248,30 +336,7 @@ def verify(args):
                             db_env,
                         )
                         if migrated:
-                            # Synthetic FK fixtures, not scripts.seed (which calls Pharmapi).
-                            must(
-                                [
-                                    psql,
-                                    "-h",
-                                    sockets,
-                                    "-U",
-                                    "verify",
-                                    "-d",
-                                    "pharmassist_verify",
-                                    "-v",
-                                    "ON_ERROR_STOP=1",
-                                ],
-                                ROOT,
-                                db_env,
-                                input=(
-                                    "INSERT INTO pharmacies (name,pharmapi_unit_id,active) "
-                                    "VALUES ('Verification Pharmacy',1,true);\n"
-                                    "INSERT INTO pharmacists (email,password_hash,full_name,"
-                                    "eof_licence_no,role,active) "
-                                    "VALUES ('verify@example.invalid','unusable',"
-                                    "'Verification Pharmacist','VERIFY','pharmacist',true);\n"
-                                ),
-                            )
+                            must(fixture_command(psql, sockets), ROOT, db_env, input=FIXTURE_SQL)
                             must(backend_command(python, "fixtures"), ROOT / "backend", db_env)
                             for test in DB_TESTS:
                                 # Separate processes avoid the application's module-level pools and
@@ -287,10 +352,12 @@ def verify(args):
                                         "anyio.pytest_plugin",
                                         "-p",
                                         "no:cacheprovider",
+                                        f"--junitxml={scratch / test}.xml",
                                         f"tests/{test}",
                                     ),
                                     ROOT / "backend",
                                     db_env,
+                                    scratch / f"{test}.xml",
                                 )
                         else:
                             results.extend(
@@ -316,30 +383,44 @@ def verify(args):
         else:
             results.append(("Backend checks", "EXCLUDED: --frontend-only"))
         if frontend:
-            for name, command in (
-                ("Frontend typecheck", ["npm", "run", "typecheck"]),
-                ("Frontend lint", ["npm", "run", "lint"]),
-                ("Frontend format", ["npm", "run", "format:check"]),
-                ("Frontend unit tests", ["npm", "run", "test"]),
+            vitest = scratch / "frontend.xml"
+            for name, command, report in (
+                ("Frontend typecheck", ["npm", "run", "typecheck"], None),
+                ("Frontend lint", ["npm", "run", "lint"], None),
+                ("Frontend format", ["npm", "run", "format:check"], None),
+                (
+                    "Frontend unit tests",
+                    [
+                        "npm",
+                        "run",
+                        "test",
+                        "--",
+                        "--reporter=default",
+                        "--reporter=junit",
+                        f"--outputFile.junit={vitest}",
+                    ],
+                    vitest,
+                ),
                 (
                     "Frontend production build",
                     ["npm", "run", "build", "--", "--outDir", str(scratch / "frontend-dist")],
+                    None,
                 ),
             ):
                 if args.quick and name in ("Frontend unit tests", "Frontend production build"):
                     results.append((name, "EXCLUDED: --quick"))
                     continue
-                step(name, command, ROOT / "frontend", env)
+                step(name, command, ROOT / "frontend", env, report)
         else:
             results.append(("Frontend checks", "EXCLUDED: --backend-only"))
     print("\nVerification coverage:", flush=True)
-    for name, outcome in results:
-        print(f"  {outcome}: {name}", flush=True)
-    failed = any(outcome == "FAIL" or outcome.startswith("NOT RUN") for _, outcome in results)
+    for name, result in results:
+        print(f"  {result}: {name}", flush=True)
+    failed = any(result.startswith(("FAIL", "NOT RUN")) for _, result in results)
     print(
         "Verification FAILED."
         if failed
-        else "Selected checks PASSED; exclusions above are not passes.",
+        else "Selected checks PASSED; skipped tests and exclusions above are not passes.",
         flush=True,
     )
     return int(failed)
