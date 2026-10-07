@@ -6,7 +6,7 @@
 > Keep it a register: one line per item, a status, and a dependency/owner where
 > known. Status vocabulary: `open` · `blocked-on-<X>` · `done-pending-<Y>`.
 
-_Last touched: 2026-07-15._
+_Last touched: 2026-09-23._
 
 > **Retrieval-only:** prescription execution (eDispensation + HMVS/FMD) was
 > removed at tag `hmvs-certified` — the HMVS-qualification and ΗΔΥΚΑ-dispense
@@ -37,6 +37,30 @@ _Last touched: 2026-07-15._
 
 ## B2B (post-pilot)
 
+- `resolved 27.09.2026` — **T0-1 was a hard external dependency** for Second Opinion (the
+  doctor product, its own repo at `~/Desktop/second-opinion`), which consumes this repo's
+  `/v1` as an ordinary external customer presenting no ΗΔΥΚΑ credentials. T0-1…T0-4 merged in
+  #181, so its SO-7 is unblocked. It buys tier **`core`**, not `clinical_only`: it needs
+  `/v1/drugs/{barcode}/alternatives` to answer the host's commercial-name gate, and that
+  route is `require_tier("core")`. Nothing else here depends on that product, and its plan is
+  not tracked in this repo.
+- `open` — **T0-5 now blocks Second Opinion's clinical half, and it is the last thing between
+  us and a true pitch.** `routers/v1/safety.py` exposes none of the safety engine's 36 SPC
+  references, so every `/v1` caller gets rule-based findings with no citations. Second
+  Opinion requires outward provenance (source document, section, authority, retrieval date)
+  on every clinical finding and cannot populate it from the API until T0-5 lands. Per
+  `TIER0-RETRIEVAL-FREE.md` §4, do not demo the clinical half in this window: uncited
+  rule-based findings are the one thing f-anazitisi already does better.
+- `partly done` — **Tier-0 "clinical-only" /v1 tier** (ships without production ΗΔΥΚΑ) — see
+  `docs/b2b-core/TIER0-RETRIEVAL-FREE.md`. **T0-1…T0-4 merged in #181** (27.09.2026): the
+  unconditional 500 is gone, retrieval routes answer 409 `retrieval_unavailable`, `TIER_ORDER`
+  is `("clinical_only","core","clinical","platform")`, and `create-location --no-retrieval`
+  provisions a credential-less location. D-20/D-21 decided. **T0-5 (SPC over `/v1`) and T0-6
+  (un-stale `TIER2-AUDIT.md`) remain open.** Still open inside T0-4: no CLI command adds
+  credentials to an existing location — provision a new one.
+- `open` — **`TIER2-AUDIT.md` is stale on SPC** (T0-6): it claims the safety engine has zero
+  SPC references; there are 36 since #178, and T2-8's proposed `spc_sections` table diverged
+  from the shipped `sections` JSONB design — re-spec T2-9 before building from it.
 - `open` — **B2B Core (Tier-1) backlog** — see `docs/b2b-core/TICKETS.md` (supersedes the
   old B1–B6 Trello backlog) and `docs/b2b-core/FINISH-TIER1.md` (gap audit → FT-* tickets).
 - `done` — **`PHARMAPI_MOCK` typo footgun** (FT-15): an unrecognized value (e.g. `flase`)
