@@ -41,7 +41,8 @@ with explicit source roots and a Python 3.9 target; backend code retains its Pyt
 This keeps imports and formatting consistent between hooks, pre-commit, and the runner,
 including when invoked from another working directory.
 
-CI calls the same entry point with `--backend-only` and `--frontend-only`. The optional
+CI calls the same entry point with `--backend-only` and `--frontend-only`, and runs
+`--backend-only --with-db` against the runner image's PostgreSQL 16 (Compose's major version). The optional
 `--quick` mode runs lint/format/typecheck and tooling regressions; it explicitly excludes
 application tests and builds. Stop hooks use this narrower mode, not a full test gate.
 
@@ -327,7 +328,8 @@ was shown to fail against the previous code:
   local logs did not record the hook run.
 - **Codex in the developer's own setup:** no hooks run there until the project is trusted and
   each hook is approved.
-- **Database suites in CI:** CI does not run them, so PostgreSQL 16 (Compose) is untested.
+- **Database suites in CI:** the `backend-db` job runs them on PostgreSQL 16, but it had not run
+  when this was written; until it passes, PostgreSQL 16 parity is unverified.
 - **Versions:** local runs used PostgreSQL 14.18, Node 23.11.0, Python 3.13 for the backend
   and system Python 3.9.6 for the launcher. CI covers Node 22 and Python 3.13 for the checks
   it runs. Frontend dependencies were not freshly installed with `npm ci`.

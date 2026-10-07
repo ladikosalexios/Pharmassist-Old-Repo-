@@ -38,6 +38,26 @@ jobs:
       - run: pip install -r backend/requirements-dev.txt
       - run: python3 scripts/verify.py --backend-only
 
+  backend-db:
+    # The seven database suites and the real-psql harness regression, in a disposable
+    # socket-only cluster created by verify.py. Uses the runner's preinstalled PostgreSQL 16
+    # (Compose's major version; its service stays disabled); never a shared database.
+    name: backend (database suites, isolated PostgreSQL 16)
+    # Pinned: the binary path below belongs to this image; ubuntu-latest will move on.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: backend/requirements-dev.txt
+      - run: pip install -r backend/requirements-dev.txt
+      # Fail loudly, rather than skip, if the image stops shipping PostgreSQL 16.
+      - run: /usr/lib/postgresql/16/bin/postgres --version | grep -E ' 16\.'
+      - run: python3 scripts/verify.py --backend-only --with-db --pg-bin /usr/lib/postgresql/16/bin
+
   frontend:
     name: frontend (eslint + prettier)
     runs-on: ubuntu-latest
