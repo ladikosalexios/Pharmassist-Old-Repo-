@@ -86,7 +86,7 @@ patient fixtures or live seed routines are imported.
 tables. Database modules run in separate processes to avoid the application's
 shared async connection pools and test dependency overrides leaking between modules.
 
-Without `--with-db`, these seven modules are explicitly excluded:
+Without `--with-db`, these eight modules are explicitly excluded:
 
 - `test_endpoints_integration.py`
 - `test_v1_tenant_isolation.py`
@@ -95,6 +95,29 @@ Without `--with-db`, these seven modules are explicitly excluded:
 - `test_v1_safety_explain_cache_db.py`
 - `test_spc_ingest_api.py`
 - `test_v1_retrieval_free_db.py`
+- `test_yellow_cards_db.py`
+
+### Yellow Card suite
+
+`test_yellow_cards_db.py` is opt-in: it skips itself unless `YELLOW_TEST_DATABASE_URL` is
+set. With `--with-db` it runs last, in its own process, after migrations, fixtures and the
+other seven suites, against the same private `pharmassist_verify` database. Its fixtures add
+their own synthetic pharmacies, pharmacists and reports and cancel other queued Yellow
+submissions, but never reset the schema, so it does not need a separate database. If its
+fixtures ever become destructive, give it its own freshly migrated private database instead.
+
+- Only this suite receives `YELLOW_TEST_DATABASE_URL`, and only as a copy of the run's own
+  private `DATABASE_URL`. A caller's exported `YELLOW_TEST_DATABASE_URL` or `DATABASE_URL` is
+  never inherited, and no `.env` file is loaded. If the URL is not the private cluster's, the
+  suite fails as unusable configuration rather than running.
+- Any skip fails verification: one skipped test, the module skipping itself, zero collected
+  tests or a missing report. In other suites some skipped tests still pass (a suite where every
+  test skipped does not), so the known pending `GET /pharmapi/errors` skip in
+  `test_endpoints_integration.py` stays a separate `PASS (… 1 skipped)`.
+- Email never leaves the process. The tests replace the SMTP transport with an in-memory
+  capture, and the suite also gets `YELLOW_CARDS_MODE=disabled`, so the real transport refuses
+  to send. That transport only knows the Compose-internal `mailpit` host anyway. There is no
+  live SMTP, EOF delivery or other external service, and all data is synthetic.
 
 Even DB-less tests receive a private nonexistent socket URL, so an accidental database access
 fails instead of reaching localhost's dev server. Subprocesses receive synthetic credentials,
@@ -287,7 +310,8 @@ PostgreSQL 16.15 on `ubuntu-24.04`) reported the same coverage: harness 33/33, 4
 tests, fresh migrations, and 51 database tests with the one existing skip.
 
 **Skipped, by design.** Without `--with-db`, the summary reports the harness as
-`32 passed, 1 skipped` (the real-psql test) and the seven database suites as EXCLUDED.
+`32 passed, 1 skipped` (the real-psql test) and the seven database suites as EXCLUDED
+(the Yellow Card suite was added as an eighth later; see below).
 
 **Live activation**, with probe files that were removed afterwards:
 
@@ -338,3 +362,24 @@ was shown to fail against the previous code:
   does install them that way.
 
 These results do not include the release checks excluded above.
+
+## Validation: Yellow Card database suite
+
+Before this change, `test_yellow_cards_db.py` was not a database suite. The DB-less run
+collected it and it skipped itself (`429 passed, 1 skipped`), so none of its four tests ran
+anywhere in verification or CI. Local results after the change (2026-10-07, PostgreSQL 16.15,
+Python 3.13, Node 22; the `--with-db` runs used a non-root account, as `initdb` requires):
+
+- `python3 scripts/verify.py --backend-only`: harness `38 passed, 1 skipped` (the real-psql
+  test), 429 DB-less tests with no skip, all eight database suites EXCLUDED.
+- `python3 scripts/verify.py --backend-only --with-db --pg-bin /usr/lib/postgresql/16/bin`:
+  harness 39/39, 429 DB-less tests, fresh migrations, then 55 database tests: the previous 51
+  with the one existing `/pharmapi/errors` skip, plus `PASS (4 passed)` for the Yellow suite,
+  run last. No `/tmp/pa-verify-*` cluster was left behind.
+- A deliberately broken run that withheld `YELLOW_TEST_DATABASE_URL` from the Yellow suite
+  reported `FAIL: Database suite: test_yellow_cards_db.py` and exited 1.
+- The new harness regressions fail against a fix that only adds the module to the suite list:
+  the private-URL wiring, the refusal of a non-private URL and the zero-skip rule each fail.
+- Frontend checks passed separately as the checkout's owner (`--frontend-only`: Vitest 23
+  passed, production build); in the full non-root run they could not write build state
+  into that checkout.

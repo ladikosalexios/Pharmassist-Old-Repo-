@@ -15,6 +15,10 @@ from urllib.parse import quote
 from xml.etree import ElementTree
 
 ROOT = Path(__file__).resolve().parents[1]
+# Opt-in: the module skips itself unless YELLOW_TEST_DATABASE_URL is set. It seeds its own
+# synthetic rows and cancels other queued Yellow submissions but never resets the schema,
+# so it shares the disposable database and runs last, after every other suite.
+YELLOW_TESTS = "test_yellow_cards_db.py"
 DB_TESTS = (
     "test_endpoints_integration.py",
     "test_v1_tenant_isolation.py",
@@ -23,6 +27,7 @@ DB_TESTS = (
     "test_v1_safety_explain_cache_db.py",
     "test_spc_ingest_api.py",
     "test_v1_retrieval_free_db.py",
+    YELLOW_TESTS,
 )
 # Synthetic FK fixtures, not scripts.seed (which calls Pharmapi).
 FIXTURE_SQL = (
@@ -104,6 +109,17 @@ def database_url(socket_dir):
     )
 
 
+def suite_environment(test, db_env, sockets):
+    """Only the Yellow suite gets its opt-in URL: this run's private database, never a caller's."""
+    if test != YELLOW_TESTS:
+        return db_env
+    url = db_env.get("DATABASE_URL")
+    if url != database_url(sockets):
+        raise ValueError("DATABASE_URL is not this run's private cluster")
+    # The test replaces the mail transport; "disabled" also makes the real one refuse to send.
+    return {**db_env, "YELLOW_TEST_DATABASE_URL": url, "YELLOW_CARDS_MODE": "disabled"}
+
+
 def fixture_command(psql, sockets):
     # -X: psql otherwise reads the installation psqlrc, the account's ~/.psqlrc (HOME is kept,
     # and PostgreSQL 14 locates it through the password database anyway) or PSQLRC. Those can
@@ -155,7 +171,7 @@ def report_counts(report):
     return total - skipped - failed, skipped
 
 
-def outcome(code, report=None):
+def outcome(code, report=None, *, skips_allowed=True):
     """A zero exit is only a pass when tests actually ran; skips are reported, not passed."""
     if code:
         return "FAIL"
@@ -167,6 +183,8 @@ def outcome(code, report=None):
     passed, skipped = counts
     if passed <= 0:  # unittest counts each skipped subTest, so this can dip below zero
         return f"NOT RUN: 0 passed, {skipped} skipped"
+    if skipped and not skips_allowed:
+        return f"FAIL: {skipped} skipped, none allowed ({passed} passed)"
     return f"PASS ({passed} passed, {skipped} skipped)" if skipped else f"PASS ({passed} passed)"
 
 
@@ -250,14 +268,14 @@ def verify(args):
     if not python.is_file() and not args.python:
         python = Path(sys.executable)
 
-    def step(name, command, cwd, env, report=None):
+    def step(name, command, cwd, env, report=None, skips_allowed=True):
         print(f"\n== {name} ==", flush=True)
         try:
             code = call(command, cwd, env)
         except (OSError, subprocess.TimeoutExpired) as exc:
             print(f"ERROR: {exc}", flush=True)
             code = 1
-        results.append((name, outcome(code, report)))
+        results.append((name, outcome(code, report, skips_allowed=skips_allowed)))
         return results[-1][1].startswith("PASS")
 
     with tempfile.TemporaryDirectory(prefix="pa-check-") as temporary:
@@ -339,8 +357,20 @@ def verify(args):
                             must(fixture_command(psql, sockets), ROOT, db_env, input=FIXTURE_SQL)
                             must(backend_command(python, "fixtures"), ROOT / "backend", db_env)
                             for test in DB_TESTS:
+                                try:
+                                    suite_env = suite_environment(test, db_env, sockets)
+                                except ValueError as exc:
+                                    print(
+                                        f"Database suite {test} not configured: {exc}", flush=True
+                                    )
+                                    results.append(
+                                        (f"Database suite: {test}", f"FAIL: unusable config: {exc}")
+                                    )
+                                    continue
                                 # Separate processes avoid the application's module-level pools and
                                 # dependency overrides leaking between unrelated DB test modules.
+                                # The opt-in Yellow suite skips itself when unconfigured, so a skip
+                                # there means lost coverage, not a known pending test.
                                 step(
                                     f"Database suite: {test}",
                                     backend_command(
@@ -356,8 +386,9 @@ def verify(args):
                                         f"tests/{test}",
                                     ),
                                     ROOT / "backend",
-                                    db_env,
+                                    suite_env,
                                     scratch / f"{test}.xml",
+                                    skips_allowed=test != YELLOW_TESTS,
                                 )
                         else:
                             results.extend(
@@ -434,7 +465,7 @@ def main():
     parser.add_argument(
         "--with-db",
         action="store_true",
-        help="Run seven DB suites in a disposable socket-only Postgres",
+        help=f"Run the {len(DB_TESTS)} DB suites in a disposable socket-only Postgres",
     )
     parser.add_argument(
         "--quick", action="store_true", help="Lint/format/typecheck only, used by Stop hooks"

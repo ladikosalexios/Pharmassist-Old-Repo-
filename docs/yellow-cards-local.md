@@ -50,14 +50,22 @@ Frontend: `npm run typecheck`, `npm run lint`, `npm run format:check`, `npm test
 
 Backend unit/visual tests: `pytest -q tests/test_yellow_pdf.py`. Run using the pinned PDFium dependency in `requirements-dev.txt`; the reference PNG contains only synthetic information. When updating the template/layout or rendering libraries, render and visually inspect the synthetic example before replacing the baseline. Tests also check unchanged pixels outside entry regions and exact preservation of page two; do not blindly update snapshots.
 
-Real-database tests run separately against an isolated test database:
+Real-database tests (`tests/test_yellow_cards_db.py`) cover ownership, no upstream calls, stale signatures/revisions, encryption, simultaneous duplicate submissions, concurrent worker claims and interrupted delivery. The shared verifier runs them, with no Docker stack, in its disposable socket-only PostgreSQL cluster:
+
+```sh
+python3 scripts/verify.py --backend-only --with-db --pg-bin /path/to/postgresql/16/bin
+```
+
+It migrates a fresh database, runs the other database suites, then runs this module last with `YELLOW_TEST_DATABASE_URL` set to that private database only. Any skip, an empty run or a missing result fails verification. CI's `backend-db` job runs the same command on PostgreSQL 16. The default DB-less run explicitly excludes the module rather than skipping it. Mail stays mocked; see [VERIFY.md](VERIFY.md#yellow-card-suite).
+
+To run it against this Compose stack instead, use an isolated test database:
 
 ```sh
 docker build -f backend/Dockerfile.yellow-test -t pharmassist-yellow-tests backend
 docker compose -f compose.yellow-cards.local.yaml exec db createdb -U yellow yellow_tests
 ```
 
-Use the reporting environment from the Compose file, with `ENV=test` and both `DATABASE_URL` and `YELLOW_TEST_DATABASE_URL` set to `postgresql+asyncpg://yellow:local-yellow@db:5432/yellow_tests`. Run `alembic upgrade head`, then `pytest -q tests/test_yellow_cards_db.py` in the test image on network `pharmassist-yellow_default`. It covers ownership, no upstream calls, stale signatures/revisions, encryption, simultaneous duplicate submissions, concurrent worker claims and interrupted delivery. The normal DB-less CI suite skips this opt-in suite.
+Use the reporting environment from the Compose file, with `ENV=test` and both `DATABASE_URL` and `YELLOW_TEST_DATABASE_URL` set to `postgresql+asyncpg://yellow:local-yellow@db:5432/yellow_tests`. Run `alembic upgrade head`, then `pytest -q tests/test_yellow_cards_db.py` in the test image on network `pharmassist-yellow_default`. Without `YELLOW_TEST_DATABASE_URL` the module skips itself, so check that all its tests ran.
 
 ## Stop and clear
 

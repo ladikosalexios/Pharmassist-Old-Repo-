@@ -39,9 +39,10 @@ jobs:
       - run: python3 scripts/verify.py --backend-only
 
   backend-db:
-    # The seven database suites and the real-psql harness regression, in a disposable
-    # socket-only cluster created by verify.py. Uses the runner's preinstalled PostgreSQL 16
-    # (Compose's major version; its service stays disabled); never a shared database.
+    # The eight database suites (the Yellow Card suite last, failing on any skip) and the
+    # real-psql harness regression, in a disposable socket-only cluster created by verify.py.
+    # Uses the runner's preinstalled PostgreSQL 16 (Compose's major version; its service
+    # stays disabled); never a shared database.
     name: backend (database suites, isolated PostgreSQL 16)
     # Pinned: the binary path below belongs to this image; ubuntu-latest will move on.
     runs-on: ubuntu-24.04

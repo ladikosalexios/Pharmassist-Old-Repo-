@@ -20,6 +20,9 @@ from unittest.mock import patch
 import agent_hooks as hooks
 import verify
 
+# A caller's shared database: must never reach any verification subprocess.
+CALLER_URL = "postgresql+asyncpg://caller:secret@shared.example.invalid/production"
+
 
 def reporting_call(results):
     """Fake verify.call: return results(command), writing a passing report where one is due."""
@@ -45,6 +48,8 @@ class HarnessTests(unittest.TestCase):
                 "LLM_API_KEY": "secret",
                 "SENTRY_DSN": "secret",
                 "PYTEST_ADDOPTS": "--ignore=tests",
+                "YELLOW_TEST_DATABASE_URL": "production",
+                "YELLOW_CARDS_MODE": "local_capture",
             },
         ):
             env = verify.environment("private-test-url")
@@ -53,7 +58,16 @@ class HarnessTests(unittest.TestCase):
         self.assertEqual(env["LLM_MOCK"], "true")
         self.assertEqual(env["PHARMAPI_KEEPALIVE_ENABLED"], "false")
         self.assertEqual(env["PYTHON_DOTENV_DISABLED"], "1")
-        self.assertFalse(set(env) & {"LLM_API_KEY", "SENTRY_DSN", "PYTEST_ADDOPTS"})
+        self.assertFalse(
+            set(env)
+            & {
+                "LLM_API_KEY",
+                "SENTRY_DSN",
+                "PYTEST_ADDOPTS",
+                "YELLOW_TEST_DATABASE_URL",
+                "YELLOW_CARDS_MODE",
+            }
+        )
 
     def test_private_database_has_no_tcp_listener_and_cleans_up_on_failure(self):
         commands = []
@@ -116,7 +130,7 @@ class HarnessTests(unittest.TestCase):
             {p for p in pytest if p.startswith("--ignore=")},
             {f"--ignore=tests/{p}" for p in verify.DB_TESTS},
         )
-        self.assertEqual(len(verify.DB_TESTS), 7)
+        self.assertEqual(len(verify.DB_TESTS), 8)
         self.assertTrue(any("format" in cmd for cmd in commands))
         self.assertFalse(any("npm" in cmd for cmd in commands))
 
@@ -207,7 +221,7 @@ class HarnessTests(unittest.TestCase):
         sources = [
             "CLAUDE.md",
             "AGENTS.md",
-            "docs/VERIFY.md",
+            *(str(p.relative_to(verify.ROOT)) for p in (verify.ROOT / "docs").glob("*.md")),
             *(
                 str(p.relative_to(verify.ROOT))
                 for p in (verify.ROOT / ".claude/skills").glob("*/SKILL.md")
@@ -272,6 +286,12 @@ class HarnessTests(unittest.TestCase):
             self.assertEqual(verify.outcome(0, report), "NOT RUN: 0 passed, 7 skipped")
             report.write_text('<testsuite tests="5" skipped="1" failures="0" errors="0"/>')
             self.assertEqual(verify.outcome(0, report), "PASS (4 passed, 1 skipped)")
+            self.assertEqual(
+                verify.outcome(0, report, skips_allowed=False),
+                "FAIL: 1 skipped, none allowed (4 passed)",
+            )
+            report.write_text('<testsuite tests="4" skipped="0" failures="0" errors="0"/>')
+            self.assertEqual(verify.outcome(0, report, skips_allowed=False), "PASS (4 passed)")
 
     def test_fully_skipped_database_suite_fails_verification(self):
         args = argparse.Namespace(
@@ -283,13 +303,17 @@ class HarnessTests(unittest.TestCase):
             pg_bin=None,
         )
 
+        sockets = Path("/unused-synthetic-socket")
+
         @contextlib.contextmanager
         def database(*args):
-            yield {}, "synthetic-psql", Path("/unused-synthetic-socket")
+            # The run's real private environment, so nothing but the skipped suite can fail.
+            yield verify.environment(verify.database_url(sockets)), "synthetic-psql", sockets
 
         def results(command):
             report = next((c.split("=", 1)[1] for c in command if "--junitxml=" in c), None)
-            if report and any(c.endswith(verify.DB_TESTS[0]) for c in command):
+            # Match the suite's own argument; the DB-less run's --ignore=... ends the same way.
+            if report and suite_of(command) == verify.DB_TESTS[0]:
                 # e.g. fixtures silently missing: every test skips, pytest still exits 0.
                 Path(report).write_text('<testsuite tests="3" skipped="3"/>')
             return 0
@@ -302,9 +326,13 @@ class HarnessTests(unittest.TestCase):
             contextlib.redirect_stdout(output),
         ):
             self.assertEqual(verify.verify(args), 1)
-        self.assertIn(
-            f"NOT RUN: 0 passed, 3 skipped: Database suite: {verify.DB_TESTS[0]}",
-            output.getvalue(),
+        unsuccessful = [
+            line.strip()
+            for line in output.getvalue().splitlines()
+            if line.startswith(("  FAIL", "  NOT RUN"))
+        ]
+        self.assertEqual(
+            unsuccessful, [f"NOT RUN: 0 passed, 3 skipped: Database suite: {verify.DB_TESTS[0]}"]
         )
 
     def test_harness_runner_counts_skips(self):
@@ -406,6 +434,224 @@ class HarnessTests(unittest.TestCase):
                 [sys.executable, str(verify.ROOT / "scripts/verify_backend.py"), "pytest"], env=env
             ).returncode
             self.assertEqual(code, 0)
+
+
+def suite_of(command):
+    """The backend test module a pytest command selects, if any."""
+    return next((c[len("tests/") :] for c in command if c.startswith("tests/")), None)
+
+
+class YellowSuiteTests(unittest.TestCase):
+    """The opt-in Yellow Card suite: private URL only, run last, and never silently skipped."""
+
+    SOCKETS = Path("/synthetic-private-socket")
+
+    def args(self, with_db=True, pg_bin=None):
+        return argparse.Namespace(
+            frontend_only=False,
+            backend_only=True,
+            with_db=with_db,
+            quick=False,
+            python=sys.executable,
+            pg_bin=pg_bin,
+        )
+
+    def run_verify(self, results, with_db=True, db_env=None):
+        """verify() under a caller who exports a shared URL; returns (exit, summary, calls)."""
+        calls = []
+
+        @contextlib.contextmanager
+        def database(*args):
+            # Built while the caller's URLs are exported, as private_postgres builds it.
+            private_env = verify.environment(verify.database_url(self.SOCKETS))
+            yield private_env if db_env is None else db_env, "synthetic-psql", self.SOCKETS
+
+        def execute(command, cwd, env, **kwargs):
+            calls.append(([str(c) for c in command], env))
+            return reporting_call(results)(command, cwd, env, **kwargs)
+
+        def fixtures(command, cwd, env, **kwargs):
+            calls.append(([str(c) for c in command], env))
+
+        output = io.StringIO()
+        with (
+            patch.dict(
+                os.environ, {"YELLOW_TEST_DATABASE_URL": CALLER_URL, "DATABASE_URL": CALLER_URL}
+            ),
+            patch.object(verify, "call", side_effect=execute),
+            patch.object(verify, "must", side_effect=fixtures),
+            patch.object(verify, "private_postgres", database),
+            contextlib.redirect_stdout(output),
+        ):
+            code = verify.verify(self.args(with_db))
+        return code, output.getvalue(), calls
+
+    def test_yellow_is_the_last_database_suite_and_every_suite_exists(self):
+        self.assertEqual(verify.YELLOW_TESTS, "test_yellow_cards_db.py")
+        self.assertEqual(verify.DB_TESTS[-1], verify.YELLOW_TESTS)
+        self.assertEqual(len(set(verify.DB_TESTS)), len(verify.DB_TESTS))
+        for name in verify.DB_TESTS:
+            self.assertTrue((verify.ROOT / "backend/tests" / name).is_file(), name)
+
+    def test_db_less_run_excludes_yellow_and_hands_out_no_yellow_url(self):
+        code, summary, calls = self.run_verify(lambda command: 0, with_db=False)
+        self.assertEqual(code, 0)
+        pytest = next(command for command, _ in calls if "pytest" in command)
+        self.assertIn(f"--ignore=tests/{verify.YELLOW_TESTS}", pytest)
+        self.assertFalse(any(suite_of(command) for command, _ in calls))
+        self.assertIn(f"EXCLUDED: use --with-db: Database suite: {verify.YELLOW_TESTS}", summary)
+        for _, env in calls:
+            self.assertNotIn("YELLOW_TEST_DATABASE_URL", env)
+            self.assertNotIn(CALLER_URL, env.values())
+
+    def test_yellow_runs_last_with_only_the_private_url(self):
+        code, summary, calls = self.run_verify(lambda command: 0)
+        self.assertEqual(code, 0)
+        private = verify.database_url(self.SOCKETS)
+        order = [suite_of(command) for command, _ in calls]
+        self.assertEqual([name for name in order if name], list(verify.DB_TESTS))
+        migrations = next(i for i, (command, _) in enumerate(calls) if "alembic" in command)
+        loaded = max(
+            i
+            for i, (command, _) in enumerate(calls)
+            if command[0] == "synthetic-psql" or "fixtures" in command
+        )
+        self.assertLess(migrations, loaded)
+        # Its own subprocess, after migrations, fixtures and every other suite.
+        self.assertEqual(order.index(verify.YELLOW_TESTS), len(calls) - 1)
+        for command, env in calls:
+            with self.subTest(command=command[-1]):
+                self.assertNotIn(CALLER_URL, env.values())
+                if suite_of(command) == verify.YELLOW_TESTS:
+                    self.assertEqual(env["YELLOW_TEST_DATABASE_URL"], private)
+                    self.assertEqual(env["DATABASE_URL"], private)
+                    # The test mocks the transport; the real one must refuse to send anyway.
+                    self.assertEqual(env["YELLOW_CARDS_MODE"], "disabled")
+                else:
+                    self.assertNotIn("YELLOW_TEST_DATABASE_URL", env)
+        self.assertIn(f"PASS (2 passed): Database suite: {verify.YELLOW_TESTS}", summary)
+
+    def test_yellow_refuses_a_url_that_is_not_the_private_cluster(self):
+        private = verify.environment(verify.database_url(self.SOCKETS))
+        self.assertIs(verify.suite_environment(verify.DB_TESTS[0], private, self.SOCKETS), private)
+        for env in (
+            {},
+            {**private, "DATABASE_URL": CALLER_URL},
+            verify.environment(verify.database_url(Path("/another-socket"))),
+        ):
+            with self.subTest(url=env.get("DATABASE_URL")), self.assertRaises(ValueError):
+                verify.suite_environment(verify.YELLOW_TESTS, env, self.SOCKETS)
+        code, summary, calls = self.run_verify(
+            lambda command: 0, db_env={**private, "DATABASE_URL": CALLER_URL}
+        )
+        self.assertEqual(code, 1)
+        self.assertIn(
+            "FAIL: unusable config: DATABASE_URL is not this run's private cluster: "
+            f"Database suite: {verify.YELLOW_TESTS}",
+            summary,
+        )
+        self.assertNotIn(verify.YELLOW_TESTS, [suite_of(command) for command, _ in calls])
+
+    def test_yellow_skips_and_missing_or_empty_results_fail_verification(self):
+        cases = {
+            # (pytest exit, report written, summary line)
+            "one test skipped": (
+                0,
+                '<testsuite tests="4" skipped="1"/>',
+                "FAIL: 1 skipped, none allowed (3 passed)",
+            ),
+            "module skipped (pytest exit 5)": (5, '<testsuite tests="1" skipped="1"/>', "FAIL"),
+            "module skipped (exit 0)": (
+                0,
+                '<testsuite tests="1" skipped="1"/>',
+                "NOT RUN: 0 passed, 1 skipped",
+            ),
+            "no tests collected": (
+                0,
+                '<testsuite tests="0" skipped="0"/>',
+                "NOT RUN: 0 passed, 0 skipped",
+            ),
+            "missing report": (0, None, "FAIL: no test report"),
+        }
+        for label, (exit_code, text, expected) in cases.items():
+            with self.subTest(label):
+
+                def results(command, exit_code=exit_code, text=text):
+                    report = next(
+                        (Path(c.split("=", 1)[1]) for c in command if c.startswith("--junitxml=")),
+                        None,
+                    )
+                    if suite_of(command) == verify.YELLOW_TESTS:
+                        if text is None:
+                            report.unlink()
+                        else:
+                            report.write_text(text)
+                        return exit_code
+                    if suite_of(command) == "test_endpoints_integration.py":
+                        # The known pending /pharmapi/errors skip stays a reported pass.
+                        report.write_text('<testsuite tests="2" skipped="1"/>')
+                    return 0
+
+                code, summary, _ = self.run_verify(results)
+                self.assertEqual(code, 1)
+                self.assertIn(f"  {expected}: Database suite: {verify.YELLOW_TESTS}\n", summary)
+                self.assertIn(
+                    "  PASS (1 passed, 1 skipped): Database suite: test_endpoints_integration.py",
+                    summary,
+                )
+                self.assertIn("Verification FAILED.", summary)
+
+    def test_failed_or_interrupted_yellow_suite_still_removes_the_private_cluster(self):
+        for failure in ("fails", "unusable config", "interrupted"):
+            with self.subTest(failure=failure):
+                commands = []
+                roots = []
+
+                def simulate(command, cwd, env, commands=commands, roots=roots, **kwargs):
+                    command = [str(c) for c in command]
+                    commands.append(command)
+                    if command[0].endswith("initdb"):
+                        data = Path(command[command.index("-D") + 1])
+                        data.mkdir()
+                        roots.append(data.parent)
+                    if "start" in command:
+                        (roots[0] / "data/postmaster.pid").write_text("synthetic")
+                    if "stop" in command:
+                        (roots[0] / "data/postmaster.pid").unlink()
+
+                def results(command, failure=failure):
+                    if suite_of(command) == verify.YELLOW_TESTS:
+                        if failure == "interrupted":
+                            raise KeyboardInterrupt
+                        return 1
+                    return 0
+
+                def unusable(test, db_env, sockets, real=verify.suite_environment):
+                    if test == verify.YELLOW_TESTS:
+                        raise ValueError("synthetic unusable configuration")
+                    return real(test, db_env, sockets)
+
+                with tempfile.TemporaryDirectory() as binaries:
+                    for name in ("initdb", "pg_ctl", "createdb", "psql"):
+                        (Path(binaries) / name).touch()
+                    configured = (
+                        patch.object(verify, "suite_environment", unusable)
+                        if failure == "unusable config"
+                        else contextlib.nullcontext()
+                    )
+                    with (
+                        patch.object(verify, "call", side_effect=reporting_call(results)),
+                        patch.object(verify, "must", side_effect=simulate),
+                        configured,
+                        contextlib.redirect_stdout(io.StringIO()),
+                    ):
+                        if failure == "interrupted":
+                            with self.assertRaises(KeyboardInterrupt):
+                                verify.verify(self.args(pg_bin=binaries))
+                        else:
+                            self.assertEqual(verify.verify(self.args(pg_bin=binaries)), 1)
+                self.assertTrue(any("stop" in command for command in commands))
+                self.assertFalse(roots[0].exists())
 
 
 @unittest.skipUnless(
