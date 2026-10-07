@@ -1,4 +1,4 @@
-"""Run separately against the isolated migrated yellow_tests database; no live Pharmapi."""
+"""Needs an isolated migrated database (verify.py --with-db, or yellow_tests); no live Pharmapi."""
 
 import os
 

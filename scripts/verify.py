@@ -360,7 +360,9 @@ def verify(args):
                                 try:
                                     suite_env = suite_environment(test, db_env, sockets)
                                 except ValueError as exc:
-                                    print(f"Database suite {test} not configured: {exc}")
+                                    print(
+                                        f"Database suite {test} not configured: {exc}", flush=True
+                                    )
                                     results.append(
                                         (f"Database suite: {test}", f"FAIL: unusable config: {exc}")
                                     )

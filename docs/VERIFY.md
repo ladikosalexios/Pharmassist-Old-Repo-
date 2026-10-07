@@ -111,9 +111,9 @@ fixtures ever become destructive, give it its own freshly migrated private datab
   never inherited, and no `.env` file is loaded. If the URL is not the private cluster's, the
   suite fails as unusable configuration rather than running.
 - Any skip fails verification: one skipped test, the module skipping itself, zero collected
-  tests or a missing report. Other suites still report skips without failing, so the known
-  pending `GET /pharmapi/errors` skip in `test_endpoints_integration.py` stays a separate
-  `PASS (… 1 skipped)`.
+  tests or a missing report. In other suites some skipped tests still pass (a suite where every
+  test skipped does not), so the known pending `GET /pharmapi/errors` skip in
+  `test_endpoints_integration.py` stays a separate `PASS (… 1 skipped)`.
 - Email never leaves the process. The tests replace the SMTP transport with an in-memory
   capture, and the suite also gets `YELLOW_CARDS_MODE=disabled`, so the real transport refuses
   to send. That transport only knows the Compose-internal `mailpit` host anyway. There is no

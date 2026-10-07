@@ -221,7 +221,7 @@ class HarnessTests(unittest.TestCase):
         sources = [
             "CLAUDE.md",
             "AGENTS.md",
-            "docs/VERIFY.md",
+            *(str(p.relative_to(verify.ROOT)) for p in (verify.ROOT / "docs").glob("*.md")),
             *(
                 str(p.relative_to(verify.ROOT))
                 for p in (verify.ROOT / ".claude/skills").glob("*/SKILL.md")
@@ -303,13 +303,17 @@ class HarnessTests(unittest.TestCase):
             pg_bin=None,
         )
 
+        sockets = Path("/unused-synthetic-socket")
+
         @contextlib.contextmanager
         def database(*args):
-            yield {}, "synthetic-psql", Path("/unused-synthetic-socket")
+            # The run's real private environment, so nothing but the skipped suite can fail.
+            yield verify.environment(verify.database_url(sockets)), "synthetic-psql", sockets
 
         def results(command):
             report = next((c.split("=", 1)[1] for c in command if "--junitxml=" in c), None)
-            if report and any(c.endswith(verify.DB_TESTS[0]) for c in command):
+            # Match the suite's own argument; the DB-less run's --ignore=... ends the same way.
+            if report and suite_of(command) == verify.DB_TESTS[0]:
                 # e.g. fixtures silently missing: every test skips, pytest still exits 0.
                 Path(report).write_text('<testsuite tests="3" skipped="3"/>')
             return 0
@@ -322,9 +326,13 @@ class HarnessTests(unittest.TestCase):
             contextlib.redirect_stdout(output),
         ):
             self.assertEqual(verify.verify(args), 1)
-        self.assertIn(
-            f"NOT RUN: 0 passed, 3 skipped: Database suite: {verify.DB_TESTS[0]}",
-            output.getvalue(),
+        unsuccessful = [
+            line.strip()
+            for line in output.getvalue().splitlines()
+            if line.startswith(("  FAIL", "  NOT RUN"))
+        ]
+        self.assertEqual(
+            unsuccessful, [f"NOT RUN: 0 passed, 3 skipped: Database suite: {verify.DB_TESTS[0]}"]
         )
 
     def test_harness_runner_counts_skips(self):
@@ -451,10 +459,11 @@ class YellowSuiteTests(unittest.TestCase):
     def run_verify(self, results, with_db=True, db_env=None):
         """verify() under a caller who exports a shared URL; returns (exit, summary, calls)."""
         calls = []
-        private_env = verify.environment(verify.database_url(self.SOCKETS))
 
         @contextlib.contextmanager
         def database(*args):
+            # Built while the caller's URLs are exported, as private_postgres builds it.
+            private_env = verify.environment(verify.database_url(self.SOCKETS))
             yield private_env if db_env is None else db_env, "synthetic-psql", self.SOCKETS
 
         def execute(command, cwd, env, **kwargs):
@@ -593,7 +602,7 @@ class YellowSuiteTests(unittest.TestCase):
                 self.assertIn("Verification FAILED.", summary)
 
     def test_failed_or_interrupted_yellow_suite_still_removes_the_private_cluster(self):
-        for failure in ("fails", "interrupted"):
+        for failure in ("fails", "unusable config", "interrupted"):
             with self.subTest(failure=failure):
                 commands = []
                 roots = []
@@ -617,12 +626,23 @@ class YellowSuiteTests(unittest.TestCase):
                         return 1
                     return 0
 
+                def unusable(test, db_env, sockets, real=verify.suite_environment):
+                    if test == verify.YELLOW_TESTS:
+                        raise ValueError("synthetic unusable configuration")
+                    return real(test, db_env, sockets)
+
                 with tempfile.TemporaryDirectory() as binaries:
                     for name in ("initdb", "pg_ctl", "createdb", "psql"):
                         (Path(binaries) / name).touch()
+                    configured = (
+                        patch.object(verify, "suite_environment", unusable)
+                        if failure == "unusable config"
+                        else contextlib.nullcontext()
+                    )
                     with (
                         patch.object(verify, "call", side_effect=reporting_call(results)),
                         patch.object(verify, "must", side_effect=simulate),
+                        configured,
                         contextlib.redirect_stdout(io.StringIO()),
                     ):
                         if failure == "interrupted":
