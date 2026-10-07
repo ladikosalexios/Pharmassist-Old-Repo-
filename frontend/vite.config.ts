@@ -18,6 +18,9 @@ export default defineConfig({
     },
     port: 5173,
     proxy: {
+      // Artifacts must remain PDFs even when navigated with Accept: text/html.
+      "/yellow-cards/artifacts/": "http://backend:8000",
+      "/yellow-cards": spaProxy("http://backend:8000"),
       "/auth": "http://backend:8000",
       "/admin": "http://backend:8000",
       "/pharmapi": "http://backend:8000",

@@ -86,18 +86,24 @@ async function handle(r: Response): Promise<unknown> {
 }
 
 export interface LoginResponse {
+  scope?: string;
+  yellow_cards_enabled?: boolean;
   pharmacist_name: string;
   pharmacy: string;
   pharmacist_id: string;
   pharmacy_id: string;
 }
 
-export async function login(email: string, password: string): Promise<LoginResponse> {
+export async function login(
+  email: string,
+  password: string,
+  mode: "full" | "reporting" = "full",
+): Promise<LoginResponse> {
   const r = await fetch(`${API_BASE}/auth/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     credentials: "include",
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify({ email, password, mode }),
   });
   return handle(r) as Promise<LoginResponse>;
 }
@@ -111,6 +117,8 @@ export async function logout(): Promise<void> {
 }
 
 export interface MeResponse {
+  scope?: string;
+  yellow_cards_enabled?: boolean;
   email: string;
   name: string;
   pharmacy: string;

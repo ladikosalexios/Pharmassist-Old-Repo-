@@ -20,7 +20,8 @@
     "closeMenu": "Close menu",
     "mainMenu": "Main menu",
     "darkMode": "Dark mode",
-    "lightMode": "Light mode"
+    "lightMode": "Light mode",
+    "yellowCards": "Yellow Card"
   },
   "shell": {
     "loading": "Loading…",
@@ -207,7 +208,8 @@
     "reportable3": "Reactions to new medicines (≤5 years on market).",
     "reportable4": "Lack of efficacy, suspected counterfeits, or medication errors.",
     "reportable5": "Reactions during pregnancy or breastfeeding.",
-    "loadingReports": "Loading reports…"
+    "loadingReports": "Loading reports…",
+    "filterReportedUnverified": "Manually reported — unverified"
   },
   "history": {
     "title": "Dispense history",

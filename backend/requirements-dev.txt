@@ -8,6 +8,7 @@ ruff==0.15.12
 
 # Test runner — smoke tests in tests/.
 pytest>=8.0
+pypdfium2==4.30.0
 
 # Async event-loop runtime for fastapi.testclient. Today it arrives transitively
 # via starlette/httpx, but the test suite is the only thing exercising the

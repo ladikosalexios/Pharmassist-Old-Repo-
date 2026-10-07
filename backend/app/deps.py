@@ -8,16 +8,20 @@ ADR-003: the session JWT is read from a httpOnly ``pharmassist_session``
 cookie, never from an Authorization header.
 """
 
+import uuid
+
 from fastapi import Cookie, Depends, HTTPException
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .db.models.pharmacist import Pharmacist
+from .db.models.pharmacist_pharmacy import PharmacistPharmacy
 from .db.models.pharmacy import Pharmacy
 from .db.session import get_session
 from .services.security import decode_jwt
 
 
-async def get_current_user(
+async def get_identity(
     session_token: str | None = Cookie(default=None, alias="pharmassist_session"),
     db: AsyncSession = Depends(get_session),
 ) -> dict:
@@ -40,7 +44,16 @@ async def get_current_user(
     if pharmacy is None:
         raise HTTPException(status_code=401, detail="Pharmacy not found")
 
+    link = await db.scalar(
+        select(PharmacistPharmacy).where(
+            PharmacistPharmacy.pharmacist_id == uuid.UUID(pharmacist_id),
+            PharmacistPharmacy.pharmacy_id == uuid.UUID(pharmacy_id),
+        )
+    )
+    if link is None:
+        raise HTTPException(401, "Pharmacy membership no longer exists")
     return {
+        "scope": payload.get("scope", "full"),
         "pharmacist_id": str(pharmacist.id),
         "pharmacy_id": str(pharmacy.id),
         "email": pharmacist.email,
@@ -49,3 +62,9 @@ async def get_current_user(
         "pharmacy": pharmacy.name,
         "role": pharmacist.role,
     }
+
+
+async def get_current_user(current: dict = Depends(get_identity)) -> dict:
+    if current.get("scope", "full") != "full":
+        raise HTTPException(403, "Reporting session cannot access the prescription workspace")
+    return current

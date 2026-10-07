@@ -20,7 +20,7 @@ from ..db.models.invitation import Invitation
 from ..db.models.pharmacist import Pharmacist
 from ..db.models.pharmacist_pharmacy import PharmacistPharmacy
 from ..db.session import get_session
-from ..deps import get_current_user
+from ..deps import get_current_user, get_identity
 from ..observability import auth_login_rate_limit
 from ..schemas.auth import (
     AcceptInviteRequest,
@@ -86,20 +86,28 @@ async def login(
     # link.pharmacy is eager-loaded via selectinload + FK-guaranteed non-null.
     pharmacy = link.pharmacy
 
-    # Refuse to log in if the link row exists but its ΗΔΥΚΑ creds are NULL/blank —
-    # the previous `or ""` fallback would have fed empty ciphertext into
-    # decrypt_credential and either thrown an opaque InvalidTag or, worse,
-    # silently decoded to empty plaintext that we'd then send upstream.
-    if not link.pharmapi_username or not link.pharmapi_password:
-        raise HTTPException(
-            status_code=500,
-            detail="Pharmacist's pharmacy link is missing ΗΔΥΚΑ credentials",
+    if body.mode == "reporting":
+        if settings.yellow_cards_mode != "local_capture":
+            raise HTTPException(403, "Yellow Card reporting is disabled")
+    else:
+        if not settings.pharmapi_enabled:
+            raise HTTPException(403, "Use the reporting login for this local workspace")
+        # Refuse to log in if the link row exists but its ΗΔΥΚΑ creds are NULL/blank —
+        # the previous `or ""` fallback would have fed empty ciphertext into
+        # decrypt_credential and either thrown an opaque InvalidTag or, worse,
+        # silently decoded to empty plaintext that we'd then send upstream.
+        if not link.pharmapi_username or not link.pharmapi_password:
+            raise HTTPException(
+                status_code=500,
+                detail="Pharmacist's pharmacy link is missing ΗΔΥΚΑ credentials",
+            )
+        # Decrypt ΗΔΥΚΑ credentials in-memory; never log or persist plaintext.
+        pharmapi_username = decrypt_credential(link.pharmapi_username)
+        pharmapi_password = decrypt_credential(link.pharmapi_password)
+        profile = await verify_pharmapi_credentials_with_decrypted(
+            pharmapi_username, pharmapi_password
         )
-    # Decrypt ΗΔΥΚΑ credentials in-memory; never log or persist plaintext.
-    pharmapi_username = decrypt_credential(link.pharmapi_username)
-    pharmapi_password = decrypt_credential(link.pharmapi_password)
-    profile = await verify_pharmapi_credentials_with_decrypted(pharmapi_username, pharmapi_password)
-    _start_pharmapi_session(profile)
+        _start_pharmapi_session(profile)
 
     # Audit-grade timestamp; only updated once everything upstream has accepted
     # the login, so a 502 from Pharmapi doesn't masquerade as a successful auth
@@ -113,6 +121,7 @@ async def login(
             "sub": str(pharmacist.id),
             "pharmacy_id": str(pharmacy.id),
             "email": pharmacist.email,
+            "scope": body.mode,
         }
     )
     # path="/" is the Starlette default today, but pin it on both set_cookie
@@ -129,6 +138,8 @@ async def login(
     )
 
     return LoginResponse(
+        scope=body.mode,
+        yellow_cards_enabled=settings.yellow_cards_mode == "local_capture",
         pharmacist_name=pharmacist.full_name,
         pharmacy=pharmacy.name,
         pharmacist_id=str(pharmacist.id),
@@ -164,14 +175,18 @@ async def _default_link(db: AsyncSession, pharmacist_id: str) -> PharmacistPharm
 
 @router.get("/me", response_model=PharmacistMe)
 async def me(
-    current: dict = Depends(get_current_user),
+    current: dict = Depends(get_identity),
     db: AsyncSession = Depends(get_session),
 ) -> PharmacistMe:
     link = await _default_link(db, current["pharmacist_id"])
     pharmapi_username = (
-        decrypt_credential(link.pharmapi_username) if link and link.pharmapi_username else None
+        decrypt_credential(link.pharmapi_username)
+        if current.get("scope", "full") == "full" and link and link.pharmapi_username
+        else None
     )
     return PharmacistMe(
+        scope=current.get("scope", "full"),
+        yellow_cards_enabled=get_settings().yellow_cards_mode == "local_capture",
         email=current["email"],
         name=current["name"],
         pharmacy=current["pharmacy"],
