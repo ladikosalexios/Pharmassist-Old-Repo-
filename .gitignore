@@ -37,3 +37,14 @@ backend/scripts/iqe_invalid.json
 
 # local-only demo deploy secrets (never commit)
 deploy/aws/.demo-secrets
+
+# Per-worktree verification dependencies and generated caches
+backend/.venv/
+backend/.pytest_cache/
+.ruff_cache/
+**/.ruff_cache/
+**/*.tsbuildinfo
+# Personal Codex services/agent presets are not portable team configuration.
+.codex/config.toml
+.codex/agents/
+.codex/*.local.*

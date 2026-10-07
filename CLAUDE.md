@@ -10,6 +10,16 @@ PharmAssist POC: pharmacist signs into our SPA → backend issues a session cook
 
 Stack: FastAPI (Python 3.13, async SQLAlchemy 2.0, asyncpg) + React 18 / Vite / TS / Tailwind + Postgres 16. Everything is orchestrated by `compose.yaml`.
 
+## Verification and worktrees
+
+Run `python3 scripts/verify.py` for the shared verification entry point. Read
+[docs/VERIFY.md](docs/VERIFY.md) for dependencies, explicit exclusions, the isolated database
+option and hook setup. Use `--with-db` for the seven database suites; never point verification
+at the Compose or production database, and never run the live seed to prepare tests.
+`AGENTS.md` is the tracked Codex entry point and links these same instructions.
+Each worktree needs its own dependencies; local `.codex/config.toml` and agent presets are
+not a prerequisite. Both providers' hooks resolve this worktree and delegate to shared scripts.
+
 ## Running things
 
 ```bash
@@ -60,7 +70,12 @@ Frontend tests run with vitest: `npm run test` (`src/lib/api.test.ts`).
 
 ## Pre-commit / CI
 
-`.pre-commit-config.yaml` runs ruff (backend) + prettier (frontend) + safety hooks. Install once per clone: `pip install pre-commit && pre-commit install`. CI (`.github/workflows/lint.yml`) runs `ruff check`, `ruff format --check`, `npm run lint`, and `npm run format:check`. The ruff version is pinned in three places that must stay in sync: `requirements-dev.txt`, `.pre-commit-config.yaml`, and CI's pip install.
+`.pre-commit-config.yaml` runs ruff (backend + verification scripts), prettier (frontend),
+and safety hooks. CI calls the same `scripts/verify.py` entry point separately for backend
+and frontend. The default excludes the seven database suites explicitly; `--with-db` runs
+those against a disposable local cluster. See [docs/VERIFY.md](docs/VERIFY.md) for exact coverage.
+Keep the ruff pin in `backend/requirements-dev.txt` and `.pre-commit-config.yaml` aligned;
+CI installs that requirements file.
 
 ## Configuration & secrets
 

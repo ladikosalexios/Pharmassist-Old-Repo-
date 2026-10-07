@@ -1,12 +1,12 @@
-name: Lint
+name: Verify
 
 on:
   pull_request:
-    branches: [main]
+    # The harness is stacked on the existing instructions PR until it lands.
+    branches: [main, fix/track-claude-md]
   push:
     branches: [main]
 
-# Cancel in-progress runs on the same PR/branch when a new commit lands.
 concurrency:
   group: lint-${{ github.ref }}
   cancel-in-progress: true
@@ -15,97 +15,39 @@ jobs:
   backend:
     name: backend (ruff)
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: backend
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
           cache: pip
           cache-dependency-path: backend/requirements-dev.txt
-
-      - name: Install ruff
-        run: pip install -r requirements-dev.txt
-
-      - name: ruff check
-        run: ruff check .
-
-      - name: ruff format --check
-        run: ruff format --check .
+      - run: pip install -r backend/requirements-dev.txt
+      - run: python3 scripts/verify.py --backend-only --quick
 
   backend-tests:
     name: backend (pytest, DB-less subset)
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: backend
-    env:
-      ENV: test
-      PHARMAPI_MOCK: "true"
-      COOKIE_SECURE: "false"
-      SECRET_KEY: ci-secret
-      PHARMAPI_USERNAME: ci-user
-      PHARMAPI_PASSWORD: ci-pass
-      PHARMAPI_API_KEY: ci-key
-      # base64 of 32 bytes — tests use setdefault, so this wins and stays valid
-      CREDENTIAL_ENCRYPTION_KEY: AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
           cache: pip
           cache-dependency-path: backend/requirements-dev.txt
-
-      - name: Install dependencies
-        run: pip install -r requirements-dev.txt
-
-      # Seven suites need the live compose Postgres and stay manual:
-      # test_endpoints_integration.py, test_v1_tenant_isolation.py,
-      # test_b2b_admin_audit.py (drives the CLI against a real DB),
-      # test_ai_cache_db.py (T2-2 LLM-cache round-trip),
-      # test_v1_safety_explain_cache_db.py (T2-6 explanation cache-hit AC),
-      # test_spc_ingest_api.py (SPC upload → parse → serve round-trip), and
-      # test_v1_retrieval_free_db.py (Tier-0: credential-less location end to end).
-      # Everything else (incl. all /v1 contract + auth + engine tests, the DB-less
-      # LLM-seam tests, the T2-6 DB-less contract tests, and
-      # test_b2b_admin_audit_unit.py / test_ai_cache.py) runs via fake sessions /
-      # dependency overrides.
-      - name: pytest (DB-less)
-        run: >
-          pytest -q
-          --ignore=tests/test_endpoints_integration.py
-          --ignore=tests/test_v1_tenant_isolation.py
-          --ignore=tests/test_b2b_admin_audit.py
-          --ignore=tests/test_ai_cache_db.py
-          --ignore=tests/test_v1_safety_explain_cache_db.py
-          --ignore=tests/test_spc_ingest_api.py
-          --ignore=tests/test_v1_retrieval_free_db.py
+      - run: pip install -r backend/requirements-dev.txt
+      - run: python3 scripts/verify.py --backend-only
 
   frontend:
     name: frontend (eslint + prettier)
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: frontend
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
           cache: npm
           cache-dependency-path: frontend/package-lock.json
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: eslint
-        run: npm run lint
-
-      - name: prettier --check
-        run: npm run format:check
+      - run: npm ci
+        working-directory: frontend
+      - run: python3 scripts/verify.py --frontend-only

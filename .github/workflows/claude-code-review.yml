@@ -12,6 +12,8 @@ on:
 
 jobs:
   claude-review:
+    # Draft verification must not launch a paid agent review.
+    if: ${{ github.event.pull_request.draft == false }}
     # Optional: Filter by PR author
     # if: |
     #   github.event.pull_request.user.login == 'external-contributor' ||
@@ -61,4 +63,3 @@ jobs:
           else
             echo "no claude-execution-output.json found"
           fi
-
