@@ -282,6 +282,10 @@ isolated worktree.
   a manual run worked from `frontend/src` under system Python 3.9, and the `.agents/skills`
   links resolve.
 
+**Passed in CI on PostgreSQL 16.** The `backend-db` job's first run (commit `9485c5e`,
+PostgreSQL 16.15 on `ubuntu-24.04`) reported the same coverage: harness 33/33, 422 DB-less
+tests, fresh migrations, and 51 database tests with the one existing skip.
+
 **Skipped, by design.** Without `--with-db`, the summary reports the harness as
 `32 passed, 1 skipped` (the real-psql test) and the seven database suites as EXCLUDED.
 
@@ -328,10 +332,9 @@ was shown to fail against the previous code:
   local logs did not record the hook run.
 - **Codex in the developer's own setup:** no hooks run there until the project is trusted and
   each hook is approved.
-- **Database suites in CI:** the `backend-db` job runs them on PostgreSQL 16, but it had not run
-  when this was written; until it passes, PostgreSQL 16 parity is unverified.
 - **Versions:** local runs used PostgreSQL 14.18, Node 23.11.0, Python 3.13 for the backend
-  and system Python 3.9.6 for the launcher. CI covers Node 22 and Python 3.13 for the checks
-  it runs. Frontend dependencies were not freshly installed with `npm ci`.
+  and system Python 3.9.6 for the launcher. CI covers PostgreSQL 16, Node 22 and Python 3.13.
+  Locally, frontend dependencies were not freshly installed with `npm ci`; CI's frontend job
+  does install them that way.
 
 These results do not include the release checks excluded above.
