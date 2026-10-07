@@ -1,0 +1,68 @@
+# Isolated synthetic-data workspace; intentionally not a production overlay.
+name: pharmassist-yellow
+x-reporting: &reporting
+  ENV: development
+  DATABASE_URL: postgresql+asyncpg://yellow:local-yellow@db:5432/yellow
+  SECRET_KEY: local-yellow-session-key-never-use-in-production
+  YELLOW_CARDS_KEY: AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=
+  YELLOW_CARDS_MODE: local_capture
+  PHARMAPI_ENABLED: "false"
+  PHARMAPI_MOCK: "true"
+  PHARMAPI_KEEPALIVE_ENABLED: "false"
+  LLM_MOCK: "true"
+  COOKIE_SECURE: "false"
+  CORS_ALLOW_ORIGINS: http://localhost:5174,http://127.0.0.1:5174
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: yellow
+      POSTGRES_PASSWORD: local-yellow
+      POSTGRES_DB: yellow
+    volumes: [yellow-db:/var/lib/postgresql/data]
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -U yellow -d yellow]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+  setup:
+    build: ./backend
+    environment: *reporting
+    command: [sh, -c, "alembic upgrade head && python -m scripts.seed_yellow_cards"]
+    depends_on:
+      db: {condition: service_healthy}
+  backend:
+    build: ./backend
+    environment: *reporting
+    command: [python, -m, uvicorn, main:app, --host, 0.0.0.0, --port, "8000"]
+    depends_on:
+      setup: {condition: service_completed_successfully}
+  worker:
+    restart: unless-stopped
+    build: ./backend
+    environment: *reporting
+    command: [python, -m, scripts.yellow_worker]
+    depends_on:
+      setup: {condition: service_completed_successfully}
+      mailpit: {condition: service_started}
+  frontend:
+    build: ./frontend
+    depends_on: [backend]
+  mailpit:
+    image: axllent/mailpit:v1.27.4
+    environment:
+      MP_DATABASE: /data/mailpit.db
+    volumes: [yellow-mail:/data]
+  gateway:
+    image: nginx:1.28-alpine
+    volumes: [./dev/yellow-card-gateway.conf:/etc/nginx/conf.d/default.conf:ro]
+    ports: ["127.0.0.1:5174:5173", "127.0.0.1:8026:8025", "127.0.0.1:8001:8000"]
+    networks: [default, edge]
+    depends_on: [frontend, backend, mailpit]
+networks:
+  edge: {}
+  default:
+    internal: true
+volumes:
+  yellow-db:
+  yellow-mail:

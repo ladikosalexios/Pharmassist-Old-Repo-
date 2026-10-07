@@ -32,6 +32,13 @@ from app.db.models.safety_rule import SafetyRule  # noqa
 from app.db.models.spc_document import SpcDocument  # noqa
 from app.db.models.spc_fetch_state import SpcFetchState  # noqa
 from app.db.models.spc_sync_run import SpcSyncRun  # noqa
+from app.db.models.yellow_card import (  # noqa
+    YellowEvent,
+    YellowPreview,
+    YellowReport,
+    YellowSignature,
+    YellowSubmission,
+)
 
 config = context.config
 settings = get_settings()

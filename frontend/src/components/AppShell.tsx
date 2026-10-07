@@ -1,4 +1,4 @@
-import { Outlet, Navigate, useNavigate } from "react-router-dom";
+import { Outlet, Navigate, useNavigate, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Sidebar, MobileNav } from "./Sidebar";
 import { useAuth } from "../lib/auth";
@@ -9,6 +9,7 @@ import { ApiError, getNextPrescription } from "../lib/api";
 export function AppShell() {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
   const { t } = useTranslation();
 
@@ -33,7 +34,7 @@ export function AppShell() {
         }
       },
     },
-    { enabled: !!user },
+    { enabled: !!user && user.scope !== "reporting" },
   );
 
   if (loading) {
@@ -44,6 +45,8 @@ export function AppShell() {
     );
   }
   if (!user) return <Navigate to="/login" replace />;
+  if (user.scope === "reporting" && location.pathname !== "/yellow-cards")
+    return <Navigate to="/yellow-cards" replace />;
   return (
     <div className="flex h-full overflow-hidden">
       <Sidebar />

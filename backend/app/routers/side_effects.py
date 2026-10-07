@@ -8,6 +8,8 @@ Bridge pattern (see CLAUDE.md): list + create branch on is_mock_pharmapi().
 Both modes return the identical camelCase SideEffectReport shape.
 """
 
+import uuid
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -30,7 +32,6 @@ from ..services.side_effects import (
     mock_stats,
     next_status,
     search_and_sort_mock,
-    stats,
 )
 
 router = APIRouter(prefix="/side-effects", tags=["side-effects"])
@@ -49,7 +50,22 @@ async def list_side_effects(
             "stats": mock_stats(),
         }
 
-    items = await AdrReport.get_all(session)
+    items = list(
+        (
+            await session.scalars(
+                select(AdrReport).where(
+                    AdrReport.pharmacist_id == uuid.UUID(current["pharmacist_id"]),
+                    AdrReport.pharmacy_id == uuid.UUID(current["pharmacy_id"]),
+                )
+            )
+        ).all()
+    )
+    own_stats = {
+        "total": len(items),
+        "pendingReview": sum(r.status == "PENDING_REVIEW" for r in items),
+        "severe": sum(r.severity == "SEVERE" for r in items),
+        "escalated": sum(r.status == "ESCALATED" for r in items),
+    }
     if q:
         needle = q.lower().strip()
         items = [
@@ -74,7 +90,7 @@ async def list_side_effects(
         items.sort(key=lambda r: r.reported_at, reverse=True)
     return {
         "items": [get_adr_report_dict(i) for i in items],
-        "stats": await stats(session),
+        "stats": own_stats,
     }
 
 
@@ -119,12 +135,18 @@ async def create_side_effect(
 
 @router.post("/{report_id}/flag")
 async def flag_side_effect(
-    report_id: str,
+    report_id: uuid.UUID,
     current: dict = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ):
     """Advance the report's pharmacovigilance status one step (PENDING_REVIEW → ESCALATED → EOF_REPORTED)."""
-    rec = await AdrReport.get_by_id(session, report_id)
+    rec = await session.scalar(
+        select(AdrReport).where(
+            AdrReport.id == report_id,
+            AdrReport.pharmacist_id == uuid.UUID(current["pharmacist_id"]),
+            AdrReport.pharmacy_id == uuid.UUID(current["pharmacy_id"]),
+        )
+    )
     if rec is None:
         raise HTTPException(status_code=404, detail=f"Side-effect report {report_id} not found")
     previous = rec.status

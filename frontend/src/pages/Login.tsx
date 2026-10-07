@@ -18,13 +18,15 @@ export function Login() {
   const location = useLocation();
   const notice = (location.state as { notice?: string } | null)?.notice ?? null;
 
+  const [reporting, setReporting] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPw, setShowPw] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  if (user) return <Navigate to="/dashboard" replace />;
+  if (user)
+    return <Navigate to={user.scope === "reporting" ? "/yellow-cards" : "/dashboard"} replace />;
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
@@ -35,8 +37,8 @@ export function Login() {
     }
     setSubmitting(true);
     try {
-      await signIn(email.trim(), password);
-      navigate("/dashboard", { replace: true });
+      await signIn(email.trim(), password, reporting ? "reporting" : "full");
+      navigate(reporting ? "/yellow-cards" : "/dashboard", { replace: true });
     } catch (e) {
       if (e instanceof ApiError) {
         setErr(e.message || t("login.errorHint"));
@@ -159,6 +161,14 @@ export function Login() {
               </div>
             </div>
 
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={reporting}
+                onChange={(e) => setReporting(e.target.checked)}
+              />
+              Κίτρινη Κάρτα — τοπική δοκιμή χωρίς ΗΔΥΚΑ
+            </label>
             {/* submit */}
             <button
               type="submit"

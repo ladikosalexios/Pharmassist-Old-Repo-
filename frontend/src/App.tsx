@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import { AppShell } from "./components/AppShell";
 import { Login } from "./pages/Login";
@@ -9,6 +10,9 @@ import { SideEffects } from "./pages/SideEffects";
 import { Patients } from "./pages/Patients";
 import { PatientProfile } from "./pages/PatientProfile";
 import { Instructions } from "./pages/Instructions";
+const YellowCards = lazy(() =>
+  import("./pages/YellowCards").then((module) => ({ default: module.YellowCards })),
+);
 import { Settings } from "./pages/Settings";
 
 export function App() {
@@ -25,6 +29,14 @@ export function App() {
         <Route path="/patients" element={<Patients />} />
         <Route path="/patients/:id" element={<PatientProfile />} />
         <Route path="/instructions" element={<Instructions />} />
+        <Route
+          path="/yellow-cards"
+          element={
+            <Suspense fallback={<p className="p-6">Φόρτωση Κίτρινης Κάρτας…</p>}>
+              <YellowCards />
+            </Suspense>
+          }
+        />
         <Route path="/settings" element={<Settings />} />
       </Route>
       <Route path="/" element={<Navigate to="/dashboard" replace />} />

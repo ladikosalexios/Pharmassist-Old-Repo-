@@ -2,6 +2,8 @@ import { createContext, useContext, useEffect, useMemo, useState, type ReactNode
 import { login as apiLogin, logout as apiLogout, me as apiMe } from "./api";
 
 interface AuthUser {
+  scope?: string;
+  yellowCardsEnabled?: boolean;
   name: string;
   pharmacy: string;
   email?: string;
@@ -10,7 +12,7 @@ interface AuthUser {
 interface AuthContextValue {
   user: AuthUser | null;
   loading: boolean;
-  signIn: (email: string, password: string) => Promise<void>;
+  signIn: (email: string, password: string, mode?: "full" | "reporting") => Promise<void>;
   signOut: () => Promise<void>;
 }
 
@@ -25,7 +27,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     apiMe()
-      .then((data) => setUser({ name: data.name, pharmacy: data.pharmacy, email: data.email }))
+      .then((data) =>
+        setUser({
+          name: data.name,
+          pharmacy: data.pharmacy,
+          email: data.email,
+          scope: data.scope,
+          yellowCardsEnabled: data.yellow_cards_enabled,
+        }),
+      )
       .catch(() => setUser(null))
       .finally(() => setLoading(false));
   }, []);
@@ -34,12 +44,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     () => ({
       user,
       loading,
-      async signIn(email, password) {
-        const data = await apiLogin(email, password);
+      async signIn(email, password, mode = "full") {
+        const data = await apiLogin(email, password, mode);
         // The backend's LoginResponse doesn't carry `email`, so reuse the
         // value the form submitted — keeps `user.email` populated immediately
         // instead of waiting for a page reload to hydrate it from /auth/me.
-        setUser({ name: data.pharmacist_name, pharmacy: data.pharmacy, email });
+        setUser({
+          name: data.pharmacist_name,
+          pharmacy: data.pharmacy,
+          email,
+          scope: data.scope,
+          yellowCardsEnabled: data.yellow_cards_enabled,
+        });
       },
       async signOut() {
         // Swallow upstream failures — we still want to clear local state

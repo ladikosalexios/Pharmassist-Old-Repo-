@@ -1,0 +1,179 @@
+.yc-workspace {
+  width: 100%;
+  max-width: 1060px;
+  margin: 0 auto;
+  padding: 24px;
+  color: #183d35;
+}
+.yc-workspace header {
+  margin: 24px 0;
+}
+.yc-workspace h1 {
+  font-size: 30px;
+  font-weight: 700;
+}
+.yc-workspace h2 {
+  font-size: 19px;
+  font-weight: 700;
+  margin-bottom: 12px;
+}
+.yc-workspace h3 {
+  font-weight: 600;
+  margin: 12px 0;
+}
+.yc-workspace p {
+  margin: 8px 0;
+  font-size: 14px;
+  line-height: 1.6;
+}
+.yc-banner {
+  background: #fff1b8;
+  border: 1px solid #dcc368;
+  padding: 12px;
+  border-radius: 6px;
+  font-size: 14px;
+  position: sticky;
+  top: 0;
+  z-index: 5;
+}
+.yc-card {
+  background: white;
+  border: 1px solid #d5dfda;
+  border-radius: 10px;
+  padding: 24px;
+  margin: 18px 0;
+}
+.yc-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin: 16px 0;
+}
+.yc-workspace label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 14px;
+  margin: 10px 0;
+}
+.yc-workspace input,
+.yc-workspace select,
+.yc-workspace textarea {
+  width: 100%;
+  border: 1px solid #9cafa5;
+  border-radius: 5px;
+  padding: 9px;
+  color: #183d35;
+  background: white;
+}
+.yc-workspace input:focus,
+.yc-workspace select:focus,
+.yc-workspace textarea:focus {
+  outline: 3px solid #e7c649;
+  outline-offset: 2px;
+}
+.yc-workspace textarea {
+  min-height: 85px;
+}
+.yc-workspace button,
+.yc-workspace a {
+  border: 1px solid #97aaa0;
+  border-radius: 5px;
+  padding: 9px 12px;
+  display: inline-block;
+  font-size: 14px;
+  margin: 4px 8px 4px 0;
+  background: #fff;
+}
+.yc-workspace button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.yc-workspace .yc-primary {
+  background: #215c4c;
+  color: white;
+  border-color: #215c4c;
+}
+.yc-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 0;
+}
+.yc-row {
+  border-bottom: 1px solid #dde4df;
+  padding-bottom: 15px;
+  margin-bottom: 15px;
+}
+.yc-workspace .yc-check {
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 10px;
+}
+.yc-check input {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.yc-error {
+  border: 1px solid #bd5b47;
+  background: #fff1ed;
+  padding: 15px;
+  color: #842615;
+}
+.yc-notice {
+  border: 1px solid #81aa98;
+  background: #edf6f1;
+  padding: 15px;
+}
+.yc-signature {
+  display: block;
+  width: 100%;
+  max-width: 600px;
+  height: 200px;
+  touch-action: none;
+  background: white;
+  border: 2px dashed #688a79;
+  border-radius: 5px;
+}
+.yc-saved-signature {
+  max-width: 260px;
+  max-height: 100px;
+  background: white;
+  border: 1px solid #d5dfda;
+  padding: 10px;
+  margin: 12px 0;
+}
+.yc-pdf {
+  overflow: auto;
+  background: #e6e9e6;
+  padding: 12px;
+  max-height: 780px;
+}
+.yc-email {
+  padding: 16px;
+  background: #f4f6f3;
+  overflow-wrap: anywhere;
+}
+.yc-editor {
+  min-width: 0;
+}
+.yc-workspace fieldset:disabled {
+  opacity: 0.8;
+}
+@media (max-width: 640px) {
+  .yc-workspace {
+    padding: 12px;
+  }
+  .yc-grid {
+    grid-template-columns: 1fr;
+  }
+  .yc-card {
+    padding: 16px;
+  }
+  .yc-banner {
+    position: static;
+  }
+}

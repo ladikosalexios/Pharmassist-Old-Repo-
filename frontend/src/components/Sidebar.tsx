@@ -22,6 +22,7 @@ const NAV = [
   { to: "/patients", labelKey: "nav.patients", Icon: UsersIcon },
   { to: "/history", labelKey: "nav.history", Icon: ClipboardIcon },
   { to: "/side-effects", labelKey: "nav.reports", Icon: AlertTriangleIcon },
+  { to: "/yellow-cards", labelKey: "nav.yellowCards", Icon: ClipboardIcon },
   { to: "/settings", labelKey: "nav.settings", Icon: SettingsIcon },
 ];
 
@@ -35,10 +36,15 @@ function initialsOf(name: string | undefined): string {
 
 /** Shared nav links. `padY` lets the drawer use taller (≥40px) touch targets. */
 function NavItems({ onNavigate, padY = "py-2" }: { onNavigate?: () => void; padY?: string }) {
+  const { user } = useAuth();
   const { t } = useTranslation();
   return (
     <>
-      {NAV.map(({ to, labelKey, Icon }) => (
+      {NAV.filter((item) =>
+        user?.scope === "reporting"
+          ? item.to === "/yellow-cards"
+          : item.to !== "/yellow-cards" || user?.yellowCardsEnabled,
+      ).map(({ to, labelKey, Icon }) => (
         <NavLink
           key={to}
           to={to}
