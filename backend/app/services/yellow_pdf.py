@@ -134,6 +134,14 @@ def render_pdf(data: ReportData, signature: bytes, reference: str) -> bytes:
         if key == "observations" and data.reporter_email:
             value = f"Email αναφέροντος: {data.reporter_email}\n{value}"
         field(value, key, labels[key])
+    if data.reporter_type in ("hospital_doctor", "private_doctor"):
+        field(
+            data.reporter_specialty,
+            f"reporter_specialty.{data.reporter_type}",
+            "Ειδικότητα αναφέροντος",
+        )
+    if data.reporter_type == "other":
+        field(data.reporter_other, "reporter_other", "Ιδιότητα αναφέροντος")
 
     def tick(key):
         x, top = LAYOUT["checkboxes"][key]
@@ -148,7 +156,7 @@ def render_pdf(data: ReportData, signature: bytes, reference: str) -> bytes:
         tick("serious_yes" if data.serious else "serious_no")
     for key in data.seriousness:
         tick(key)
-    tick("pharmacist")
+    tick(f"reporter.{data.reporter_type}")
     for kind, rows, capacity, attrs in [
         ("reaction", data.reactions, 5, ["description", "onset", "end", "outcome"]),
         (
