@@ -125,15 +125,20 @@ def summary(result):
     )
 
 
-def execution_result(path):
+def execution_messages(path):
     # The action's documented execution_file is a JSON array of SDK messages.
-    # Read only its final result. Never dump the transcript or errors.
+    # Parse privately; callers publish only validated fields and fixed categories.
     try:
         messages = json.loads(Path(path).read_text())
-        final = messages[-1]
-        return final if final.get("type") == "result" else None
-    except (OSError, ValueError, TypeError, KeyError, IndexError, AttributeError):
-        return None
+        return messages if isinstance(messages, list) else []
+    except (OSError, ValueError, TypeError):
+        return []
+
+
+def execution_result(path):
+    messages = execution_messages(path)
+    final = messages[-1] if messages else None
+    return final if isinstance(final, dict) and final.get("type") == "result" else None
 
 
 def report_from_file(path):
@@ -150,6 +155,23 @@ def report_from_file(path):
     return json.dumps(report)
 
 
+def tool_category(name, inputs):
+    label = (
+        name if name in ("Agent", "Task", "Read", "Grep", "Glob", "StructuredOutput") else "other"
+    )
+    if name == "Bash":
+        label = "Bash: other shell command"
+        try:
+            source = inputs["command"]
+            if isinstance(source, str):
+                command = shlex.split(source)
+                if command[:3] in (["gh", "pr", "view"], ["gh", "pr", "diff"]):
+                    label = "Bash: " + " ".join(command[:3])
+        except (KeyError, TypeError, ValueError, AttributeError):
+            pass
+    return label
+
+
 def diagnostics(path):
     final = execution_result(path)
     denials = final.get("permission_denials") if final else None
@@ -158,25 +180,57 @@ def diagnostics(path):
     labels = Counter()
     for denial in denials[:100]:
         name = denial.get("tool_name") if isinstance(denial, dict) else None
-        label = (
-            name
-            if name in ("Agent", "Task", "Read", "Grep", "Glob", "StructuredOutput")
-            else "other"
-        )
-        if name == "Bash":
-            label = "Bash: other shell command"
-            try:
-                source = denial["tool_input"]["command"]
-                if isinstance(source, str):
-                    command = shlex.split(source)
-                    if command[:3] in (["gh", "pr", "view"], ["gh", "pr", "diff"]):
-                        label = "Bash: " + " ".join(command[:3])
-            except (KeyError, TypeError, ValueError, AttributeError):
-                pass
-        labels[label] += 1
+        inputs = denial.get("tool_input") if isinstance(denial, dict) else None
+        labels[tool_category(name, inputs)] += 1
     # Fixed categories only: never expose tool inputs, commands, or arbitrary names.
     detail = ", ".join(f"{label}: {count}" for label, count in sorted(labels.items())) or "0"
     return f"Tool permission denials (first 100): {detail}.\n\n"
+
+
+def tool_diagnostics(path):
+    calls, errors, identifiers = Counter(), Counter(), {}
+    error_labels = {
+        "Unknown JSON field": "unsupported GitHub JSON field",
+        "Resource not accessible by integration": "GitHub access denied",
+        "To get started with GitHub CLI": "GitHub CLI authentication missing",
+        "subagent_type is required": "reviewer type missing",
+        "Agent would be spawned with zero tools": "reviewer has no tools",
+        "Agent terminated early due to an API error": "reviewer API failure",
+    }
+    for message in execution_messages(path)[:1000]:
+        if not isinstance(message, dict) or message.get("parent_tool_use_id") is not None:
+            continue
+        body = message.get("message")
+        content = body.get("content") if isinstance(body, dict) else None
+        if not isinstance(content, list):
+            continue
+        for block in content[:100]:
+            if not isinstance(block, dict):
+                continue
+            if message.get("type") == "assistant" and block.get("type") == "tool_use":
+                label = tool_category(block.get("name"), block.get("input"))
+                calls[label] += 1
+                if isinstance(block.get("id"), str):
+                    identifiers[block["id"]] = label
+            elif block.get("type") == "tool_result" and block.get("is_error") is True:
+                key = block.get("tool_use_id")
+                label = identifiers.get(key, "other") if isinstance(key, str) else "other"
+                detail = "unclassified tool error"
+                text = block.get("content")
+                if isinstance(text, str):
+                    for marker, fixed in error_labels.items():
+                        if marker in text:
+                            detail = fixed
+                            break
+                errors[f"{label} ({detail})"] += 1
+
+    def counts(items):
+        return ", ".join(f"{label}: {count}" for label, count in sorted(items.items())) or "0"
+
+    return (
+        f"Main-session tool calls (first 1000 messages): {counts(calls)}.\n\n"
+        f"Reported tool errors (same messages): {counts(errors)}.\n\n"
+    )
 
 
 def main():
@@ -188,7 +242,8 @@ def main():
         report = report_from_file(os.environ["REVIEW_EXECUTION_FILE"])
     result = evidence(event, os.environ.get("REVIEW_ACTION_OUTCOME"), report, checkpoint)
     if os.environ.get("REVIEW_EXECUTION_FILE"):
-        result["diagnostics"] = diagnostics(os.environ["REVIEW_EXECUTION_FILE"])
+        path = os.environ["REVIEW_EXECUTION_FILE"]
+        result["diagnostics"] = diagnostics(path) + tool_diagnostics(path)
     text = summary(result)
     with Path(os.environ["GITHUB_STEP_SUMMARY"]).open("a") as output:
         output.write(text)

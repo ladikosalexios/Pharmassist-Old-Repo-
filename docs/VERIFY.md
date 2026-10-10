@@ -92,6 +92,8 @@ extracts only the final successful structured result, and rejects count mismatch
 or oversized findings and unsafe paths. A claimed completion with tool permission denials
 does not create reusable evidence. The bounded summary also goes to the job log and reports
 fixed denied-tool categories, never tool inputs, command arguments or arbitrary tool names.
+It counts main-session tool calls and reported errors with fixed categories to help locate
+failed reads or reviewers. These are observed tool events, not proof that review succeeded.
 No raw execution transcript is dumped. Completion remains model evidence, not approval.
 
 The headless reviewer explicitly approves source reads, review agents and the two read-only

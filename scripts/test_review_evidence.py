@@ -327,6 +327,68 @@ class ReviewEvidenceTests(unittest.TestCase):
                 self.assertIn("Bash: other shell command: 1", text)
                 self.assertNotIn("SYNTHETIC_SECRET_STDIN", text)
 
+    def test_tool_diagnostics_retain_only_fixed_categories_and_error_counts(self):
+        messages = [
+            {
+                "type": "assistant",
+                "message": {
+                    "content": [
+                        {"type": "text", "text": "SYNTHETIC_SECRET"},
+                        {
+                            "type": "tool_use",
+                            "id": "synthetic",
+                            "name": "Bash",
+                            "input": {"command": "gh pr view SYNTHETIC_SECRET"},
+                        },
+                    ]
+                },
+            },
+            {
+                "type": "user",
+                "message": {
+                    "content": [
+                        {
+                            "type": "tool_result",
+                            "tool_use_id": "synthetic",
+                            "is_error": True,
+                            "content": "Unknown JSON field SYNTHETIC_SECRET",
+                        },
+                        {
+                            "type": "tool_result",
+                            "tool_use_id": [],
+                            "is_error": True,
+                            "content": "SYNTHETIC_SECRET",
+                        },
+                    ]
+                },
+            },
+            {
+                "type": "assistant",
+                "message": {
+                    "content": [
+                        {"type": "tool_use", "name": "SYNTHETIC_SECRET", "input": None},
+                    ]
+                },
+            },
+            {
+                "type": "assistant",
+                "parent_tool_use_id": "synthetic-child",
+                "message": {"content": [{"type": "tool_use", "name": "Agent"}]},
+            },
+            {},
+            "malformed",
+            {"type": "user", "message": {"content": "SYNTHETIC_SECRET"}},
+        ]
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "execution.json"
+            path.write_text(json.dumps(messages))
+            text = review.tool_diagnostics(path)
+            self.assertIn("Bash: gh pr view: 1", text)
+            self.assertIn("Bash: gh pr view (unsupported GitHub JSON field): 1", text)
+            self.assertIn("other (unclassified tool error): 1", text)
+            self.assertNotIn("Agent", text)
+            self.assertNotIn("SYNTHETIC_SECRET", text)
+
 
 if __name__ == "__main__":
     unittest.main()
