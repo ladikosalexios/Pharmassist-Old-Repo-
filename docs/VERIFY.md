@@ -101,11 +101,13 @@ shell commands `gh pr view` and `gh pr diff`; edit/write tools are removed. This
 configuration leaves GitHub token permissions and local project/hook trust unchanged.
 An unapproved tool request still fails rather than being silently treated as review success.
 
-The workflow names the built-in `general-purpose` reviewer type explicitly; its four task
-labels are review roles, not agent type names. Background tasks are disabled for this CI
+The workflow defines a `ci-source-reviewer` type through the CLI's `--agents` option, with
+only `Read`, `Grep` and `Glob` in its tool pool. Its four task labels are review roles, not
+agent type names. The parent supplies the exact diff and handles the approved GitHub reads.
+Background tasks are disabled for this CI
 step so all required reviewer reports are collected before the SDK session finishes.
 Reviewers inspect source and tests statically; application verification runs in separate
-CI jobs. This changes scheduling and reviewer selection, not tool or token permissions.
+CI jobs. Subagents cannot request shell commands; token permissions are unchanged.
 See the provider's [foreground/background behavior](https://code.claude.com/docs/en/sub-agents#run-subagents-in-foreground-or-background).
 
 A PR changing this workflow cannot exercise its new model step until the workflow is merged:
