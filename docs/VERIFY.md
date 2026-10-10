@@ -97,6 +97,13 @@ shell commands `gh pr view` and `gh pr diff`; edit/write tools are removed. This
 configuration leaves GitHub token permissions and local project/hook trust unchanged.
 An unapproved tool request still fails rather than being silently treated as review success.
 
+The workflow names the built-in `general-purpose` reviewer type explicitly; its four task
+labels are review roles, not agent type names. Background tasks are disabled for this CI
+step so all required reviewer reports are collected before the SDK session finishes.
+Reviewers inspect source and tests statically; application verification runs in separate
+CI jobs. This changes scheduling and reviewer selection, not tool or token permissions.
+See the provider's [foreground/background behavior](https://code.claude.com/docs/en/sub-agents#run-subagents-in-foreground-or-background).
+
 A PR changing this workflow cannot exercise its new model step until the workflow is merged:
 Anthropic's action validates that the workflow matches the default branch. Such a green run
 can report **UNVERIFIED**, and must not be described as a completed review. Validate actual
