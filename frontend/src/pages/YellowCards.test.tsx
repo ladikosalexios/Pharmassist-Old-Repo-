@@ -18,6 +18,7 @@ afterEach(() => {
   cleanup();
   vi.useRealTimers();
   vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
 });
 
 const submission = {
@@ -432,4 +433,41 @@ describe("Yellow Card reporter role", () => {
     expect(keys(el.yellowCards).sort()).toEqual(keys(en.yellowCards).sort());
     expect(keys(en.yellowCards)).toHaveLength(12);
   });
+});
+
+describe("Yellow Card local inbox links", () => {
+  it.each([
+    ["the configured", "http://127.0.0.1:8028", "http://127.0.0.1:8028"],
+    ["the default for a blank", "", "http://127.0.0.1:8026"],
+  ])(
+    "point all three shortcuts at %s inbox",
+    async (_, configured, expected) => {
+      vi.stubEnv("VITE_YELLOW_CARDS_MAILPIT_URL", configured);
+      const api = setup();
+      const links = () =>
+        screen.getAllByRole("link", { name: /inbox Mailpit/ }) as HTMLAnchorElement[];
+      expect(links().map((a) => a.getAttribute("href"))).toEqual([expected]);
+      await prepare();
+      fireEvent.click(screen.getByRole("button", { name: "Αποστολή στο τοπικό inbox" }));
+      await screen.findByRole("button", { name: "Το αίτημα αποστολής καταχωρήθηκε" });
+      api.setStatus("CAPTURED_LOCAL");
+      // Top shortcut, current captured submission, and history entry.
+      await waitFor(() => expect(links()).toHaveLength(3), { timeout: 5000 });
+      expect(links().map((a) => a.getAttribute("href"))).toEqual([expected, expected, expected]);
+      for (const link of links()) {
+        expect(link.target).toBe("_blank");
+        fireEvent.click(link);
+      }
+      // Opening the inbox is navigation only: no further send, preview or draft request.
+      const writes = api.fetch.mock.calls.filter(
+        ([, init]) => init?.method && init.method !== "GET",
+      );
+      expect(writes.map(([url]) => url)).toEqual([
+        "/yellow-cards",
+        "/yellow-cards/draft/previews",
+        "/yellow-cards/submissions",
+      ]);
+    },
+    10000,
+  );
 });

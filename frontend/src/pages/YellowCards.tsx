@@ -12,6 +12,7 @@ import {
   removedReporterDetails,
   asPharmacistReporter,
   isPharmacistReporter,
+  mailpitUrl,
   PHARMACIST_REPORTERS,
   REPORTER_TYPES,
   type ReportData,
@@ -85,6 +86,7 @@ const statuses: Record<string, string> = {
 export function YellowCards() {
   const { user } = useAuth();
   const { t } = useTranslation();
+  const inbox = mailpitUrl();
   const location = useLocation();
   const imported = (location.state as { report?: Report } | null)?.report;
   const [data, setData] = useState(() =>
@@ -331,7 +333,7 @@ export function YellowCards() {
             </option>
           ))}
         </Select>
-        <a href="http://127.0.0.1:8026" target="_blank" rel="noreferrer">
+        <a href={inbox} target="_blank" rel="noreferrer">
           Τοπικό inbox Mailpit ↗
         </a>
       </div>
@@ -739,7 +741,7 @@ export function YellowCards() {
               <div className="yc-notice" role="status">
                 {statuses[currentSubmission.status] ?? currentSubmission.status}
                 {currentSubmission.status === "CAPTURED_LOCAL" && (
-                  <a href="http://127.0.0.1:8026" target="_blank" rel="noreferrer">
+                  <a href={inbox} target="_blank" rel="noreferrer">
                     Άνοιγμα τοπικού inbox Mailpit ↗
                   </a>
                 )}
@@ -775,7 +777,7 @@ export function YellowCards() {
                 Το εγκεκριμένο PDF
               </a>
               {s.status === "CAPTURED_LOCAL" && (
-                <a href="http://127.0.0.1:8026" target="_blank" rel="noreferrer">
+                <a href={inbox} target="_blank" rel="noreferrer">
                   Άνοιγμα τοπικού inbox Mailpit ↗
                 </a>
               )}

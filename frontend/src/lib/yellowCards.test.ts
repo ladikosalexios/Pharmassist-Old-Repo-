@@ -7,10 +7,29 @@ import {
   withReporterDefaults,
   removedReporterDetails,
   asPharmacistReporter,
+  mailpitUrl,
+  DEFAULT_MAILPIT_URL,
   type ReportData,
   type StoredReportData,
 } from "./yellowCards";
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
+});
+describe("Local Mailpit inbox URL", () => {
+  it("keeps the normal 8026 default when unset, blank or not an http(s) URL", () => {
+    expect(DEFAULT_MAILPIT_URL).toBe("http://127.0.0.1:8026");
+    for (const value of [undefined, "", "   ", "javascript:alert(1)", "127.0.0.1:8028"]) {
+      expect(mailpitUrl(value)).toBe(DEFAULT_MAILPIT_URL);
+    }
+  });
+  it("uses the configured inbox from the Vite environment", () => {
+    vi.stubEnv("VITE_YELLOW_CARDS_MAILPIT_URL", " http://127.0.0.1:8028 ");
+    expect(mailpitUrl()).toBe("http://127.0.0.1:8028");
+    vi.stubEnv("VITE_YELLOW_CARDS_MAILPIT_URL", "");
+    expect(mailpitUrl()).toBe(DEFAULT_MAILPIT_URL);
+  });
+});
 describe("Reporter role compatibility", () => {
   const base = () => emptyReport("Pharmacist", "demo@example.com");
   it("defaults a new report and a legacy draft without reporter keys to private pharmacist", () => {

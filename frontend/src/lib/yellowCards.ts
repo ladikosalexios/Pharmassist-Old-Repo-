@@ -148,6 +148,13 @@ export function emptyReport(name: string, email: string): ReportData {
     }).format(new Date()),
   };
 }
+// The local Mailpit inbox for captured test mail. A stack on other ports sets
+// VITE_YELLOW_CARDS_MAILPIT_URL; unset, blank or non-http(s) values use the default.
+export const DEFAULT_MAILPIT_URL = "http://127.0.0.1:8026";
+export function mailpitUrl(value: unknown = import.meta.env.VITE_YELLOW_CARDS_MAILPIT_URL): string {
+  const url = typeof value === "string" ? value.trim() : "";
+  return /^https?:\/\/\S+$/i.test(url) ? url : DEFAULT_MAILPIT_URL;
+}
 export class YellowCardHttpError extends Error {
   constructor(
     public status: number,
