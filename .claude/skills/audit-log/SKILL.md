@@ -29,7 +29,9 @@ task = asyncio.create_task(
     log_documentation_action(
         pharmacist_id=pharmacist_id,
         pharmacy_id=pharmacy_id,
-        action=f"PRESCRIPTION_{action_type}D",  # APPROVED / FLAGGED
+        action={"CONTACT_PRESCRIBER": "PRESCRIBER_CONTACTED"}.get(
+            action_type, f"PRESCRIPTION_{action_type}D"
+        ),  # Preserve the existing service mapping; review new names explicitly.
         resource_id=rx["rxId"],
     )
 )
@@ -40,25 +42,32 @@ task.add_done_callback(_background_tasks.discard)
 ## Inputs the agent MUST gather
 
 1. **Read `backend/app/services/audit.py`** — see the canonical pattern.
-   Action constants live there; reuse rather than invent new ones.
+   `log_documentation_action` accepts `action: str` and fixes `resource_type`
+   to `PRESCRIPTION`; it is not a generic helper for every resource.
 2. **Read `backend/app/db/models/audit_log.py`** — confirm the column set
    (action, resource_type, resource_id, pharmacist_id, pharmacy_id,
    occurred_at via server-side default).
-3. **Read `main.py` shutdown handler** — confirm `_drain_audit_tasks` is
-   registered. If it's not, that's a follow-up gap to flag (see DO NOT
-   below).
+3. **Read `backend/app/services/documentation.py`** — reuse the existing
+   action mapping and task registration in `record_prescription_action`.
+4. **Read `backend/main.py` lifespan** — it already drains `_background_tasks`
+   with `asyncio.gather(..., return_exceptions=True)` during shutdown.
 
 ## Rules for writing the audit call
 
 ### Action naming
 - Format: `<RESOURCE>_<VERB_PAST>` — e.g. `PRESCRIPTION_FLAGGED`,
   `ADR_SUBMITTED`, `SETTINGS_CHANGED`.
-- Existing actions live in `app/services/audit.py` — extend the literal
-  type union there; never accept arbitrary strings.
+- The helper currently accepts `action: str`; there is no action `Literal`
+  union or action-constant registry in `app/services/audit.py`.
+- Reuse service-owned action names from existing call sites (including
+  `PRESCRIBER_CONTACTED`). Keep naming controlled by the service rather than
+  accepting caller-supplied action strings. A typed registry would be a
+  separate runtime change, not a prerequisite for following this pattern.
 
 ### Resource identification
-- `resource_type` is a coarse bucket: `PRESCRIPTION`, `ADR_REPORT`,
-  `STAFF_INVITE`, `SETTINGS`.
+- The current helper always writes `resource_type="PRESCRIPTION"`. For another
+  resource, inspect its existing service; do not pass unsupported arguments
+  or label an ADR report, staff invite or settings change as a prescription.
 - `resource_id` is the natural identifier the inspector will search for —
   Rx barcode, invite token, etc. Never a secret or privacy-sensitive code.
 
@@ -83,27 +92,21 @@ task.add_done_callback(_background_tasks.discard)
   has happened. Never write tokens, passwords, `Api-Key` headers, or
   bearer tokens into the audit table.
 
-## Shutdown drain — required for new state-changing endpoints
+## Shutdown drain — preserve the existing lifespan
 
-If `main.py` does NOT have a `@app.on_event("shutdown")` handler that
-awaits `_background_tasks`, add one as part of this work. Without it,
-in-flight audit tasks are dropped on graceful restart — which means a
-pharmacist's last action of the shift can vanish from the audit log.
-Pattern (5 lines):
+`backend/main.py` already passes `lifespan=lifespan` to FastAPI. Its shutdown
+cleanup drains the shared task set after stopping the keepalive task:
 
 ```python
-# main.py
-import asyncio
-from app.services.audit import _background_tasks
-
-@app.on_event("shutdown")
-async def _drain_audit_tasks():
-    if _background_tasks:
-        await asyncio.gather(*_background_tasks, return_exceptions=True)
+# Inside the existing lifespan cleanup
+if _background_tasks:
+    await asyncio.gather(*_background_tasks, return_exceptions=True)
 ```
 
-(This is the gap PR #76 left open; close it the first time a new audit
-call site is added.)
+Register new tasks in that same set. Do not add a second shutdown handler or
+replace the lifespan. This is a graceful-shutdown drain, not durable delivery
+after a crash or forced termination. If a new service uses a separate task
+set, flag its lifecycle requirements explicitly.
 
 ## Tests
 
@@ -121,8 +124,8 @@ Each new audit call site needs a test that:
   rolling back the user action would drop the audit, and vice versa.
 - Do not log credentials, QR codes, Bearer tokens, or any field the
   endpoint received as a secret.
-- Do not invent new action strings in-line; extend the literal in
-  `app/services/audit.py`.
+- Do not accept action names from request input; reuse or deliberately extend
+  the owning service's naming convention.
 - Do not skip the `_background_tasks` registration — discarding the task
   reference lets the GC collect it before it runs. PR #76 review caught
   this; the lesson stuck.
@@ -137,6 +140,6 @@ A working endpoint that:
 - Behaves identically to before from the caller's perspective.
 - Writes an `AuditLog` row asynchronously on success.
 - Survives audit-write failures without 5xx-ing.
-- Survives a SIGTERM with the shutdown drain handler in place.
+- Drains registered tasks during graceful FastAPI lifespan shutdown.
 - Has a test covering the success path AND the audit-failure-doesn't-leak
   path.
