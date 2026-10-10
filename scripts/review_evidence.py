@@ -166,9 +166,11 @@ def diagnostics(path):
         if name == "Bash":
             label = "Bash: other shell command"
             try:
-                command = shlex.split(denial["tool_input"]["command"])
-                if command[:3] in (["gh", "pr", "view"], ["gh", "pr", "diff"]):
-                    label = "Bash: " + " ".join(command[:3])
+                source = denial["tool_input"]["command"]
+                if isinstance(source, str):
+                    command = shlex.split(source)
+                    if command[:3] in (["gh", "pr", "view"], ["gh", "pr", "diff"]):
+                        label = "Bash: " + " ".join(command[:3])
             except (KeyError, TypeError, ValueError, AttributeError):
                 pass
         labels[label] += 1

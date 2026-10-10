@@ -1,5 +1,6 @@
 """Synthetic review reports only; no GitHub calls or model sessions."""
 
+import io
 import json
 import os
 import subprocess
@@ -302,6 +303,29 @@ class ReviewEvidenceTests(unittest.TestCase):
             path.write_text(json.dumps([{**valid, "permission_denials": []}]))
             self.assertEqual(json.loads(review.report_from_file(path)), REPORT)
             self.assertIn(": 0.", review.diagnostics(path))
+
+    def test_non_string_bash_command_never_consumes_stdin(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "execution.json"
+            for command in (None, 7, []):
+                path.write_text(
+                    json.dumps(
+                        [
+                            {
+                                "type": "result",
+                                "permission_denials": [
+                                    {"tool_name": "Bash", "tool_input": {"command": command}}
+                                ],
+                            }
+                        ]
+                    )
+                )
+                stream = io.StringIO("gh pr view SYNTHETIC_SECRET_STDIN")
+                with patch.object(sys, "stdin", stream):
+                    text = review.diagnostics(path)
+                self.assertEqual(stream.tell(), 0)
+                self.assertIn("Bash: other shell command: 1", text)
+                self.assertNotIn("SYNTHETIC_SECRET_STDIN", text)
 
 
 if __name__ == "__main__":
