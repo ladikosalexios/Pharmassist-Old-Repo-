@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { useLocation } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { useAuth } from "../lib/auth";
 import {
   yc,
@@ -7,6 +8,13 @@ import {
   emptyReport,
   medicine,
   reaction,
+  withReporterDefaults,
+  removedReporterDetails,
+  asPharmacistReporter,
+  isPharmacistReporter,
+  mailpitUrl,
+  PHARMACIST_REPORTERS,
+  REPORTER_TYPES,
   type ReportData,
   type Report,
   type Signature,
@@ -77,10 +85,14 @@ const statuses: Record<string, string> = {
 };
 export function YellowCards() {
   const { user } = useAuth();
+  const { t } = useTranslation();
+  const inbox = mailpitUrl();
   const location = useLocation();
   const imported = (location.state as { report?: Report } | null)?.report;
-  const [data, setData] = useState(
-    () => imported?.data ?? emptyReport(user?.name ?? "", user?.email ?? ""),
+  const [data, setData] = useState(() =>
+    imported
+      ? withReporterDefaults(imported.data)
+      : emptyReport(user?.name ?? "", user?.email ?? ""),
   );
   const [report, setReport] = useState<Report | null>(imported ?? null);
   const [reports, setReports] = useState<Report[]>([]);
@@ -188,10 +200,37 @@ export function YellowCards() {
   function load(value: Report | null) {
     if (dirty && !window.confirm("Υπάρχουν μη αποθηκευμένες αλλαγές. Να απορριφθούν;")) return;
     setReport(value);
-    setData(value?.data ?? emptyReport(user?.name ?? "", user?.email ?? ""));
+    setData(
+      value ? withReporterDefaults(value.data) : emptyReport(user?.name ?? "", user?.email ?? ""),
+    );
     setDirty(false);
     setSynthetic(false);
     setUseSignature(false);
+    invalidate();
+  }
+  function reporterName(value: unknown) {
+    return REPORTER_TYPES.includes(value as ReportData["reporter_type"])
+      ? t(`yellowCards.reporter.types.${value}`)
+      : t("yellowCards.reporter.unrecognized", { value: String(value) });
+  }
+  // Only a deliberate choice converts a saved non-pharmacist role, after naming what it removes.
+  function chooseReporter(value: string) {
+    if (!isPharmacistReporter(value)) return;
+    const removed = removedReporterDetails(data);
+    if (
+      removed.length &&
+      !window.confirm(
+        t("yellowCards.reporter.confirmConvert", {
+          role: reporterName(value),
+          details: removed
+            .map(([key, text]) => `${t(`yellowCards.reporter.${key}`)}: «${text}»`)
+            .join(", "),
+        }),
+      )
+    )
+      return;
+    setData((old) => asPharmacistReporter(old, value));
+    setDirty(true);
     invalidate();
   }
   function medicineFields(kind: "suspected" | "concomitant") {
@@ -294,7 +333,7 @@ export function YellowCards() {
             </option>
           ))}
         </Select>
-        <a href="http://127.0.0.1:8026" target="_blank" rel="noreferrer">
+        <a href={inbox} target="_blank" rel="noreferrer">
           Τοπικό inbox Mailpit ↗
         </a>
       </div>
@@ -304,8 +343,12 @@ export function YellowCards() {
           <p>Μόνο αρχικά. Δεν συλλέγεται ΑΜΚΑ ή αριθμός συνταγής.</p>
           <button
             onClick={() => {
-              setData({
+              setData((old) => ({
                 ...emptyReport(user?.name ?? "", user?.email ?? ""),
+                // The example never replaces the saved reporter role or its details.
+                reporter_type: old.reporter_type,
+                reporter_specialty: old.reporter_specialty,
+                reporter_other: old.reporter_other,
                 initials: "Δ.Α.",
                 age: "67",
                 weight: "88",
@@ -323,7 +366,7 @@ export function YellowCards() {
                   { ...medicine(), name: "Δοκιμαστικό φάρμακο Α", dose: "Όπως αναφέρθηκε" },
                 ],
                 reporter_phone: "2100000000",
-              });
+              }));
               setDirty(true);
               invalidate();
             }}
@@ -513,7 +556,32 @@ export function YellowCards() {
         </section>
         <section className="yc-card">
           <h2>5. Στοιχεία αναφέροντος</h2>
-          <p>Ιδιώτης φαρμακοποιός</p>
+          <div className="yc-grid">
+            <Select
+              label={t("yellowCards.reporter.label")}
+              value={String(data.reporter_type ?? "")}
+              onChange={chooseReporter}
+            >
+              {!isPharmacistReporter(data.reporter_type) && (
+                <option value={String(data.reporter_type ?? "")}>
+                  {t("yellowCards.reporter.savedRole", { role: reporterName(data.reporter_type) })}
+                </option>
+              )}
+              {PHARMACIST_REPORTERS.map((value) => (
+                <option key={value} value={value}>
+                  {t(`yellowCards.reporter.types.${value}`)}
+                </option>
+              ))}
+            </Select>
+          </div>
+          {!isPharmacistReporter(data.reporter_type) && (
+            <p role="note">{t("yellowCards.reporter.savedNotice")}</p>
+          )}
+          {removedReporterDetails(data).map(([key, text]) => (
+            <p key={key}>
+              {t(`yellowCards.reporter.${key}`)}: {text}
+            </p>
+          ))}
           <div className="yc-grid">
             {(
               [
@@ -590,6 +658,8 @@ export function YellowCards() {
             onClick={() =>
               action(async () => {
                 const saved = await save();
+                // The save superseded any earlier preview and approval, even if this one fails.
+                invalidate();
                 const p = await yc<Preview>(`/${saved.id}/previews`, "POST", {
                   revision: saved.revision,
                   signature_id: signature!.id,
@@ -671,7 +741,7 @@ export function YellowCards() {
               <div className="yc-notice" role="status">
                 {statuses[currentSubmission.status] ?? currentSubmission.status}
                 {currentSubmission.status === "CAPTURED_LOCAL" && (
-                  <a href="http://127.0.0.1:8026" target="_blank" rel="noreferrer">
+                  <a href={inbox} target="_blank" rel="noreferrer">
                     Άνοιγμα τοπικού inbox Mailpit ↗
                   </a>
                 )}
@@ -707,7 +777,7 @@ export function YellowCards() {
                 Το εγκεκριμένο PDF
               </a>
               {s.status === "CAPTURED_LOCAL" && (
-                <a href="http://127.0.0.1:8026" target="_blank" rel="noreferrer">
+                <a href={inbox} target="_blank" rel="noreferrer">
                   Άνοιγμα τοπικού inbox Mailpit ↗
                 </a>
               )}

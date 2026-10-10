@@ -16,6 +16,23 @@ docker compose -f compose.yellow-cards.local.yaml up --build -d
 - Captured mail: http://127.0.0.1:8026
 - Local API: http://127.0.0.1:8001/docs
 
+The app's three Mailpit shortcuts (top of the page, the captured submission and the history) open `http://127.0.0.1:8026` by default. If your stack publishes Mailpit on another port, pass the optional `VITE_YELLOW_CARDS_MAILPIT_URL` into the frontend container through a Compose override. Exporting it in your shell alone does not forward it to this service. For example, save this as `/tmp/yellow-card-inbox.yaml`, using your stack's actual published inbox URL:
+
+```yaml
+services:
+  frontend:
+    environment:
+      VITE_YELLOW_CARDS_MAILPIT_URL: http://127.0.0.1:8028
+```
+
+With the stack already running, apply that override and rebuild/recreate only the frontend:
+
+```sh
+docker compose -f compose.yellow-cards.local.yaml -f /tmp/yellow-card-inbox.yaml up -d --no-deps --build frontend
+```
+
+Keep any other overrides your stack uses in that command too. This setting changes only the link destinations, not published ports or mail transport. When running Vite directly outside Docker, set the variable in the frontend process environment and restart it; production bundles need rebuilding with it. Unset, blank or non-http(s) values keep the default.
+
 Setup applies migrations and non-destructively creates the synthetic account. The stack uses its own database and mail volumes and does not touch another PharmAssist or Second Opinion stack. Rebuild after source changes. All published ports bind to loopback. A gateway exposes the UI and inbox; backend, worker, database and Mailpit remain on an internal network with no external route. SMTP is not published. Mailpit has no relay configuration.
 
 The development encryption/session keys and account are intentionally public test values, not production credentials. `YELLOW_CARDS_MODE=local_capture` is rejected outside development/test. The default remains `disabled`. `PHARMAPI_ENABLED=false` skips upstream secrets, login verification, startup probes and keepalive. Reporting-session cookies are server-restricted to reporting and identity endpoints, even if a full-session upstream context exists in the process.

@@ -8,6 +8,7 @@ if not os.getenv("YELLOW_TEST_DATABASE_URL"):
     pytest.skip("Requires isolated YELLOW_TEST_DATABASE_URL", allow_module_level=True)
 
 import asyncio
+import json
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
@@ -26,9 +27,10 @@ from app.db.models.pharmacy import Pharmacy
 from app.db.models.yellow_card import YellowReport, YellowSubmission
 from app.db.session import get_session
 from app.routers import auth
+from app.services.yellow_crypto import seal, unseal
 from main import create_app
 from scripts import yellow_worker
-from tests.test_yellow_pdf import example, signature
+from tests.test_yellow_pdf import example, signature, ticked_reporters
 
 URL = os.environ["YELLOW_TEST_DATABASE_URL"]
 engine = create_async_engine(URL, poolclass=NullPool)
@@ -293,3 +295,119 @@ def test_migration_rejects_invalid_revision(app):
             await db.rollback()
 
     asyncio.run(reject())
+
+
+REPORTER_KEYS = ("reporter_type", "reporter_specialty", "reporter_other")
+CONSISTENCY = "Ιδιότητα αναφέροντος και συνεπή στοιχεία"
+
+
+def capture_only(submission_id, monkeypatch):
+    """Run the worker for one submission into an in-memory capture; returns the PDF."""
+    captured = []
+
+    class Capture:
+        def send(self, msg):
+            captured.append(msg)
+            return "CAPTURED_LOCAL", None
+
+    monkeypatch.setattr(yellow_worker, "AsyncSessionLocal", sessions)
+    monkeypatch.setattr(yellow_worker, "LocalCaptureTransport", Capture)
+
+    async def run():
+        async with sessions() as db:
+            rows = (
+                await db.scalars(
+                    select(YellowSubmission).where(YellowSubmission.status == "QUEUED")
+                )
+            ).all()
+            for row in rows:
+                if str(row.id) != submission_id:
+                    row.status = "CANCELLED"
+            await db.commit()
+        await yellow_worker.once()
+        async with sessions() as db:
+            row = await db.get(YellowSubmission, uuid.UUID(submission_id))
+            assert row.status == "CAPTURED_LOCAL"
+
+    asyncio.run(run())
+    assert len(captured) == 1
+    return list(captured[0].iter_attachments())[0].get_payload(decode=True)
+
+
+def test_hospital_pharmacist_draft_reaches_local_capture(app, monkeypatch):
+    client = login(app)
+    sig = client.post(
+        "/yellow-cards/signature", files={"file": ("sig.png", signature(), "image/png")}
+    ).json()
+    data = example().model_copy(update={"reporter_type": "hospital_pharmacist"})
+    report = client.post("/yellow-cards", json=data.model_dump(mode="json"))
+    assert report.status_code == 201, report.text
+    report = report.json()
+    stored = client.get(f"/yellow-cards/{report['id']}").json()
+    assert [stored["data"][k] for k in REPORTER_KEYS] == ["hospital_pharmacist", "", ""]
+    preview = client.post(
+        f"/yellow-cards/{report['id']}/previews",
+        json={"revision": 1, "signature_id": sig["id"], "synthetic_data": True},
+    )
+    assert preview.status_code == 201, preview.text
+    preview = preview.json()
+    submission = client.post(
+        "/yellow-cards/submissions",
+        json={"preview_id": preview["id"], "approved": True},
+        headers={"Idempotency-Key": str(uuid.uuid4())},
+    )
+    assert submission.status_code == 202, submission.text
+    attachment = capture_only(submission.json()["id"], monkeypatch)
+    assert attachment == client.get(f"/yellow-cards/artifacts/{preview['id']}").content
+    assert ticked_reporters(attachment) == {"hospital_pharmacist"}
+
+
+def test_reporter_edits_preview_consistency_and_legacy_drafts(app):
+    client = login(app)
+    sig = client.post(
+        "/yellow-cards/signature", files={"file": ("sig.png", signature(), "image/png")}
+    ).json()
+    report = client.post("/yellow-cards", json=example().model_dump(mode="json")).json()
+    url = f"/yellow-cards/{report['id']}"
+
+    def preview(revision):
+        return client.post(
+            f"{url}/previews",
+            json={"revision": revision, "signature_id": sig["id"], "synthetic_data": True},
+        )
+
+    # Drafts may hold inconsistent details; preview refuses them.
+    stray = {**report["data"], "reporter_specialty": "Παθολόγος"}
+    assert client.patch(url, json={"revision": 1, "data": stray}).json()["revision"] == 2
+    response = preview(2)
+    assert response.status_code == 422
+    assert CONSISTENCY in response.json()["detail"]["missing"]
+    # A doctor draft is kept as sent, and its revision advances.
+    doctor = {**report["data"], "reporter_type": "hospital_doctor", "reporter_specialty": "Χ"}
+    updated = client.patch(url, json={"revision": 2, "data": doctor})
+    assert updated.status_code == 200, updated.text
+    assert updated.json()["revision"] == 3
+    assert [client.get(url).json()["data"][k] for k in REPORTER_KEYS] == [
+        "hospital_doctor",
+        "Χ",
+        "",
+    ]
+
+    async def strip_reporter_keys():
+        # Re-seal the stored draft as it was saved before the reporter role existed.
+        async with sessions() as db:
+            row = await db.get(YellowReport, uuid.UUID(report["id"]))
+            payload = json.loads(unseal(row.payload, f"report:{row.id}"))
+            for key in REPORTER_KEYS:
+                del payload[key]
+            row.payload = seal(json.dumps(payload).encode(), f"report:{row.id}")
+            await db.commit()
+
+    asyncio.run(strip_reporter_keys())
+    legacy = client.get(url).json()
+    assert legacy["revision"] == 3
+    assert not set(REPORTER_KEYS) & set(legacy["data"])
+    response = preview(3)
+    assert response.status_code == 201, response.text
+    pdf = client.get(f"/yellow-cards/artifacts/{response.json()['id']}").content
+    assert ticked_reporters(pdf) == {"private_pharmacist"}

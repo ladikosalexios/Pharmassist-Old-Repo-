@@ -137,6 +137,20 @@ REPORTER_TYPES = [
 ]
 
 
+def ticked_reporters(pdf):
+    """Reporter roles whose box differs from the blank official form on page one."""
+    actual = render_image(pdf)
+    source = render_image((ASSETS / "KITRINI-KARTA_2021.pdf").read_bytes())
+    scale = 150 / 72
+    ticked = set()
+    for name, _, _ in REPORTER_TYPES:
+        x, y = LAYOUT["checkboxes"][f"reporter.{name}"]
+        box = tuple(int(v * scale) for v in (x - 4, y - 4, x + 4, y + 4))
+        if ImageChops.difference(actual.crop(box), source.crop(box)).getbbox() is not None:
+            ticked.add(name)
+    return ticked
+
+
 @pytest.mark.parametrize("reporter_type,specialty,other", REPORTER_TYPES)
 def test_reporter_type_ticks_one_box_and_fills_its_blank(reporter_type, specialty, other):
     data = example()
@@ -150,14 +164,7 @@ def test_reporter_type_ticks_one_box_and_fills_its_blank(reporter_type, specialt
     text = PdfReader(io.BytesIO(pdf)).pages[0].extract_text()
     for value in [specialty, other]:
         assert value in text
-    actual = render_image(pdf)
-    source = render_image((ASSETS / "KITRINI-KARTA_2021.pdf").read_bytes())
-    scale = 150 / 72
-    for name, _, _ in REPORTER_TYPES:
-        x, y = LAYOUT["checkboxes"][f"reporter.{name}"]
-        box = tuple(int(v * scale) for v in (x - 4, y - 4, x + 4, y + 4))
-        changed = ImageChops.difference(actual.crop(box), source.crop(box)).getbbox()
-        assert (changed is not None) == (name == reporter_type), name
+    assert ticked_reporters(pdf) == {reporter_type}
 
 
 @pytest.mark.parametrize(

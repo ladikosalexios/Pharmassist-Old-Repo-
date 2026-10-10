@@ -33,7 +33,52 @@ export interface ReportData {
   reporter_institution: string;
   reporter_phone: string;
   reporter_email: string;
+  reporter_type: ReporterType;
+  reporter_specialty: string;
+  reporter_other: string;
   report_date: string | null;
+}
+// Every role the backend form accepts. PharmAssist offers only the pharmacist roles.
+export type ReporterType =
+  | "hospital_doctor"
+  | "hospital_pharmacist"
+  | "private_doctor"
+  | "private_pharmacist"
+  | "other";
+export const REPORTER_TYPES: readonly ReporterType[] = [
+  "hospital_doctor",
+  "hospital_pharmacist",
+  "private_doctor",
+  "private_pharmacist",
+  "other",
+];
+export const PHARMACIST_REPORTERS = ["private_pharmacist", "hospital_pharmacist"] as const;
+export type PharmacistReporter = (typeof PHARMACIST_REPORTERS)[number];
+export const isPharmacistReporter = (value: unknown): value is PharmacistReporter =>
+  (PHARMACIST_REPORTERS as readonly unknown[]).includes(value);
+type ReporterKey = "reporter_type" | "reporter_specialty" | "reporter_other";
+// Drafts saved before the reporter role existed come back without these keys.
+export type StoredReportData = Omit<ReportData, ReporterKey> &
+  Partial<Pick<ReportData, ReporterKey>>;
+const reporterDefaults: Pick<ReportData, ReporterKey> = {
+  reporter_type: "private_pharmacist",
+  reporter_specialty: "",
+  reporter_other: "",
+};
+// Fill only absent keys: any key present in the draft, even null or unknown, overrides the default.
+export function withReporterDefaults(data: StoredReportData): ReportData {
+  return { ...reporterDefaults, ...data };
+}
+// Details a switch to a pharmacist role would remove, whatever the current role.
+export function removedReporterDetails(
+  data: ReportData,
+): ["reporter_specialty" | "reporter_other", string][] {
+  return (["reporter_specialty", "reporter_other"] as const)
+    .filter((key) => Boolean(data[key]))
+    .map((key) => [key, String(data[key])]);
+}
+export function asPharmacistReporter(data: ReportData, type: PharmacistReporter): ReportData {
+  return { ...data, reporter_type: type, reporter_specialty: "", reporter_other: "" };
 }
 export interface Report {
   id: string;
@@ -94,6 +139,7 @@ export function emptyReport(name: string, email: string): ReportData {
     reporter_institution: "",
     reporter_phone: "",
     reporter_email: email,
+    ...reporterDefaults,
     report_date: new Intl.DateTimeFormat("en-CA", {
       timeZone: "Europe/Athens",
       year: "numeric",
@@ -101,6 +147,13 @@ export function emptyReport(name: string, email: string): ReportData {
       day: "2-digit",
     }).format(new Date()),
   };
+}
+// The local Mailpit inbox for captured test mail. A stack on other ports sets
+// VITE_YELLOW_CARDS_MAILPIT_URL; unset, blank or non-http(s) values use the default.
+export const DEFAULT_MAILPIT_URL = "http://127.0.0.1:8026";
+export function mailpitUrl(value: unknown = import.meta.env.VITE_YELLOW_CARDS_MAILPIT_URL): string {
+  const url = typeof value === "string" ? value.trim() : "";
+  return /^https?:\/\/\S+$/i.test(url) ? url : DEFAULT_MAILPIT_URL;
 }
 export class YellowCardHttpError extends Error {
   constructor(
