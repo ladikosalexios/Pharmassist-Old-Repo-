@@ -19,7 +19,7 @@ data, credentials or live-service transcripts.
 ```text
 Task / lead / implementer:
 Goal and observable acceptance criteria:
-Repository and absolute assigned worktree root:
+Repository and assigned root: absolute path, or explicit native-generated constraints:
 Branch and full base SHA:
 Starting HEAD and dirty status (record pending files; never reset or stash them):
 Owned literal files or directories ending in /:
@@ -70,14 +70,28 @@ The lead prompt invokes `$delegate` and requests the appropriate custom role by 
 in the contract and require the worker to confirm it before editing. This installed
 app's native subagent API may differ from CLI; verify actual role discovery first.
 
-**Claude Code:** start `claude` at the lead worktree root. Use `/delegate` with the
-filled contract and ask for `pharmassist-implementer` through the Agent tool with
-`isolation: "worktree"` on the call. The role also sets `isolation: worktree`.
+**Claude Code native isolation:** start `claude` at the lead worktree root. Use
+`/delegate` and ask for `pharmassist-implementer` through the Agent tool with
+`isolation: "worktree"` on the call. This creates its own new checkout; it does not
+use the manually prepared `/tmp/pharmassist-task-one` above. Supply the complete
+contract on that call, with the root explicitly authorized as a **new native-generated
+worktree registered with this repository, distinct from the lead's absolute root**.
+Name the repository and lead root in the contract. The worker first discovers and
+records its actual root, branch, HEAD and dirty status, verifies those constraints
+and the exact base SHA, and then implements within the unchanged scope. It includes
+the resolved absolute root in its handoff. This startup discovery stays inside the
+same agent call: returning an empty discovery task can delete the unused worktree.
+The role also sets `isolation: worktree`.
 Pass isolation on the call even if agent teams are enabled; named teammates can
 otherwise run in the parent directory. Native isolation normally starts from the
 default branch, so the worker must confirm HEAD equals the contract's base. If it
-does not, stop the worker and have the lead prepare the correct base before editing.
+does not, stop the worker without edits and use the manually prepared worker session
+below. Native automatic isolation is suitable when its starting base matches the
+contract; use a prepared session when an exact non-default base is required.
 Use ordinary native subagents for this workflow; no agent-team activation is required.
+For a manually prepared worker **session** instead, start `claude` directly in
+`/tmp/pharmassist-task-one` with the filled contract; it already has its own checkout.
+Keep the independent reviewer separate from that writer session.
 
 In `/agents`, confirm the two project roles and their tool lists. `claude --agent
 pharmassist-implementer` selects a **main session** role, not an independent subagent;
@@ -210,8 +224,10 @@ Official references checked 2026-10-10:
 Do not claim both installed providers loaded these roles just because syntax passed.
 Claude's offline `claude plugin validate .claude/agents --strict` may return an
 empty `contents` list even on success; that does not validate the roles. The repo's
-regressions parse the YAML/TOML and check the fields used against the documented
-subset. Confirm live Claude discovery in `/agents` when the user starts a session. In Codex,
+regressions validate a bounded JSON-quoted frontmatter/TOML subset and the fields
+used against the documented schema. Python 3.11+ also parses the complete TOML with
+`tomllib`; the Python 3.9 frontend-only runner needs no backend or third-party parser.
+Confirm live Claude discovery in `/agents` when the user starts a session. In Codex,
 check actual role discovery in the target client; prompt fallback is available if
 the client's native API cannot select custom roles. No paid/live session is needed
 to run the repository's offline regressions. Record actual local compatibility and

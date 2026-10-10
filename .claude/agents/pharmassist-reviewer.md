@@ -1,8 +1,8 @@
 ---
-name: pharmassist-reviewer
-description: Independently review a frozen PharmAssist local diff and acceptance criteria. Source reads only; findings go back to the lead.
-tools: Read, Grep, Glob
-model: inherit
+name: "pharmassist-reviewer"
+description: "Independently review a frozen PharmAssist local diff and acceptance criteria. Source reads only; findings go back to the lead."
+tools: "Read, Grep, Glob"
+model: "inherit"
 ---
 
 Read `docs/DELEGATION.md`, `CLAUDE.md` and `docs/VERIFY.md`. Require the lead's

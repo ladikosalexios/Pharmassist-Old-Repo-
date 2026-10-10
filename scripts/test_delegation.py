@@ -8,6 +8,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 import delegation
 import verify
@@ -15,21 +16,29 @@ import verify
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def backend_parse(source, format):
-    # The Python 3.9 launcher has no TOML parser; use the harness's backend runtime.
-    python = ROOT / "backend/.venv/bin/python"
-    interpreter = str(python) if python.exists() else sys.executable
-    expression = "tomllib.loads" if format == "toml" else "yaml.safe_load"
-    module = "tomllib" if format == "toml" else "yaml"
-    output = subprocess.check_output(
-        [
-            interpreter,
-            "-c",
-            f"import json,sys,{module}; print(json.dumps({expression}(sys.stdin.read())))",
-        ],
-        input=source.encode(),
-    )
-    return json.loads(output)
+def quoted_fields(source, separator):
+    """Our bounded YAML/TOML header subset uses JSON-quoted strings/lists only."""
+    result = {}
+    for line in source.strip().splitlines():
+        key, value = line.split(separator, 1)
+        if key in result or key.strip() != key:
+            raise ValueError("Duplicate or malformed role field")
+        result[key] = json.loads(value)
+    return result
+
+
+def codex_fields(source):
+    header, prompt = source.split('developer_instructions = """\n')
+    if not prompt.endswith('"""\n') or '"""' in prompt[:-4] or "\\" in prompt:
+        raise ValueError("Role instructions must use our literal multiline TOML subset")
+    fields = {**quoted_fields(header, " = "), "developer_instructions": prompt[:-4]}
+    try:
+        import tomllib
+    except ImportError:
+        return fields  # Python 3.9 frontend-only verification needs no backend dependencies.
+    if tomllib.loads(source) != fields:
+        raise ValueError("TOML parse differs from role subset")
+    return fields
 
 
 class HandoffTests(unittest.TestCase):
@@ -217,7 +226,7 @@ class ProviderContractTests(unittest.TestCase):
     def test_codex_toml_is_valid_and_contains_only_supported_role_fields(self):
         for role in ("implementer", "reviewer"):
             path = ROOT / f".codex/agents/pharmassist-{role}.toml"
-            config = backend_parse(path.read_text(), "toml")
+            config = codex_fields(path.read_text())
             self.assertEqual(config["name"], f"pharmassist_{role}")
             self.assertTrue(config["description"])
             self.assertEqual(
@@ -236,7 +245,7 @@ class ProviderContractTests(unittest.TestCase):
         for role in ("implementer", "reviewer"):
             path = ROOT / f".claude/agents/pharmassist-{role}.md"
             header, prompt = path.read_text().split("---\n")[1:]
-            fields = backend_parse(header, "yaml")
+            fields = quoted_fields(header, ": ")
             self.assertEqual(fields["name"], f"pharmassist-{role}")
             self.assertTrue(fields["description"])
             self.assertEqual(fields["model"], "inherit")
@@ -252,6 +261,22 @@ class ProviderContractTests(unittest.TestCase):
             else:
                 self.assertEqual(fields["isolation"], "worktree")
                 self.assertEqual(fields["skills"], ["delegate"])
+
+    def test_provider_checks_need_no_backend_runtime_or_third_party_parsers(self):
+        # Simulate the Python 3.9 frontend-only runner without a local backend venv.
+        # An external --python backend selection must not be needed for these checks.
+        with (
+            patch.object(Path, "exists", side_effect=AssertionError("No venv lookup permitted")),
+            patch.object(subprocess, "check_output", side_effect=AssertionError("No subprocess")),
+            patch.dict(sys.modules, {"tomllib": None, "yaml": None}),
+        ):
+            self.test_codex_toml_is_valid_and_contains_only_supported_role_fields()
+            self.test_claude_frontmatter_ownership_isolation_and_read_only_tool_pool()
+
+    def test_role_subset_rejects_duplicates_and_unquoted_values(self):
+        for source in ("name: unquoted", 'name: "one"\nname: "two"'):
+            with self.subTest(source=source), self.assertRaises(ValueError):
+                quoted_fields(source, ": ")
 
     def test_only_team_presets_are_trackable_in_clean_clone(self):
         with tempfile.TemporaryDirectory(prefix="pa-roles-") as temporary:
