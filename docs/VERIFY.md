@@ -60,20 +60,44 @@ writes a bounded Actions summary using only validated SHAs, counts and fixed rea
 - **COMPLETED (model reported)** requires a successful action and a completion attestation
   matching both event revisions. This is model-reported evidence, not independent proof.
 - **SKIPPED** identifies a draft without launching the paid action; **SKIPPED (model reported)**
-  identifies a plugin eligibility decision or a changed revision.
+  identifies an explicit reviewer skip or a changed revision.
 - **FAILED** identifies action failure. **UNVERIFIED** covers absent, malformed, inconsistent
   or stale attestations, even when the action exits successfully.
 
 The summary reports evidence; it does not implement an approval or merge gate. A green job
-alone is not a completed review. Findings remain terminal-only: this workflow explicitly
-omits `--comment` and requests no GitHub writes. The reporter does not dump the execution
-transcript or model-authored text. Credentials and workflow permissions are unchanged.
-See the upstream [action outputs](https://github.com/anthropics/claude-code-action/blob/main/action.yml)
-and [review command](https://github.com/anthropics/claude-code/blob/main/plugins/code-review/commands/code-review.md).
+alone is not a completed review. Findings remain in Actions; the workflow requests no
+GitHub comments or reviews. See the upstream
+[action outputs](https://github.com/anthropics/claude-code-action/blob/main/action.yml).
 
-The plugin's existing eligibility rules remain in force, including skipping when any prior
-Claude comment exists. Replacing that with a policy per reviewed SHA, publishing findings
-with `--comment`, or requiring a completed review before merge needs an explicit team decision.
+The repository now owns the review procedure: existing Claude comments never suppress a
+review. An exact Actions cache key includes the PR number and both event SHAs; no prefix
+restores are used. `scripts/review_checkpoint.py` also validates the restored completion
+record against the repository, PR and revisions. Only a validated **COMPLETED** report is
+saved after the findings artifact uploads successfully. Findings are cached with a verified
+digest and re-uploaded on reuse; absent or changed findings force a fresh review. **REUSED (prior model attestation)** explicitly identifies a prior completed run,
+rather than claiming the model ran again. Failed, skipped or unverified reports never create
+a completion record. Caches are best effort: eviction, expiry or restore failure means a
+fresh review. Bump the cache key version when changing review policy so older evidence is
+not reused under a different procedure. A rerun uses the original event revisions; a new
+head/base pair is reviewed when a new PR event is received. Base advancement alone does not
+trigger this pull-request workflow.
+
+The procedure reviews tooling and documentation too, asks four independent agents for
+concrete defects, checks candidates against source, and rechecks live PR state/revisions
+before attesting completion. Credentials and permissions remain unchanged. Findings are
+bounded structured JSON in the run's Actions artifact (14-day retention), with relative
+file paths and line numbers; they are never posted to a PR or interpolated into the summary.
+The reporter reads the action's execution file (not a report-sized environment variable),
+extracts only the final successful structured result, and rejects count mismatches, malformed
+or oversized findings and unsafe paths.
+No raw execution transcript is dumped. Completion remains model evidence, not approval.
+
+A PR changing this workflow cannot exercise its new model step until the workflow is merged:
+Anthropic's action validates that the workflow matches the default branch. Such a green run
+can report **UNVERIFIED**, and must not be described as a completed review. Validate actual
+execution on a subsequent ordinary PR, then rerun that exact event to verify reuse. Do not
+bypass workflow validation or grant broader token access to make a test run.
+
 Offline regressions use synthetic events/reports and execute the provider hook adapters in
 temporary repositories. They establish neither paid-review execution nor lifecycle hook
 activation; project/hook trust still requires the user's normal review.
