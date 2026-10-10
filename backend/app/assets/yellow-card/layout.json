@@ -1,5 +1,5 @@
 {
-  "version": "eof-2021-layout-1",
+  "version": "eof-2021-layout-2",
   "template_sha256": "98dc0472671ea0b53283beab6502e81b07517e800a3bd450ad7cb7baca296ca7",
   "coordinate_system": "top-left PDF points",
   "fields": {
@@ -494,6 +494,24 @@
       542.149,
       83.822,
       16.149
+    ],
+    "reporter_specialty.hospital_doctor": [
+      498.0,
+      724.5,
+      68.5,
+      11.0
+    ],
+    "reporter_specialty.private_doctor": [
+      494.5,
+      754.5,
+      72.5,
+      11.0
+    ],
+    "reporter_other": [
+      467.0,
+      784.5,
+      97.0,
+      11.0
     ]
   },
   "checkboxes": {
@@ -537,9 +555,25 @@
       537.44,
       342.58
     ],
-    "pharmacist": [
+    "reporter.hospital_doctor": [
+      396.33,
+      730.72
+    ],
+    "reporter.hospital_pharmacist": [
+      396.33,
+      745.72
+    ],
+    "reporter.private_doctor": [
+      396.33,
+      760.72
+    ],
+    "reporter.private_pharmacist": [
       396.33,
       775.72
+    ],
+    "reporter.other": [
+      396.33,
+      790.72
     ]
   }
 }
