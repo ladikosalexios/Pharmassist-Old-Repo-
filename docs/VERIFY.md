@@ -270,14 +270,37 @@ See the [Claude Code hooks reference](https://code.claude.com/docs/en/hooks) and
 modify trust records or bypass approval. Test the scripts directly with synthetic events
 before enabling them. Do not assume installation means execution.
 
+### Start a session with the shared hooks
+
+After integrating the tracked configuration, start a new provider session at the checkout
+or worktree root so it loads the current definitions.
+
+1. In Codex, open `/hooks`. Check that the project definitions come from the main checkout's
+   `.codex/hooks.json`, and that PostToolUse and Stop are enabled and trusted. If a definition
+   is untrusted or modified, inspect its command and approve it through this normal interface.
+   Each contributor reviews their own trust state; pulling Git changes does not grant trust.
+2. In Claude Code, start at the repository root and complete any normal workspace trust
+   prompt. Open `/hooks` to inspect PostToolUse and Stop from `.claude/settings.json`.
+   The commands use the quoted `$CLAUDE_PROJECT_DIR`; local settings can override or disable
+   hooks, so check the effective configuration if an event does not run.
+3. Run `python3 scripts/verify.py --quick` from that checkout using its own dependencies.
+   This establishes check readiness. To establish lifecycle execution, use a disposable
+   synthetic edit in a normal provider session and record the formatter/Stop response.
+   Remove the fixture afterward. A direct wrapper invocation or a passing manual verifier
+   is adapter evidence; neither establishes that the provider emitted the lifecycle event.
+
+Codex's read-only app-server `hooks/list` can establish discovery, enabled state and trust
+without starting a model session. It does not grant trust or demonstrate execution. A
+successful edit hook does not establish that Stop ran; record the two events separately.
+
 The original checkout's untracked `.codex/` and `.agents/` files were inspected. Its Codex
 config declares local Ollama/Milvus MCP dependencies; it remains personal and is ignored.
 Copied reviewer presets (including an Antigravity preset) remain personal rather than
 silently becoming team instructions. The shared hooks are recreated from reviewed source,
 and skills reference already tracked canonical content; no personal settings or credentials
-are imported. The original checkout's files are left untouched. To use these changes there,
-review that local untracked configuration before merging/checking out a branch that tracks
-the same paths; never overwrite it or force the checkout.
+are imported. For an older checkout, review local untracked configuration before
+merging/checking out a branch that tracks the same paths. Preserve the conflicting files
+before integration.
 
 ### Existing checkout collision plan
 
@@ -338,6 +361,32 @@ separately backed up outside Git and verified against the originals, including o
 modes and timestamps. After the documentation reconciliation, the 14 tooling regressions
 and all `--quick` lint/format/typecheck checks passed. Application tests and builds were not
 rerun for this documentation-only follow-up; the full-run results below remain the prior run.
+
+### Local integration evidence, 2026-10-10
+
+The owner selected integration into the existing `codex/yellow-card-local-capture` branch.
+A fresh owner-only backup outside Git preserved the five collision paths, three personal
+Codex files and Claude local settings, with a hash/metadata manifest and every relocation
+recorded. The original `58561c5` commit remains reachable on a rollback branch.
+
+Main through #187 was merged locally. The two add/add conflicts contained only newer
+verification guidance: `58561c5` and its already-merged squash have identical Git trees,
+so the reviewed main versions preserved the Yellow Card implementation. The three personal
+Codex files and Claude local settings retained their hashes, modes and timestamps and remain
+ignored. Both canonical skill links resolve within the checkout.
+
+Verification used this checkout's own dependencies: 47 tooling regressions, 429 DB-less
+backend tests, 55 isolated database tests plus the existing `/pharmapi/errors` skip,
+23 frontend tests, lint/format/typecheck and build passed. Local PostgreSQL was 14; the
+shared CI separately uses 16. Only synthetic fixtures and the private socket cluster ran.
+
+Read-only inspection with Codex CLI 0.162.0-alpha.17.2 reported both project hooks enabled
+and trusted in the original checkout and linked worktree, using the main checkout's source,
+with no errors or warnings. Claude's existing workspace trust was accepted and its local
+settings contained no hook override or disable flag. No trust/configuration was changed.
+These observations establish readiness; this integration did not run a new model session
+to observe lifecycle execution. The prior live observations above and synthetic adapter
+regressions remain distinct evidence.
 
 ## Validation of this change
 
