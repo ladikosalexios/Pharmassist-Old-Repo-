@@ -41,7 +41,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: ${{ runner.temp }}/claude-review-completion
-          key: claude-review-v1-${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }}-${{ github.event.pull_request.base.sha }}
+          key: claude-review-v2-${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }}-${{ github.event.pull_request.base.sha }}
 
       - name: Check review eligibility
         id: eligibility
@@ -54,6 +54,9 @@ jobs:
         # Drafts still get explicit evidence, without launching the paid action.
         if: ${{ steps.eligibility.outputs.review_required == 'true' }}
         uses: anthropics/claude-code-action@v1
+        env:
+          # Required reviewer results must be collected before the SDK session finishes.
+          CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           # Allow runs triggered by claude[bot]'s own commits (from @claude
@@ -83,9 +86,14 @@ jobs:
             2. Read the exact PR diff and relevant surrounding source at these revisions.
                Read applicable repository instructions. Do not install dependencies,
                start services, run application code, or make fixes during this review.
-            3. Ask four independent review agents to examine the diff: instruction compliance,
-               concrete bugs, regressions in surrounding code, and test/verification gaps.
-               Give each the exact SHAs and the read-only/no-publication constraints above.
+            3. Make four separate Agent calls using the built-in general-purpose subagent type.
+               Give them these review tasks: instruction compliance, concrete bugs,
+               regressions in surrounding code, and test/verification gaps. These task
+               labels are not subagent type names. Run reviewers in the foreground and
+               collect all four completed reports before proceeding. Give each the exact
+               diff, SHAs, relevant source paths and read-only/no-publication constraints.
+               This is static source review; CI runs verification separately. Reviewers
+               must assess tests from source and must not claim they executed any tests.
             4. Check each candidate against the actual changed code and surrounding context.
                Keep only actionable defects introduced by this PR with a specific file/line.
                Exclude speculation, style preferences, pre-existing issues and duplicates.
@@ -130,4 +138,4 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: ${{ runner.temp }}/claude-review-completion
-          key: claude-review-v1-${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }}-${{ github.event.pull_request.base.sha }}
+          key: claude-review-v2-${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }}-${{ github.event.pull_request.base.sha }}
