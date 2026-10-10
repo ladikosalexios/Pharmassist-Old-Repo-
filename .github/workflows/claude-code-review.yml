@@ -77,6 +77,9 @@ jobs:
             1. Use read-only gh commands to confirm the PR is open and not a draft, and its
                head/base match the expected SHAs. If closed/draft or revisions differ,
                return skipped with that reason and null reviewed SHAs/count/findings.
+               Use gh pr view with --json headRefOid,baseRefOid,state,isDraft for metadata,
+               and gh pr diff for the diff. These are the only approved shell commands;
+               agents should use Read/Grep/Glob for surrounding source.
             2. Read the exact PR diff and relevant surrounding source at these revisions.
                Read applicable repository instructions. Do not install dependencies,
                start services, run application code, or make fixes during this review.
@@ -95,6 +98,8 @@ jobs:
                equal to the findings array length, and the bounded actionable findings.
                Zero findings is valid only after all review steps actually completed.
           claude_args: >-
+            --allowedTools 'Read' 'Grep' 'Glob' 'Agent' 'Bash(gh pr view:*)' 'Bash(gh pr diff:*)'
+            --disallowedTools 'Edit' 'Write' 'NotebookEdit'
             --json-schema '{"type":"object","additionalProperties":false,"required":["outcome","reason","reviewed_head_sha","reviewed_base_sha","findings_count","findings"],"properties":{"outcome":{"type":"string","enum":["completed","skipped"]},"reason":{"type":"string","enum":["reviewed","closed","draft","revision_changed","other"]},"reviewed_head_sha":{"type":["string","null"],"pattern":"^[0-9a-f]{40}$"},"reviewed_base_sha":{"type":["string","null"],"pattern":"^[0-9a-f]{40}$"},"findings_count":{"type":["integer","null"],"minimum":0,"maximum":50},"findings":{"type":["array","null"],"maxItems":50,"items":{"type":"object","additionalProperties":false,"required":["title","path","line","explanation"],"properties":{"title":{"type":"string","minLength":1,"maxLength":160},"path":{"type":"string","minLength":1,"maxLength":300},"line":{"type":"integer","minimum":1,"maximum":1000000},"explanation":{"type":"string","minLength":1,"maxLength":4000}}}}}}'
           # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
           # or https://code.claude.com/docs/en/cli-reference for available options

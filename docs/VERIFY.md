@@ -92,6 +92,11 @@ extracts only the final successful structured result, and rejects count mismatch
 or oversized findings and unsafe paths.
 No raw execution transcript is dumped. Completion remains model evidence, not approval.
 
+The headless reviewer explicitly approves source reads, review agents and the two read-only
+shell commands `gh pr view` and `gh pr diff`; edit/write tools are removed. This CI tool
+configuration leaves GitHub token permissions and local project/hook trust unchanged.
+An unapproved tool request still fails rather than being silently treated as review success.
+
 A PR changing this workflow cannot exercise its new model step until the workflow is merged:
 Anthropic's action validates that the workflow matches the default branch. Such a green run
 can report **UNVERIFIED**, and must not be described as a completed review. Validate actual
