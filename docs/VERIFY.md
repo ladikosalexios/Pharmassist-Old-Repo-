@@ -89,7 +89,9 @@ bounded structured JSON in the run's Actions artifact (14-day retention), with r
 file paths and line numbers; they are never posted to a PR or interpolated into the summary.
 The reporter reads the action's execution file (not a report-sized environment variable),
 extracts only the final successful structured result, and rejects count mismatches, malformed
-or oversized findings and unsafe paths.
+or oversized findings and unsafe paths. A claimed completion with tool permission denials
+does not create reusable evidence. The bounded summary also goes to the job log and reports
+fixed denied-tool categories, never tool inputs, command arguments or arbitrary tool names.
 No raw execution transcript is dumped. Completion remains model evidence, not approval.
 
 The headless reviewer explicitly approves source reads, review agents and the two read-only

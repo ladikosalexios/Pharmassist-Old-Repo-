@@ -3,6 +3,8 @@
 import json
 import os
 import re
+import shlex
+from collections import Counter
 from pathlib import Path, PurePosixPath
 
 import review_checkpoint
@@ -116,27 +118,63 @@ def summary(result):
         f"- Outcome: **{result['outcome']}** — {result['detail']}\n"
         f"- Event head SHA: `{result['head']}`\n"
         f"- Event base SHA: `{result['base']}`\n\n"
+        f"{result.get('diagnostics', '')}"
         "Completion is a model attestation for these revisions, not an independently "
         "verified review or approval. A successful action/job alone is not completion. "
         "Findings stay in the bounded Actions JSON artifact; no PR comments are requested.\n"
     )
 
 
-def report_from_file(path):
+def execution_result(path):
     # The action's documented execution_file is a JSON array of SDK messages.
-    # Read only its final successful result. Never dump the transcript or errors.
+    # Read only its final result. Never dump the transcript or errors.
     try:
         messages = json.loads(Path(path).read_text())
         final = messages[-1]
-        if final.get("type") != "result" or final.get("subtype") != "success":
-            return None
-        if final.get("is_error") is not False or not isinstance(
-            final.get("structured_output"), dict
-        ):
-            return None
-        return json.dumps(final["structured_output"])
+        return final if final.get("type") == "result" else None
     except (OSError, ValueError, TypeError, KeyError, IndexError, AttributeError):
         return None
+
+
+def report_from_file(path):
+    final = execution_result(path)
+    if final is None or final.get("subtype") != "success" or final.get("is_error") is not False:
+        return None
+    report = final.get("structured_output")
+    if not isinstance(report, dict):
+        return None
+    # A claimed completion with blocked tools cannot establish a reusable review.
+    denials = final.get("permission_denials", [])
+    if report.get("outcome") == "completed" and (not isinstance(denials, list) or denials):
+        return None
+    return json.dumps(report)
+
+
+def diagnostics(path):
+    final = execution_result(path)
+    denials = final.get("permission_denials") if final else None
+    if not isinstance(denials, list):
+        return ""
+    labels = Counter()
+    for denial in denials[:100]:
+        name = denial.get("tool_name") if isinstance(denial, dict) else None
+        label = (
+            name
+            if name in ("Agent", "Task", "Read", "Grep", "Glob", "StructuredOutput")
+            else "other"
+        )
+        if name == "Bash":
+            label = "Bash: other shell command"
+            try:
+                command = shlex.split(denial["tool_input"]["command"])
+                if command[:3] in (["gh", "pr", "view"], ["gh", "pr", "diff"]):
+                    label = "Bash: " + " ".join(command[:3])
+            except (KeyError, TypeError, ValueError, AttributeError):
+                pass
+        labels[label] += 1
+    # Fixed categories only: never expose tool inputs, commands, or arbitrary names.
+    detail = ", ".join(f"{label}: {count}" for label, count in sorted(labels.items())) or "0"
+    return f"Tool permission denials (first 100): {detail}.\n\n"
 
 
 def main():
@@ -147,8 +185,12 @@ def main():
     if os.environ.get("REVIEW_EXECUTION_FILE"):
         report = report_from_file(os.environ["REVIEW_EXECUTION_FILE"])
     result = evidence(event, os.environ.get("REVIEW_ACTION_OUTCOME"), report, checkpoint)
+    if os.environ.get("REVIEW_EXECUTION_FILE"):
+        result["diagnostics"] = diagnostics(os.environ["REVIEW_EXECUTION_FILE"])
+    text = summary(result)
     with Path(os.environ["GITHUB_STEP_SUMMARY"]).open("a") as output:
-        output.write(summary(result))
+        output.write(text)
+    print(text, end="")
     if result["outcome"] == "COMPLETED (model reported)" and completion_path:
         # JSON artifact only: bounded model text is never interpolated into Markdown.
         findings_path = Path(completion_path).with_name("findings.json")

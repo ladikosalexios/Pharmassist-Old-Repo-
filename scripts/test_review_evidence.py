@@ -220,7 +220,9 @@ class ReviewEvidenceTests(unittest.TestCase):
             }
             command = [sys.executable, str(Path(review.__file__).resolve())]
             first = subprocess.run(command, env=env, capture_output=True, text=True, check=True)
-            self.assertEqual(first.stdout + first.stderr, "")
+            self.assertEqual(first.stderr, "")
+            self.assertIn("COMPLETED", first.stdout)
+            self.assertNotIn("SYNTHETIC_SECRET_TRANSCRIPT", first.stdout)
             self.assertNotIn(
                 "SYNTHETIC_SECRET_TRANSCRIPT",
                 (root / "summary").read_text() + (root / "completion/findings.json").read_text(),
@@ -268,6 +270,38 @@ class ReviewEvidenceTests(unittest.TestCase):
             self.assertIsNone(review.report_from_file(path))
             path.unlink()
             self.assertIsNone(review.report_from_file(path))
+
+    def test_denials_have_fixed_diagnostics_and_cannot_establish_completion(self):
+        valid = {
+            "type": "result",
+            "subtype": "success",
+            "is_error": False,
+            "structured_output": REPORT,
+            "permission_denials": [
+                {"tool_name": "Bash", "tool_input": {"command": "gh pr view SYNTHETIC_SECRET"}},
+                {"tool_name": "Task", "tool_input": {"prompt": "SYNTHETIC_SECRET"}},
+                {"tool_name": "SYNTHETIC_SECRET"},
+                {"tool_name": "Bash", "tool_input": {"command": "SYNTHETIC_SECRET=x gh pr diff"}},
+                {"tool_name": "Bash", "tool_input": {"command": "'malformed SYNTHETIC_SECRET"}},
+            ],
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "execution.json"
+            path.write_text(json.dumps([valid]))
+            self.assertIsNone(review.report_from_file(path))
+            text = review.diagnostics(path)
+            self.assertIn("Bash: gh pr view: 1", text)
+            self.assertIn("Bash: other shell command: 2", text)
+            self.assertIn("Task: 1", text)
+            self.assertIn("other: 1", text)
+            self.assertNotIn("SYNTHETIC_SECRET", text)
+            for denials in (None, "SYNTHETIC_SECRET"):
+                path.write_text(json.dumps([{**valid, "permission_denials": denials}]))
+                self.assertIsNone(review.report_from_file(path))
+                self.assertEqual(review.diagnostics(path), "")
+            path.write_text(json.dumps([{**valid, "permission_denials": []}]))
+            self.assertEqual(json.loads(review.report_from_file(path)), REPORT)
+            self.assertIn(": 0.", review.diagnostics(path))
 
 
 if __name__ == "__main__":
