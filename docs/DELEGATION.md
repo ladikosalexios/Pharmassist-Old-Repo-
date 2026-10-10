@@ -64,11 +64,45 @@ role files cannot control sidebar membership. Do not change global trust to make
 role appear. If custom roles are unavailable in the running client, pass the role's
 instructions explicitly to a native worker and disclose the fallback and permissions.
 
-**Codex CLI:** when installed on PATH, start `codex -C /tmp/pharmassist-task-one`.
-The lead prompt invokes `$delegate` and requests the appropriate custom role by its
-`name`. A role name does not switch the session's directory: supply the assigned root
-in the contract and require the worker to confirm it before editing. This installed
-app's native subagent API may differ from CLI; verify actual role discovery first.
+**Codex native roles:** start a fresh lead session in the actual, already-trusted
+candidate worktree containing this setup: `codex -C /absolute/candidate-root` when
+the CLI is on PATH. The installed macOS app also bundles the CLI at
+`/Applications/ChatGPT.app/Contents/Resources/codex-cli/bin/codex`. Invoke `$delegate`
+and confirm the actual spawn schema exposes both project role names. The verified
+native calls use `agent_type: "pharmassist_implementer"` or
+`agent_type: "pharmassist_reviewer"`, with `fork_turns: "none"`; pass the complete
+contract in the call's message. A role name does not switch directories: the writer
+must confirm its assigned isolated root, branch, base/head and status before editing.
+
+An untrusted clone or a session started outside the candidate can omit the project
+roles. That is not evidence that the installed Codex cannot load them. Retry discovery
+in a fresh session in the existing trusted candidate; do not change trust to make a
+probe pass. If discovery remains unavailable, disclose that context and any explicit
+instruction fallback. Fresh workers still need separate worktrees. Use an unused path
+permitted by the parent's actual policy; the verified `/tmp` worker was already
+writable. A contract grants no additional filesystem access. An out-of-policy root or
+approval requirement is a blocker, never a reason to expand permissions silently.
+
+**Codex independent review:** use a separate fresh reviewer-only parent with a
+narrower per-run mode. A reviewer TOML's `sandbox_mode = "read-only"` did not constrain
+the observed writable parent: both writer and reviewer inherited `workspace-write`.
+Save the complete frozen reviewer contract/diff/evidence outside the checkout, then:
+
+```sh
+codex exec -C /absolute/trusted-candidate-root \
+  --sandbox read-only --ephemeral --json - \
+  < /tmp/pharmassist-task-evidence/review-contract.txt
+```
+
+The input starts with `$delegate` and requests one native
+`agent_type: "pharmassist_reviewer"`, `fork_turns: "none"`, source reads and findings
+only, with the full handoff fields below. It requests no implementer, tests, writes,
+connectors or further delegation. The lead and reviewer report their **effective**
+sandbox, approval policy and writable roots. Confirm both are read-only; stop and
+report any mismatch or actual approval gate. This CLI flag narrows only that run,
+without editing persistent trust or permission settings. The source-reading role
+still needs instruction boundaries for tests, connectors and publication; a
+filesystem sandbox does not constrain every inherited remote tool.
 
 **Claude Code native isolation:** start `claude` at the lead worktree root. Use
 `/delegate` and ask for `pharmassist-implementer` through the Agent tool with
@@ -93,7 +127,9 @@ For a manually prepared worker **session** instead, start `claude` directly in
 `/tmp/pharmassist-task-one` with the filled contract; it already has its own checkout.
 Keep the independent reviewer separate from that writer session.
 
-In `/agents`, confirm the two project roles and their tool lists. `claude --agent
+Confirm both Claude project roles and their tool lists in the actual live session;
+the `/agents` interface varies by client version. Headless startup/Agent-call evidence
+can establish discovery, while an offline directory validator cannot. `claude --agent
 pharmassist-implementer` selects a **main session** role, not an independent subagent;
 do not assume its `isolation` field creates a worktree in that mode. A main worker
 session should be started explicitly in `/tmp/pharmassist-task-one` instead.
@@ -199,7 +235,7 @@ using this skill. Retain worktrees and pending files until their owner permits c
 | Separate files/checkouts | Git worktrees; Claude native isolation when active |
 | File ownership, acceptance, no publishing | Instructions and lead review; scope helper detects violations after writes |
 | Claude reviewer source reads | `tools: Read, Grep, Glob` removes shell, edit, connector and delegation tools in that native role |
-| Codex reviewer filesystem writes | `sandbox_mode = "read-only"` when applied; live parent overrides can replace this default |
+| Codex reviewer filesystem writes | Verified separate parent `--sandbox read-only` and effective child policy; a writable parent's live override replaced the role's TOML default |
 | Codex reviewer no tests, connectors or escalation | Instructions; filesystem sandbox alone does not constrain every inherited tool |
 | Stale local evidence | Explicit helper checks against the frozen state; no automatic approval gate |
 | Tests and DB isolation | Existing canonical harness and its private DB/mock environment; trusted code, not an OS/network sandbox |
@@ -227,8 +263,35 @@ empty `contents` list even on success; that does not validate the roles. The rep
 regressions validate a bounded JSON-quoted frontmatter/TOML subset and the fields
 used against the documented schema. Python 3.11+ also parses the complete TOML with
 `tomllib`; the Python 3.9 frontend-only runner needs no backend or third-party parser.
-Confirm live Claude discovery in `/agents` when the user starts a session. In Codex,
+Confirm Claude roles and tool availability in the actual live session. In Codex,
 check actual role discovery in the target client; prompt fallback is available if
 the client's native API cannot select custom roles. No paid/live session is needed
 to run the repository's offline regressions. Record actual local compatibility and
 remaining activation limits in the task handoff.
+
+### Observed activation evidence
+
+On 2026-10-10, with role/skill files at
+`1010bbb5f7c758a407c371cf15ef1b7d6c7b5f97`, bundled Codex
+`0.162.0-alpha.17.2` loaded `$delegate` and both named roles in a fresh trusted
+candidate session. Native `agent_type` calls with `fork_turns: none` completed an
+isolated synthetic writer/reviewer handoff. Frozen checks were CURRENT before and
+after review; a subsequent synthetic edit was STALE. Restoring bytes checked identity,
+not a new review of the edited state.
+
+The mixed parent's reviewer remained workspace-write. A separate fresh parent with
+`--sandbox read-only` then verified read-only/approval-never metadata for both parent
+and named reviewer, with no writable roots. One separately authorized **parent**
+sentinel write reached Python's file open and was denied with PermissionError; bytes
+and hash stayed unchanged, with no retry or escalation. No reviewer-specific write
+experiment was attempted. Metadata and the single targeted negative test are separate
+evidence, not a claim to test all tools. Application tests were outside this smoke's
+scope; the final combined revision still needs the canonical harness.
+
+Claude Code `2.1.286` discovered both roles and `delegate`, created an isolated writer
+worktree at the supplied base, and ran a separate reviewer that reported only
+Read/Grep/Glob and used only Read/Grep. A complete child tool-schema dump was not
+captured. The writer's marker Write required approval and was denied; its dependent
+handoff chain stopped. That gate remains user-owned: no trust, credentials or
+permission settings were changed to make it pass. Do not equate role discovery,
+read-only reviewer behavior or process exit0 with a completed writer task.
