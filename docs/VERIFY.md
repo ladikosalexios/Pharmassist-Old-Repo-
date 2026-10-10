@@ -50,6 +50,34 @@ CI also covers pull requests targeting `fix/track-claude-md`, the existing instr
 branch this work depends on. Retarget the harness PR to `main` after that dependency lands.
 The Claude review workflow skips drafts; moving a PR out of draft can launch a paid review.
 
+### Claude automated review evidence
+
+`.github/workflows/claude-code-review.yml` checks out the event's PR head SHA and
+requests a structured attestation with the reviewed head/base SHAs and findings count.
+The reviewer must check those revisions before and after review. `scripts/review_evidence.py`
+writes a bounded Actions summary using only validated SHAs, counts and fixed reason labels:
+
+- **COMPLETED (model reported)** requires a successful action and a completion attestation
+  matching both event revisions. This is model-reported evidence, not independent proof.
+- **SKIPPED** identifies a draft without launching the paid action; **SKIPPED (model reported)**
+  identifies a plugin eligibility decision or a changed revision.
+- **FAILED** identifies action failure. **UNVERIFIED** covers absent, malformed, inconsistent
+  or stale attestations, even when the action exits successfully.
+
+The summary reports evidence; it does not implement an approval or merge gate. A green job
+alone is not a completed review. Findings remain terminal-only: this workflow explicitly
+omits `--comment` and requests no GitHub writes. The reporter does not dump the execution
+transcript or model-authored text. Credentials and workflow permissions are unchanged.
+See the upstream [action outputs](https://github.com/anthropics/claude-code-action/blob/main/action.yml)
+and [review command](https://github.com/anthropics/claude-code/blob/main/plugins/code-review/commands/code-review.md).
+
+The plugin's existing eligibility rules remain in force, including skipping when any prior
+Claude comment exists. Replacing that with a policy per reviewed SHA, publishing findings
+with `--comment`, or requiring a completed review before merge needs an explicit team decision.
+Offline regressions use synthetic events/reports and execute the provider hook adapters in
+temporary repositories. They establish neither paid-review execution nor lifecycle hook
+activation; project/hook trust still requires the user's normal review.
+
 The final coverage summary distinguishes PASS, FAIL, EXCLUDED and NOT RUN. A failed check
 returns nonzero; interruption returns 130. Exclusions are never represented as passed tests.
 Test steps read their result report rather than trusting the exit code alone: a passing step
