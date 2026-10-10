@@ -15,6 +15,8 @@ backend/.env
 !.claude/agents/
 .claude/agents/*
 !.claude/agents/code-reviewer.md
+!.claude/agents/pharmassist-implementer.md
+!.claude/agents/pharmassist-reviewer.md
 # Claude Code state in a session started from a subdirectory
 */**/.claude/
 # Do NOT ignore CLAUDE.md. On a case-insensitive filesystem (macOS default) a
@@ -44,5 +46,7 @@ backend/.pytest_cache/
 **/*.tsbuildinfo
 # Personal Codex services/agent presets are not portable team configuration.
 .codex/config.toml
-.codex/agents/
+.codex/agents/*
+!.codex/agents/pharmassist-implementer.toml
+!.codex/agents/pharmassist-reviewer.toml
 .codex/*.local.*

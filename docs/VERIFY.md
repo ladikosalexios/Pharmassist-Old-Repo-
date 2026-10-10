@@ -32,6 +32,8 @@ Do not symlink another worktree's mutable dependencies. No provider credentials 
 The default runs:
 
 - Harness and hook regression tests, using temporary synthetic repositories.
+- Delegation role/skill consistency and local scope/stale-handoff regressions, discovered
+  with the other `scripts/test_*.py` tests. See [DELEGATION.md](DELEGATION.md) for use.
 - Backend and tooling Ruff lint and format checks.
 - The same DB-less backend pytest selection as CI, with skip reasons printed.
 - Frontend typecheck, ESLint, Prettier check, Vitest, and a production build to a temporary output directory.
