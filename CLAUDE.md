@@ -24,6 +24,13 @@ subdirectory. In such a session, and in Codex unless you know the project and it
 trusted, no hook verifies your work: run `python3 scripts/verify.py` from the worktree root
 yourself before claiming completion.
 
+## Delegated development
+
+For delegated development, use the `delegate` skill and read
+[docs/DELEGATION.md](docs/DELEGATION.md). One lead owns acceptance criteria and
+integration; bounded implementers use isolated worktrees, and independent reviewers
+return findings on the actual frozen diff. Edits invalidate earlier evidence.
+
 ## Running things
 
 ```bash
