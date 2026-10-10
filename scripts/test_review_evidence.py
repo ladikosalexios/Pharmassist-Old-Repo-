@@ -1,5 +1,6 @@
 """Synthetic review reports only; no GitHub calls or model sessions."""
 
+import io
 import json
 import os
 import subprocess
@@ -220,7 +221,9 @@ class ReviewEvidenceTests(unittest.TestCase):
             }
             command = [sys.executable, str(Path(review.__file__).resolve())]
             first = subprocess.run(command, env=env, capture_output=True, text=True, check=True)
-            self.assertEqual(first.stdout + first.stderr, "")
+            self.assertEqual(first.stderr, "")
+            self.assertIn("COMPLETED", first.stdout)
+            self.assertNotIn("SYNTHETIC_SECRET_TRANSCRIPT", first.stdout)
             self.assertNotIn(
                 "SYNTHETIC_SECRET_TRANSCRIPT",
                 (root / "summary").read_text() + (root / "completion/findings.json").read_text(),
@@ -268,6 +271,123 @@ class ReviewEvidenceTests(unittest.TestCase):
             self.assertIsNone(review.report_from_file(path))
             path.unlink()
             self.assertIsNone(review.report_from_file(path))
+
+    def test_denials_have_fixed_diagnostics_and_cannot_establish_completion(self):
+        valid = {
+            "type": "result",
+            "subtype": "success",
+            "is_error": False,
+            "structured_output": REPORT,
+            "permission_denials": [
+                {"tool_name": "Bash", "tool_input": {"command": "gh pr view SYNTHETIC_SECRET"}},
+                {"tool_name": "Task", "tool_input": {"prompt": "SYNTHETIC_SECRET"}},
+                {"tool_name": "SYNTHETIC_SECRET"},
+                {"tool_name": "Bash", "tool_input": {"command": "SYNTHETIC_SECRET=x gh pr diff"}},
+                {"tool_name": "Bash", "tool_input": {"command": "'malformed SYNTHETIC_SECRET"}},
+            ],
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "execution.json"
+            path.write_text(json.dumps([valid]))
+            self.assertIsNone(review.report_from_file(path))
+            text = review.diagnostics(path)
+            self.assertIn("Bash: gh pr view: 1", text)
+            self.assertIn("Bash: other shell command: 2", text)
+            self.assertIn("Task: 1", text)
+            self.assertIn("other: 1", text)
+            self.assertNotIn("SYNTHETIC_SECRET", text)
+            for denials in (None, "SYNTHETIC_SECRET"):
+                path.write_text(json.dumps([{**valid, "permission_denials": denials}]))
+                self.assertIsNone(review.report_from_file(path))
+                self.assertEqual(review.diagnostics(path), "")
+            path.write_text(json.dumps([{**valid, "permission_denials": []}]))
+            self.assertEqual(json.loads(review.report_from_file(path)), REPORT)
+            self.assertIn(": 0.", review.diagnostics(path))
+
+    def test_non_string_bash_command_never_consumes_stdin(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "execution.json"
+            for command in (None, 7, []):
+                path.write_text(
+                    json.dumps(
+                        [
+                            {
+                                "type": "result",
+                                "permission_denials": [
+                                    {"tool_name": "Bash", "tool_input": {"command": command}}
+                                ],
+                            }
+                        ]
+                    )
+                )
+                stream = io.StringIO("gh pr view SYNTHETIC_SECRET_STDIN")
+                with patch.object(sys, "stdin", stream):
+                    text = review.diagnostics(path)
+                self.assertEqual(stream.tell(), 0)
+                self.assertIn("Bash: other shell command: 1", text)
+                self.assertNotIn("SYNTHETIC_SECRET_STDIN", text)
+
+    def test_tool_diagnostics_retain_only_fixed_categories_and_error_counts(self):
+        messages = [
+            {
+                "type": "assistant",
+                "message": {
+                    "content": [
+                        {"type": "text", "text": "SYNTHETIC_SECRET"},
+                        {
+                            "type": "tool_use",
+                            "id": "synthetic",
+                            "name": "Bash",
+                            "input": {"command": "gh pr view SYNTHETIC_SECRET"},
+                        },
+                    ]
+                },
+            },
+            {
+                "type": "user",
+                "message": {
+                    "content": [
+                        {
+                            "type": "tool_result",
+                            "tool_use_id": "synthetic",
+                            "is_error": True,
+                            "content": "Unknown JSON field SYNTHETIC_SECRET",
+                        },
+                        {
+                            "type": "tool_result",
+                            "tool_use_id": [],
+                            "is_error": True,
+                            "content": "SYNTHETIC_SECRET",
+                        },
+                    ]
+                },
+            },
+            {
+                "type": "assistant",
+                "message": {
+                    "content": [
+                        {"type": "tool_use", "name": "SYNTHETIC_SECRET", "input": None},
+                    ]
+                },
+            },
+            {
+                "type": "assistant",
+                "parent_tool_use_id": "synthetic-child",
+                "message": {"content": [{"type": "tool_use", "name": "Agent"}]},
+            },
+            {},
+            "malformed",
+            {"type": "user", "message": {"content": "SYNTHETIC_SECRET"}},
+        ]
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "execution.json"
+            path.write_text(json.dumps(messages))
+            text = review.tool_diagnostics(path)
+            self.assertIn("Bash: gh pr view: 1", text)
+            self.assertIn("Bash: gh pr view (unsupported GitHub JSON field): 1", text)
+            self.assertIn("other (unclassified tool error): 1", text)
+            self.assertNotIn("Agent", text)
+            self.assertNotIn("SYNTHETIC_SECRET", text)
 
 
 if __name__ == "__main__":
