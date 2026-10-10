@@ -128,6 +128,59 @@ def test_overflow_keeps_complete_rows_and_escapes_markup():
     assert "Συνέχεια" in text
 
 
+REPORTER_TYPES = [
+    ("hospital_doctor", "Παθολόγος", ""),
+    ("hospital_pharmacist", "", ""),
+    ("private_doctor", "Γενική Ιατρική", ""),
+    ("private_pharmacist", "", ""),
+    ("other", "", "Νοσηλευτής"),
+]
+
+
+@pytest.mark.parametrize("reporter_type,specialty,other", REPORTER_TYPES)
+def test_reporter_type_ticks_one_box_and_fills_its_blank(reporter_type, specialty, other):
+    data = example()
+    data.reporter_type, data.reporter_specialty, data.reporter_other = (
+        reporter_type,
+        specialty,
+        other,
+    )
+    assert data.missing() == []
+    pdf = render_pdf(data, signature(), "REPORTER")
+    text = PdfReader(io.BytesIO(pdf)).pages[0].extract_text()
+    for value in [specialty, other]:
+        assert value in text
+    actual = render_image(pdf)
+    source = render_image((ASSETS / "KITRINI-KARTA_2021.pdf").read_bytes())
+    scale = 150 / 72
+    for name, _, _ in REPORTER_TYPES:
+        x, y = LAYOUT["checkboxes"][f"reporter.{name}"]
+        box = tuple(int(v * scale) for v in (x - 4, y - 4, x + 4, y + 4))
+        changed = ImageChops.difference(actual.crop(box), source.crop(box)).getbbox()
+        assert (changed is not None) == (name == reporter_type), name
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"reporter_type": "private_doctor"},
+        {"reporter_type": "other"},
+        {"reporter_specialty": "Παθολόγος"},
+        {"reporter_type": "hospital_doctor", "reporter_specialty": "Χ", "reporter_other": "Ψ"},
+    ],
+)
+def test_reporter_details_must_match_type(changes):
+    data = example().model_copy(update=changes)
+    assert "Ιδιότητα αναφέροντος και συνεπή στοιχεία" in data.missing()
+
+
+def test_drafts_saved_before_reporter_type_default_to_private_pharmacist():
+    stored = example().model_dump(mode="json")
+    for key in ["reporter_type", "reporter_specialty", "reporter_other"]:
+        del stored[key]
+    assert ReportData.model_validate(stored).reporter_type == "private_pharmacist"
+
+
 def test_encrypt_context_and_mail_attachment(monkeypatch):
     monkeypatch.setattr(
         yellow_crypto,

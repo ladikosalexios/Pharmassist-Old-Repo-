@@ -64,6 +64,12 @@ class ReportData(Strict):
     reporter_institution: str = Field(default="", max_length=300)
     reporter_phone: str = Field(default="", max_length=100)
     reporter_email: str = Field(default="", max_length=300)
+    # The form's "Ιδιότητα Αναφέροντος" boxes. Doctors add a specialty; "other" says what.
+    reporter_type: Literal[
+        "hospital_doctor", "hospital_pharmacist", "private_doctor", "private_pharmacist", "other"
+    ] = "private_pharmacist"
+    reporter_specialty: str = Field(default="", max_length=200)
+    reporter_other: str = Field(default="", max_length=200)
     report_date: date | None = None
 
     def missing(self) -> list[str]:
@@ -88,6 +94,10 @@ class ReportData(Strict):
             or (not self.serious and self.seriousness)
         ):
             result.append("Σοβαρότητα και συνεπή κριτήρια")
+        doctor = self.reporter_type in ("hospital_doctor", "private_doctor")
+        other = self.reporter_type == "other"
+        if doctor != bool(self.reporter_specialty) or other != bool(self.reporter_other):
+            result.append("Ιδιότητα αναφέροντος και συνεπή στοιχεία")
         return result
 
 
