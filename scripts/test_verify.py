@@ -919,6 +919,32 @@ class HookTests(unittest.TestCase):
         hooks.format_edit(self.root, {"tool_input": {"file_path": str(target)}})
         self.assertEqual(target.read_text(), "formatted")
 
+    def test_registered_formatters_follow_linked_worktree_with_relative_spaced_path(self):
+        self.install_project()
+        linked = Path(self.temp.name + " linked")
+        self.addCleanup(shutil.rmtree, linked, True)
+        git(self.root, "worktree", "add", "-q", "--detach", str(linked))
+        tool = linked / "frontend/node_modules/.bin/prettier"
+        tool.parent.mkdir(parents=True)
+        tool.write_text('#!/bin/sh\nprintf formatted > "$2"\n')
+        tool.chmod(0o700)
+        target = linked / "frontend/file with spaces.ts"
+        for agent, env in (
+            ("claude", {"CLAUDE_PROJECT_DIR": str(self.root)}),
+            ("codex", {}),
+        ):
+            with self.subTest(agent=agent):
+                target.write_text("original")
+                result = self.run_hook(
+                    registered(agent, "PostToolUse"),
+                    linked / "frontend",
+                    {"cwd": str(linked / "frontend"), "tool_input": {"file_path": target.name}},
+                    **env,
+                )
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(target.read_text(), "formatted")
+                self.assertFalse((self.root / "frontend" / target.name).exists())
+
     def test_planted_gitfile_is_not_followed_as_a_worktree(self):
         self.install_project()
         (self.root / "backend/changed.py").write_text("changed")
