@@ -656,5 +656,23 @@
   },
   "errors": {
     "generic": "Something went wrong. Please try again."
+  },
+  "yellowCards": {
+    "reporter": {
+      "label": "Reporter role",
+      "types": {
+        "hospital_doctor": "Hospital doctor",
+        "hospital_pharmacist": "Hospital pharmacist",
+        "private_doctor": "Private-practice doctor",
+        "private_pharmacist": "Private pharmacist",
+        "other": "Other"
+      },
+      "savedRole": "{{role}} (saved in this draft)",
+      "unrecognized": "Unrecognized role: {{value}}",
+      "savedNotice": "This draft has a saved reporter role that is not offered here. It stays as saved unless you choose a pharmacist role.",
+      "reporter_specialty": "Specialty",
+      "reporter_other": "Role description",
+      "confirmConvert": "Change the reporter role to “{{role}}”? This removes {{details}}."
+    }
   }
 }

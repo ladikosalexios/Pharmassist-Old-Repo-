@@ -1,6 +1,74 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { emptyReport, yc, YellowCardHttpError, isDefiniteRejection } from "./yellowCards";
+import {
+  emptyReport,
+  yc,
+  YellowCardHttpError,
+  isDefiniteRejection,
+  withReporterDefaults,
+  removedReporterDetails,
+  asPharmacistReporter,
+  type ReportData,
+  type StoredReportData,
+} from "./yellowCards";
 afterEach(() => vi.unstubAllGlobals());
+describe("Reporter role compatibility", () => {
+  const base = () => emptyReport("Pharmacist", "demo@example.com");
+  it("defaults a new report and a legacy draft without reporter keys to private pharmacist", () => {
+    expect(base()).toMatchObject({
+      reporter_type: "private_pharmacist",
+      reporter_specialty: "",
+      reporter_other: "",
+    });
+    const legacy: StoredReportData = base();
+    delete legacy.reporter_type;
+    delete legacy.reporter_specialty;
+    delete legacy.reporter_other;
+    expect(withReporterDefaults(legacy)).toMatchObject({
+      reporter_type: "private_pharmacist",
+      reporter_specialty: "",
+      reporter_other: "",
+    });
+  });
+  it("keeps every present value, including null and unrecognized roles", () => {
+    const saved = { ...base(), reporter_type: "hospital_doctor", reporter_specialty: "Παθολόγος" };
+    expect(withReporterDefaults(saved as ReportData)).toEqual(saved);
+    for (const odd of [null, "nurse"]) {
+      const data = { ...base(), reporter_type: odd, reporter_other: null };
+      const result = withReporterDefaults(data as unknown as ReportData);
+      expect(result.reporter_type).toBe(odd);
+      expect(result.reporter_other).toBeNull();
+    }
+  });
+  it("names every detail a pharmacist role would remove, including stray ones", () => {
+    expect(removedReporterDetails(base())).toEqual([]);
+    expect(
+      removedReporterDetails({
+        ...base(),
+        reporter_type: "private_pharmacist",
+        reporter_specialty: "Χ",
+        reporter_other: "Ψ",
+      }),
+    ).toEqual([
+      ["reporter_specialty", "Χ"],
+      ["reporter_other", "Ψ"],
+    ]);
+  });
+  it("changes the role and both details together without touching other fields", () => {
+    const doctor = {
+      ...base(),
+      initials: "Δ.Α.",
+      reporter_type: "private_doctor" as const,
+      reporter_specialty: "Γενική Ιατρική",
+    };
+    expect(asPharmacistReporter(doctor, "hospital_pharmacist")).toEqual({
+      ...doctor,
+      reporter_type: "hospital_pharmacist",
+      reporter_specialty: "",
+      reporter_other: "",
+    });
+    expect(doctor.reporter_type).toBe("private_doctor");
+  });
+});
 describe("Yellow Card client", () => {
   it("starts without patient identifiers and keeps independent array values", () => {
     const a = emptyReport("Pharmacist", "demo@example.com"),
