@@ -65,13 +65,9 @@ const reporterDefaults: Pick<ReportData, ReporterKey> = {
   reporter_specialty: "",
   reporter_other: "",
 };
-// Fill only absent keys. A present value, even null or unknown, is kept as saved.
+// Fill only absent keys: any key present in the draft, even null or unknown, overrides the default.
 export function withReporterDefaults(data: StoredReportData): ReportData {
-  const result = { ...data } as ReportData;
-  for (const key of Object.keys(reporterDefaults) as ReporterKey[]) {
-    if (!(key in data)) result[key] = reporterDefaults[key];
-  }
-  return result;
+  return { ...reporterDefaults, ...data };
 }
 // Details a switch to a pharmacist role would remove, whatever the current role.
 export function removedReporterDetails(
