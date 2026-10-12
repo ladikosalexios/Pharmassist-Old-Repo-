@@ -28,8 +28,15 @@ USER dev
 FROM tools AS dev
 
 USER root
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends sudo \
+# GitHub CLI from its official apt repository, for working with pull requests.
+RUN mkdir -p -m 755 /etc/apt/keyrings \
+    && curl -fsSL -o /etc/apt/keyrings/githubcli-archive-keyring.gpg \
+        https://cli.github.com/packages/githubcli-archive-keyring.gpg \
+    && chmod 644 /etc/apt/keyrings/githubcli-archive-keyring.gpg \
+    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
+        > /etc/apt/sources.list.d/github-cli.list \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends sudo gh \
     && rm -rf /var/lib/apt/lists/* \
     && echo "dev ALL=(root) NOPASSWD:ALL" > /etc/sudoers.d/dev \
     && chmod 0440 /etc/sudoers.d/dev
@@ -40,5 +47,5 @@ RUN curl -fsSL -o /tmp/claude-install.sh https://claude.ai/install.sh \
     && bash /tmp/claude-install.sh \
     && rm /tmp/claude-install.sh \
     && /home/dev/.local/bin/claude --version \
-    && mkdir -p /home/dev/.claude
+    && mkdir -p /home/dev/.claude /home/dev/.config/gh
 ENV PATH=/home/dev/.local/bin:$PATH
