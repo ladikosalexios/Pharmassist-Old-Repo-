@@ -43,7 +43,9 @@ or Linux, **Reopen in Container** on an existing checkout works.
 
 Start `claude` from the repository root inside the container. Its login and settings persist
 in the `pharmassist-claude-config` volume, and `gh auth login` persists in
-`pharmassist-gh-config`. Before relying on the hooks, establish them as
+`pharmassist-gh-config`. Those two volume names are fixed, so every checkout's container on
+the same Docker host shares one Claude Code login and one GitHub CLI login; only the
+dependency volumes are per container. Before relying on the hooks, establish them as
 [Start a session with the shared hooks](#start-a-session-with-the-shared-hooks) describes.
 In this container on 2026-10-11, a synthetic edit was reformatted by PostToolUse, Stop blocked
 on its deliberate type error, and `--quick` passed after the fixture was removed.
