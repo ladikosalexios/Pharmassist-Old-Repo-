@@ -1,0 +1,16 @@
+{
+  "name": "PharmAssist",
+  "build": { "dockerfile": "Dockerfile", "target": "dev" },
+  "remoteUser": "dev",
+  // Claude Code keeps its login and settings here, in a volume that survives rebuilds.
+  "containerEnv": { "CLAUDE_CONFIG_DIR": "/home/dev/.claude" },
+  "mounts": [
+    "source=pharmassist-claude-config,target=/home/dev/.claude,type=volume",
+    // gh keeps its login here.
+    "source=pharmassist-gh-config,target=/home/dev/.config/gh,type=volume",
+    // Each checkout's own dependencies (docs/VERIFY.md), kept off the host filesystem.
+    "source=pharmassist-${devcontainerId}-venv,target=${containerWorkspaceFolder}/backend/.venv,type=volume",
+    "source=pharmassist-${devcontainerId}-node-modules,target=${containerWorkspaceFolder}/frontend/node_modules,type=volume"
+  ],
+  "postCreateCommand": "bash .devcontainer/post-create.sh"
+}

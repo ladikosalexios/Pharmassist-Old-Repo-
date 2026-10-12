@@ -27,6 +27,27 @@ The runner uses `backend/.venv/bin/python` when present, otherwise its own inter
 fail the corresponding check; there is no silent installation or fallback to a running container.
 Do not symlink another worktree's mutable dependencies. No provider credentials are needed.
 
+## Dev container
+
+`.devcontainer/` provides the same tools in Linux, for machines where the runner or hooks do
+not work natively (Windows). Its `tools` stage pins Python 3.13, Node 22 and the PostgreSQL 16
+tools, matching `.github/workflows/lint.yml`; keep them in step. The `dev` stage adds Claude
+Code and the GitHub CLI. On creation, `.devcontainer/post-create.sh` installs the dependencies
+above into volumes, so they never mix with a host checkout's own `backend/.venv` or
+`frontend/node_modules`.
+
+On Windows, put the checkout on Linux storage: in VS Code, run **Dev Containers: Clone
+Repository in Container Volume**. A checkout on a Windows drive stores the `.agents/skills`
+symlinks as text files, which fails a harness test and therefore every Stop hook. On macOS
+or Linux, **Reopen in Container** on an existing checkout works.
+
+Start `claude` from the repository root inside the container. Its login and settings persist
+in the `pharmassist-claude-config` volume, and `gh auth login` persists in
+`pharmassist-gh-config`. Before relying on the hooks, establish them as
+[Start a session with the shared hooks](#start-a-session-with-the-shared-hooks) describes.
+In this container on 2026-10-11, a synthetic edit was reformatted by PostToolUse, Stop blocked
+on its deliberate type error, and `--quick` passed after the fixture was removed.
+
 ## Coverage and exits
 
 The default runs:
