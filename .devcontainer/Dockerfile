@@ -35,6 +35,10 @@ RUN apt-get update \
     && chmod 0440 /etc/sudoers.d/dev
 USER dev
 
-RUN curl -fsSL https://claude.ai/install.sh | bash \
+# Download to a file first so a failed download fails the layer instead of piping nothing to bash.
+RUN curl -fsSL -o /tmp/claude-install.sh https://claude.ai/install.sh \
+    && bash /tmp/claude-install.sh \
+    && rm /tmp/claude-install.sh \
+    && /home/dev/.local/bin/claude --version \
     && mkdir -p /home/dev/.claude
 ENV PATH=/home/dev/.local/bin:$PATH
