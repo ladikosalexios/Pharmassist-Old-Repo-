@@ -31,10 +31,10 @@ Do not symlink another worktree's mutable dependencies. No provider credentials 
 
 `.devcontainer/` provides the same tools in Linux, for machines where the runner or hooks do
 not work natively (Windows). Its `tools` stage pins Python 3.13, Node 22 and the PostgreSQL 16
-tools, matching `.github/workflows/lint.yml`; keep them in step. The `dev` stage adds Claude
-Code and the GitHub CLI. On creation, `.devcontainer/post-create.sh` installs the dependencies
-above into volumes, so they never mix with a host checkout's own `backend/.venv` or
-`frontend/node_modules`.
+tools, and CI runs its Verify jobs in that same stage, so the two cannot drift. The `dev`
+stage adds Claude Code and the GitHub CLI. On creation, `.devcontainer/post-create.sh`
+installs the dependencies above into volumes, so they never mix with a host checkout's own
+`backend/.venv` or `frontend/node_modules`.
 
 On Windows, put the checkout on Linux storage: in VS Code, run **Dev Containers: Clone
 Repository in Container Volume**. A checkout on a Windows drive stores the `.agents/skills`
@@ -69,7 +69,9 @@ This keeps imports and formatting consistent between hooks, pre-commit, and the 
 including when invoked from another working directory.
 
 CI calls the same entry point with `--backend-only` and `--frontend-only`, and runs
-`--backend-only --with-db` against the runner image's PostgreSQL 16 (Compose's major version). The optional
+`--backend-only --with-db` against PostgreSQL 16 (Compose's major version). Each job builds the
+dev container's `tools` stage, with its user's uid set to the runner's so it can write to the
+checkout, and runs the entry point inside it. The optional
 `--quick` mode runs lint/format/typecheck and tooling regressions; it explicitly excludes
 application tests and builds. Stop hooks use this narrower mode, not a full test gate.
 
