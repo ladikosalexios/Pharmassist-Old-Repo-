@@ -5,7 +5,11 @@ implementer and one independent reviewer. Add parallel writers only when their f
 ownership does not overlap. Native subagents provide separate contexts; writers also
 need separate worktrees. A reviewer must not review their own implementation.
 
-This guide is the canonical contract for Codex and Claude Code. The `delegate` skill
+The provider-neutral [shared workflow contract](ENGINEERING-WORKFLOW.md) defines
+lead ownership, switching, review states and completion evidence. This guide is its
+PharmAssist adapter: task fields, native launch procedures and repository commands.
+Keep using the existing roles and scope helper; no second orchestrator is required.
+The `delegate` skill
 is canonical in `.claude/skills/delegate/`; `.agents/skills/delegate` is a relative
 symlink to it. `AGENTS.md` and `CLAUDE.md` point here. Keep PharmAssist's harness and
 contracts independent of Second Opinion and other repositories.
@@ -17,7 +21,7 @@ the repository (for example, a task directory under `/tmp`); never include clini
 data, credentials or live-service transcripts.
 
 ```text
-Task / lead / implementer:
+Task / contract version / active lead identity and provider / implementation owner:
 Goal and observable acceptance criteria:
 Repository and assigned root: absolute path, or explicit native-generated constraints:
 Branch and full base SHA:
@@ -27,7 +31,7 @@ Excluded work and files:
 Dependencies / order / shared-file owner:
 Required commands and expected coverage:
 Allowed actions (including whether local commits are allowed):
-Handoff destination:
+Handoff destination / incoming lead if switching:
 ```
 
 The lead owns shared integration files: dependency manifests, migrations, public
@@ -190,11 +194,16 @@ The reviewer returns:
 ```text
 Task / reviewer identity (different from implementer):
 Reviewed worktree / base SHA / head SHA / fingerprint:
-Completion: completed or incomplete, with missing inputs:
+Review status: COMPLETED / SKIPPED / FAILED / UNVERIFIED, with reason and missing inputs:
 Findings: severity, file:line, concrete impact and suggested validation:
 Acceptance criteria assessed and validation gaps:
 Remaining risk / blockers (say explicitly when no concrete findings):
 ```
+
+Use the shared contract's review-state definitions. A complete review can report
+defects; findings disposition is separate from completion. A missing/incomplete or
+stale report is UNVERIFIED; an error or denial preventing a started review is FAILED;
+an unstarted review is SKIPPED. Neither a process exit nor role discovery is review.
 
 Do not manufacture a completion record from a successful process exit or a worker's
 summary. Keep the independent report and harness log next to the snapshot. An edit,

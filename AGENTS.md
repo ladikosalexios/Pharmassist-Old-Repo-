@@ -2,7 +2,9 @@
 
 Read [CLAUDE.md](CLAUDE.md) for the shared PharmAssist architecture and development rules.
 Read [docs/VERIFY.md](docs/VERIFY.md) before running checks or claiming completion.
-For delegated development, read [docs/DELEGATION.md](docs/DELEGATION.md) and use the
+For Codex-led or Claude-led work, read the shared
+[workflow contract](docs/ENGINEERING-WORKFLOW.md). For delegated development, read
+[docs/DELEGATION.md](docs/DELEGATION.md) and use the
 `delegate` skill. One lead owns integration; every writer needs bounded ownership
 and an isolated worktree, with independent read-only review of the final revision.
 

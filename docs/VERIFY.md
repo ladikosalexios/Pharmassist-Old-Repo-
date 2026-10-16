@@ -55,6 +55,8 @@ The default runs:
 - Harness and hook regression tests, using temporary synthetic repositories.
 - Delegation role/skill consistency and local scope/stale-handoff regressions, discovered
   with the other `scripts/test_*.py` tests. See [DELEGATION.md](DELEGATION.md) for use.
+  The [shared workflow contract](ENGINEERING-WORKFLOW.md) defines lead-switch handoffs
+  and local review states; these offline tests do not establish provider execution.
 - Backend and tooling Ruff lint and format checks.
 - The same DB-less backend pytest selection as CI, with skip reasons printed.
 - Frontend typecheck, ESLint, Prettier check, Vitest, and a production build to a temporary output directory.
