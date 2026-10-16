@@ -19,6 +19,9 @@ No worker delegates further without a revised contract from the lead.
 Use the task contract in the repository adapter. Record the repository/root, branch,
 full base and starting HEAD, dirty files, goal, acceptance criteria, owned files,
 exclusions, dependency order, allowed actions, commands and handoff destination.
+Set maximum provider/agent calls, wall time and review/fix rounds, plus stop conditions,
+before dispatch. Stop on an exhausted limit, ownership collision, missing prerequisite,
+denial or uncertain action outcome; report the blocker and remaining limits to the lead.
 Preserve existing work and instructions. Missing prerequisites or overlapping ownership
 are blockers; they do not authorize broader scope or cleanup.
 
@@ -37,6 +40,7 @@ Repository / absolute worktree / branch / full base SHA / current full HEAD:
 Dirty and untracked files / full diff location and hash / pending work locations:
 Implementation owner / file assignments / active workers, processes and paused status:
 Authorization / allowed actions / restrictions / prerequisite order:
+Initial and used/remaining call, wall-time and round limits / stop conditions:
 Tests: command, cwd, tested HEAD + fingerprint, exit, counts, skips, log location:
 Review: execution state, verdict, evidence validity, independent reviewer,
 reviewed base + candidate commits + fingerprint, report and findings locations:
@@ -60,7 +64,7 @@ requires fresh verification/review. Never infer successful integration from a su
 Freeze implementation before review. A separate reviewer who did not implement the
 change receives the actual complete diff, source access, acceptance criteria, full
 base/HEAD, worktree fingerprint and actual command logs. Reviewers return findings and
-validation gaps; they do not edit, approve, publish or run tests. Self-review may help
+validation gaps; they do not edit, submit platform approvals, publish or run tests. Self-review may help
 preparation but cannot satisfy independent review. Resolve findings through the named
 implementation owner, then freeze and review the resulting revision again.
 
@@ -70,19 +74,25 @@ Local review execution uses exactly one state, separately from verdict and evide
 | --- | --- |
 | pending | Review is planned, awaiting inputs or still running; no completed report is available. |
 | completed | Independent reviewer inspected the supplied frozen revision and returned a complete report with exact identity, findings (including zero), acceptance assessment and validation gaps. |
-| failed | A started review could not finish because of an error, denial or interruption; retain the failed action and partial evidence. A zero process exit cannot turn this into completed. |
+| failed | A started review could not finish because of an error, denial, interruption, or missing/malformed final report; retain the failed action and partial evidence. A zero process exit cannot turn this into completed. |
 | skipped | Review was deliberately not run; record the reason and next owner/action. |
 
-For a completed review record a separate verdict: `approved` or `changes_requested`.
-These are local recommendations, never submitted approvals. A completed review can
-contain unresolved defects and a changes_requested verdict; completion alone does not
-establish acceptance. Pending, failed and skipped reviews have no approval verdict.
+For a completed review record a separate analytical verdict: `approved` or
+`changes_requested`. Only a completed review with a valid report for the exact
+candidate can supply a verdict usable for that candidate. These are local
+recommendations, never submitted platform approvals. A completed review can contain
+unresolved defects and a changes_requested verdict; completion alone does not
+establish acceptance. Pending, failed and skipped reviews have no usable verdict.
 
 Record evidence validity separately as `current`, `stale` or `unverified`. Missing,
-incomplete or inconsistent identity/report, or uncertain reviewer independence, leaves
-evidence unverified. Changed inputs make earlier evidence stale: preserve the historical
-execution result and mark the current candidate's required review pending. Neither
-stale nor unverified evidence satisfies final review, even with an approved verdict.
+incomplete or inconsistent identity, or uncertain reviewer independence, leaves evidence
+unverified. An attempted review ending without a validly formed report is failed with
+no usable verdict. Execution status records the historical attempt and is never rewritten
+merely because the candidate changed. Changed inputs make earlier evidence stale;
+retain its historical verdict, but it cannot authorize completion of the changed
+candidate. Record a new pending attempt separately when a fresh review is planned.
+Neither stale nor unverified evidence satisfies final review, even with an approved
+historical verdict.
 
 A denied action that prevents a started review from completing means failed. Do not
 retry a denied action without materially new relevant authorization; check an uncertain

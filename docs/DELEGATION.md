@@ -38,8 +38,16 @@ Excluded work and files:
 Dependencies / order / shared-file owner:
 Required commands and expected coverage:
 Allowed actions (including whether local commits are allowed):
+Initial limits: maximum provider/agent calls, wall time and review/fix rounds:
+Stop conditions and escalation owner:
 Handoff destination / incoming lead if switching:
 ```
+
+Set concrete limits before dispatch and carry used/remaining limits into every
+handoff. Stop and report when a limit is exhausted, ownership overlaps, required
+inputs are missing, an action is denied or its outcome is uncertain. Do not extend
+limits, widen scope or retry a blocked action silently; the lead resolves the blocker
+within the existing authorization before issuing a revised bounded contract.
 
 The lead owns shared integration files: dependency manifests, migrations, public
 contracts and shared configuration need one named owner. If two tasks need the same
@@ -202,7 +210,7 @@ The reviewer returns:
 Task / reviewer identity (different from implementer):
 Reviewed worktree / base SHA / head SHA / fingerprint:
 Review execution: pending / completed / failed / skipped, with reason and missing inputs:
-Verdict: approved / changes_requested, only for a completed review:
+Verdict: approved / changes_requested, usable only with a valid exact-candidate report:
 Evidence validity: current / stale / unverified:
 Findings: severity, file:line, concrete impact and suggested validation:
 Acceptance criteria assessed and validation gaps:
@@ -213,6 +221,12 @@ Use the shared contract's review-state definitions. A completed review can repor
 defects; verdict and evidence validity are separate from execution. Record stale or
 unverified evidence explicitly. A pending review awaits work; skipped means it was
 deliberately not run, with a reason. Neither a process exit nor role discovery is review.
+Keep historical execution status unchanged when the candidate changes; mark its
+evidence stale and record any new review attempt separately. An attempted review
+ending with a missing or malformed report is failed, with no usable verdict. Only
+a completed review with a valid report for the exact current candidate can supply
+an approved/changes_requested verdict usable for that candidate. Local verdicts are
+analytical recommendations; reviewers never submit platform approvals.
 
 Do not manufacture a completion record from a successful process exit or a worker's
 summary. Keep the independent report and harness log next to the snapshot. An edit,
