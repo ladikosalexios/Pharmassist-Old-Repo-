@@ -5,10 +5,17 @@ implementer and one independent reviewer. Add parallel writers only when their f
 ownership does not overlap. Native subagents provide separate contexts; writers also
 need separate worktrees. A reviewer must not review their own implementation.
 
-The provider-neutral [shared workflow contract](ENGINEERING-WORKFLOW.md) defines
+The provider-neutral [shared workflow contract](ENGINEERING_WORKFLOW.md) defines
 lead ownership, switching, review states and completion evidence. This guide is its
 PharmAssist adapter: task fields, native launch procedures and repository commands.
 Keep using the existing roles and scope helper; no second orchestrator is required.
+This repository retains `docs/DELEGATION.md` as its adapter rather than introducing
+`docs/ENGINEERING.md`. Its existing `.agents/skills/delegate` alias points to
+`.claude/skills/delegate`, exposing `$delegate` and `/delegate`; these remain the thin
+entrypoints instead of adding competing `engineering-lead` or `/engineering` commands.
+The shared contract uses the common `docs/ENGINEERING_WORKFLOW.md` path and version 1.
+The existing scope helper's snapshot schema stays at version 1; runner JSON is unchanged.
+Keep lead handoff records beside the snapshot, test logs and review artifacts outside Git.
 The `delegate` skill
 is canonical in `.claude/skills/delegate/`; `.agents/skills/delegate` is a relative
 symlink to it. `AGENTS.md` and `CLAUDE.md` point here. Keep PharmAssist's harness and
@@ -194,16 +201,18 @@ The reviewer returns:
 ```text
 Task / reviewer identity (different from implementer):
 Reviewed worktree / base SHA / head SHA / fingerprint:
-Review status: COMPLETED / SKIPPED / FAILED / UNVERIFIED, with reason and missing inputs:
+Review execution: pending / completed / failed / skipped, with reason and missing inputs:
+Verdict: approved / changes_requested, only for a completed review:
+Evidence validity: current / stale / unverified:
 Findings: severity, file:line, concrete impact and suggested validation:
 Acceptance criteria assessed and validation gaps:
 Remaining risk / blockers (say explicitly when no concrete findings):
 ```
 
-Use the shared contract's review-state definitions. A complete review can report
-defects; findings disposition is separate from completion. A missing/incomplete or
-stale report is UNVERIFIED; an error or denial preventing a started review is FAILED;
-an unstarted review is SKIPPED. Neither a process exit nor role discovery is review.
+Use the shared contract's review-state definitions. A completed review can report
+defects; verdict and evidence validity are separate from execution. Record stale or
+unverified evidence explicitly. A pending review awaits work; skipped means it was
+deliberately not run, with a reason. Neither a process exit nor role discovery is review.
 
 Do not manufacture a completion record from a successful process exit or a worker's
 summary. Keep the independent report and harness log next to the snapshot. An edit,

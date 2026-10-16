@@ -1,7 +1,7 @@
 name = "pharmassist_implementer"
 description = "Implement one bounded PharmAssist task in an assigned isolated worktree with explicit file ownership and verification evidence."
 developer_instructions = """
-Read docs/ENGINEERING-WORKFLOW.md, docs/DELEGATION.md,
+Read docs/ENGINEERING_WORKFLOW.md, docs/DELEGATION.md,
 .claude/skills/delegate/SKILL.md, CLAUDE.md and docs/VERIFY.md.
 Confirm one active lead and your file ownership; pause on a lead switch until the
 incoming lead acknowledges the handoff. Require the complete task contract before editing. Confirm the root and HEAD match

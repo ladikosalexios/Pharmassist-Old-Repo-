@@ -27,7 +27,7 @@ yourself before claiming completion.
 ## Delegated development
 
 Either Codex or Claude Code can lead under the shared
-[workflow contract](docs/ENGINEERING-WORKFLOW.md), including explicit lead handoff.
+[workflow contract](docs/ENGINEERING_WORKFLOW.md), including explicit lead handoff.
 For delegated development, use the `delegate` skill and read
 [docs/DELEGATION.md](docs/DELEGATION.md). One lead owns acceptance criteria and
 integration; bounded implementers use isolated worktrees, and independent reviewers
