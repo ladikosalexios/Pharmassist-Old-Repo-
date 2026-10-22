@@ -469,8 +469,9 @@ regressions remain distinct evidence.
 
 ## Validation of this change
 
-These results come from the review follow-up and the end-to-end audit (2026-10-07), in the
-isolated worktree.
+**Historical record (2026-10-07).** These results describe the review follow-up and
+end-to-end audit in that isolated worktree. They do not verify the current candidate;
+current tooling requirements and CI coverage are documented above.
 
 **Passed.** `python3 scripts/verify.py --with-db` exited 0:
 
@@ -530,16 +531,16 @@ was shown to fail against the previous code:
   not formatted, Ruff ignored its own excludes for explicit paths, and an unset
   `CLAUDE_PROJECT_DIR` failed with an unrelated error.
 
-**Not verified:**
+**Not verified in that historical audit:**
 
 - **Codex Stop feedback:** observed only through the model's reply. Codex's JSON output and
   local logs did not record the hook run.
 - **Codex in the developer's own setup:** no hooks run there until the project is trusted and
   each hook is approved.
 - **Versions:** local runs used PostgreSQL 14.18, Node 23.11.0, Python 3.13 for the backend
-  and system Python 3.9.6 for the launcher. CI covers PostgreSQL 16, Node 22 and Python 3.13.
-  Locally, frontend dependencies were not freshly installed with `npm ci`; CI's frontend job
-  does install them that way.
+  and system Python 3.9.6 for the launcher. At that time, CI covered PostgreSQL 16, Node 22
+  and Python 3.13. Local frontend dependencies were not freshly installed with `npm ci`;
+  that audit's frontend CI job installed them that way.
 
 These results do not include the release checks excluded above.
 
