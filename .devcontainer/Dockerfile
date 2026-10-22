@@ -1,7 +1,8 @@
 # Development and verification environment.
 # `tools` holds exactly what scripts/verify.py needs (docs/VERIFY.md); `dev` adds Claude Code.
-# Keep Python, Node and PostgreSQL majors in step with .github/workflows/lint.yml.
-FROM node:22-bookworm-slim AS node
+# CI's Verify jobs (.github/workflows/lint.yml) run in the `tools` stage, so this file sets the
+# Python, Node and PostgreSQL versions for both.
+FROM node:26.12.1-bookworm-slim AS node
 
 FROM python:3.13-bookworm AS tools
 
@@ -21,8 +22,10 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 ENV PATH=/usr/lib/postgresql/16/bin:$PATH
 
-# initdb refuses to run as root, so verification runs as an ordinary user.
-RUN useradd --create-home --shell /bin/bash --uid 1000 dev
+# initdb refuses to run as root, so verification runs as an ordinary user. CI sets DEV_UID to
+# the runner's uid so the user can write to the mounted checkout.
+ARG DEV_UID=1000
+RUN useradd --create-home --shell /bin/bash --uid "$DEV_UID" dev
 USER dev
 
 FROM tools AS dev

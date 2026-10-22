@@ -26,6 +26,8 @@ yourself before claiming completion.
 
 ## Delegated development
 
+Either Codex or Claude Code can lead under the shared
+[workflow contract](docs/ENGINEERING_WORKFLOW.md), including explicit lead handoff.
 For delegated development, use the `delegate` skill and read
 [docs/DELEGATION.md](docs/DELEGATION.md). One lead owns acceptance criteria and
 integration; bounded implementers use isolated worktrees, and independent reviewers
@@ -48,7 +50,7 @@ docker compose --profile tools up adminer   # opt-in DB UI at :8080
 Run inside the `backend` container (`docker compose exec backend …`) or with `cd backend` locally.
 
 ```bash
-pip install -r requirements-dev.txt           # runtime + dev tools
+pip install -r requirements-dev.lock           # runtime + dev tools
 python -m uvicorn main:app --reload           # local server (Dockerfile does this for you)
 
 alembic upgrade head                          # apply migrations
@@ -69,7 +71,7 @@ Tests rely on env vars being set *before* `from main import app` because `get_se
 
 ```bash
 cd frontend
-npm install
+npm ci
 npm run dev           # vite (inside Docker this is the CMD)
 npm run typecheck     # tsc -b --noEmit
 npm run lint          # eslint .
@@ -86,7 +88,7 @@ and safety hooks. CI calls the same `scripts/verify.py` entry point separately f
 and frontend. The default excludes the eight database suites explicitly; `--with-db` runs
 those against a disposable local cluster. See [docs/VERIFY.md](docs/VERIFY.md) for exact coverage.
 Keep the ruff pin in `backend/requirements-dev.txt` and `.pre-commit-config.yaml` aligned;
-CI installs that requirements file.
+CI installs the generated requirements-dev.lock.
 
 ## Configuration & secrets
 

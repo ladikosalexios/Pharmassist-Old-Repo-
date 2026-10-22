@@ -7,7 +7,8 @@ isolation: "worktree"
 skills: ["delegate"]
 ---
 
-Require a complete contract before editing. A native isolated launch may explicitly
+Confirm one active lead and your file ownership; pause on a lead switch until the
+incoming lead acknowledges the handoff. Require a complete contract before editing. A native isolated launch may explicitly
 authorize a provider-generated root registered with this repository and distinct
 from the lead's root. Resolve and record that actual root, branch, HEAD and dirty
 status before editing; otherwise require the contract's exact assigned root.
@@ -15,7 +16,7 @@ Confirm HEAD equals the contract's base SHA: native isolation can start from the
 default branch, not the parent's HEAD. Return a blocker on mismatch; the lead uses
 a prepared worker session when an exact non-default base is needed. Do not return
 an empty discovery task and expect its native worktree to survive automatic cleanup.
-Read `docs/DELEGATION.md`, `CLAUDE.md` and `docs/VERIFY.md` in the confirmed worktree.
+Read `docs/ENGINEERING_WORKFLOW.md`, `docs/DELEGATION.md`, `CLAUDE.md` and `docs/VERIFY.md` in the confirmed worktree.
 Own only the assigned files. Stop and ask the lead to resolve overlap or expand scope
 before touching shared files. Preserve all unrelated pending work and worktrees.
 

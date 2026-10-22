@@ -9,7 +9,7 @@ python3 scripts/verify.py
 The runner never installs dependencies, starts the application or Compose stack, calls the
 live seed, launches agents, or publishes changes. It runs trusted repository code as your
 local user; it is not an operating-system sandbox. Use Python 3.9+ to launch it, Python 3.13
-for the backend, and Node 22 for the frontend (matching CI).
+for the backend, and Node 26 for the frontend (matching CI).
 
 ## Dependencies belong to each worktree
 
@@ -17,7 +17,7 @@ Prepare these explicitly, once, in the worktree you will verify:
 
 ```sh
 python3.13 -m venv backend/.venv
-backend/.venv/bin/python -m pip install -r backend/requirements-dev.txt
+backend/.venv/bin/python -m pip install -r backend/requirements-dev.lock
 cd frontend
 npm ci
 ```
@@ -27,14 +27,40 @@ The runner uses `backend/.venv/bin/python` when present, otherwise its own inter
 fail the corresponding check; there is no silent installation or fallback to a running container.
 Do not symlink another worktree's mutable dependencies. No provider credentials are needed.
 
+## Reproducible tooling inputs
+
+`.node-version` selects Node 26.12.1. Both npm projects enforce the supported Node 26
+major through `engines` and `.npmrc`; the tools and frontend images use the same
+patch, and the desktop release workflow reads `.node-version`. Use that version
+before `npm ci`; do not reuse modules installed under another Node major or OS.
+`frontend/Dockerfile` also uses `npm ci` so image builds honor the committed lock.
+
+`backend/requirements-dev.txt` and `backend/requirements.txt` remain human-maintained
+inputs. Verification, CI and dev-container setup install the complete, hash-checked
+`backend/requirements-dev.lock` (including runtime dependencies). To deliberately
+refresh it, use Python 3.13 inside the tools image, an independent temporary venv,
+`pip==25.2` and `pip-tools==7.5.2`, then run:
+
+```sh
+pip-compile --generate-hashes --no-emit-index-url --no-emit-trusted-host --output-file backend/requirements-dev.lock backend/requirements-dev.txt
+```
+
+Review the dependency delta and run the full isolated verifier before committing.
+The lock is resolved for the Linux tools image; Windows contributors use the container.
+The application backend Dockerfile still consumes `requirements.txt`; production image
+reproducibility is a separate release concern, outside this engineering verification gate.
+The tools image's Python/PostgreSQL patch releases and OS packages follow their official
+upstream tags/repositories; this is a reproducible Python/npm dependency gate, not a
+bit-for-bit image guarantee. CI download-cache keys include the complete lock hash.
+
 ## Dev container
 
 `.devcontainer/` provides the same tools in Linux, for machines where the runner or hooks do
-not work natively (Windows). Its `tools` stage pins Python 3.13, Node 22 and the PostgreSQL 16
-tools, matching `.github/workflows/lint.yml`; keep them in step. The `dev` stage adds Claude
-Code and the GitHub CLI. On creation, `.devcontainer/post-create.sh` installs the dependencies
-above into volumes, so they never mix with a host checkout's own `backend/.venv` or
-`frontend/node_modules`.
+not work natively (Windows). Its `tools` stage pins Python 3.13, Node 26 and the PostgreSQL 16
+tools, and CI runs its Verify jobs in that same stage, so the two cannot drift. The `dev`
+stage adds Claude Code and the GitHub CLI. On creation, `.devcontainer/post-create.sh`
+installs the dependencies above into volumes, so they never mix with a host checkout's own
+`backend/.venv` or `frontend/node_modules`.
 
 On Windows, put the checkout on Linux storage: in VS Code, run **Dev Containers: Clone
 Repository in Container Volume**. A checkout on a Windows drive stores the `.agents/skills`
@@ -43,7 +69,9 @@ or Linux, **Reopen in Container** on an existing checkout works.
 
 Start `claude` from the repository root inside the container. Its login and settings persist
 in the `pharmassist-claude-config` volume, and `gh auth login` persists in
-`pharmassist-gh-config`. Before relying on the hooks, establish them as
+`pharmassist-gh-config`. Those two volume names are fixed, so every checkout's container on
+the same Docker host shares one Claude Code login and one GitHub CLI login; only the
+dependency volumes are per container. Before relying on the hooks, establish them as
 [Start a session with the shared hooks](#start-a-session-with-the-shared-hooks) describes.
 In this container on 2026-10-11, a synthetic edit was reformatted by PostToolUse, Stop blocked
 on its deliberate type error, and `--quick` passed after the fixture was removed.
@@ -55,6 +83,8 @@ The default runs:
 - Harness and hook regression tests, using temporary synthetic repositories.
 - Delegation role/skill consistency and local scope/stale-handoff regressions, discovered
   with the other `scripts/test_*.py` tests. See [DELEGATION.md](DELEGATION.md) for use.
+  The [shared workflow contract](ENGINEERING_WORKFLOW.md) defines lead-switch handoffs
+  and local review states; these offline tests do not establish provider execution.
 - Backend and tooling Ruff lint and format checks.
 - The same DB-less backend pytest selection as CI, with skip reasons printed.
 - Frontend typecheck, ESLint, Prettier check, Vitest, and a production build to a temporary output directory.
@@ -65,7 +95,9 @@ This keeps imports and formatting consistent between hooks, pre-commit, and the 
 including when invoked from another working directory.
 
 CI calls the same entry point with `--backend-only` and `--frontend-only`, and runs
-`--backend-only --with-db` against the runner image's PostgreSQL 16 (Compose's major version). The optional
+`--backend-only --with-db` against PostgreSQL 16 (Compose's major version). Each job builds the
+dev container's `tools` stage, with its user's uid set to the runner's so it can write to the
+checkout, and runs the entry point inside it. The optional
 `--quick` mode runs lint/format/typecheck and tooling regressions; it explicitly excludes
 application tests and builds. Stop hooks use this narrower mode, not a full test gate.
 
@@ -151,6 +183,12 @@ the summary gives each skip reason. A step whose tests were all skipped is
 `NOT RUN: 0 passed, N skipped` and fails verification; a missing report is a failure.
 No Electron packaging, deployed-service smoke, live Pharmapi/LLM/EOF/EMA checks, or browser
 acceptance tests are included. This command does not establish release readiness by itself.
+The Electron agent's Node 26 setting applies to build tooling; its embedded Electron 32
+runtime is unchanged. A lock-only install or `npm ci --ignore-scripts` checks dependency
+resolution, not native `uiohook-napi`, platform installers, code signing, GUI/accessibility
+permissions or scanner behavior. Those require the separate macOS/Windows release checks.
+The October 20 demo, live/deployed services and clinical behavior are outside this gate;
+do not start or stop them to prepare verification.
 
 ## Database suites: opt into an isolated cluster
 
@@ -431,8 +469,9 @@ regressions remain distinct evidence.
 
 ## Validation of this change
 
-These results come from the review follow-up and the end-to-end audit (2026-10-07), in the
-isolated worktree.
+**Historical record (2026-10-07).** These results describe the review follow-up and
+end-to-end audit in that isolated worktree. They do not verify the current candidate;
+current tooling requirements and CI coverage are documented above.
 
 **Passed.** `python3 scripts/verify.py --with-db` exited 0:
 
@@ -492,16 +531,16 @@ was shown to fail against the previous code:
   not formatted, Ruff ignored its own excludes for explicit paths, and an unset
   `CLAUDE_PROJECT_DIR` failed with an unrelated error.
 
-**Not verified:**
+**Not verified in that historical audit:**
 
 - **Codex Stop feedback:** observed only through the model's reply. Codex's JSON output and
   local logs did not record the hook run.
 - **Codex in the developer's own setup:** no hooks run there until the project is trusted and
   each hook is approved.
 - **Versions:** local runs used PostgreSQL 14.18, Node 23.11.0, Python 3.13 for the backend
-  and system Python 3.9.6 for the launcher. CI covers PostgreSQL 16, Node 22 and Python 3.13.
-  Locally, frontend dependencies were not freshly installed with `npm ci`; CI's frontend job
-  does install them that way.
+  and system Python 3.9.6 for the launcher. At that time, CI covered PostgreSQL 16, Node 22
+  and Python 3.13. Local frontend dependencies were not freshly installed with `npm ci`;
+  that audit's frontend CI job installed them that way.
 
 These results do not include the release checks excluded above.
 

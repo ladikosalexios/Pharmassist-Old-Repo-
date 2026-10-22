@@ -5,7 +5,18 @@ implementer and one independent reviewer. Add parallel writers only when their f
 ownership does not overlap. Native subagents provide separate contexts; writers also
 need separate worktrees. A reviewer must not review their own implementation.
 
-This guide is the canonical contract for Codex and Claude Code. The `delegate` skill
+The provider-neutral [shared workflow contract](ENGINEERING_WORKFLOW.md) defines
+lead ownership, switching, review states and completion evidence. This guide is its
+PharmAssist adapter: task fields, native launch procedures and repository commands.
+Keep using the existing roles and scope helper; no second orchestrator is required.
+This repository retains `docs/DELEGATION.md` as its adapter rather than introducing
+`docs/ENGINEERING.md`. Its existing `.agents/skills/delegate` alias points to
+`.claude/skills/delegate`, exposing `$delegate` and `/delegate`; these remain the thin
+entrypoints instead of adding competing `engineering-lead` or `/engineering` commands.
+The shared contract uses the common `docs/ENGINEERING_WORKFLOW.md` path and version 1.
+The existing scope helper's snapshot schema stays at version 1; runner JSON is unchanged.
+Keep lead handoff records beside the snapshot, test logs and review artifacts outside Git.
+The `delegate` skill
 is canonical in `.claude/skills/delegate/`; `.agents/skills/delegate` is a relative
 symlink to it. `AGENTS.md` and `CLAUDE.md` point here. Keep PharmAssist's harness and
 contracts independent of Second Opinion and other repositories.
@@ -17,7 +28,7 @@ the repository (for example, a task directory under `/tmp`); never include clini
 data, credentials or live-service transcripts.
 
 ```text
-Task / lead / implementer:
+Task / contract version / active lead identity and provider / implementation owner:
 Goal and observable acceptance criteria:
 Repository and assigned root: absolute path, or explicit native-generated constraints:
 Branch and full base SHA:
@@ -27,8 +38,16 @@ Excluded work and files:
 Dependencies / order / shared-file owner:
 Required commands and expected coverage:
 Allowed actions (including whether local commits are allowed):
-Handoff destination:
+Initial limits: maximum provider/agent calls, wall time and review/fix rounds:
+Stop conditions and escalation owner:
+Handoff destination / incoming lead if switching:
 ```
+
+Set concrete limits before dispatch and carry used/remaining limits into every
+handoff. Stop and report when a limit is exhausted, ownership overlaps, required
+inputs are missing, an action is denied or its outcome is uncertain. Do not extend
+limits, widen scope or retry a blocked action silently; the lead resolves the blocker
+within the existing authorization before issuing a revised bounded contract.
 
 The lead owns shared integration files: dependency manifests, migrations, public
 contracts and shared configuration need one named owner. If two tasks need the same
@@ -190,11 +209,24 @@ The reviewer returns:
 ```text
 Task / reviewer identity (different from implementer):
 Reviewed worktree / base SHA / head SHA / fingerprint:
-Completion: completed or incomplete, with missing inputs:
+Review execution: pending / completed / failed / skipped, with reason and missing inputs:
+Verdict: approved / changes_requested, usable only with a valid exact-candidate report:
+Evidence validity: current / stale / unverified:
 Findings: severity, file:line, concrete impact and suggested validation:
 Acceptance criteria assessed and validation gaps:
 Remaining risk / blockers (say explicitly when no concrete findings):
 ```
+
+Use the shared contract's review-state definitions. A completed review can report
+defects; verdict and evidence validity are separate from execution. Record stale or
+unverified evidence explicitly. A pending review awaits work; skipped means it was
+deliberately not run, with a reason. Neither a process exit nor role discovery is review.
+Keep historical execution status unchanged when the candidate changes; mark its
+evidence stale and record any new review attempt separately. An attempted review
+ending with a missing or malformed report is failed, with no usable verdict. Only
+a completed review with a valid report for the exact current candidate can supply
+an approved/changes_requested verdict usable for that candidate. Local verdicts are
+analytical recommendations; reviewers never submit platform approvals.
 
 Do not manufacture a completion record from a successful process exit or a worker's
 summary. Keep the independent report and harness log next to the snapshot. An edit,

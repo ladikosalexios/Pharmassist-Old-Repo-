@@ -1,4 +1,4 @@
-FROM node:26-bookworm-slim
+FROM node:26.12.1-bookworm-slim
 
 # Set the working directory inside the container
 WORKDIR /usr/src/app
@@ -7,7 +7,7 @@ WORKDIR /usr/src/app
 COPY . .
 
 # Install dependencies
-RUN npm install
+RUN npm ci
 
 # Expose the port the app runs on
 EXPOSE 5173
