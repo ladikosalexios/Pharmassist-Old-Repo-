@@ -26,11 +26,11 @@ jobs:
         include:
           - name: backend (ruff)
             deps: backend
-            lockfile: backend/requirements-dev.txt
+            lockfile: backend/requirements-dev.lock
             run: python3 scripts/verify.py --backend-only --quick
           - name: backend (pytest, DB-less subset)
             deps: backend
-            lockfile: backend/requirements-dev.txt
+            lockfile: backend/requirements-dev.lock
             run: python3 scripts/verify.py --backend-only
           # The eight database suites (the Yellow Card suite last, failing on any skip) and
           # the real-psql harness regression, in a disposable socket-only cluster created by
@@ -38,7 +38,7 @@ jobs:
           # shared database. The version check fails loudly if the image stops shipping 16.
           - name: backend (database suites, isolated PostgreSQL 16)
             deps: backend
-            lockfile: backend/requirements-dev.txt
+            lockfile: backend/requirements-dev.lock
             run: >-
               /usr/lib/postgresql/16/bin/postgres --version | grep -E ' 16\.' &&
               python3 scripts/verify.py --backend-only --with-db --pg-bin /usr/lib/postgresql/16/bin
@@ -64,7 +64,7 @@ jobs:
       - uses: actions/cache@v4
         with:
           path: ${{ runner.temp }}/cache
-          key: ${{ matrix.deps }}-${{ hashFiles(matrix.lockfile) }}
+          key: tools-node26-py313-${{ runner.os }}-${{ runner.arch }}-${{ matrix.deps }}-${{ hashFiles(matrix.lockfile) }}
       - name: Install dependencies and verify
         env:
           DEPS: ${{ matrix.deps }}
@@ -73,7 +73,7 @@ jobs:
           # Created here, not by Docker, so the mount belongs to the runner's uid.
           mkdir -p "$RUNNER_TEMP/cache"
           if [ "$DEPS" = backend ]; then
-            install='python3.13 -m venv backend/.venv && backend/.venv/bin/python -m pip install -r backend/requirements-dev.txt'
+            install='python3.13 -m venv backend/.venv && backend/.venv/bin/python -m pip install -r backend/requirements-dev.lock'
           else
             install='(cd frontend && npm ci)'
           fi

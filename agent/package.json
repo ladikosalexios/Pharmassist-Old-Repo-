@@ -23,6 +23,7 @@
     "electron": "^32.1.2",
     "electron-builder": "^26.15.3"
   },
+  "engines": { "node": ">=26 <27" },
   "build": {
     "appId": "gr.pharmassist.agent",
     "productName": "PharmAssist Agent",

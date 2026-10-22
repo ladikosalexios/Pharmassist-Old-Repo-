@@ -9,7 +9,7 @@ python3 scripts/verify.py
 The runner never installs dependencies, starts the application or Compose stack, calls the
 live seed, launches agents, or publishes changes. It runs trusted repository code as your
 local user; it is not an operating-system sandbox. Use Python 3.9+ to launch it, Python 3.13
-for the backend, and Node 22 for the frontend (matching CI).
+for the backend, and Node 26 for the frontend (matching CI).
 
 ## Dependencies belong to each worktree
 
@@ -17,7 +17,7 @@ Prepare these explicitly, once, in the worktree you will verify:
 
 ```sh
 python3.13 -m venv backend/.venv
-backend/.venv/bin/python -m pip install -r backend/requirements-dev.txt
+backend/.venv/bin/python -m pip install -r backend/requirements-dev.lock
 cd frontend
 npm ci
 ```
@@ -27,10 +27,36 @@ The runner uses `backend/.venv/bin/python` when present, otherwise its own inter
 fail the corresponding check; there is no silent installation or fallback to a running container.
 Do not symlink another worktree's mutable dependencies. No provider credentials are needed.
 
+## Reproducible tooling inputs
+
+`.node-version` selects Node 26.12.1. Both npm projects enforce the supported Node 26
+major through `engines` and `.npmrc`; the tools and frontend images use the same
+patch, and the desktop release workflow reads `.node-version`. Use that version
+before `npm ci`; do not reuse modules installed under another Node major or OS.
+`frontend/Dockerfile` also uses `npm ci` so image builds honor the committed lock.
+
+`backend/requirements-dev.txt` and `backend/requirements.txt` remain human-maintained
+inputs. Verification, CI and dev-container setup install the complete, hash-checked
+`backend/requirements-dev.lock` (including runtime dependencies). To deliberately
+refresh it, use Python 3.13 inside the tools image, an independent temporary venv,
+`pip==25.2` and `pip-tools==7.5.2`, then run:
+
+```sh
+pip-compile --generate-hashes --no-emit-index-url --no-emit-trusted-host --output-file backend/requirements-dev.lock backend/requirements-dev.txt
+```
+
+Review the dependency delta and run the full isolated verifier before committing.
+The lock is resolved for the Linux tools image; Windows contributors use the container.
+The application backend Dockerfile still consumes `requirements.txt`; production image
+reproducibility is a separate release concern, outside this engineering verification gate.
+The tools image's Python/PostgreSQL patch releases and OS packages follow their official
+upstream tags/repositories; this is a reproducible Python/npm dependency gate, not a
+bit-for-bit image guarantee. CI download-cache keys include the complete lock hash.
+
 ## Dev container
 
 `.devcontainer/` provides the same tools in Linux, for machines where the runner or hooks do
-not work natively (Windows). Its `tools` stage pins Python 3.13, Node 22 and the PostgreSQL 16
+not work natively (Windows). Its `tools` stage pins Python 3.13, Node 26 and the PostgreSQL 16
 tools, and CI runs its Verify jobs in that same stage, so the two cannot drift. The `dev`
 stage adds Claude Code and the GitHub CLI. On creation, `.devcontainer/post-create.sh`
 installs the dependencies above into volumes, so they never mix with a host checkout's own
@@ -157,6 +183,12 @@ the summary gives each skip reason. A step whose tests were all skipped is
 `NOT RUN: 0 passed, N skipped` and fails verification; a missing report is a failure.
 No Electron packaging, deployed-service smoke, live Pharmapi/LLM/EOF/EMA checks, or browser
 acceptance tests are included. This command does not establish release readiness by itself.
+The Electron agent's Node 26 setting applies to build tooling; its embedded Electron 32
+runtime is unchanged. A lock-only install or `npm ci --ignore-scripts` checks dependency
+resolution, not native `uiohook-napi`, platform installers, code signing, GUI/accessibility
+permissions or scanner behavior. Those require the separate macOS/Windows release checks.
+The October 20 demo, live/deployed services and clinical behavior are outside this gate;
+do not start or stop them to prepare verification.
 
 ## Database suites: opt into an isolated cluster
 

@@ -2,7 +2,7 @@
 # `tools` holds exactly what scripts/verify.py needs (docs/VERIFY.md); `dev` adds Claude Code.
 # CI's Verify jobs (.github/workflows/lint.yml) run in the `tools` stage, so this file sets the
 # Python, Node and PostgreSQL versions for both.
-FROM node:22-bookworm-slim AS node
+FROM node:26.12.1-bookworm-slim AS node
 
 FROM python:3.13-bookworm AS tools
 

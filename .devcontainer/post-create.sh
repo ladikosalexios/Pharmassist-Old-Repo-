@@ -8,5 +8,5 @@ sudo chown dev: backend/.venv frontend/node_modules
 git config --global --add safe.directory "$PWD"
 
 python3.13 -m venv backend/.venv
-backend/.venv/bin/python -m pip install -r backend/requirements-dev.txt
+backend/.venv/bin/python -m pip install -r backend/requirements-dev.lock
 (cd frontend && npm ci)
