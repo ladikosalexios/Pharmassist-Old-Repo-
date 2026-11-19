@@ -591,6 +591,7 @@
     "couldNotLoadPrescriptionId": "Could not load prescription {{rxId}}",
     "cannotLoadPrescription": "Cannot load prescription. Make sure the API is running.",
     "contactPrescriber": "Contact prescriber",
+    "patientInstructions": "Patient instructions",
     "flagged": "Flagged",
     "flagDiscrepancy": "Flag discrepancy",
     "prescriptionAlreadyCompleted": "Prescription is already completed.",

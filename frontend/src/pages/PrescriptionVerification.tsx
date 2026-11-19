@@ -5,6 +5,7 @@ import {
   ArrowLeftIcon,
   PhoneIcon,
   FlagIcon,
+  FileTextIcon,
   ChevronRightIcon,
   AlertCircleIcon,
 } from "../components/Icons";
@@ -594,6 +595,16 @@ export function PrescriptionVerification() {
             <FlagIcon width={15} height={15} />{" "}
             {isFlagged ? t("review.flagged") : t("review.flagDiscrepancy")}
           </button>
+
+          {/* Retrieval-only: every reviewed prescription is counsellable, so no status gate. */}
+          {rx && (
+            <Link
+              to={`/instructions?rxId=${encodeURIComponent(rx.rxId)}`}
+              className="flex min-h-[40px] items-center gap-1.5 rounded-lg bg-brand-600 px-3.5 py-2 text-[13px] font-semibold text-white shadow-card transition-colors hover:bg-brand-700"
+            >
+              <FileTextIcon width={15} height={15} /> {t("review.patientInstructions")}
+            </Link>
+          )}
         </div>
       </div>
 

@@ -591,6 +591,7 @@
     "couldNotLoadPrescriptionId": "Δεν ήταν δυνατή η φόρτωση της συνταγής {{rxId}}",
     "cannotLoadPrescription": "Δεν είναι δυνατή η φόρτωση της συνταγής. Βεβαιωθείτε ότι το API εκτελείται.",
     "contactPrescriber": "Επικοινωνία με συνταγογράφο",
+    "patientInstructions": "Οδηγίες ασθενούς",
     "flagged": "Σημειωμένη",
     "flagDiscrepancy": "Σημείωση ασυμφωνίας",
     "prescriptionAlreadyCompleted": "Η συνταγή έχει ήδη ολοκληρωθεί.",
