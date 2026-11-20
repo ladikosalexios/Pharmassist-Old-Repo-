@@ -16,6 +16,9 @@ const CODES = [
   ["RX2024-007", ""],
   ["RX2024-008", ""],
   ["RX2024-009", ""],
+  ["RX2024-011", "Warfarin — REVIEW (insufficient boxes: 30 < 90 doses)"],
+  ["RX2024-012", "Warfarin — REVIEW (dose too low: 1 mg/day < 3 mg SPC min)"],
+  ["RX2024-013", "Warfarin — BLOCK (dose too high: 20 mg/day > 9 mg SPC max)"],
 ];
 
 (async () => {

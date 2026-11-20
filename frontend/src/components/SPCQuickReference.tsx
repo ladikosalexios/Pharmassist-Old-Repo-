@@ -183,6 +183,12 @@ export function SPCQuickReference({ drugName, atcCode, fallback }: SPCQuickRefer
                     </div>
                   ))}
                 </div>
+              ) : view.spc?.interactionsText ? (
+                <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-slate-800 whitespace-pre-line">
+                  {view.spc.interactionsText.length > 500
+                    ? `${view.spc.interactionsText.slice(0, 500).trimEnd()}…`
+                    : view.spc.interactionsText}
+                </div>
               ) : (
                 <p className="mt-2 text-sm text-slate-500">{t("spc.noneRecorded")}</p>
               )}

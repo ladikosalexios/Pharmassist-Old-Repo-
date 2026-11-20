@@ -40,6 +40,7 @@ export interface SpcDetails {
   recommendedDosage: string;
   contraindications: string[];
   majorInteractions: Interaction[];
+  interactionsText?: string | null;
   // §4.4 warnings/precautions — extra care or monitoring, NOT the same as
   // §4.3 contraindications (which forbid use).
   precautions?: string[];
