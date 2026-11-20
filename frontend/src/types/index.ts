@@ -19,6 +19,9 @@ export interface Medication {
   route: string;
   frequency: string;
   treatmentDuration: string;
+  boxes?: number;
+  packSize?: number;
+  quantity?: number;
   spcRecommendedDosage: string;
 }
 

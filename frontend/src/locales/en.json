@@ -586,6 +586,7 @@
     "route": "Route",
     "frequency": "Frequency",
     "duration": "Duration",
+    "packages": "Packages",
     "reviewPrescription": "Review prescription",
     "backToCounter": "Back to counter",
     "couldNotLoadPrescriptionId": "Could not load prescription {{rxId}}",

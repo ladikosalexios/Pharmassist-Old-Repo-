@@ -1,6 +1,6 @@
 [
   { "file": "Licence_PA2050-001-005_05052026115832.pdf", "atc_code": "B01AA03", "doc_type": "spc", "language": "en" },
-  { "file": "Licence_PA0126-282-004_09032023104539.pdf", "atc_code": "J01CA04", "doc_type": "spc", "language": "en" },
+  { "file": "Licence_PA0126-282-004_09032023104539.pdf", "atc_code": "J01CA04", "doc_type": "spc", "language": "en", "verified": true },
   { "file": "Licence_PA2315-277-001_22092026142003.pdf", "atc_code": "C10AA05", "doc_type": "spc", "language": "en" },
   { "file": "Licence_PA2315-245-003_15052026113951.pdf", "atc_code": "A10BA02", "doc_type": "spc", "language": "en" },
   { "file": "Licence_PA2315-136-003_15072021130253.pdf", "atc_code": "J01FA09", "doc_type": "spc", "language": "en" }

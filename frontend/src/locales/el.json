@@ -586,6 +586,7 @@
     "route": "Οδός χορήγησης",
     "frequency": "Συχνότητα",
     "duration": "Διάρκεια",
+    "packages": "Συσκευασίες",
     "reviewPrescription": "Επαλήθευση συνταγής",
     "backToCounter": "Πίσω στον πάγκο",
     "couldNotLoadPrescriptionId": "Δεν ήταν δυνατή η φόρτωση της συνταγής {{rxId}}",
