@@ -882,6 +882,41 @@ MOCK_PRESCRIPTIONS: dict = {
         },
         "spcQuickReference": {"contraindications": [], "majorInteractions": []},
     },
+    "RX2024-014": {
+        "rxId": "RX2024-014",
+        "code": "RX2024-014",
+        "dateIssued": "2026-11-20",
+        "status": PrescriptionStatus.PENDING,
+        "spcVersion": "SPC upload",
+        "patient": {
+            "id": "P051",
+            "name": "Eleni Markou",
+            "age": 61,
+            "dateOfBirth": "1965-09-22",
+            "amka": "22091965222",
+            "conditions": ["Hyperlipidemia"],
+            "allergies": "None known",
+        },
+        "medication": {
+            "drugName": "Clarithromycin",
+            "atcCode": "J01FA09",
+            "dose": "500 mg",
+            "form": "Film-coated tablet",
+            "route": "Oral",
+            "frequency": "Twice daily",
+            "treatmentDuration": "7 days",
+            "boxes": 1,
+            "packSize": 14,
+        },
+        "prescriber": {
+            "name": "Dr. Emily Roberts",
+            "licenceId": "MD-31094",
+            "specialty": "Internal Medicine",
+            "contact": "+30 210 555 0144",
+            "email": "e.roberts@clinic.gr",
+        },
+        "spcQuickReference": {"contraindications": [], "majorInteractions": []},
+    },
 }
 
 

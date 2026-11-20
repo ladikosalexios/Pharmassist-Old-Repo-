@@ -394,6 +394,13 @@ function MedicationCard({
           {med.treatmentDuration && (
             <Field label={t("review.duration")}>{med.treatmentDuration}</Field>
           )}
+          {(med.boxes != null || med.quantity != null) && (
+            <Field label={t("review.packages")}>
+              {med.boxes != null && med.packSize != null
+                ? `${med.boxes} × ${med.packSize} (${med.boxes * med.packSize})`
+                : String(med.quantity ?? med.boxes)}
+            </Field>
+          )}
         </dl>
       )}
       <SpcExtras atcCode={med.atcCode} nhrn={med.nhrn} />
