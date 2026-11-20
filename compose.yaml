@@ -43,13 +43,40 @@ services:
       # dev stack supplies them here. Dev/test values only; production must
       # provide real ones through its own environment.
       SECRET_KEY: dev-secret-key-not-for-production
+      CREDENTIAL_ENCRYPTION_KEY: ${CREDENTIAL_ENCRYPTION_KEY:-AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=}
       PHARMAPI_USERNAME: medcare1pharmapi
       PHARMAPI_PASSWORD: "Equation8-Erased2-Drainer1-Escalate6"
       PHARMAPI_API_KEY: pi2jwygkd07yho3a4dw6jc55tg5ra3uc
       # Keep the ΗΔΥΚΑ session warm so it never lapses (>=1 /user/me per 24h).
       PHARMAPI_KEEPALIVE_ENABLED: "true"
+      # Yellow Card local capture (ADR reporting + Mailpit transport).
+      YELLOW_CARDS_MODE: ${YELLOW_CARDS_MODE:-local_capture}
+      YELLOW_CARDS_KEY: ${YELLOW_CARDS_KEY:-AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=}
     depends_on:
       - db
+  yellow-worker:
+    image: pharmassist/backend
+    restart: unless-stopped
+    volumes:
+      - ./backend:/usr/src/app
+    command: ["python", "-m", "scripts.yellow_worker"]
+    environment:
+      DATABASE_URL: postgresql+asyncpg://pharmassist:pharmassist_dev@db:5432/pharmassist
+      ENV: development
+      SECRET_KEY: dev-secret-key-not-for-production
+      CREDENTIAL_ENCRYPTION_KEY: ${CREDENTIAL_ENCRYPTION_KEY:-AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=}
+      PHARMAPI_MOCK: ${PHARMAPI_MOCK:-true}
+      LLM_MOCK: "true"
+      YELLOW_CARDS_MODE: ${YELLOW_CARDS_MODE:-local_capture}
+      YELLOW_CARDS_KEY: ${YELLOW_CARDS_KEY:-AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=}
+    depends_on:
+      - db
+      - mailpit
+  mailpit:
+    image: axllent/mailpit:v1.27.4
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8025:8025"
   db:
     image: postgres:16-alpine
     restart: unless-stopped

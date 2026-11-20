@@ -229,7 +229,7 @@ def map_to_details(spc_sections: dict[str, str], pil_sections: dict[str, str]) -
         disposal = _clean(s["6.6"])[:_MAX_FIELD_CHARS] or None
 
     food = None
-    for candidate in (p.get("3"), s.get("4.2")):
+    for candidate in (p.get("3"), s.get("4.2"), s.get("4.5")):
         if candidate:
             food = _sentences_matching(candidate, _FOOD_RE)
             if food:

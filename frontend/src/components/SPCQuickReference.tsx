@@ -183,6 +183,26 @@ export function SPCQuickReference({ drugName, atcCode, fallback }: SPCQuickRefer
                     </div>
                   ))}
                 </div>
+              ) : view.spc?.interactionsText ? (
+                <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-slate-800">
+                  <p>
+                    {(() => {
+                      const clean = view.spc.interactionsText
+                        .replace(/\u00a0/g, " ")
+                        .replace(/\s*[•·]\s*\n+/g, " • ")
+                        .replace(/\s+/g, " ")
+                        .trim();
+                      return clean.length > 500 ? `${clean.slice(0, 500).trimEnd()}…` : clean;
+                    })()}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setFullSpcOpen(true)}
+                    className="mt-2 text-xs font-semibold text-amber-900 underline hover:text-amber-700"
+                  >
+                    {t("spc.viewFull")}
+                  </button>
+                </div>
               ) : (
                 <p className="mt-2 text-sm text-slate-500">{t("spc.noneRecorded")}</p>
               )}
