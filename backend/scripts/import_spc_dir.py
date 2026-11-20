@@ -55,7 +55,7 @@ async def import_manifest(manifest_path: Path) -> int:
                 print(f"ERROR    entry[{idx}]: {exc}", file=sys.stderr)
                 failures += 1
                 continue
-            if item.get("verified") and not doc.verified:
+            if item.get("verified") and not doc.verified and doc.parse_status != "failed":
                 doc.verified = True
                 doc.verified_by = "seed@pharmassist.gr"
                 doc.verified_at = datetime.now(UTC)

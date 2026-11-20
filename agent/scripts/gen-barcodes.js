@@ -19,7 +19,7 @@ const CODES = [
   ["RX2024-011", "Warfarin — REVIEW (insufficient boxes: 30 < 90 doses)"],
   ["RX2024-012", "Warfarin — REVIEW (dose too low: 1 mg/day < 3 mg SPC min)"],
   ["RX2024-013", "Warfarin — REVIEW (dose exceeds SPC max: 20 mg/day > 9 mg SPC max)"],
-  ["RX2024-014", "Clarithromycin + Atorvastatin — REVIEW (CYP3A4 / statin SPC interaction)"],
+  ["RX2024-014", "Clarithromycin + Atorvastatin — BLOCK (CYP3A4 / statin myopathy + §4.5)"],
 ];
 
 (async () => {

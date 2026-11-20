@@ -385,7 +385,13 @@ function MedicationCard({
           </span>
         )}
       </div>
-      {(med.dose || med.form || med.route || med.frequency || med.treatmentDuration) && (
+      {(med.dose ||
+        med.form ||
+        med.route ||
+        med.frequency ||
+        med.treatmentDuration ||
+        med.boxes != null ||
+        med.quantity != null) && (
         <dl className="mt-5 grid grid-cols-2 gap-x-4 gap-y-4">
           {med.dose && <Field label={t("review.dose")}>{med.dose}</Field>}
           {med.form && <Field label={t("review.form")}>{med.form}</Field>}
@@ -398,7 +404,9 @@ function MedicationCard({
             <Field label={t("review.packages")}>
               {med.boxes != null && med.packSize != null
                 ? `${med.boxes} × ${med.packSize} (${med.boxes * med.packSize})`
-                : String(med.quantity ?? med.boxes)}
+                : med.boxes != null
+                  ? `${med.boxes}`
+                  : `${med.quantity}`}
             </Field>
           )}
         </dl>

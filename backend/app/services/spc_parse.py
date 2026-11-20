@@ -157,7 +157,7 @@ _AFTER_OPENING_RE = re.compile(
     re.IGNORECASE,
 )
 _FOOD_RE = re.compile(r"τροφή|φαγητό|γεύμα|φαγητ|food|meal|φαγώσιμ", re.IGNORECASE)
-_SENTENCE_SPLIT_RE = re.compile(r"(?<=[.;·])\s+|\n{2,}")
+_SENTENCE_SPLIT_RE = re.compile(r"(?<=[.;·])\s+")
 
 _MAX_LIST_ITEMS = 12
 _MAX_FIELD_CHARS = 1200
@@ -188,11 +188,7 @@ def _bullet_split(section: str, cap: int = _MAX_LIST_ITEMS) -> list[str]:
 
 
 def _sentences_matching(section: str, pattern: re.Pattern) -> str | None:
-    hits = [
-        _clean(s)
-        for s in _SENTENCE_SPLIT_RE.split(section)
-        if s.strip() and pattern.search(s) and len(_clean(s)) > 20 and _clean(s).endswith((".", ";", "·"))
-    ]
+    hits = [_clean(s) for s in _SENTENCE_SPLIT_RE.split(section) if s.strip() and pattern.search(s)]
     return " ".join(hits)[:_MAX_FIELD_CHARS] or None
 
 
