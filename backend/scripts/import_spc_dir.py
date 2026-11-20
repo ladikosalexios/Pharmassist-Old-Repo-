@@ -13,6 +13,7 @@ import asyncio
 import json
 import os
 import sys
+from datetime import UTC, datetime
 from pathlib import Path
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
@@ -54,10 +55,15 @@ async def import_manifest(manifest_path: Path) -> int:
                 print(f"ERROR    entry[{idx}]: {exc}", file=sys.stderr)
                 failures += 1
                 continue
+            if item.get("verified") and not doc.verified:
+                doc.verified = True
+                doc.verified_by = "seed@pharmassist.gr"
+                doc.verified_at = datetime.now(UTC)
+                await db.commit()
             sections = len(doc.sections or {})
             print(
                 f"{doc.parse_status.upper():7s}  {doc.atc_code:8s} | "
-                f"{fname} | sections={sections} | id={doc.id}"
+                f"{fname} | sections={sections} | verified={doc.verified} | id={doc.id}"
             )
             if doc.parse_status == "failed":
                 failures += 1
