@@ -76,6 +76,27 @@ dependency volumes are per container. Before relying on the hooks, establish the
 In this container on 2026-10-11, a synthetic edit was reformatted by PostToolUse, Stop blocked
 on its deliberate type error, and `--quick` passed after the fixture was removed.
 
+## Claude Code cloud sessions
+
+Cloud sessions (claude.ai/code) run in the owner's personal `Pharmassist-Old-Repo-`
+environment. Its setup script lives in that environment's settings, not in this repository,
+and runs when a session's container is built. It installs Node from `.node-version` (the
+image's own Node 22 fails `engine-strict`) and the dependencies above. There is no Docker
+daemon, so the Compose stack is unavailable; the environment sets `PHARMAPI_MOCK=true` and
+allows no ΗΔΥΚΑ host.
+
+Sessions run as root, and `initdb` refuses root, so the script also creates an unprivileged
+`verify` user. Run the default checks as root, then the database suites as that user:
+
+```sh
+python3 scripts/verify.py
+runuser -u verify -- python3 scripts/verify.py --backend-only --with-db --pg-bin /usr/lib/postgresql/16/bin
+```
+
+The second run is backend-only because Node 26 is linked from `/root/.local/bin`, which the
+`verify` user cannot read; the first run already covers the frontend. Both passed on
+2026-11-13, all eight database suites included.
+
 ## Coverage and exits
 
 The default runs:
