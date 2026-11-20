@@ -483,7 +483,15 @@ async def evaluate_safety(
             if isinstance(m, dict) and m.get("atcCode") and m.get("inn"):
                 inn_names.setdefault(m["atcCode"], m["inn"])
 
-    for med in meds:
+    spc_cache: dict[tuple[str, str | None], dict | None] = {}
+
+    async def _cached_spc(atc: str, barcode: str | None = None) -> dict | None:
+        key = (atc, barcode)
+        if key not in spc_cache:
+            spc_cache[key] = await resolve_spc(session, atc, barcode)
+        return spc_cache[key]
+
+    for med_idx, med in enumerate(meds):
         rx_atc = med.get("atcCode") if isinstance(med, dict) else None
         if not rx_atc:
             continue
@@ -599,9 +607,11 @@ async def evaluate_safety(
         # The drug's OWN SPC gives coverage beyond the ~7 seeded rule classes.
         # resolve_spc walks barcode → ATC → MOCK_SPC; None means no document.
         if verbose_spc:
-            spc = await resolve_spc(
-                session, rx_atc, med.get("nhrn") if isinstance(med, dict) else None
+            spc = await _cached_spc(
+                rx_atc, med.get("nhrn") if isinstance(med, dict) else None
             )
+            own_name = med.get("drugName") if isinstance(med, dict) else None
+            line_co_atcs = (history_atcs or set()) | (med_atcs - {rx_atc})
             if spc:
                 # 4a. Factor-gated §4.3 contraindications → patient-specific.
                 # Only lines matching a recorded allergy / condition / age bracket
@@ -677,14 +687,12 @@ async def evaluate_safety(
                             created_at=datetime.now(UTC),
                         )
                     )
-                # 4c. §4.5 co-medication cross-ref (INN/brand + ATC class + bidirectional).
+                # 4c. §4.5 co-medication cross-ref (INN/brand + ATC class).
                 inter_text = spc.get("interactionsText") or ""
                 struct_inter = spc.get("majorInteractions") or []
-                own_name = med.get("drugName") if isinstance(med, dict) else None
-                line_co_atcs = (history_atcs or set()) | (med_atcs - {rx_atc})
                 terms = {inn_names[a] for a in line_co_atcs if a in inn_names}
                 terms |= {nm for nm in co_med_names if nm and nm != own_name}
-                if (terms or line_co_atcs) and (inter_text or struct_inter):
+                if terms and (inter_text or struct_inter):
                     interaction_screened = True
                     for display in terms:
                         hit = _text_mentions(inter_text, display) or any(
@@ -710,10 +718,12 @@ async def evaluate_safety(
                                 created_at=datetime.now(UTC),
                             )
                         )
+                if line_co_atcs and (inter_text or struct_inter):
                     for co_atc in sorted(line_co_atcs):
                         class_hit = _match_atc_class_in_text(co_atc, inter_text, struct_inter)
                         if not class_hit:
                             continue
+                        interaction_screened = True
                         co_label = inn_names.get(co_atc, co_atc)
                         ckey = f"SPC_CLASS_INTER_{rx_atc[:4]}_{co_atc[:5]}"
                         if ckey in seen:
@@ -734,51 +744,56 @@ async def evaluate_safety(
                             )
                         )
 
-                # Bidirectional §4.5: check co-medications' own SPCs against the Rx drug.
-                if session is not None and line_co_atcs:
-                    rx_terms = {t for t in (inn_names.get(rx_atc), own_name) if t}
-                    for co_atc in sorted(line_co_atcs)[:6]:
-                        co_spc = await resolve_spc(session, co_atc)
-                        if not co_spc:
-                            continue
-                        co_inter = co_spc.get("interactionsText") or ""
-                        co_struct = co_spc.get("majorInteractions") or []
-                        if not (co_inter or co_struct):
-                            continue
-                        interaction_screened = True
-                        rev_hit = any(
-                            _text_mentions(co_inter, t)
-                            or any(_text_mentions(str(p.get("drug", "")), t) for p in co_struct)
-                            for t in rx_terms
-                        ) or bool(_match_atc_class_in_text(rx_atc, co_inter, co_struct))
-                        if not rev_hit:
-                            continue
-                        co_label = inn_names.get(co_atc) or co_spc.get("drugName") or co_atc
-                        bkey = f"SPC_BIDIR_{co_atc[:4]}_{rx_atc[:4]}"
-                        if bkey in seen:
-                            continue
-                        seen.add(bkey)
-                        interaction_fired = True
-                        checks.append(
-                            SafetyAlertPayload(
-                                id=f"{rx['rxId']}_{bkey}",
-                                name="Πιθανή αλληλεπίδραση (ΠΧΠ συγχορηγούμενου §4.5)",
-                                check_type=CheckType.INTERACTIONS,
-                                status=AlertStatus.REVIEW,
-                                message=f"Η ΠΧΠ του {co_label} αναφέρει αλληλεπίδραση με {own_name or rx_atc}.",
-                                details="Αμφίδρομος έλεγχος ενότητας §4.5 του συγχορηγούμενου φαρμάκου.",
-                                recommended_action="Επιβεβαιώστε πριν τη χορήγηση.",
-                                rx_id=rx["rxId"],
-                                created_at=datetime.now(UTC),
-                            )
-                        )
-
                 # 4d. §4.2 SPC daily dose compatibility & ΔΙΑΡΚΕΙΑ / box sufficiency.
                 checks.extend(
                     _check_spc_dosage_and_duration(
-                        rx["rxId"], rx_atc, med if isinstance(med, dict) else {}, spc, seen
+                        rx["rxId"],
+                        rx_atc,
+                        med if isinstance(med, dict) else {},
+                        spc,
+                        seen,
+                        line_idx=med_idx,
                     )
                 )
+
+            # Bidirectional §4.5: check co-medications' own SPCs even if Rx drug has no SPC.
+            if line_co_atcs:
+                rx_terms = {t for t in (inn_names.get(rx_atc), own_name) if t}
+                for co_atc in sorted(line_co_atcs):
+                    co_spc = await _cached_spc(co_atc)
+                    if not co_spc:
+                        continue
+                    co_inter = co_spc.get("interactionsText") or ""
+                    co_struct = co_spc.get("majorInteractions") or []
+                    if not (co_inter or co_struct):
+                        continue
+                    rev_hit = any(
+                        _text_mentions(co_inter, t)
+                        or any(_text_mentions(str(p.get("drug", "")), t) for p in co_struct)
+                        for t in rx_terms
+                    ) or bool(_match_atc_class_in_text(rx_atc, co_inter, co_struct))
+                    if not rev_hit:
+                        continue
+                    interaction_screened = True
+                    co_label = inn_names.get(co_atc) or co_spc.get("drugName") or co_atc
+                    bkey = f"SPC_BIDIR_{co_atc[:4]}_{rx_atc[:4]}"
+                    if bkey in seen:
+                        continue
+                    seen.add(bkey)
+                    interaction_fired = True
+                    checks.append(
+                        SafetyAlertPayload(
+                            id=f"{rx['rxId']}_{bkey}",
+                            name="Πιθανή αλληλεπίδραση (ΠΧΠ συγχορηγούμενου §4.5)",
+                            check_type=CheckType.INTERACTIONS,
+                            status=AlertStatus.REVIEW,
+                            message=f"Η ΠΧΠ του {co_label} αναφέρει αλληλεπίδραση με {own_name or rx_atc}.",
+                            details="Αμφίδρομος έλεγχος ενότητας §4.5 του συγχορηγούμενου φαρμάκου.",
+                            recommended_action="Επιβεβαιώστε πριν τη χορήγηση.",
+                            rx_id=rx["rxId"],
+                            created_at=datetime.now(UTC),
+                        )
+                    )
 
     # --- Positive confirmations (verbose review path) ---
     # For each screening path that RAN WITH DATA and stayed clean, add a green
@@ -825,24 +840,25 @@ async def evaluate_safety(
     return SafetyChecksPayload(rx_id=rx["rxId"], checks=checks, source="engine")
 
 
-_DOSE_RE = re.compile(r"(\d+(?:[.,]\d+)?)\s*(mg|g|mcg|μg)\b", re.IGNORECASE)
+_UNIT_PAT = r"(mg|g|mcg|μg|µg|micrograms?)"
+_DOSE_RE = re.compile(rf"(\d+(?:[.,]\d+)?)\s*{_UNIT_PAT}\b", re.IGNORECASE)
 _DURATION_RE = re.compile(
-    r"(\d+)\s*(days?|weeks?|months?|ημέρ\w*|εβδομάδ\w*|μήν\w*)", re.IGNORECASE
+    r"(\d+)\s*(days?|weeks?|months?|ημερ\w*|εβδομαδ\w*|μην\w*)", re.IGNORECASE
 )
 _SPC_MAX_RE = re.compile(
-    r"(?:maximum(?:\s+recommended)?(?:\s+daily)?\s+dose|not\s+exceed|μέγιστη(?:\s+ημερήσια)?\s+δόση)"
-    r"[^.\n]{0,50}?(\d+(?:[.,]\d+)?)\s*(mg|g|mcg|μg)\b",
+    rf"(?:maximum(?:\s+recommended)?(?:\s+daily)?\s+dose|not\s+exceed|μέγιστη(?:\s+ημερήσια)?\s+δόση)"
+    rf"[^.\n]{{0,50}}?(\d+(?:[.,]\d+)?)\s*{_UNIT_PAT}\b(?!\s*/\s*kg)",
     re.IGNORECASE,
 )
 _SPC_RANGE_RE = re.compile(
-    r"(?:daily|per\s+day|a\s+day|ημερήσι\w*)[^.\n]{0,60}?"
-    r"(\d+(?:[.,]\d+)?)\s*(?:to|–|-)\s*(\d+(?:[.,]\d+)?)\s*(mg|g|mcg|μg)\b"
-    r"|(\d+(?:[.,]\d+)?)\s*(?:to|–|-)\s*(\d+(?:[.,]\d+)?)\s*(mg|g|mcg|μg)\s*"
-    r"(?:daily|per\s+day|a\s+day|once\s+daily|in\s+divided\s+doses|ημερησίως)",
+    rf"(?:daily|per\s+day|a\s+day|ημερήσι\w*)[^.\n]{{0,60}}?"
+    rf"(\d+(?:[.,]\d+)?)\s*(?:to|–|-)\s*(\d+(?:[.,]\d+)?)\s*{_UNIT_PAT}\b(?!\s*/\s*kg)"
+    rf"|(\d+(?:[.,]\d+)?)\s*(?:to|–|-)\s*(\d+(?:[.,]\d+)?)\s*{_UNIT_PAT}\b(?!\s*/\s*kg)\s*"
+    rf"(?:daily|per\s+day|a\s+day|once\s+daily|in\s+divided\s+doses|ημερησίως)",
     re.IGNORECASE,
 )
 _SPC_PER_DOSE_FREQ_RE = re.compile(
-    r"(\d+(?:[.,]\d+)?)\s*(mg|g|mcg|μg)\s*(once|twice|2\s+times|three\s+times|3\s+times)\s*daily",
+    rf"(\d+(?:[.,]\d+)?)\s*{_UNIT_PAT}\b(?!\s*/\s*kg)\s*(once|twice|2\s+times|three\s+times|3\s+times)\s*daily",
     re.IGNORECASE,
 )
 
@@ -852,28 +868,30 @@ def _to_mg(raw_val: str, unit: str) -> float:
     u = unit.lower()
     if u == "g":
         return val * 1000.0
-    if u in ("mcg", "μg"):
+    if u in ("mcg", "μg", "\u00b5g", "microgram", "micrograms"):
         return val / 1000.0
     return val
 
 
 def _parse_freq_per_day(freq: str) -> float | None:
-    s = freq.strip().lower()
+    s = _fold(freq)
     if not s:
         return None
-    if any(k in s for k in ("once", "1x", "q24h", "μία φορά", "άπαξ")):
+    if any(k in s for k in ("weekly", "per week", "a week", "month", "εβδομαδ", "μην")):
+        return None
+    if re.search(r"\b(once|1x|q24h|od|μια φορα|απαξ)\b", s):
         return 1.0
-    if any(k in s for k in ("twice", "2x", "bid", "bd", "q12h", "δύο φορές")):
+    if re.search(r"\b(twice|2x|bid|bd|q12h|δυο φορες)\b", s):
         return 2.0
-    if any(k in s for k in ("three times", "3x", "tid", "q8h", "every 8 h", "τρεις φορές", "ανά 8 ώρες")):
+    if re.search(r"\b(three times|3x|tid|q8h|τρεις φορες)\b", s) or "every 8 h" in s or "ανα 8 ωρ" in s:
         return 3.0
-    if any(k in s for k in ("four times", "4x", "qid", "q6h", "every 6 h", "τέσσερις φορές", "ανά 6 ώρες")):
+    if re.search(r"\b(four times|4x|qid|q6h|τεσσερις φορες)\b", s) or "every 6 h" in s or "ανα 6 ωρ" in s:
         return 4.0
-    m = re.search(r"every\s+(\d+)\s*h|ανά\s+(\d+)\s*ώρ", s)
+    m = re.search(r"every\s+(\d+)\s*h|ανα\s+(\d+)\s*ωρ", s)
     if m:
         hours = int(m.group(1) or m.group(2))
         return 24.0 / hours if hours > 0 else None
-    m = re.search(r"(\d+)\s*(?:times|x)\s*(?:daily|a\s+day|per\s+day)", s)
+    m = re.search(r"\b(\d+)\s*(?:times|x|φορες)\s*(?:daily|a\s+day|per\s+day|την\s+ημερα|ημερησιως)\b", s)
     if m:
         return float(m.group(1))
     return None
@@ -916,20 +934,35 @@ def _parse_spc_daily_bounds_mg(spc: dict) -> tuple[float | None, float | None]:
 
 
 def _parse_duration_days(duration: str) -> int | None:
-    m = _DURATION_RE.search(duration or "")
+    m = _DURATION_RE.search(_fold(duration or ""))
     if not m:
         return None
     n = int(m.group(1))
     unit = m.group(2).lower()
-    if unit.startswith(("week", "εβδομάδ")):
+    if unit.startswith(("week", "εβδομαδ")):
         return n * 7
-    if unit.startswith(("month", "μήν")):
+    if unit.startswith(("month", "μην")):
         return n * 30
     return n
 
 
+def _safe_int(val: object) -> int | None:
+    if isinstance(val, bool) or val is None:
+        return None
+    if isinstance(val, int):
+        return val
+    if isinstance(val, str) and val.strip().isdigit():
+        return int(val.strip())
+    return None
+
+
 def _check_spc_dosage_and_duration(
-    rx_id: str, rx_atc: str, med: dict, spc: dict, seen: set[str]
+    rx_id: str,
+    rx_atc: str,
+    med: dict,
+    spc: dict,
+    seen: set[str],
+    line_idx: int = 0,
 ) -> list[SafetyAlertPayload]:
     """Verify prescribed daily dose against SPC §4.2 and supply against ΔΙΑΡΚΕΙΑ."""
     alerts: list[SafetyAlertPayload] = []
@@ -937,7 +970,7 @@ def _check_spc_dosage_and_duration(
     min_mg, max_mg = _parse_spc_daily_bounds_mg(spc)
 
     if daily_mg is not None and max_mg is not None:
-        dkey = f"SPC_DOSE_{rx_atc[:4]}"
+        dkey = f"SPC_DOSE_{rx_atc}_{line_idx}"
         if dkey not in seen:
             seen.add(dkey)
             if daily_mg > max_mg:
@@ -946,11 +979,11 @@ def _check_spc_dosage_and_duration(
                         id=f"{rx_id}_{dkey}_HIGH",
                         name="Η ημερήσια δόση υπερβαίνει το όριο της ΠΧΠ",
                         check_type=CheckType.DOSE_VALIDATION,
-                        status=AlertStatus.BLOCK,
-                        severity=AdrSeverity.SEVERE,
-                        message=f"Συνταγογραφούμενη δόση {daily_mg:g} mg/ημέρα > μέγιστο ΠΧΠ {max_mg:g} mg/ημέρα.",
-                        details="Έλεγχος συμβατότητας δοσολογίας με την ενότητα §4.2 της ΠΧΠ.",
-                        recommended_action="Μην εκτελέσετε χωρίς επιβεβαίωση/διόρθωση από τον συνταγογράφο.",
+                        status=AlertStatus.REVIEW,
+                        severity=AdrSeverity.MODERATE,
+                        message=f"Συνταγογραφούμενη δόση {daily_mg:g} mg/ημέρα > όριο ΠΧΠ {max_mg:g} mg/ημέρα.",
+                        details="Έλεγχος συμβατότητας δοσολογίας με την ενότητα §4.2 της ΠΧΠ (π.χ. δόση εφόδου vs συντήρησης).",
+                        recommended_action="Επιβεβαιώστε τη δόση με βάση την ένδειξη/ΠΧΠ πριν την εκτέλεση.",
                         rx_id=rx_id,
                         created_at=datetime.now(UTC),
                     )
@@ -984,15 +1017,18 @@ def _check_spc_dosage_and_duration(
 
     days = _parse_duration_days(str(med.get("treatmentDuration") or ""))
     if days is not None and freq is not None:
-        qkey = f"SPC_QTY_{rx_atc[:4]}"
+        qkey = f"SPC_QTY_{rx_atc}_{line_idx}"
         if qkey not in seen:
             seen.add(qkey)
             needed = int(round(days * freq))
-            supplied = med.get("quantity")
-            if supplied is None and med.get("boxes") is not None and med.get("packSize") is not None:
-                supplied = int(med["boxes"]) * int(med["packSize"])
+            supplied = _safe_int(med.get("quantity"))
+            if supplied is None:
+                boxes = _safe_int(med.get("boxes"))
+                pack_size = _safe_int(med.get("packSize"))
+                if boxes is not None and pack_size is not None:
+                    supplied = boxes * pack_size
             if supplied is not None:
-                if int(supplied) < needed:
+                if supplied < needed:
                     alerts.append(
                         SafetyAlertPayload(
                             id=f"{rx_id}_{qkey}_SHORT",
@@ -1036,35 +1072,36 @@ def _check_spc_dosage_and_duration(
 
 
 _ATC_CLASS_TERMS: tuple[tuple[str, tuple[str, ...]], ...] = (
-    ("M01A", ("nsaid", "nsaids", "μη στεροειδή αντιφλεγμονώδη")),
-    ("N06AB", ("ssri", "ssris", "antidepressant", "αντικαταθλιπτικά")),
-    ("N06AX", ("snri", "snris", "antidepressant", "αντικαταθλιπτικά")),
-    ("J01FA", ("macrolide", "macrolides", "μακρολίδ")),
-    ("J01MA", ("fluoroquinolone", "quinolone", "κινολόν")),
-    ("J02AC", ("azole", "antifungal", "αζόλ")),
-    ("C10AA", ("statin", "statins", "στατίν")),
-    ("C10AB", ("fibrate", "fibrates", "φιβράτ")),
-    ("B01AB", ("heparin", "heparins", "ηπαρίν")),
+    ("M01A", ("nsaid", "nsaids", "μη στεροειδη αντιφλεγμονωδη")),
+    ("N06AB", ("ssri", "ssris", "antidepressant", "antidepressants", "αντικαταθλιπτικα")),
+    ("N06AX", ("snri", "snris", "antidepressant", "antidepressants", "αντικαταθλιπτικα")),
+    ("J01FA", ("macrolide", "macrolides", "μακρολιδες")),
+    ("J01MA", ("fluoroquinolone", "fluoroquinolones", "quinolone", "quinolones", "κινολονες")),
+    ("J02AC", ("azole antifungal", "azole antifungals", "antifungal", "antifungals")),
+    ("C10AA", ("statin", "statins", "στατινες")),
+    ("C10AB", ("fibrate", "fibrates", "φιβρατες")),
+    ("B01AB", ("heparin", "heparins", "ηπαρινη")),
     ("B01AE", ("thrombin inhibitor", "dabigatran", "bivalirudin")),
     ("B01AF", ("rivaroxaban", "apixaban", "factor xa")),
-    ("C03CA", ("loop diuretic", "diuretic", "διουρητικ")),
-    ("C09AA", ("ace inhibitor", "angiotensin", "α-μετατρεπτικού")),
-    ("C09CA", ("angiotensin", "ανταγωνιστές υποδοχέων αγγειοτενσίνης")),
-    ("A02BC", ("proton pump inhibitor", "ppi", "αναστολείς αντλίας πρωτονίων")),
-    ("B01AA", ("anticoagulant", "vitamin k antagonist", "αντιπηκτικ")),
+    ("C03CA", ("loop diuretic", "loop diuretics", "diuretics", "διουρητικα")),
+    ("C09AA", ("ace inhibitor", "ace inhibitors")),
+    ("C09CA", ("angiotensin ii receptor", "ανταγωνιστες υποδοχεων αγγειοτενσινης")),
+    ("A02BC", ("proton pump inhibitor", "proton pump inhibitors", "ppi", "ppis", "αναστολεις αντλιας πρωτονιων")),
+    ("B01AA", ("anticoagulant", "anticoagulants", "vitamin k antagonist", "αντιπηκτικα")),
 )
 
 
 def _match_atc_class_in_text(
     atc_code: str, inter_text: str, struct_inter: list
 ) -> str | None:
-    """Return the first matching pharmacological class keyword in §4.5 text."""
+    """Return the first matching pharmacological class keyword in §4.5 text (word-boundary)."""
+    folded_inter = _fold(inter_text)
+    folded_struct = [_fold(str(p.get("drug", ""))) for p in struct_inter]
     for prefix, keywords in _ATC_CLASS_TERMS:
         if not atc_code.startswith(prefix):
             continue
         for kw in keywords:
-            if _text_mentions(inter_text, kw) or any(
-                _text_mentions(str(p.get("drug", "")), kw) for p in struct_inter
-            ):
+            pat = re.compile(rf"(?<!\w){re.escape(kw)}(?!\w)")
+            if pat.search(folded_inter) or any(pat.search(s) for s in folded_struct):
                 return kw
     return None

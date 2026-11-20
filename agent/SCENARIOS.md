@@ -20,7 +20,7 @@ All scenarios below are wired to the Electron overlay agent (`agent/`). You can 
 | `⌘/Ctrl + Alt + 7` | `RX2024-012` | Eleni Markou (61) | **Warfarin** 1 mg · Once daily · 30 days (1 box × 30) | **`REVIEW`** (Dose below SPC min: 1 mg/day < 3 mg SPC) + **`OK`** (30 units covers 30 days) |
 | `⌘/Ctrl + Alt + 8` | `RX2024-013` | Petros Nikolopoulos (72) | **Warfarin** 10 mg · Twice daily · 30 days (2 boxes × 30) | **`BLOCK`** (Dose exceeds SPC max: 20 mg/day > 9 mg SPC) + **`OK`** (60 units covers 30 days) |
 
-> **Note:** Slots `6–8` (`RX2024-011`, `RX2024-012`, `RX2024-013`) are evaluated live by `safety_engine.py` against the ingested Warfarin HPRA SPC PDF in PostgreSQL (`spc_documents`), rather than static mock alerts.
+> **Note:** Slots `6–8` (`RX2024-011`, `RX2024-012`, `RX2024-013`) are evaluated live by `safety_engine.py` against the ingested Warfarin HPRA SPC PDF in PostgreSQL (`spc_documents`), rather than static mock alerts. Run `python -m scripts.import_spc_dir` in `backend/` first so the ingested PDFs are present (otherwise `MOCK_SPC` is used as fallback).
 
 ---
 

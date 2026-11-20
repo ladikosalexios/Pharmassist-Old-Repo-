@@ -156,7 +156,7 @@ _AFTER_OPENING_RE = re.compile(
     r"after (?:first )?opening|reconstitut|once opened",
     re.IGNORECASE,
 )
-_FOOD_RE = re.compile(r"τροφή|φαγητό|γεύμα|φαγητ|δίαιτα|food|meal|diet|φαγώσιμ", re.IGNORECASE)
+_FOOD_RE = re.compile(r"τροφή|φαγητό|γεύμα|φαγητ|food|meal|φαγώσιμ", re.IGNORECASE)
 _SENTENCE_SPLIT_RE = re.compile(r"(?<=[.;·])\s+")
 
 _MAX_LIST_ITEMS = 12

@@ -30,27 +30,34 @@ async def import_manifest(manifest_path: Path) -> int:
     failures = 0
 
     async with AsyncSessionLocal() as db:
-        for item in items:
-            pdf_path = base_dir / item["file"]
-            if not pdf_path.is_file():
-                print(f"MISSING  {item['atc_code']} | {pdf_path}", file=sys.stderr)
+        for idx, item in enumerate(items):
+            try:
+                fname = item["file"]
+                atc_code = item["atc_code"]
+                pdf_path = base_dir / fname
+                if not pdf_path.is_file():
+                    print(f"MISSING  {atc_code} | {pdf_path}", file=sys.stderr)
+                    failures += 1
+                    continue
+
+                doc = await ingest_pdf_bytes(
+                    db,
+                    pdf=pdf_path.read_bytes(),
+                    source=item.get("source", "upload"),
+                    doc_type=item.get("doc_type", "spc"),
+                    atc_code=atc_code,
+                    barcode=item.get("barcode"),
+                    source_url=item.get("source_url"),
+                    language=item.get("language", "en"),
+                )
+            except (KeyError, ValueError, OSError) as exc:
+                print(f"ERROR    entry[{idx}]: {exc}", file=sys.stderr)
                 failures += 1
                 continue
-
-            doc = await ingest_pdf_bytes(
-                db,
-                pdf=pdf_path.read_bytes(),
-                source=item.get("source", "upload"),
-                doc_type=item.get("doc_type", "spc"),
-                atc_code=item["atc_code"],
-                barcode=item.get("barcode"),
-                source_url=item.get("source_url"),
-                language=item.get("language", "en"),
-            )
             sections = len(doc.sections or {})
             print(
                 f"{doc.parse_status.upper():7s}  {doc.atc_code:8s} | "
-                f"{item['file']} | sections={sections} | id={doc.id}"
+                f"{fname} | sections={sections} | id={doc.id}"
             )
             if doc.parse_status == "failed":
                 failures += 1

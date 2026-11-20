@@ -65,9 +65,6 @@ services:
       ENV: development
       SECRET_KEY: dev-secret-key-not-for-production
       CREDENTIAL_ENCRYPTION_KEY: ${CREDENTIAL_ENCRYPTION_KEY:-AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=}
-      PHARMAPI_USERNAME: medcare1pharmapi
-      PHARMAPI_PASSWORD: "Equation8-Erased2-Drainer1-Escalate6"
-      PHARMAPI_API_KEY: pi2jwygkd07yho3a4dw6jc55tg5ra3uc
       PHARMAPI_MOCK: ${PHARMAPI_MOCK:-true}
       LLM_MOCK: "true"
       YELLOW_CARDS_MODE: ${YELLOW_CARDS_MODE:-local_capture}
@@ -79,7 +76,7 @@ services:
     image: axllent/mailpit:v1.27.4
     restart: unless-stopped
     ports:
-      - "8025:8025"
+      - "127.0.0.1:8025:8025"
   db:
     image: postgres:16-alpine
     restart: unless-stopped
